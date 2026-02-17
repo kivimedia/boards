@@ -56,9 +56,13 @@ export default function BoardSwitcher({ currentBoardId, onClose }: BoardSwitcher
   useEffect(() => {
     const fetchBoards = async () => {
       try {
-        const res = await fetch('/api/boards');
-        if (!res.ok) { setLoading(false); return; }
-        const { data } = await res.json();
+        const [boardsRes, countsRes] = await Promise.all([
+          fetch('/api/boards'),
+          fetch('/api/boards/counts'),
+        ]);
+        if (!boardsRes.ok) { setLoading(false); return; }
+        const { data } = await boardsRes.json();
+        const counts: Record<string, number> = countsRes.ok ? await countsRes.json() : {};
         if (data) {
           // Sort: starred first, then by name. Filter out archived.
           const sorted = (data as Board[])
@@ -67,7 +71,7 @@ export default function BoardSwitcher({ currentBoardId, onClose }: BoardSwitcher
               if (a.is_starred !== b.is_starred) return a.is_starred ? -1 : 1;
               return a.name.localeCompare(b.name);
             })
-            .map((b: Board) => ({ ...b, card_count: 0 }));
+            .map((b: Board) => ({ ...b, card_count: counts[b.id] ?? 0 }));
           setBoards(sorted);
         }
       } catch {
@@ -125,14 +129,6 @@ export default function BoardSwitcher({ currentBoardId, onClose }: BoardSwitcher
   const filtered = boards.filter(
     (b) => b.name.toLowerCase().includes(search.toLowerCase()) || b.type.toLowerCase().includes(search.toLowerCase())
   );
-
-  // Group by type
-  const grouped = filtered.reduce<Record<string, typeof boards>>((acc, board) => {
-    const key = formatBoardType(board.type);
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(board);
-    return acc;
-  }, {});
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
@@ -218,7 +214,7 @@ export default function BoardSwitcher({ currentBoardId, onClose }: BoardSwitcher
           />
         </div>
 
-        {/* Board list */}
+        {/* Board list - flat 3-col grid */}
         <div className="flex-1 overflow-y-auto p-2">
           {loading ? (
             <div className="flex items-center justify-center py-8">
@@ -227,59 +223,53 @@ export default function BoardSwitcher({ currentBoardId, onClose }: BoardSwitcher
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
               </svg>
             </div>
-          ) : Object.keys(grouped).length === 0 ? (
+          ) : filtered.length === 0 ? (
             <p className="text-center text-sm text-navy/40 dark:text-slate-500 py-8 font-body">No boards found</p>
           ) : (
-            Object.entries(grouped).map(([type, typeBoards]) => (
-              <div key={type} className="mb-4">
-                <p className="text-xs font-semibold text-navy/40 dark:text-slate-500 uppercase tracking-wider px-1 py-1 font-body">
-                  {type}
-                </p>
-                <div className="grid grid-cols-3 gap-2">
-                  {typeBoards.map((board) => (
-                    <button
-                      key={board.id}
-                      onClick={() => {
-                        if (board.id !== currentBoardId) {
-                          router.push(`/board/${board.id}`);
-                        }
-                        onClose();
-                      }}
-                      className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all text-center ${
-                        board.id === currentBoardId
-                          ? 'bg-electric/10 dark:bg-electric/20 border border-electric/30'
-                          : 'bg-cream/50 dark:bg-slate-800/50 border border-cream-dark/50 dark:border-slate-700/50 hover:bg-cream-dark/50 dark:hover:bg-slate-800 hover:border-electric/20'
-                      }`}
-                    >
-                      {/* Board icon */}
-                      <div
-                        className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold"
-                        style={{ backgroundColor: board.background_color || '#6366f1' }}
-                      >
-                        {getBoardIcon(board.type)}
-                      </div>
+            <div className="grid grid-cols-3 gap-2">
+              {filtered.map((board) => (
+                <button
+                  key={board.id}
+                  onClick={() => {
+                    if (board.id !== currentBoardId) {
+                      router.push(`/board/${board.id}`);
+                    }
+                    onClose();
+                  }}
+                  className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all text-center ${
+                    board.id === currentBoardId
+                      ? 'bg-electric/10 dark:bg-electric/20 border border-electric/30'
+                      : 'bg-cream/50 dark:bg-slate-800/50 border border-cream-dark/50 dark:border-slate-700/50 hover:bg-cream-dark/50 dark:hover:bg-slate-800 hover:border-electric/20'
+                  }`}
+                >
+                  {/* Board icon */}
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold"
+                    style={{ backgroundColor: board.background_color || '#6366f1' }}
+                  >
+                    {getBoardIcon(board.type)}
+                  </div>
 
-                      <div className="min-w-0 w-full">
-                        <div className="flex items-center justify-center gap-1">
-                          <span className="text-xs font-medium text-navy dark:text-white truncate font-body">
-                            {board.name}
-                          </span>
-                          {board.is_starred && (
-                            <svg className="w-3 h-3 text-yellow-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                            </svg>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-navy/40 dark:text-slate-500 font-body">
-                          {board.card_count} cards
-                          {board.id === currentBoardId && <span className="text-electric ml-1">Current</span>}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))
+                  <div className="min-w-0 w-full">
+                    <div className="flex items-center justify-center gap-1">
+                      <span className="text-xs font-medium text-navy dark:text-white truncate font-body">
+                        {board.name}
+                      </span>
+                      {board.is_starred && (
+                        <svg className="w-3 h-3 text-yellow-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                        </svg>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-navy/40 dark:text-slate-500 font-body">
+                      <span className="px-1 py-px rounded bg-cream-dark/60 dark:bg-slate-700/60 mr-1">{formatBoardType(board.type)}</span>
+                      {board.card_count} cards
+                      {board.id === currentBoardId && <span className="text-electric ml-1">Current</span>}
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
           )}
         </div>
       </div>

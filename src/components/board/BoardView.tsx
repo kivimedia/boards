@@ -35,7 +35,7 @@ interface BoardViewProps {
 }
 
 export default function BoardView({ boardId, boardName, initialBoard, initialTimings }: BoardViewProps) {
-  const { board, loading, refresh } = useBoard(boardId, initialBoard);
+  const { board, loading, isPlaceholderData, refresh } = useBoard(boardId, initialBoard);
   const searchParams = useSearchParams();
   const mountTimeRef = useRef(performance.now());
   const renderTrackedRef = useRef(false);
@@ -211,6 +211,7 @@ export default function BoardView({ boardId, boardName, initialBoard, initialTim
             filter={hasActiveFilter ? filter : undefined}
             externalSelectedCardId={selectedCardId}
             onExternalCardClose={closeCard}
+            isLoadingCards={isPlaceholderData}
           />
         )}
         {viewMode === 'list' && <ListView lists={displayBoard.lists} boardId={boardId} />}
