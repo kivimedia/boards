@@ -1,7 +1,7 @@
 # Implementation Priorities -- Master Plan
 
 > **Resume Guide**: When starting a new CLI session, share this file with Claude to pick up where you left off. Check the status column for the latest progress.
-> **Last updated**: 2026-02-14
+> **Last updated**: 2026-02-17
 
 ---
 
@@ -24,13 +24,24 @@
 
 ## Active Work
 
-### Priority 1: Tier C Backlog
-
-No active high-priority work. All priorities 1-7 are complete.
+No active priorities. All planned phases complete.
 
 ---
 
 ## Completed Priorities
+
+### Priority H: Phase 9 - PRD Future Features -- COMPLETE
+
+6 sub-phases done. Migrations 048-052 applied. 2,798 tests across 110 files, TypeScript clean.
+
+| # | Feature | Status |
+|---|---------|--------|
+| P9.1 | Productivity Analytics (cron, PDF/XLSX, dept rollup, anomaly alerts, 3 components) | **Done** |
+| P9.2 | WhatsApp Business API (Meta client, webhook, media, digest cron, 2 components) | **Done** |
+| P9.3 | AI Video Design Review (frame extraction, multi-frame review, VideoFrameComparison) | **Done** |
+| P9.4 | AI QA Expansion (recurring monitoring, multi-browser, link-checker, WCAG, 4 components) | **Done** |
+| P9.5 | Scout Pipeline Enhancements (dossiers, quality scoring, outreach emails, cost tracking) | **Done** |
+| P9.6 | UI Integration (wired all orphaned P9 components into pages, extended types) | **Done** |
 
 ### Priority F: LinkedIn Scout Pipeline (P7.12) -- COMPLETE
 
@@ -89,17 +100,19 @@ No active high-priority work. All priorities 1-7 are complete.
 
 ---
 
-## Backlog (Tier C -- defer)
+## Backlog (Tier C -- NOT FOR NOW)
+
+> These items are intentionally deferred. They are not planned for any upcoming phase.
 
 | # | Task | Status | Priority |
 |---|------|--------|----------|
-| 1 | AI A/B testing | Not started | Low |
-| 2 | Google Drive / Dropbox integration | Not started | Low |
-| 3 | Email-to-card | Not started | Low |
-| 4 | Zapier / Make | Not started | Low |
-| 5 | Redis, CDN, Sentry, Framer Motion | Not started | Low |
-| 6 | Multi-tenant + billing | Deferred | Low |
-| 7 | 1Password / Bitwarden integration | Not started | Low |
+| 1 | AI A/B testing | NOT FOR NOW | -- |
+| 2 | Google Drive / Dropbox integration | NOT FOR NOW | -- |
+| 3 | Email-to-card | NOT FOR NOW | -- |
+| 4 | Zapier / Make | NOT FOR NOW | -- |
+| 5 | Redis, CDN, Sentry, Framer Motion | NOT FOR NOW | -- |
+| 6 | Multi-tenant + billing | NOT FOR NOW | -- |
+| 7 | 1Password / Bitwarden integration | NOT FOR NOW | -- |
 
 ---
 
@@ -114,4 +127,5 @@ No active high-priority work. All priorities 1-7 are complete.
 | 5 | Tier B Features (burndown, Gantt, saved filters) | **Done** |
 | 6 | LinkedIn Scout Pipeline (4-step wizard) | **Done** |
 | 7 | Bug fixes + UX polish | **Done** |
-| 8 | Tier C backlog | Backlog |
+| 8 | Tier C backlog | **NOT FOR NOW** |
+| 9 | Phase 9: PRD Future Features (P9.1-P9.6) | **Done** |

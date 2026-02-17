@@ -137,18 +137,18 @@
 
 | Metric | Count | Last Updated |
 |--------|-------|-------------|
-| SQL Migrations | 45 | 2026-02-14 |
-| API Routes | 270 | 2026-02-15 |
-| React Components | 198 | 2026-02-15 |
-| Page Routes | 39 | 2026-02-15 |
-| Lib Files | 73 | 2026-02-14 |
-| AI Modules (src/lib/ai/) | 25 | 2026-02-14 |
-| Hooks | 10 | 2026-02-14 |
-| Unit/Integration Tests | 2200 across 91 files | 2026-02-16 |
-| E2E Test Files | 13 | 2026-02-16 |
-| Component Domain Folders | 36 | 2026-02-14 |
-| App Route Groups | 21 | 2026-02-14 |
-| TypeScript Clean | YES | 2026-02-16 |
+| SQL Migrations | 52 | 2026-02-17 |
+| API Routes | 282 | 2026-02-17 |
+| React Components | 215 | 2026-02-17 |
+| Page Routes | 40 | 2026-02-17 |
+| Lib Files | 83 | 2026-02-17 |
+| AI Modules (src/lib/ai/) | 33 | 2026-02-17 |
+| Hooks | 11 | 2026-02-17 |
+| Unit/Integration Tests | 2798 across 110 files | 2026-02-17 |
+| E2E Test Files | 20 | 2026-02-17 |
+| Component Domain Folders | 38 | 2026-02-17 |
+| App Route Groups | 24 | 2026-02-17 |
+| TypeScript Clean | YES | 2026-02-17 |
 
 ---
 
@@ -161,28 +161,35 @@
 | P8.3 | Smart Search Bar with AI Bot (top center nav, keyword + AI mode, Create button) | v6.6.0 | YES | YES | YES | SmartSearchBar, /api/board-assistant, 36 search-mode + 6 assistant tests, 13 E2E tests (shared) |
 | P8.4 | Team Presence Bar with Sharing Controls (top right nav, avatars, share modal) | v6.6.0 | YES | YES | YES | ShareButton + ShareModal, 15 presence-utils tests, 13 E2E tests (shared) |
 | P8.5 | Bottom Navigation / View Switcher (floating tab bar, Inbox/Planner/Board/Switch views) | v6.5.0 | YES | YES | YES | BottomNavBar, InboxView, PlannerView, BoardSwitcher, 42 bottom-nav tests, 13 E2E tests (shared) |
+| P8.6 | Board AI Assistant Inline Charts (bar/pie/line SVG charts in AI responses) | v6.6.0 | YES | YES | -- | BoardChartRenderer, validateChartData(), 57 chart tests |
+| P8.7 | Nano Banana Image Gen Upgrade (Replicate FLUX, prompt enhancement, style presets, preview) | v6.7.0 | YES | YES | -- | Multi-provider (Gemini + FLUX), Claude Haiku prompt enhance, 6 style presets, inline preview + set as cover, 25 new tests |
+
+---
+
+## Phase 9: PRD Future Features (v7.0.0+)
+
+| # | Feature | Version | Coded | Tested | E2E | Notes |
+|---|---------|---------|-------|--------|-----|-------|
+| P9.1 | Team Productivity Analytics (cron, PDF/XLSX gen, dept rollup, anomaly alerts) | v7.1.0 | YES | YES | YES | Migration 048, 35 tests, cron + 3 API routes + 3 components + report generator. UI: AlertsBanner, ComparisonOverlay, RevisionDeepDive wired into /productivity page |
+| P9.2 | WhatsApp Business API (Meta API client, inbound webhook, media, auto-digest) | v7.2.0 | YES | YES | -- | Migration 049, 21 tests, whatsapp-business-api.ts + webhook route + digest cron + 2 components. UI: CustomActionBuilder + DigestTemplateEditor wired into /settings/whatsapp |
+| P9.3 | AI Design Review for Video (frame extraction, multi-frame review, thumbnail) | v7.3.0 | YES | YES | -- | Migration 050, 25 tests, VideoFrameComparison wired into CardModal AI Review tab (conditional on review_type=video) |
+| P9.4 | AI QA Expansion (recurring monitoring, multi-browser, link check, WCAG report) | v7.4.0 | YES | YES | -- | Migration 051, 49 tests, link-checker + WCAG mapping + monitoring cron + 4 components. UI: /settings/qa dashboard page with QATrendDashboard + LinkCheckResults |
+| P9.5 | Scout Pipeline Enhancements (research dossiers, quality scoring, outreach emails, cost tracking) | v7.5.0 | YES | YES | YES | Migration 052, 62 tests, 76 UI tests, 5 lib modules + 6 API routes + 5 components + /podcast/costs page |
+| P9.6 | Phase 9 UI Integration (wire orphaned components into pages) | v7.5.0 | YES | YES | -- | P9.1-P9.4 components wired into productivity, whatsapp, card modal, QA settings pages. AIReviewResult extended with video fields |
 
 ---
 
 ## Current Work
 
-**Phase 8 complete (all features coded + tested).** P8.1-P8.5 all coded and tested. 123 new unit tests + 13 E2E tests. Total: 2,200 unit tests across 91 files, 13 E2E spec files. TypeScript clean, all tests pass.
+**Phase 9 complete (P9.1-P9.6).** All backend modules, migrations, tests, and UI integration done.
 
-### P7.12 Scout Pipeline - Detailed Status
+- P9.1: Productivity analytics cron + alerts + reports (35 tests). UI wired: AlertsBanner, ComparisonOverlay, RevisionDeepDive into /productivity
+- P9.2: WhatsApp Business API + digest cron (21 tests). UI wired: CustomActionBuilder, DigestTemplateEditor into /settings/whatsapp
+- P9.3: Video design review pipeline (25 tests). UI wired: VideoFrameComparison into CardModal AI Review tab
+- P9.4: QA monitoring expansion (49 tests). UI wired: QATrendDashboard + LinkCheckResults into new /settings/qa page
+- P9.5: Scout pipeline enhancements (62 + 76 UI tests). Research dossiers, quality scoring, outreach emails, cost tracking
+- P9.6: UI integration pass -- wired all orphaned P9 components into their pages
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| Migration 045 (DB schema) | DONE | `current_step` column, `awaiting_input` status, `scout_config` service. **Needs SQL editor apply.** |
-| Type definitions | DONE | `LinkedInSuggestion`, `EnrichedProfile`, `FullCandidateProfile`, `ScoutConfig` in types.ts |
-| Fire-and-forget scout agent | DONE | `podcast-scout.ts` - two-phase web search + JSON extraction |
-| Scout config DB seed | DONE | Default query/location/tool_focus seeded in `pga_integration_configs` |
-| ScoutWizard.tsx | DONE | 826-line 4-step interactive wizard with resume, selection, SSE streaming |
-| Step-specific API endpoints | DONE | `scout/route.ts` (create/get), `scout/[runId]/step/route.ts` (SSE per step), `scout/config/route.ts` |
-| Pause/resume (awaiting_input) | DONE | `current_step` tracking, `awaiting_input` status, auto-resume on mount |
-| Snov.io v2 enrichment (Step 2) | DONE | `enrichLinkedInProfiles()` in email-discovery.ts, `/v2/li-profiles-by-urls` start+poll |
-| AI deep research (Step 3) | DONE | Per-candidate web search via `web_search_20250305`, JSON profile extraction |
-| Scout config settings UI | DONE | `scout_config` service in PodcastIntegrationSettings with query/location/tools/max fields |
-| Scout page | DONE | `/podcast/scout` page with Sidebar + Header + ScoutWizard |
+**Total: 2,798 unit tests across 110 files. TypeScript clean (zero errors).**
 
-### Pending User Actions
-- Run Migration 044 + 045 SQL in Supabase SQL Editor (see CLAUDE.md for SQL)
+**All migrations applied** (044, 045, 048, 049a, 049b, 050, 051, 052) to Supabase production on 2026-02-17.

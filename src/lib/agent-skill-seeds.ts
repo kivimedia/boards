@@ -723,6 +723,49 @@ export const SKILL_SEEDS: SkillSeed[] = [
     color: '#D946EF',
     sort_order: 15,
   },
+
+  // =========================================================================
+  // WEB RESEARCH SKILL
+  // =========================================================================
+  {
+    slug: 'web-research',
+    name: 'Web Research Agent',
+    description: 'Autonomous web research agent that can browse websites, extract content, check links, and gather competitive intelligence. Uses Browserless for page rendering and Claude for decision-making.',
+    category: 'strategy',
+    pack: 'skills',
+    quality_tier: 'solid',
+    quality_score: 70,
+    quality_notes: 'Functional web research agent with multi-tool browsing capabilities. Can navigate sites, scrape elements, take screenshots, and check link health. Limited by Browserless API availability.',
+    strengths: [
+      'Autonomous browsing loop with up to 15 iterations',
+      '5 research tools: navigate, scrape, screenshot, check_link, web_search',
+      '6 task-specific prompts for different research types',
+      'Domain allowlist for safety',
+      'Cost tracking for both AI and browser usage',
+    ],
+    weaknesses: [
+      'Requires Browserless API key configuration',
+      'No form submission or login capabilities',
+      'Content extraction quality depends on page structure',
+    ],
+    improvement_suggestions: [
+      'Add caching for recently visited pages',
+      'Support for PDF extraction',
+      'Integration with board card attachments for screenshots',
+    ],
+    supported_tools: ['navigate_and_extract', 'scrape_elements', 'take_screenshot', 'check_link', 'web_search'],
+    required_context: [],
+    output_format: 'Structured research report with extracted items, source URLs, and optional screenshots',
+    estimated_tokens: 4000,
+    depends_on: [],
+    feeds_into: ['seo-content', 'brand-voice'],
+    requires_mcp_tools: [],
+    fallback_behavior: 'Falls back to web_search only if Browserless is not configured. Can still produce research using search results.',
+    reference_docs: [],
+    icon: '🔍',
+    color: '#0EA5E9',
+    sort_order: 16,
+  },
 ];
 
 // ============================================================================

@@ -203,6 +203,19 @@ export default function CardAgentTasksPanel({ cardId }: Props) {
                 if (outputRef.current) {
                   outputRef.current.scrollTop = outputRef.current.scrollHeight;
                 }
+              } else if (currentEvent === 'tool_call') {
+                // Show tool call indicator in output
+                accumulated += `\n[Tool: ${data.name}] `;
+                setStreamingOutput(accumulated);
+              } else if (currentEvent === 'tool_result') {
+                accumulated += data.success ? 'done' : 'failed';
+                accumulated += '\n';
+                setStreamingOutput(accumulated);
+              } else if (currentEvent === 'thinking') {
+                // Brief indicator
+              } else if (currentEvent === 'confirm') {
+                accumulated += `\n[Confirmation needed: ${data.message}]\n`;
+                setStreamingOutput(accumulated);
               } else if (currentEvent === 'complete') {
                 setTasks(prev => prev.map(t =>
                   t.id === taskId

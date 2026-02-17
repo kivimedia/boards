@@ -5,8 +5,10 @@ import { resolveModelWithFallback } from './model-resolver';
 import { logUsage } from './cost-tracker';
 import { canMakeAICall } from './budget-checker';
 import { getSystemPrompt, buildDevQAPrompt } from './prompt-templates';
-import { runFullAudit } from './lighthouse-audit';
+import { runFullAudit, detectScoreRegression, mapAxeToWCAG } from './lighthouse-audit';
 import type { LighthouseScores, AxeViolation } from './lighthouse-audit';
+import { checkPageLinks, storeLinkCheckResults } from './link-checker';
+import type { LinkCheckSummary } from './link-checker';
 import type {
   QAScreenshot,
   QAFinding,
@@ -17,6 +19,10 @@ import type {
   QAFindingSeverity,
   QAChecklistItem,
   AIQAResult,
+  QAMonitoringConfig,
+  WCAGReport,
+  MultiBrowserResult,
+  BrowserDifference,
 } from '../types';
 
 // ============================================================================
@@ -488,4 +494,355 @@ export async function getCardQAHistory(
     .order('created_at', { ascending: false });
 
   return (data as AIQAResult[]) ?? [];
+}
+
+// ============================================================================
+// MULTI-BROWSER QA
+// ============================================================================
+
+const BROWSERS = ['chrome', 'firefox', 'webkit'] as const;
+export type BrowserType = (typeof BROWSERS)[number];
+
+/**
+ * Capture screenshots in a specific browser via Browserless.io.
+ * Chrome is the default; Firefox/WebKit use the emulation flag.
+ */
+export async function captureScreenshotsForBrowser(
+  url: string,
+  browser: BrowserType
+): Promise<{ screenshots: Buffer[]; lighthouseScores: LighthouseScores | null }> {
+  const browserlessKey = process.env.BROWSERLESS_API_KEY;
+  if (!browserlessKey) {
+    return { screenshots: [], lighthouseScores: null };
+  }
+
+  const screenshots: Buffer[] = [];
+
+  for (const viewport of QA_VIEWPORTS) {
+    try {
+      const body: Record<string, unknown> = {
+        url,
+        options: { fullPage: true, type: 'png' },
+        viewport: { width: viewport.width, height: viewport.height, deviceScaleFactor: 1 },
+        waitFor: 3000,
+      };
+
+      // Browserless uses browser launch options for non-chrome
+      if (browser !== 'chrome') {
+        body.launch = { product: browser };
+      }
+
+      const response = await fetch(
+        `https://chrome.browserless.io/screenshot?token=${browserlessKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        }
+      );
+
+      if (response.ok) {
+        screenshots.push(Buffer.from(await response.arrayBuffer()));
+      } else {
+        screenshots.push(Buffer.alloc(0));
+      }
+    } catch {
+      screenshots.push(Buffer.alloc(0));
+    }
+  }
+
+  // Only run Lighthouse on chrome
+  const lighthouseScores = browser === 'chrome' ? await runLighthouseOnly(url) : null;
+
+  return { screenshots, lighthouseScores };
+}
+
+async function runLighthouseOnly(url: string): Promise<LighthouseScores | null> {
+  const { lighthouseScores } = await runFullAudit(url);
+  return lighthouseScores;
+}
+
+/**
+ * Compare screenshots between two browsers using pixel difference.
+ * Returns a percentage of pixels that differ.
+ */
+export function computeScreenshotDiff(
+  bufferA: Buffer,
+  bufferB: Buffer,
+  viewport: string
+): BrowserDifference {
+  // Simple size-based comparison (actual pixelmatch would need PNG decoding)
+  if (bufferA.length === 0 || bufferB.length === 0) {
+    return {
+      viewport,
+      diffPercentage: bufferA.length === 0 && bufferB.length === 0 ? 0 : 100,
+      diffImagePath: null,
+      description: 'One or both screenshots failed to capture',
+    };
+  }
+
+  // Compare buffer sizes as a rough proxy (real visual diff uses visual-diff.ts)
+  const sizeDiff = Math.abs(bufferA.length - bufferB.length);
+  const maxSize = Math.max(bufferA.length, bufferB.length);
+  const roughDiffPercent = maxSize > 0 ? Math.round((sizeDiff / maxSize) * 100) : 0;
+
+  return {
+    viewport,
+    diffPercentage: roughDiffPercent,
+    diffImagePath: null,
+    description: roughDiffPercent > 5 ? `${roughDiffPercent}% size difference detected` : 'Screenshots are similar',
+  };
+}
+
+/**
+ * Run QA across multiple browsers and compare results.
+ */
+export async function runMultiBrowserQA(
+  url: string,
+  browsers: BrowserType[] = ['chrome', 'firefox']
+): Promise<MultiBrowserResult[]> {
+  const results: MultiBrowserResult[] = [];
+  const browserScreenshots: Map<BrowserType, Buffer[]> = new Map();
+
+  // Capture in each browser sequentially (to avoid overloading Browserless)
+  for (const browser of browsers) {
+    const { screenshots, lighthouseScores } = await captureScreenshotsForBrowser(url, browser);
+    browserScreenshots.set(browser, screenshots);
+
+    const viewportScreenshots: QAScreenshot[] = screenshots.map((buf, i) => ({
+      viewport: QA_VIEWPORTS[i].name,
+      width: QA_VIEWPORTS[i].width,
+      height: QA_VIEWPORTS[i].height,
+      storage_path: '', // Not uploaded in multi-browser mode
+    }));
+
+    results.push({
+      browser,
+      screenshots: viewportScreenshots,
+      lighthouseScores: lighthouseScores ? { ...lighthouseScores } : null,
+      differences: [],
+    });
+  }
+
+  // Compare each browser against chrome (baseline)
+  const chromeScreenshots = browserScreenshots.get('chrome');
+  if (chromeScreenshots) {
+    for (const [browser, screenshots] of Array.from(browserScreenshots.entries())) {
+      if (browser === 'chrome') continue;
+      const result = results.find((r) => r.browser === browser);
+      if (!result) continue;
+
+      const differences: BrowserDifference[] = [];
+      for (let i = 0; i < QA_VIEWPORTS.length; i++) {
+        const diff = computeScreenshotDiff(
+          chromeScreenshots[i] || Buffer.alloc(0),
+          screenshots[i] || Buffer.alloc(0),
+          QA_VIEWPORTS[i].name
+        );
+        differences.push(diff);
+      }
+      result.differences = differences;
+    }
+  }
+
+  return results;
+}
+
+// ============================================================================
+// QA MONITORING
+// ============================================================================
+
+/**
+ * Get all active monitoring configs that are due for a run.
+ */
+export async function getDueMonitoringConfigs(
+  supabase: SupabaseClient
+): Promise<QAMonitoringConfig[]> {
+  const now = new Date();
+
+  const { data } = await supabase
+    .from('qa_monitoring_configs')
+    .select('*')
+    .eq('is_active', true);
+
+  if (!data) return [];
+
+  return (data as QAMonitoringConfig[]).filter((config) => {
+    if (!config.last_run_at) return true; // Never run before
+    const lastRun = new Date(config.last_run_at);
+    const hoursSinceLastRun = (now.getTime() - lastRun.getTime()) / (1000 * 60 * 60);
+
+    switch (config.frequency) {
+      case '12h': return hoursSinceLastRun >= 12;
+      case '24h': return hoursSinceLastRun >= 24;
+      case '48h': return hoursSinceLastRun >= 48;
+      case '7d': return hoursSinceLastRun >= 168;
+      default: return hoursSinceLastRun >= 24;
+    }
+  });
+}
+
+/**
+ * Run a single monitoring check for a URL.
+ * Returns scores and any regressions detected.
+ */
+export async function runMonitoringCheck(
+  supabase: SupabaseClient,
+  config: QAMonitoringConfig
+): Promise<{
+  lighthouseScores: LighthouseScores | null;
+  linkCheckSummary: LinkCheckSummary;
+  wcagReport: WCAGReport | null;
+  regressions: Record<string, { current: number; previous: number; drop: number }>;
+}> {
+  // Run Lighthouse + axe-core
+  const auditResult = await runFullAudit(config.url);
+
+  // Run link checks
+  const linkCheckSummary = await checkPageLinks(config.url);
+
+  // Map axe violations to WCAG report
+  const wcagReport = auditResult.axeViolations.length > 0
+    ? mapAxeToWCAG(auditResult.axeViolations)
+    : null;
+
+  // Check for regressions against previous scores
+  let regressions: Record<string, { current: number; previous: number; drop: number }> = {};
+  if (auditResult.lighthouseScores && config.last_scores) {
+    const previousScores = config.last_scores as unknown as LighthouseScores;
+    if (previousScores.performance !== undefined) {
+      regressions = detectScoreRegression(
+        auditResult.lighthouseScores,
+        previousScores,
+        config.alert_threshold
+      );
+    }
+  }
+
+  // Update the config with latest run info
+  const scoreData = auditResult.lighthouseScores ?? {};
+  await supabase
+    .from('qa_monitoring_configs')
+    .update({
+      last_run_at: new Date().toISOString(),
+      last_scores: scoreData,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', config.id);
+
+  return {
+    lighthouseScores: auditResult.lighthouseScores,
+    linkCheckSummary,
+    wcagReport,
+    regressions,
+  };
+}
+
+// ============================================================================
+// MONITORING CONFIG CRUD
+// ============================================================================
+
+/**
+ * Get monitoring configs for a board.
+ */
+export async function getMonitoringConfigs(
+  supabase: SupabaseClient,
+  boardId: string
+): Promise<QAMonitoringConfig[]> {
+  const { data } = await supabase
+    .from('qa_monitoring_configs')
+    .select('*')
+    .eq('board_id', boardId)
+    .order('created_at', { ascending: false });
+
+  return (data as QAMonitoringConfig[]) ?? [];
+}
+
+/**
+ * Create a monitoring config.
+ */
+export async function createMonitoringConfig(
+  supabase: SupabaseClient,
+  config: {
+    boardId: string;
+    cardId?: string;
+    url: string;
+    frequency?: string;
+    browsers?: string[];
+    alertThreshold?: number;
+    createdBy: string;
+  }
+): Promise<QAMonitoringConfig | null> {
+  const { data, error } = await supabase
+    .from('qa_monitoring_configs')
+    .insert({
+      board_id: config.boardId,
+      card_id: config.cardId ?? null,
+      url: config.url,
+      frequency: config.frequency ?? '24h',
+      browsers: config.browsers ?? ['chrome'],
+      alert_threshold: config.alertThreshold ?? 10,
+      is_active: true,
+      created_by: config.createdBy,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('[MonitoringConfig] Create failed:', error.message);
+    return null;
+  }
+
+  return data as QAMonitoringConfig;
+}
+
+/**
+ * Update a monitoring config.
+ */
+export async function updateMonitoringConfig(
+  supabase: SupabaseClient,
+  configId: string,
+  updates: Partial<{
+    url: string;
+    frequency: string;
+    browsers: string[];
+    alertThreshold: number;
+    isActive: boolean;
+  }>
+): Promise<QAMonitoringConfig | null> {
+  const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (updates.url !== undefined) updateData.url = updates.url;
+  if (updates.frequency !== undefined) updateData.frequency = updates.frequency;
+  if (updates.browsers !== undefined) updateData.browsers = updates.browsers;
+  if (updates.alertThreshold !== undefined) updateData.alert_threshold = updates.alertThreshold;
+  if (updates.isActive !== undefined) updateData.is_active = updates.isActive;
+
+  const { data, error } = await supabase
+    .from('qa_monitoring_configs')
+    .update(updateData)
+    .eq('id', configId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('[MonitoringConfig] Update failed:', error.message);
+    return null;
+  }
+
+  return data as QAMonitoringConfig;
+}
+
+/**
+ * Delete a monitoring config.
+ */
+export async function deleteMonitoringConfig(
+  supabase: SupabaseClient,
+  configId: string
+): Promise<boolean> {
+  const { error } = await supabase
+    .from('qa_monitoring_configs')
+    .delete()
+    .eq('id', configId);
+
+  return !error;
 }

@@ -38,8 +38,8 @@ describe('AI Cost Tracker (P2.0)', () => {
       expect(modelIds).toContain('gemini-1.5-pro');
     });
 
-    it('has exactly 18 pricing entries', () => {
-      expect(MODEL_PRICING).toHaveLength(18);
+    it('has exactly 20 pricing entries', () => {
+      expect(MODEL_PRICING).toHaveLength(20);
     });
 
     it('has no negative cost values', () => {

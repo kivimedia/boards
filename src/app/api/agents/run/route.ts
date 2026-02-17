@@ -1,17 +1,25 @@
 import { NextRequest } from 'next/server';
 import { getAuthContext, errorResponse } from '@/lib/api-helpers';
 import { getSkill } from '@/lib/agent-engine';
-import { createAnthropicClient } from '@/lib/ai/providers';
-import { calculateCost, logUsage } from '@/lib/ai/cost-tracker';
+import { executeStandaloneAgent } from '@/lib/ai/agent-executor';
+import { executeSkillChain, resolveSkillChain } from '@/lib/ai/agent-chain';
 
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 /**
  * POST /api/agents/run
- * Standalone agent execution (no card/board context required).
- * Streams output via SSE.
+ * Standalone agent execution with multi-turn tool use.
+ * Streams output via SSE with tool call events.
  *
- * Body: { skill_id: string; input_message: string }
+ * Body: {
+ *   skill_id: string;
+ *   input_message: string;
+ *   board_id?: string;
+ *   card_id?: string;
+ *   execution_id?: string;        // For resuming after confirmation
+ *   confirmed_tool_call_id?: string;
+ *   rejected_tool_call_id?: string;
+ * }
  */
 export async function POST(request: NextRequest) {
   const auth = await getAuthContext();
@@ -19,7 +27,16 @@ export async function POST(request: NextRequest) {
 
   const { supabase, userId } = auth.ctx;
 
-  let body: { skill_id: string; input_message: string };
+  let body: {
+    skill_id: string;
+    input_message: string;
+    board_id?: string;
+    card_id?: string;
+    execution_id?: string;
+    confirmed_tool_call_id?: string;
+    rejected_tool_call_id?: string;
+  };
+
   try {
     body = await request.json();
   } catch {
@@ -36,81 +53,96 @@ export async function POST(request: NextRequest) {
     return errorResponse('Skill not found', 404);
   }
 
-  // Create Anthropic client
-  const client = await createAnthropicClient(supabase);
-  if (!client) {
-    return errorResponse('Anthropic API key not configured. Go to Settings > AI Keys to add one.', 400);
-  }
-
-  // Build prompt
-  const systemPrompt = skill.system_prompt;
-  const userMessage = body.input_message;
-  const modelId = 'claude-sonnet-4-5-20250929';
-  const startTime = Date.now();
-
   // Stream response via SSE
   const encoder = new TextEncoder();
   const readable = new ReadableStream({
     async start(controller) {
+      const send = (event: string, data: Record<string, unknown>) => {
+        controller.enqueue(
+          encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+        );
+      };
+
       try {
-        let fullOutput = '';
+        // Check if this skill has dependencies (chain execution)
+        const chain = await resolveSkillChain(supabase, skill.slug);
+        const isChain = chain.steps.length > 1;
 
-        const stream = client.messages.stream({
-          model: modelId,
-          max_tokens: Math.min(skill.estimated_tokens * 2, 8192),
-          system: systemPrompt,
-          messages: [{ role: 'user', content: userMessage }],
-        });
-
-        for await (const event of stream) {
-          if (event.type === 'content_block_delta' && (event.delta as any).type === 'text_delta') {
-            const text = (event.delta as any).text;
-            fullOutput += text;
-            controller.enqueue(
-              encoder.encode(`event: token\ndata: ${JSON.stringify({ text })}\n\n`)
-            );
-          }
+        if (isChain && !body.execution_id) {
+          // Execute as a skill chain
+          await executeSkillChain(
+            supabase,
+            {
+              targetSkillSlug: skill.slug,
+              boardId: body.board_id,
+              cardId: body.card_id,
+              userId,
+              inputPrompt: body.input_message,
+            },
+            {
+              onToken: (text) => send('token', { text }),
+              onComplete: (output) => {
+                send('complete', {
+                  output_preview: output.slice(0, 500),
+                  chain_id: chain.chain_id,
+                  total_steps: chain.total_steps,
+                });
+                controller.close();
+              },
+              onError: (error) => {
+                send('error', { error });
+                controller.close();
+              },
+              onChainStep: (step, skillName, status) => {
+                send('chain_step', { step, skill_name: skillName, status });
+              },
+            }
+          );
+        } else {
+          // Execute as standalone agent (single skill, possibly multi-turn)
+          await executeStandaloneAgent(
+            supabase,
+            {
+              skillId: body.skill_id,
+              boardId: body.board_id,
+              userId,
+              inputMessage: body.input_message,
+              executionId: body.execution_id,
+              confirmedToolCallId: body.confirmed_tool_call_id,
+              rejectedToolCallId: body.rejected_tool_call_id,
+            },
+            {
+              onToken: (text) => send('token', { text }),
+              onComplete: (output) => {
+                send('complete', { output_preview: output.slice(0, 500) });
+                controller.close();
+              },
+              onError: (error) => {
+                send('error', { error });
+                controller.close();
+              },
+              onToolCall: (name, input) => {
+                send('tool_call', { name, input });
+              },
+              onToolResult: (name, result, success) => {
+                send('tool_result', { name, result: result.slice(0, 500), success });
+              },
+              onThinking: (summary) => {
+                send('thinking', { summary });
+              },
+              onConfirmationNeeded: (toolCallId, name, input, message) => {
+                send('confirm', {
+                  tool_call_id: toolCallId,
+                  name,
+                  input,
+                  message,
+                });
+              },
+            }
+          );
         }
-
-        const finalMessage = await stream.finalMessage();
-        const inputTokens = finalMessage.usage.input_tokens;
-        const outputTokens = finalMessage.usage.output_tokens;
-        const costUsd = calculateCost('anthropic', modelId, inputTokens, outputTokens);
-        const durationMs = Date.now() - startTime;
-
-        // Log usage (non-fatal)
-        try {
-          await logUsage(supabase, {
-            userId,
-            activity: 'agent_standalone_execution',
-            provider: 'anthropic',
-            modelId,
-            inputTokens,
-            outputTokens,
-            latencyMs: durationMs,
-            status: 'success',
-            metadata: { skill_slug: skill.slug },
-          });
-        } catch {}
-
-        controller.enqueue(
-          encoder.encode(
-            `event: complete\ndata: ${JSON.stringify({
-              output_preview: fullOutput.slice(0, 500),
-              input_tokens: inputTokens,
-              output_tokens: outputTokens,
-              cost_usd: costUsd,
-              duration_ms: durationMs,
-            })}\n\n`
-          )
-        );
-        controller.close();
       } catch (err: any) {
-        controller.enqueue(
-          encoder.encode(
-            `event: error\ndata: ${JSON.stringify({ error: err.message || 'Unknown error' })}\n\n`
-          )
-        );
+        send('error', { error: err.message || 'Unknown error' });
         controller.close();
       }
     },

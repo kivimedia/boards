@@ -7,8 +7,8 @@ import type { SkillSeed, ImprovementEntry } from '@/lib/agent-skill-seeds';
 // ===========================================================================
 
 describe('Agent Skill Seeds - SKILL_SEEDS', () => {
-  it('has exactly 16 skills', () => {
-    expect(SKILL_SEEDS).toHaveLength(16);
+  it('has exactly 17 skills', () => {
+    expect(SKILL_SEEDS).toHaveLength(17);
   });
 
   it('all slugs are unique', () => {
@@ -23,14 +23,14 @@ describe('Agent Skill Seeds - SKILL_SEEDS', () => {
     expect(uniqueOrders.size).toBe(orders.length);
   });
 
-  it('sort_order values are 0 through 15', () => {
+  it('sort_order values are 0 through 16', () => {
     const orders = SKILL_SEEDS.map((s) => s.sort_order).sort((a, b) => a - b);
-    expect(orders).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+    expect(orders).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
   });
 
-  it('has 10 skills in the skills pack', () => {
+  it('has 11 skills in the skills pack', () => {
     const skillsPack = SKILL_SEEDS.filter((s) => s.pack === 'skills');
-    expect(skillsPack).toHaveLength(10);
+    expect(skillsPack).toHaveLength(11);
   });
 
   it('has 6 skills in the creative pack', () => {

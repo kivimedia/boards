@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Button from '@/components/ui/Button';
 
 interface Attachment {
@@ -13,10 +13,12 @@ interface Attachment {
 interface NanoBananaWidgetProps {
   cardId: string;
   attachments: Attachment[];
+  onCoverSet?: (url: string) => void;
 }
 
 type Tab = 'edit' | 'generate';
 type AspectRatio = '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
+type ImageProvider = 'gemini' | 'replicate';
 
 interface Toast {
   type: 'success' | 'error';
@@ -31,7 +33,16 @@ const ASPECT_RATIOS: { value: AspectRatio; label: string }[] = [
   { value: '3:4', label: '3:4 (Tall)' },
 ];
 
-export default function NanoBananaWidget({ cardId, attachments }: NanoBananaWidgetProps) {
+const STYLE_PRESETS = [
+  { id: 'social_post', label: 'Social Post' },
+  { id: 'ad_banner', label: 'Ad Banner' },
+  { id: 'hero_image', label: 'Hero Image' },
+  { id: 'product_shot', label: 'Product Shot' },
+  { id: 'mood_board', label: 'Mood Board' },
+  { id: 'photo_realistic', label: 'Photo Realistic' },
+];
+
+export default function NanoBananaWidget({ cardId, attachments, onCoverSet }: NanoBananaWidgetProps) {
   // Tab state
   const [activeTab, setActiveTab] = useState<Tab>('edit');
 
@@ -46,8 +57,15 @@ export default function NanoBananaWidget({ cardId, attachments }: NanoBananaWidg
   // Generate tab state
   const [prompt, setPrompt] = useState('');
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('1:1');
+  const [provider, setProvider] = useState<ImageProvider>('gemini');
+  const [stylePreset, setStylePreset] = useState<string | null>(null);
+  const [enhancePrompt, setEnhancePrompt] = useState(true);
   const [generateSubmitting, setGenerateSubmitting] = useState(false);
   const [generateResultId, setGenerateResultId] = useState<string | null>(null);
+  const [enhancedPromptText, setEnhancedPromptText] = useState<string | null>(null);
+  const [showEnhancedPrompt, setShowEnhancedPrompt] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [settingCover, setSettingCover] = useState(false);
 
   // Shared
   const [toast, setToast] = useState<Toast | null>(null);
@@ -60,6 +78,31 @@ export default function NanoBananaWidget({ cardId, attachments }: NanoBananaWidg
   const imageAttachments = attachments.filter((a) =>
     a.mime_type.startsWith('image/')
   );
+
+  // Fetch preview URL when a result is generated
+  useEffect(() => {
+    if (!generateResultId) {
+      setPreviewUrl(null);
+      return;
+    }
+    let cancelled = false;
+
+    async function fetchPreview() {
+      try {
+        const res = await fetch(`/api/cards/${cardId}/attachments/${generateResultId}/signed-url`);
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!cancelled && json.data?.url) {
+          setPreviewUrl(json.data.url);
+        }
+      } catch {
+        // Preview is optional, ignore errors
+      }
+    }
+
+    fetchPreview();
+    return () => { cancelled = true; };
+  }, [generateResultId, cardId]);
 
   // -------------------------------------------------------------------------
   // Edit handler
@@ -114,6 +157,8 @@ export default function NanoBananaWidget({ cardId, attachments }: NanoBananaWidg
 
     setGenerateSubmitting(true);
     setGenerateResultId(null);
+    setEnhancedPromptText(null);
+    setPreviewUrl(null);
 
     try {
       const res = await fetch(`/api/cards/${cardId}/nano-banana/generate`, {
@@ -122,6 +167,9 @@ export default function NanoBananaWidget({ cardId, attachments }: NanoBananaWidg
         body: JSON.stringify({
           prompt: prompt.trim(),
           aspectRatio,
+          provider,
+          stylePreset: stylePreset ?? undefined,
+          enhancePrompt,
         }),
       });
 
@@ -133,11 +181,36 @@ export default function NanoBananaWidget({ cardId, attachments }: NanoBananaWidg
       const json = await res.json();
       const newAttachmentId = json.data?.attachmentId;
       setGenerateResultId(newAttachmentId);
+      if (json.data?.enhancedPrompt) {
+        setEnhancedPromptText(json.data.enhancedPrompt);
+      }
       showToast('success', 'Image generated successfully.');
     } catch (err) {
       showToast('error', err instanceof Error ? err.message : 'Image generation failed.');
     } finally {
       setGenerateSubmitting(false);
+    }
+  };
+
+  // -------------------------------------------------------------------------
+  // Set as cover handler
+  // -------------------------------------------------------------------------
+  const handleSetAsCover = async () => {
+    if (!previewUrl) return;
+    setSettingCover(true);
+    try {
+      const res = await fetch(`/api/cards/${cardId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cover_image_url: previewUrl }),
+      });
+      if (!res.ok) throw new Error('Failed to set cover');
+      onCoverSet?.(previewUrl);
+      showToast('success', 'Cover image updated.');
+    } catch {
+      showToast('error', 'Failed to set as cover image.');
+    } finally {
+      setSettingCover(false);
     }
   };
 
@@ -150,8 +223,8 @@ export default function NanoBananaWidget({ cardId, attachments }: NanoBananaWidg
             fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-lg font-body text-sm
             animate-in fade-in slide-in-from-top-2 duration-200
             ${toast.type === 'success'
-              ? 'bg-green-50 border border-green-200 text-green-800'
-              : 'bg-red-50 border border-red-200 text-red-800'
+              ? 'bg-green-50 border border-green-200 text-green-800 dark:bg-green-900/30 dark:border-green-800 dark:text-green-300'
+              : 'bg-red-50 border border-red-200 text-red-800 dark:bg-red-900/30 dark:border-red-800 dark:text-red-300'
             }
           `}
         >
@@ -295,11 +368,11 @@ export default function NanoBananaWidget({ cardId, attachments }: NanoBananaWidg
 
               {/* Edit result */}
               {editResultId && (
-                <div className="p-3 rounded-xl bg-green-50 border border-green-200">
-                  <p className="text-sm text-green-800 font-body">
+                <div className="p-3 rounded-xl bg-green-50 border border-green-200 dark:bg-green-900/20 dark:border-green-800">
+                  <p className="text-sm text-green-800 dark:text-green-300 font-body">
                     Edited image saved as new attachment.
                   </p>
-                  <p className="text-xs text-green-600 font-body mt-1">
+                  <p className="text-xs text-green-600 dark:text-green-400 font-body mt-1">
                     Attachment ID: {editResultId}
                   </p>
                 </div>
@@ -312,6 +385,39 @@ export default function NanoBananaWidget({ cardId, attachments }: NanoBananaWidg
       {/* Generate Tab */}
       {activeTab === 'generate' && (
         <div className="space-y-3">
+          {/* Provider toggle */}
+          <div>
+            <label className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1.5 uppercase tracking-wider font-heading">
+              Provider
+            </label>
+            <div className="flex rounded-lg bg-cream-dark dark:bg-slate-800 p-0.5">
+              <button
+                onClick={() => setProvider('gemini')}
+                className={`
+                  flex-1 py-1.5 text-xs font-medium rounded-md transition-all duration-200
+                  ${provider === 'gemini'
+                    ? 'bg-white dark:bg-dark-surface text-navy dark:text-slate-100 shadow-sm'
+                    : 'text-navy/50 dark:text-slate-400 hover:text-navy/70 dark:hover:text-slate-300'
+                  }
+                `}
+              >
+                Gemini
+              </button>
+              <button
+                onClick={() => setProvider('replicate')}
+                className={`
+                  flex-1 py-1.5 text-xs font-medium rounded-md transition-all duration-200
+                  ${provider === 'replicate'
+                    ? 'bg-white dark:bg-dark-surface text-navy dark:text-slate-100 shadow-sm'
+                    : 'text-navy/50 dark:text-slate-400 hover:text-navy/70 dark:hover:text-slate-300'
+                  }
+                `}
+              >
+                FLUX (Replicate)
+              </button>
+            </div>
+          </div>
+
           {/* Prompt */}
           <div>
             <label className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1.5 uppercase tracking-wider font-heading">
@@ -328,6 +434,43 @@ export default function NanoBananaWidget({ cardId, attachments }: NanoBananaWidg
                 focus:border-electric font-body resize-none
               "
             />
+          </div>
+
+          {/* Enhance prompt toggle */}
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={enhancePrompt}
+              onChange={(e) => setEnhancePrompt(e.target.checked)}
+              className="rounded border-cream-dark dark:border-slate-600 text-electric focus:ring-electric/30 h-4 w-4"
+            />
+            <span className="text-xs font-medium text-navy/70 dark:text-slate-300 font-body">
+              Let AI improve your prompt
+            </span>
+          </label>
+
+          {/* Style Presets */}
+          <div>
+            <label className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1.5 uppercase tracking-wider font-heading">
+              Style Preset
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {STYLE_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  onClick={() => setStylePreset(stylePreset === preset.id ? null : preset.id)}
+                  className={`
+                    px-2.5 py-1 text-xs font-medium rounded-lg border transition-all duration-200
+                    ${stylePreset === preset.id
+                      ? 'bg-electric text-white border-electric shadow-sm'
+                      : 'bg-cream dark:bg-dark-bg border-cream-dark dark:border-slate-700 text-navy/60 dark:text-slate-400 hover:border-navy/20 dark:hover:border-slate-600 hover:text-navy dark:hover:text-slate-200'
+                    }
+                  `}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Aspect Ratio */}
@@ -355,7 +498,22 @@ export default function NanoBananaWidget({ cardId, attachments }: NanoBananaWidg
           </div>
 
           {/* Submit */}
-          <div className="flex justify-end pt-1">
+          <div className="flex justify-end gap-2 pt-1">
+            {generateResultId && (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setGenerateResultId(null);
+                  setPreviewUrl(null);
+                  setEnhancedPromptText(null);
+                  handleGenerate();
+                }}
+                disabled={generateSubmitting}
+              >
+                Generate Another
+              </Button>
+            )}
             <Button
               size="sm"
               onClick={handleGenerate}
@@ -381,13 +539,79 @@ export default function NanoBananaWidget({ cardId, attachments }: NanoBananaWidg
             </Button>
           </div>
 
-          {/* Generate result */}
-          {generateResultId && (
-            <div className="p-3 rounded-xl bg-green-50 border border-green-200">
-              <p className="text-sm text-green-800 font-body">
+          {/* Loading placeholder */}
+          {generateSubmitting && (
+            <div className="rounded-xl border border-cream-dark dark:border-slate-700 overflow-hidden">
+              <div className="h-48 bg-cream dark:bg-dark-bg animate-pulse flex items-center justify-center">
+                <span className="text-sm text-navy/40 dark:text-slate-500 font-body">
+                  Generating with {provider === 'replicate' ? 'FLUX' : 'Gemini'}...
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Image preview */}
+          {!generateSubmitting && previewUrl && (
+            <div className="space-y-2">
+              <div className="rounded-xl border border-cream-dark dark:border-slate-700 overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={previewUrl}
+                  alt="Generated image"
+                  className="w-full h-auto max-h-64 object-contain bg-cream dark:bg-dark-bg"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={handleSetAsCover}
+                  loading={settingCover}
+                  disabled={settingCover}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14" />
+                    </svg>
+                    Set as Cover
+                  </span>
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Enhanced prompt display */}
+          {!generateSubmitting && enhancedPromptText && (
+            <div>
+              <button
+                onClick={() => setShowEnhancedPrompt(!showEnhancedPrompt)}
+                className="text-xs text-electric hover:text-electric/80 font-medium font-body flex items-center gap-1"
+              >
+                <svg
+                  className={`w-3 h-3 transition-transform ${showEnhancedPrompt ? 'rotate-90' : ''}`}
+                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+                Enhanced prompt
+              </button>
+              {showEnhancedPrompt && (
+                <div className="mt-1.5 p-2.5 rounded-lg bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700">
+                  <p className="text-xs text-navy/70 dark:text-slate-400 font-body leading-relaxed">
+                    {enhancedPromptText}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Generate result (text fallback when no preview) */}
+          {!generateSubmitting && generateResultId && !previewUrl && (
+            <div className="p-3 rounded-xl bg-green-50 border border-green-200 dark:bg-green-900/20 dark:border-green-800">
+              <p className="text-sm text-green-800 dark:text-green-300 font-body">
                 Image generated and saved as new attachment.
               </p>
-              <p className="text-xs text-green-600 font-body mt-1">
+              <p className="text-xs text-green-600 dark:text-green-400 font-body mt-1">
                 Attachment ID: {generateResultId}
               </p>
             </div>

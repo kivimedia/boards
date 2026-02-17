@@ -2,8 +2,18 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import type { Board } from '@/lib/types';
+import type { Board, BoardType } from '@/lib/types';
+
+const BOARD_TYPE_OPTIONS: { value: BoardType; label: string }[] = [
+  { value: 'dev', label: 'Development' },
+  { value: 'training', label: 'Training' },
+  { value: 'account_manager', label: 'Account Manager' },
+  { value: 'graphic_designer', label: 'Graphic Designer' },
+  { value: 'executive_assistant', label: 'Executive Assistant' },
+  { value: 'video_editor', label: 'Video Editor' },
+  { value: 'copy', label: 'Copy' },
+  { value: 'client_strategy_map', label: 'Client Strategy Map' },
+];
 
 interface BoardSwitcherProps {
   currentBoardId: string;
@@ -35,6 +45,10 @@ export default function BoardSwitcher({ currentBoardId, onClose }: BoardSwitcher
   const [boards, setBoards] = useState<(Board & { card_count?: number })[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [showCreate, setShowCreate] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newType, setNewType] = useState<BoardType>('dev');
+  const [creating, setCreating] = useState(false);
   const router = useRouter();
   const panelRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -85,6 +99,29 @@ export default function BoardSwitcher({ currentBoardId, onClose }: BoardSwitcher
     };
   }, [onClose]);
 
+  const handleCreateBoard = async () => {
+    if (!newName.trim()) return;
+    setCreating(true);
+    try {
+      const res = await fetch('/api/boards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName.trim(), type: newType }),
+      });
+      if (res.ok) {
+        const { data: board } = await res.json();
+        if (board?.id) {
+          router.push(`/board/${board.id}`);
+          onClose();
+          return;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    setCreating(false);
+  };
+
   const filtered = boards.filter(
     (b) => b.name.toLowerCase().includes(search.toLowerCase()) || b.type.toLowerCase().includes(search.toLowerCase())
   );
@@ -111,15 +148,66 @@ export default function BoardSwitcher({ currentBoardId, onClose }: BoardSwitcher
         <div className="px-4 pt-4 pb-3 border-b border-cream-dark dark:border-slate-700">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-base font-semibold font-headline text-navy dark:text-white">Switch Board</h2>
-            <button
-              onClick={onClose}
-              className="p-1 rounded-lg hover:bg-cream-dark dark:hover:bg-slate-800 text-navy/40 dark:text-slate-500 transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowCreate(!showCreate)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-body font-medium rounded-lg bg-electric/10 text-electric hover:bg-electric/20 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                New Board
+              </button>
+              <button
+                onClick={onClose}
+                className="p-1 rounded-lg hover:bg-cream-dark dark:hover:bg-slate-800 text-navy/40 dark:text-slate-500 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
+
+          {/* Create board inline form */}
+          {showCreate && (
+            <div className="mb-3 p-3 bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 rounded-xl space-y-2">
+              <input
+                type="text"
+                placeholder="Board name..."
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCreateBoard()}
+                className="w-full px-3 py-1.5 text-sm bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 rounded-lg text-navy dark:text-white placeholder:text-navy/30 dark:placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-electric/30 font-body"
+                autoFocus
+              />
+              <select
+                value={newType}
+                onChange={(e) => setNewType(e.target.value as BoardType)}
+                className="w-full px-3 py-1.5 text-sm bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 rounded-lg text-navy dark:text-white outline-none focus:ring-2 focus:ring-electric/30 font-body"
+              >
+                {BOARD_TYPE_OPTIONS.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleCreateBoard}
+                  disabled={creating || !newName.trim()}
+                  className="flex-1 px-3 py-1.5 text-xs font-body font-medium rounded-lg bg-electric text-white hover:bg-electric/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {creating ? 'Creating...' : 'Create Board'}
+                </button>
+                <button
+                  onClick={() => { setShowCreate(false); setNewName(''); }}
+                  className="px-3 py-1.5 text-xs font-body text-navy/50 dark:text-slate-400 hover:text-navy dark:hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
           <input
             ref={searchRef}
             type="text"

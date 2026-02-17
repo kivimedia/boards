@@ -11,16 +11,24 @@ interface EditLock {
   timestamp: string;
 }
 
+interface TypingUser {
+  userId: string;
+  displayName: string;
+  field: string;
+}
+
 interface UseEditLockOptions {
   cardId: string;
 }
 
 export function useEditLock({ cardId }: UseEditLockOptions) {
   const [locks, setLocks] = useState<EditLock[]>([]);
+  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const supabase = createClient();
   const { user, profile } = useAuth();
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const lockTimeoutRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const typingTimeoutRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   useEffect(() => {
     if (!user || !cardId) return;
@@ -64,12 +72,34 @@ export function useEditLock({ cardId }: UseEditLockOptions) {
           lockTimeoutRef.current.delete(key);
         }
       })
+      .on('broadcast', { event: 'typing' }, ({ payload }) => {
+        if (payload.userId === user.id) return;
+        const tKey = `${payload.userId}:${payload.field}`;
+        setTypingUsers((prev) => {
+          const filtered = prev.filter((t) => !(t.userId === payload.userId && t.field === payload.field));
+          return [...filtered, { userId: payload.userId, displayName: payload.displayName, field: payload.field }];
+        });
+        // Auto-clear typing after 3 seconds
+        const existingTyping = typingTimeoutRef.current.get(tKey);
+        if (existingTyping) clearTimeout(existingTyping);
+        typingTimeoutRef.current.set(
+          tKey,
+          setTimeout(() => {
+            setTypingUsers((prev) =>
+              prev.filter((t) => !(t.userId === payload.userId && t.field === payload.field))
+            );
+            typingTimeoutRef.current.delete(tKey);
+          }, 3000)
+        );
+      })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
       lockTimeoutRef.current.forEach((t) => clearTimeout(t));
       lockTimeoutRef.current.clear();
+      typingTimeoutRef.current.forEach((t) => clearTimeout(t));
+      typingTimeoutRef.current.clear();
     };
   }, [user?.id, cardId]);
 
@@ -102,6 +132,22 @@ export function useEditLock({ cardId }: UseEditLockOptions) {
     [user?.id]
   );
 
+  const broadcastTyping = useCallback(
+    (field: string) => {
+      if (!channelRef.current || !user || !profile) return;
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: {
+          userId: user.id,
+          displayName: profile.display_name,
+          field,
+        },
+      });
+    },
+    [user?.id, profile?.display_name]
+  );
+
   const isFieldLocked = useCallback(
     (field: string): EditLock | undefined => {
       return locks.find((l) => l.field === field && l.userId !== user?.id);
@@ -109,5 +155,5 @@ export function useEditLock({ cardId }: UseEditLockOptions) {
     [locks, user?.id]
   );
 
-  return { locks, acquireLock, releaseLock, isFieldLocked };
+  return { locks, acquireLock, releaseLock, isFieldLocked, typingUsers, broadcastTyping };
 }

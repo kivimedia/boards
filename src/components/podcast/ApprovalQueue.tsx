@@ -2,7 +2,11 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import type { PGACandidate, PGACandidateStatus, PGAConfidence } from '@/lib/types';
+import type { PGACandidate, PGACandidateStatus, PGAConfidence, PGAQualityTier } from '@/lib/types';
+import TierBadge from './TierBadge';
+import QualityScoreBar from './QualityScoreBar';
+import DossierViewer from './DossierViewer';
+import OutreachEmailPanel from './OutreachEmailPanel';
 
 const STATUS_COLORS: Record<PGACandidateStatus, string> = {
   scouted: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
@@ -62,6 +66,9 @@ export default function ApprovalQueue() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [scoreLoading, setScoreLoading] = useState(false);
+  const [dossierExistsMap, setDossierExistsMap] = useState<Record<string, boolean>>({});
+  const [scoreBreakdown, setScoreBreakdown] = useState<Record<string, any>>({});
 
   const fetchCandidates = useCallback(async () => {
     setLoading(true);
@@ -176,6 +183,41 @@ export default function ApprovalQueue() {
       console.error('Bulk reject failed:', err);
     } finally {
       setBulkLoading(false);
+    }
+  };
+
+  // Score all visible candidates that don't have a score
+  const scoreBatch = async () => {
+    const unscored = candidates.filter((c) => c.quality_score == null || c.quality_score === 0);
+    if (unscored.length === 0) return;
+    setScoreLoading(true);
+    try {
+      const res = await fetch('/api/podcast/candidates/score-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidate_ids: unscored.map((c) => c.id) }),
+      });
+      if (res.ok) {
+        await fetchCandidates();
+      }
+    } catch (err) {
+      console.error('Batch scoring failed:', err);
+    } finally {
+      setScoreLoading(false);
+    }
+  };
+
+  // Load quality score breakdown for a candidate
+  const loadScoreBreakdown = async (id: string) => {
+    if (scoreBreakdown[id]) return;
+    try {
+      const res = await fetch(`/api/podcast/candidates/${id}/score`);
+      const json = await res.json();
+      if (json.data?.breakdown) {
+        setScoreBreakdown((prev) => ({ ...prev, [id]: json.data.breakdown }));
+      }
+    } catch {
+      // ignore
     }
   };
 
@@ -305,8 +347,17 @@ export default function ApprovalQueue() {
           <option value="no_email">No Email</option>
         </select>
 
-        <div className="flex items-center text-sm text-navy/50 dark:text-slate-400">
+        <div className="flex items-center gap-2 text-sm text-navy/50 dark:text-slate-400">
           {total} candidate{total !== 1 ? 's' : ''}
+          {candidates.some((c) => c.quality_score == null || c.quality_score === 0) && (
+            <button
+              onClick={scoreBatch}
+              disabled={scoreLoading}
+              className="px-2.5 py-1 text-[10px] font-semibold rounded-lg bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-900/50 disabled:opacity-50 transition-colors"
+            >
+              {scoreLoading ? 'Scoring...' : 'Score All'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -400,7 +451,19 @@ export default function ApprovalQueue() {
                 {/* Card header */}
                 <div
                   className="flex items-center gap-3 p-4 cursor-pointer hover:bg-cream/50 dark:hover:bg-slate-700/30 transition-colors"
-                  onClick={() => setExpandedId(isExpanded ? null : candidate.id)}
+                  onClick={() => {
+                    const nextId = isExpanded ? null : candidate.id;
+                    setExpandedId(nextId);
+                    if (nextId && !(candidate.id in dossierExistsMap)) {
+                      // Check if dossier exists for outreach panel
+                      fetch(`/api/podcast/candidates/${candidate.id}/dossier`)
+                        .then((r) => r.json())
+                        .then((json) => {
+                          setDossierExistsMap((prev) => ({ ...prev, [candidate.id]: !!json.data?.dossier }));
+                        })
+                        .catch(() => {});
+                    }
+                  }}
                 >
                   {/* Checkbox for scouted candidates */}
                   {isScouted && (
@@ -421,6 +484,11 @@ export default function ApprovalQueue() {
                     >
                       {candidate.scout_confidence}
                     </span>
+                  )}
+
+                  {/* Tier badge */}
+                  {candidate.tier && (
+                    <TierBadge tier={candidate.tier as PGAQualityTier} score={candidate.quality_score ?? undefined} compact />
                   )}
 
                   {/* Name + one-liner + location */}
@@ -650,6 +718,46 @@ export default function ApprovalQueue() {
                           <p className="text-sm text-red-700 dark:text-red-300 font-body">
                             {candidate.rejection_reason}
                           </p>
+                        </div>
+                      )}
+
+                      {/* Quality Score */}
+                      {candidate.quality_score != null && candidate.quality_score > 0 && (
+                        <div className="md:col-span-2">
+                          <QualityScoreBar
+                            score={candidate.quality_score}
+                            tier={(candidate.tier as PGAQualityTier) || 'cold'}
+                            breakdown={scoreBreakdown[candidate.id]}
+                            showBreakdown={!!scoreBreakdown[candidate.id]}
+                          />
+                          {!scoreBreakdown[candidate.id] && (
+                            <button
+                              onClick={() => loadScoreBreakdown(candidate.id)}
+                              className="mt-1 text-[10px] text-electric hover:underline"
+                            >
+                              Show breakdown
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Research Dossier */}
+                      <div className="md:col-span-2">
+                        <DossierViewer
+                          candidateId={candidate.id}
+                          candidateName={candidate.name}
+                        />
+                      </div>
+
+                      {/* Outreach Emails */}
+                      {candidate.status !== 'scouted' && candidate.status !== 'rejected' && (
+                        <div className="md:col-span-2">
+                          <OutreachEmailPanel
+                            candidateId={candidate.id}
+                            candidateName={candidate.name}
+                            hasDossier={dossierExistsMap[candidate.id] ?? false}
+                            onRefresh={fetchCandidates}
+                          />
                         </div>
                       )}
                     </div>

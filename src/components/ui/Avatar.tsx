@@ -5,6 +5,8 @@ interface AvatarProps {
   className?: string;
   /** Show online status dot: true = green, false = gray, undefined = hidden */
   online?: boolean;
+  /** Show away status dot (yellow). Takes priority over online when set. */
+  away?: boolean;
 }
 
 const sizeStyles = {
@@ -40,12 +42,12 @@ function getColor(name: string): string {
   return colors[Math.abs(hash) % colors.length];
 }
 
-export default function Avatar({ name, src, size = 'md', className = '', online }: AvatarProps) {
-  const dot = online !== undefined ? (
+export default function Avatar({ name, src, size = 'md', className = '', online, away }: AvatarProps) {
+  const showDot = online !== undefined || away;
+  const dotColor = away ? 'bg-yellow-500' : online ? 'bg-green-500' : 'bg-slate-400';
+  const dot = showDot ? (
     <span
-      className={`absolute ${dotSizeStyles[size]} rounded-full ring-2 ring-white dark:ring-dark-surface ${
-        online ? 'bg-green-500' : 'bg-slate-400'
-      }`}
+      className={`absolute ${dotSizeStyles[size]} rounded-full ring-2 ring-white dark:ring-dark-surface ${dotColor}`}
     />
   ) : null;
 

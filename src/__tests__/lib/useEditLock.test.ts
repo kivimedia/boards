@@ -54,15 +54,15 @@ describe('useEditLock hook', () => {
   });
 
   describe('return value contract', () => {
-    it('hook should return locks, acquireLock, releaseLock, isFieldLocked', () => {
+    it('hook should return locks, acquireLock, releaseLock, isFieldLocked, typingUsers, broadcastTyping', () => {
       // Verify the expected shape of the return value by checking the source
-      // The hook returns: { locks, acquireLock, releaseLock, isFieldLocked }
-      const expectedKeys = ['locks', 'acquireLock', 'releaseLock', 'isFieldLocked'];
+      // The hook returns: { locks, acquireLock, releaseLock, isFieldLocked, typingUsers, broadcastTyping }
+      const expectedKeys = ['locks', 'acquireLock', 'releaseLock', 'isFieldLocked', 'typingUsers', 'broadcastTyping'];
       // Just verify we can reference them as an expectation contract
       expectedKeys.forEach((key) => {
         expect(typeof key).toBe('string');
       });
-      expect(expectedKeys).toHaveLength(4);
+      expect(expectedKeys).toHaveLength(6);
     });
   });
 });

@@ -11,6 +11,7 @@ import type {
   AIReviewVerdict,
   AIReviewResult,
 } from '../types';
+import { extractFramesFromVideo, type ExtractedFrame } from './video-frame-extractor';
 
 // ============================================================================
 // CHANGE REQUEST EXTRACTION
@@ -478,4 +479,374 @@ export async function getCardReviewHistory(
     .order('created_at', { ascending: false });
 
   return (data as AIReviewResult[]) ?? [];
+}
+
+// ============================================================================
+// VIDEO REVIEW (P9.3)
+// ============================================================================
+
+const VIDEO_MIME_TYPES = ['video/mp4', 'video/quicktime', 'video/webm', 'video/avi', 'video/mov'];
+
+/**
+ * Check if an attachment is a video based on mime type.
+ */
+export function isVideoAttachment(mimeType: string): boolean {
+  return VIDEO_MIME_TYPES.includes(mimeType) || mimeType.startsWith('video/');
+}
+
+export interface VideoReviewInput {
+  cardId: string;
+  boardId: string;
+  userId: string;
+  attachmentId: string;
+  previousAttachmentId?: string;
+  changeRequests: AIChangeRequest[];
+  briefSummary: string;
+}
+
+export interface VideoReviewOutput {
+  verdicts: AIChangeVerdictResult[];
+  overallVerdict: AIReviewVerdict;
+  summary: string;
+  confidenceScore: number;
+  modelUsed: string;
+  usageLogId: string | null;
+  frameCount: number;
+  frameVerdicts: FrameVerdict[];
+  thumbnailSuggestion?: string;
+  videoDurationSeconds?: number;
+}
+
+export interface FrameVerdict {
+  timestamp: number;
+  brandConsistency: 'PASS' | 'FAIL' | 'PARTIAL';
+  textReadability: 'PASS' | 'FAIL' | 'PARTIAL' | 'N/A';
+  overallQuality: 'PASS' | 'FAIL' | 'PARTIAL';
+  notes: string;
+}
+
+/**
+ * Build the video-specific review prompt.
+ */
+export function buildVideoReviewPrompt(
+  changeRequests: string[],
+  briefSummary: string,
+  frameCount: number
+): string {
+  const crList = changeRequests.length > 0
+    ? `Change requests to verify:\n${changeRequests.map((cr, i) => `${i + 1}. ${cr}`).join('\n')}`
+    : 'No specific change requests. Review for overall quality.';
+
+  return `You are reviewing a VIDEO design. ${frameCount} frames have been extracted at key timestamps.
+
+Brief summary: ${briefSummary || 'No brief provided.'}
+
+${crList}
+
+For EACH frame, evaluate:
+- Brand consistency (colors, fonts, logo placement match across frames)
+- Text/overlay readability (any text is clearly legible)
+- Overall visual quality (composition, resolution, professional look)
+
+Also assess:
+- Transition quality between frames (smooth visual flow)
+- Best thumbnail candidate (which frame has best composition for a thumbnail)
+
+Respond in JSON:
+{
+  "verdicts": [{ "index": 1, "verdict": "PASS|FAIL|PARTIAL", "reasoning": "...", "suggestions": "..." }],
+  "overall_verdict": "approved|revisions_needed",
+  "summary": "Overall assessment...",
+  "frame_verdicts": [
+    { "timestamp": 0, "brand_consistency": "PASS", "text_readability": "PASS", "overall_quality": "PASS", "notes": "..." }
+  ],
+  "thumbnail_suggestion": "Frame at Xs has the best composition because..."
+}`;
+}
+
+/**
+ * Run the AI video design review pipeline.
+ *
+ * 1. Check budget
+ * 2. Resolve model
+ * 3. Extract frames from video (at 0%, 25%, 50%, 75%, 100%)
+ * 4. Send frames to Claude vision API with video-specific prompt
+ * 5. Parse results
+ * 6. Log usage
+ * 7. Store results with video-specific columns
+ */
+export async function runVideoDesignReview(
+  supabase: SupabaseClient,
+  input: VideoReviewInput
+): Promise<VideoReviewOutput> {
+  const startTime = Date.now();
+
+  // 1. Check budget
+  const budgetCheck = await canMakeAICall(supabase, {
+    provider: 'anthropic',
+    activity: 'design_review',
+    userId: input.userId,
+    boardId: input.boardId,
+  });
+
+  if (!budgetCheck.allowed) {
+    throw new Error(`Budget exceeded: ${budgetCheck.reason}`);
+  }
+
+  // 2. Resolve model
+  const modelConfig = await resolveModelWithFallback(supabase, 'design_review');
+
+  // 3. Create Anthropic client
+  const client = await createAnthropicClient(supabase);
+  if (!client) {
+    throw new Error('Anthropic API key not configured. Add one in Settings > AI Configuration.');
+  }
+
+  // 4. Get attachment and extract frames
+  const { data: attachment } = await supabase
+    .from('attachments')
+    .select('storage_path, mime_type, metadata')
+    .eq('id', input.attachmentId)
+    .single();
+
+  if (!attachment) {
+    throw new Error('Video attachment not found');
+  }
+
+  // Extract 5 frames at key positions (0%, 25%, 50%, 75%, 100%)
+  const durationSeconds = (attachment.metadata as any)?.duration_seconds ?? 30;
+  const timestamps = [0, 0.25, 0.5, 0.75, 1].map((pct) =>
+    Math.round(pct * durationSeconds)
+  );
+
+  let frames: ExtractedFrame[];
+  try {
+    frames = await extractFramesFromVideo(supabase, attachment.storage_path, input.cardId, {
+      specificTimestamps: timestamps,
+      maxFrames: 5,
+    });
+  } catch (err) {
+    throw new Error(`Failed to extract video frames: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  if (frames.length === 0) {
+    throw new Error('No frames could be extracted from the video');
+  }
+
+  // 5. Build message content with all frames
+  const systemPrompt = getSystemPrompt('design_review');
+  const userPrompt = buildVideoReviewPrompt(
+    input.changeRequests.map((cr) => cr.text),
+    input.briefSummary,
+    frames.length
+  );
+
+  const messageContent: Anthropic.MessageCreateParams['messages'][0]['content'] = [];
+
+  // Add each frame as an image
+  for (let i = 0; i < frames.length; i++) {
+    const frame = frames[i];
+    const base64 = frame.buffer.toString('base64');
+    messageContent.push({
+      type: 'text',
+      text: `Frame ${i + 1} (${frame.timestamp}s):`,
+    });
+    messageContent.push({
+      type: 'image',
+      source: {
+        type: 'base64',
+        media_type: 'image/png',
+        data: base64,
+      },
+    });
+  }
+
+  // Add previous version frames if available
+  if (input.previousAttachmentId) {
+    const { data: prevAttachment } = await supabase
+      .from('attachments')
+      .select('storage_path, metadata')
+      .eq('id', input.previousAttachmentId)
+      .single();
+
+    if (prevAttachment) {
+      try {
+        const prevDuration = (prevAttachment.metadata as any)?.duration_seconds ?? 30;
+        const prevTimestamps = [0, 0.5, 1].map((pct) => Math.round(pct * prevDuration));
+        const prevFrames = await extractFramesFromVideo(
+          supabase,
+          prevAttachment.storage_path,
+          input.cardId,
+          { specificTimestamps: prevTimestamps, maxFrames: 3 }
+        );
+
+        if (prevFrames.length > 0) {
+          messageContent.unshift({ type: 'text', text: '--- Previous version frames: ---' });
+          for (let i = 0; i < prevFrames.length; i++) {
+            messageContent.splice(i * 2 + 1, 0, {
+              type: 'text',
+              text: `Previous frame ${i + 1} (${prevFrames[i].timestamp}s):`,
+            });
+            messageContent.splice(i * 2 + 2, 0, {
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: 'image/png',
+                data: prevFrames[i].buffer.toString('base64'),
+              },
+            });
+          }
+          messageContent.push({ type: 'text', text: '--- Current version frames (to review): ---' });
+        }
+      } catch {
+        // If previous frame extraction fails, continue without comparison
+      }
+    }
+  }
+
+  messageContent.push({ type: 'text', text: userPrompt });
+
+  // 6. Send to Claude
+  let response: Anthropic.Message;
+  try {
+    response = await client.messages.create({
+      model: modelConfig.model_id,
+      max_tokens: modelConfig.max_tokens,
+      temperature: modelConfig.temperature,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: messageContent }],
+    });
+  } catch (err) {
+    const latencyMs = Date.now() - startTime;
+    await logUsage(supabase, {
+      userId: input.userId,
+      boardId: input.boardId,
+      cardId: input.cardId,
+      activity: 'design_review',
+      provider: 'anthropic',
+      modelId: modelConfig.model_id,
+      inputTokens: 0,
+      outputTokens: 0,
+      latencyMs,
+      status: 'error',
+      errorMessage: err instanceof Error ? err.message : String(err),
+    });
+    throw new Error(`AI video review failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  const latencyMs = Date.now() - startTime;
+  await touchApiKey(supabase, 'anthropic');
+
+  // 7. Parse response
+  const responseText = response.content
+    .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+    .map((block) => block.text)
+    .join('\n');
+
+  const parsed = parseReviewResponse(responseText, input.changeRequests.length);
+  const videoFields = parseVideoFields(responseText);
+
+  // 8. Log usage
+  await logUsage(supabase, {
+    userId: input.userId,
+    boardId: input.boardId,
+    cardId: input.cardId,
+    activity: 'design_review',
+    provider: 'anthropic',
+    modelId: modelConfig.model_id,
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+    latencyMs,
+    status: 'success',
+    metadata: {
+      overall_verdict: parsed.overallVerdict,
+      review_type: 'video',
+      frame_count: frames.length,
+    },
+  });
+
+  return {
+    verdicts: parsed.verdicts,
+    overallVerdict: parsed.overallVerdict,
+    summary: parsed.summary,
+    confidenceScore: parsed.confidenceScore,
+    modelUsed: modelConfig.model_id,
+    usageLogId: null,
+    frameCount: frames.length,
+    frameVerdicts: videoFields.frameVerdicts,
+    thumbnailSuggestion: videoFields.thumbnailSuggestion,
+    videoDurationSeconds: durationSeconds,
+  };
+}
+
+/**
+ * Store video review results with video-specific columns.
+ */
+export async function storeVideoReviewResult(
+  supabase: SupabaseClient,
+  input: VideoReviewInput,
+  output: VideoReviewOutput
+): Promise<AIReviewResult | null> {
+  const { data, error } = await supabase
+    .from('ai_review_results')
+    .insert({
+      card_id: input.cardId,
+      attachment_id: input.attachmentId,
+      previous_attachment_id: input.previousAttachmentId ?? null,
+      change_requests: input.changeRequests,
+      verdicts: output.verdicts,
+      overall_verdict: output.overallVerdict,
+      summary: output.summary,
+      confidence_score: output.confidenceScore,
+      model_used: output.modelUsed,
+      usage_log_id: output.usageLogId,
+      created_by: input.userId,
+      review_type: 'video',
+      frame_count: output.frameCount,
+      frame_verdicts: output.frameVerdicts,
+      thumbnail_suggestion: output.thumbnailSuggestion,
+      video_duration_seconds: output.videoDurationSeconds,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('[VideoDesignReview] Failed to store results:', error.message);
+    return null;
+  }
+
+  return data as AIReviewResult;
+}
+
+/**
+ * Parse video-specific fields from the AI response.
+ */
+function parseVideoFields(responseText: string): {
+  frameVerdicts: FrameVerdict[];
+  thumbnailSuggestion?: string;
+} {
+  let jsonStr = responseText;
+  const jsonMatch = responseText.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+  if (jsonMatch) jsonStr = jsonMatch[1];
+
+  try {
+    const parsed = JSON.parse(jsonStr);
+
+    const frameVerdicts: FrameVerdict[] = (parsed.frame_verdicts ?? []).map(
+      (fv: any) => ({
+        timestamp: fv.timestamp ?? 0,
+        brandConsistency: normalizeVerdict(fv.brand_consistency),
+        textReadability: fv.text_readability === 'N/A' ? 'N/A' : normalizeVerdict(fv.text_readability),
+        overallQuality: normalizeVerdict(fv.overall_quality),
+        notes: fv.notes ?? '',
+      })
+    );
+
+    return {
+      frameVerdicts,
+      thumbnailSuggestion: parsed.thumbnail_suggestion,
+    };
+  } catch {
+    return { frameVerdicts: [] };
+  }
 }

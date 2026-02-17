@@ -6,6 +6,9 @@ import UserLeaderboard from '@/components/productivity/UserLeaderboard';
 import TrendChart from '@/components/productivity/TrendChart';
 import DateRangeFilter from '@/components/productivity/DateRangeFilter';
 import ScheduledReportManager from '@/components/productivity/ScheduledReportManager';
+import AlertsBanner from '@/components/productivity/AlertsBanner';
+import ComparisonOverlay from '@/components/productivity/ComparisonOverlay';
+import RevisionDeepDive from '@/components/productivity/RevisionDeepDive';
 import type { ProductivityMetrics, UserScorecard, ProductivitySnapshot } from '@/lib/types';
 
 function getDefaultDateRange() {
@@ -35,6 +38,8 @@ function getPreviousDateRange(startDate: string, endDate: string) {
 export default function ProductivityPage() {
   const [dateRange, setDateRange] = useState(getDefaultDateRange);
   const [comparisonMode, setComparisonMode] = useState(false);
+  const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
+  const [boards, setBoards] = useState<{ id: string; name: string }[]>([]);
 
   const [metrics, setMetrics] = useState<ProductivityMetrics | null>(null);
   const [previousMetrics, setPreviousMetrics] = useState<ProductivityMetrics | null>(null);
@@ -129,6 +134,25 @@ export default function ProductivityPage() {
     }
   }, [dateRange]);
 
+  // Fetch boards list for revision deep dive selector
+  useEffect(() => {
+    async function loadBoards() {
+      try {
+        const res = await fetch('/api/boards');
+        if (res.ok) {
+          const json = await res.json();
+          const list = (json.data ?? []).map((b: { id: string; name: string }) => ({
+            id: b.id,
+            name: b.name,
+          }));
+          setBoards(list);
+          if (list.length > 0 && !selectedBoardId) setSelectedBoardId(list[0].id);
+        }
+      } catch { /* silently fail */ }
+    }
+    loadBoards();
+  }, []);
+
   useEffect(() => {
     setError(null);
     fetchMetrics();
@@ -161,6 +185,9 @@ export default function ProductivityPage() {
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+        {/* Alerts banner */}
+        <AlertsBanner />
+
         {/* Error banner */}
         {error && (
           <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-3">
@@ -197,11 +224,47 @@ export default function ProductivityPage() {
           />
         )}
 
+        {/* Period comparison overlay */}
+        {metrics && (
+          <ComparisonOverlay
+            current={metrics}
+            previous={previousMetrics ?? undefined}
+            show={comparisonMode}
+          />
+        )}
+
         {/* Trend chart */}
         <TrendChart data={trendData} loading={loadingTrend} />
 
         {/* User leaderboard */}
         <UserLeaderboard scorecards={scorecards} loading={loadingScorecards} />
+
+        {/* Revision deep dive */}
+        {selectedBoardId && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <h2 className="text-sm font-semibold text-navy dark:text-white font-heading">
+                Revision Analysis
+              </h2>
+              {boards.length > 1 && (
+                <select
+                  value={selectedBoardId}
+                  onChange={(e) => setSelectedBoardId(e.target.value)}
+                  className="text-xs rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-slate-800 text-navy dark:text-white px-2 py-1"
+                >
+                  {boards.map((b) => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <RevisionDeepDive
+              boardId={selectedBoardId}
+              startDate={dateRange.startDate}
+              endDate={dateRange.endDate}
+            />
+          </div>
+        )}
 
         {/* Scheduled reports */}
         <ScheduledReportManager />

@@ -60,9 +60,20 @@ export default function BoardView({ boardId, boardName, initialBoard, initialTim
   const [selectedCardId, setSelectedCardId] = useState<string | null>(
     searchParams.get('card') || null
   );
+  const [prevViewMode, setPrevViewMode] = useState<BoardViewMode>(viewMode);
+  const scrollPositions = useRef<Map<string, number>>(new Map());
+  const viewContainerRef = useRef<HTMLDivElement>(null);
 
-  // Sync view mode to URL params
+  // Sync view mode to URL params + save/restore scroll
   const handleViewChange = useCallback((view: BoardViewMode) => {
+    // Save current scroll position before switching
+    if (viewContainerRef.current) {
+      const scrollEl = viewContainerRef.current.querySelector('[data-scroll-container]');
+      if (scrollEl) {
+        scrollPositions.current.set(viewMode, scrollEl.scrollTop);
+      }
+    }
+    setPrevViewMode(viewMode);
     setViewMode(view);
     const url = new URL(window.location.href);
     if (view === 'kanban') {
@@ -71,7 +82,7 @@ export default function BoardView({ boardId, boardName, initialBoard, initialTim
       url.searchParams.set('view', view);
     }
     window.history.replaceState({}, '', url.toString());
-  }, []);
+  }, [viewMode]);
 
   // Sync URL when card modal opens/closes
   const openCard = useCallback((cardId: string) => {
@@ -126,6 +137,18 @@ export default function BoardView({ boardId, boardName, initialBoard, initialTim
     return {};
   }, [bgColor, bgImage, isGradient]);
 
+  // Restore scroll position after view change
+  useEffect(() => {
+    if (!viewContainerRef.current) return;
+    const savedScroll = scrollPositions.current.get(viewMode);
+    if (savedScroll !== undefined) {
+      requestAnimationFrame(() => {
+        const scrollEl = viewContainerRef.current?.querySelector('[data-scroll-container]');
+        if (scrollEl) scrollEl.scrollTop = savedScroll;
+      });
+    }
+  }, [viewMode]);
+
   const hasActiveFilter = filter.labels.length > 0 || filter.members.length > 0 || filter.priority.length > 0 || filter.dueDate !== null;
 
   // Whether to show board-specific header (hide for inbox/planner since they have their own headers)
@@ -179,22 +202,24 @@ export default function BoardView({ boardId, boardName, initialBoard, initialTim
         </>
       )}
 
-      {/* Board views */}
-      {viewMode === 'kanban' && (
-        <Board
-          board={displayBoard}
-          onRefresh={refresh}
-          filter={hasActiveFilter ? filter : undefined}
-          externalSelectedCardId={selectedCardId}
-          onExternalCardClose={closeCard}
-        />
-      )}
-      {viewMode === 'list' && <ListView lists={displayBoard.lists} boardId={boardId} />}
-      {viewMode === 'calendar' && <CalendarView lists={displayBoard.lists} />}
+      {/* Board views with fade transition */}
+      <div ref={viewContainerRef} key={viewMode} className="flex-1 flex flex-col overflow-hidden animate-in fade-in duration-200">
+        {viewMode === 'kanban' && (
+          <Board
+            board={displayBoard}
+            onRefresh={refresh}
+            filter={hasActiveFilter ? filter : undefined}
+            externalSelectedCardId={selectedCardId}
+            onExternalCardClose={closeCard}
+          />
+        )}
+        {viewMode === 'list' && <ListView lists={displayBoard.lists} boardId={boardId} />}
+        {viewMode === 'calendar' && <CalendarView lists={displayBoard.lists} />}
 
-      {/* New views from Bottom Nav */}
-      {viewMode === 'inbox' && <InboxView board={displayBoard} onCardClick={openCard} />}
-      {viewMode === 'planner' && <PlannerView board={displayBoard} onCardClick={openCard} />}
+        {/* New views from Bottom Nav */}
+        {viewMode === 'inbox' && <InboxView currentBoardId={boardId} onCardClick={openCard} />}
+        {viewMode === 'planner' && <PlannerView board={displayBoard} onCardClick={openCard} onRefresh={refresh} />}
+      </div>
 
       {/* Bottom Navigation Bar */}
       <BottomNavBar

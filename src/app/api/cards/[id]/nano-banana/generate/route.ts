@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { getAuthContext, successResponse, errorResponse, parseBody } from '@/lib/api-helpers';
-import { generateImage, saveNanoBananaResult } from '@/lib/ai/nano-banana';
+import { generateImage, saveNanoBananaResult, type ImageProvider } from '@/lib/ai/nano-banana';
 
 interface Params {
   params: { id: string };
@@ -10,16 +10,22 @@ interface GenerateBody {
   prompt: string;
   aspectRatio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
   fileName?: string;
+  provider?: ImageProvider;
+  stylePreset?: string;
+  enhancePrompt?: boolean;
 }
 
 /**
  * POST /api/cards/[id]/nano-banana/generate
- * Generate a new image from a text prompt using Nano Banana (Gemini image generation).
+ * Generate a new image from a text prompt using Nano Banana.
  *
  * Body:
  *   prompt: string (required) - Text description of the image to generate
  *   aspectRatio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4' - Desired aspect ratio
  *   fileName?: string - Custom file name for the generated image
+ *   provider?: 'gemini' | 'replicate' - Image generation provider (default: gemini)
+ *   stylePreset?: string - Marketing style preset id
+ *   enhancePrompt?: boolean - Whether to enhance the prompt via Claude Haiku
  */
 export async function POST(request: NextRequest, { params }: Params) {
   const auth = await getAuthContext();
@@ -28,7 +34,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   const body = await parseBody<GenerateBody>(request);
   if (!body.ok) return body.response;
 
-  const { prompt, aspectRatio, fileName } = body.body;
+  const { prompt, aspectRatio, fileName, provider, stylePreset, enhancePrompt } = body.body;
   const { supabase, userId } = auth.ctx;
   const cardId = params.id;
 
@@ -44,6 +50,11 @@ export async function POST(request: NextRequest, { params }: Params) {
     );
   }
 
+  // Validate provider if provided
+  if (provider && provider !== 'gemini' && provider !== 'replicate') {
+    return errorResponse('Invalid provider. Must be "gemini" or "replicate".');
+  }
+
   try {
     // 1. Resolve board_id from card -> card_placements -> lists -> board
     const { data: placement } = await supabase
@@ -57,13 +68,16 @@ export async function POST(request: NextRequest, { params }: Params) {
       ? (placement.list as unknown as { board_id: string }).board_id
       : undefined;
 
-    // 2. Call generateImage
+    // 2. Call generateImage (dispatches to gemini or replicate)
     const output = await generateImage(supabase, {
       cardId,
       userId,
       boardId,
       prompt,
       aspectRatio,
+      provider,
+      stylePreset,
+      enhancePrompt,
     });
 
     // 3. Save result as new attachment
@@ -80,7 +94,10 @@ export async function POST(request: NextRequest, { params }: Params) {
       return errorResponse('Image was generated but failed to save the result', 500);
     }
 
-    return successResponse({ attachmentId: newAttachmentId }, 201);
+    return successResponse({
+      attachmentId: newAttachmentId,
+      enhancedPrompt: output.enhancedPrompt ?? null,
+    }, 201);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
 
