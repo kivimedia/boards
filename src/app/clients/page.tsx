@@ -12,9 +12,15 @@ export default async function ClientsPage() {
     redirect('/login');
   }
 
+  // Pre-fetch boards for sidebar
+  const { data: boards } = await supabase
+    .from('boards')
+    .select('*')
+    .order('created_at', { ascending: true });
+
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar />
+      <Sidebar initialBoards={boards || []} />
       <main className="flex-1 flex flex-col overflow-hidden">
         <Header title="Clients" />
         <ClientsListView />

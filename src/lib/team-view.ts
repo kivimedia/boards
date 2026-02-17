@@ -1,6 +1,9 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import type { Profile } from './types';
 
+/** Max cards returned per member in the initial load. Client can request more. */
+const CARDS_PER_MEMBER = 8;
+
 export interface TeamMemberWorkload {
   userId: string;
   displayName: string;
@@ -38,19 +41,33 @@ export async function fetchTeamWorkload(
 
   if (!assignments) return profiles.map(profileToEmptyWorkload);
 
-  // Fetch all cards
+  // Fetch cards with only needed columns
   const cardIds = Array.from(new Set(assignments.map((a) => a.card_id)));
-  const { data: cards } = await supabase
-    .from('cards')
-    .select('*')
-    .in('id', cardIds);
+  // Supabase .in() has a limit, batch if needed
+  const BATCH = 500;
+  const allCards: any[] = [];
+  for (let i = 0; i < cardIds.length; i += BATCH) {
+    const batch = cardIds.slice(i, i + BATCH);
+    const { data } = await supabase
+      .from('cards')
+      .select('id, title, priority, due_date')
+      .in('id', batch);
+    if (data) allCards.push(...data);
+  }
+  const cards = allCards;
 
   // Fetch placements
-  const { data: placements } = await supabase
-    .from('card_placements')
-    .select('card_id, list:lists(name, board:boards(name))')
-    .in('card_id', cardIds)
-    .eq('is_mirror', false);
+  const allPlacements: any[] = [];
+  for (let i = 0; i < cardIds.length; i += BATCH) {
+    const batch = cardIds.slice(i, i + BATCH);
+    const { data } = await supabase
+      .from('card_placements')
+      .select('card_id, list:lists(name, board:boards(name))')
+      .in('card_id', batch)
+      .eq('is_mirror', false);
+    if (data) allPlacements.push(...data);
+  }
+  const placements = allPlacements;
 
   const now = new Date();
   const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
@@ -61,7 +78,14 @@ export async function fetchTeamWorkload(
     const userCardIds = userAssignments.map((a) => a.card_id);
     const userCards = cards?.filter((c) => userCardIds.includes(c.id)) || [];
 
-    const workloadCards = userCards.map((card) => {
+    // Sort: overdue first, then due soon, then by due date, then no date last
+    const sortedCards = [...userCards].sort((a, b) => {
+      const aDate = a.due_date ? new Date(a.due_date).getTime() : Infinity;
+      const bDate = b.due_date ? new Date(b.due_date).getTime() : Infinity;
+      return aDate - bDate;
+    });
+
+    const workloadCards = sortedCards.slice(0, CARDS_PER_MEMBER).map((card) => {
       const placement = placements?.find((p: any) => p.card_id === card.id) as any;
       return {
         id: card.id,
