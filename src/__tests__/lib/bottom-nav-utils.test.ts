@@ -37,15 +37,56 @@ function timeAgo(dateStr: string): string {
 }
 
 // ========================================
+// Replicated from InboxView.tsx (new filter helpers)
+// ========================================
+function isNew(dateStr: string): boolean {
+  const d = new Date(dateStr);
+  const now = new Date();
+  return now.getTime() - d.getTime() < 24 * 60 * 60 * 1000;
+}
+
+function isOverdue(dueDate: string): boolean {
+  const d = new Date(dueDate);
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  return d < now;
+}
+
+function isDueToday(dueDate: string): boolean {
+  const d = new Date(dueDate);
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+}
+
+function isDueThisWeek(dueDate: string): boolean {
+  const d = new Date(dueDate);
+  const now = new Date();
+  const weekEnd = new Date(now);
+  weekEnd.setDate(now.getDate() + (7 - now.getDay()));
+  weekEnd.setHours(23, 59, 59, 999);
+  return d >= now && d <= weekEnd;
+}
+
+// ========================================
 // Replicated from PlannerView.tsx
 // ========================================
 function getPriorityColorBorder(priority: string) {
   switch (priority) {
-    case 'urgent': return 'border-l-red-500';
-    case 'high': return 'border-l-orange-500';
-    case 'medium': return 'border-l-yellow-500';
-    case 'low': return 'border-l-blue-400';
+    case 'urgent': return 'border-l-red-500 bg-red-50/50 dark:bg-red-900/10';
+    case 'high': return 'border-l-orange-500 bg-orange-50/50 dark:bg-orange-900/10';
+    case 'medium': return 'border-l-yellow-500 bg-yellow-50/50 dark:bg-yellow-900/10';
+    case 'low': return 'border-l-blue-400 bg-blue-50/50 dark:bg-blue-900/10';
     default: return 'border-l-slate-300 dark:border-l-slate-600';
+  }
+}
+
+function getPriorityDot(priority: string) {
+  switch (priority) {
+    case 'urgent': return 'bg-red-500';
+    case 'high': return 'bg-orange-500';
+    case 'medium': return 'bg-yellow-500';
+    case 'low': return 'bg-blue-400';
+    default: return 'bg-slate-300 dark:bg-slate-600';
   }
 }
 
@@ -156,26 +197,126 @@ describe('Bottom Nav Utilities (P8.5)', () => {
     });
   });
 
-  // ---- PlannerView: getPriorityColorBorder ----
+  // ---- InboxView: isNew ----
+  describe('InboxView - isNew', () => {
+    it('returns true for item created 1 hour ago', () => {
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      expect(isNew(oneHourAgo)).toBe(true);
+    });
+
+    it('returns true for item created 23 hours ago', () => {
+      const almostDay = new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString();
+      expect(isNew(almostDay)).toBe(true);
+    });
+
+    it('returns false for item created 25 hours ago', () => {
+      const overDay = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
+      expect(isNew(overDay)).toBe(false);
+    });
+
+    it('returns true for item created just now', () => {
+      expect(isNew(new Date().toISOString())).toBe(true);
+    });
+  });
+
+  // ---- InboxView: isOverdue ----
+  describe('InboxView - isOverdue', () => {
+    it('returns true for yesterday', () => {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      expect(isOverdue(yesterday.toISOString())).toBe(true);
+    });
+
+    it('returns false for tomorrow', () => {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      expect(isOverdue(tomorrow.toISOString())).toBe(false);
+    });
+  });
+
+  // ---- InboxView: isDueToday ----
+  describe('InboxView - isDueToday', () => {
+    it('returns true for today', () => {
+      expect(isDueToday(new Date().toISOString())).toBe(true);
+    });
+
+    it('returns false for tomorrow', () => {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      expect(isDueToday(tomorrow.toISOString())).toBe(false);
+    });
+  });
+
+  // ---- InboxView: isDueThisWeek ----
+  describe('InboxView - isDueThisWeek', () => {
+    it('returns true for a date within this week', () => {
+      const now = new Date();
+      const daysLeft = 6 - now.getDay(); // days until Saturday
+      if (daysLeft > 0) {
+        const withinWeek = new Date(now);
+        withinWeek.setDate(now.getDate() + 1);
+        expect(isDueThisWeek(withinWeek.toISOString())).toBe(true);
+      }
+    });
+
+    it('returns false for a date 2 weeks from now', () => {
+      const twoWeeks = new Date();
+      twoWeeks.setDate(twoWeeks.getDate() + 14);
+      expect(isDueThisWeek(twoWeeks.toISOString())).toBe(false);
+    });
+  });
+
+  // ---- PlannerView: getPriorityColorBorder (now with bg colors) ----
   describe('PlannerView - getPriorityColorBorder', () => {
-    it('urgent -> border-l-red-500', () => {
-      expect(getPriorityColorBorder('urgent')).toBe('border-l-red-500');
+    it('urgent -> includes border-l-red-500 and bg tint', () => {
+      const result = getPriorityColorBorder('urgent');
+      expect(result).toContain('border-l-red-500');
+      expect(result).toContain('bg-red-50/50');
     });
 
-    it('high -> border-l-orange-500', () => {
-      expect(getPriorityColorBorder('high')).toBe('border-l-orange-500');
+    it('high -> includes border-l-orange-500 and bg tint', () => {
+      const result = getPriorityColorBorder('high');
+      expect(result).toContain('border-l-orange-500');
+      expect(result).toContain('bg-orange-50/50');
     });
 
-    it('medium -> border-l-yellow-500', () => {
-      expect(getPriorityColorBorder('medium')).toBe('border-l-yellow-500');
+    it('medium -> includes border-l-yellow-500 and bg tint', () => {
+      const result = getPriorityColorBorder('medium');
+      expect(result).toContain('border-l-yellow-500');
+      expect(result).toContain('bg-yellow-50/50');
     });
 
-    it('low -> border-l-blue-400', () => {
-      expect(getPriorityColorBorder('low')).toBe('border-l-blue-400');
+    it('low -> includes border-l-blue-400 and bg tint', () => {
+      const result = getPriorityColorBorder('low');
+      expect(result).toContain('border-l-blue-400');
+      expect(result).toContain('bg-blue-50/50');
     });
 
-    it('default -> border-l-slate', () => {
+    it('default -> border-l-slate (no bg tint)', () => {
       expect(getPriorityColorBorder('none')).toBe('border-l-slate-300 dark:border-l-slate-600');
+    });
+  });
+
+  // ---- PlannerView: getPriorityDot ----
+  describe('PlannerView - getPriorityDot', () => {
+    it('urgent -> bg-red-500', () => {
+      expect(getPriorityDot('urgent')).toBe('bg-red-500');
+    });
+
+    it('high -> bg-orange-500', () => {
+      expect(getPriorityDot('high')).toBe('bg-orange-500');
+    });
+
+    it('medium -> bg-yellow-500', () => {
+      expect(getPriorityDot('medium')).toBe('bg-yellow-500');
+    });
+
+    it('low -> bg-blue-400', () => {
+      expect(getPriorityDot('low')).toBe('bg-blue-400');
+    });
+
+    it('default -> slate', () => {
+      expect(getPriorityDot('none')).toBe('bg-slate-300 dark:bg-slate-600');
     });
   });
 

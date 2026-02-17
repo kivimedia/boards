@@ -20,9 +20,12 @@ const ALL_ACTIVITIES: AIActivity[] = [
   'brief_assist',
   'agent_execution',
   'agent_standalone_execution',
+  'web_research',
+  'replicate_generate',
+  'image_prompt_enhance',
 ];
 
-const VALID_PROVIDERS: AIProvider[] = ['anthropic', 'openai', 'google', 'browserless'];
+const VALID_PROVIDERS: AIProvider[] = ['anthropic', 'openai', 'google', 'browserless', 'replicate'];
 
 describe('AI Model Resolver (P2.0)', () => {
   // ===========================================================================
@@ -30,9 +33,9 @@ describe('AI Model Resolver (P2.0)', () => {
   // ===========================================================================
 
   describe('getAllActivities', () => {
-    it('returns all 13 activities', () => {
+    it('returns all 16 activities', () => {
       const activities = getAllActivities();
-      expect(activities).toHaveLength(13);
+      expect(activities).toHaveLength(16);
     });
 
     it('includes every known activity', () => {
@@ -57,8 +60,8 @@ describe('AI Model Resolver (P2.0)', () => {
       }
     });
 
-    it('has exactly 13 labels', () => {
-      expect(Object.keys(ACTIVITY_LABELS)).toHaveLength(13);
+    it('has exactly 16 labels', () => {
+      expect(Object.keys(ACTIVITY_LABELS)).toHaveLength(16);
     });
 
     it('all label values are non-empty strings', () => {

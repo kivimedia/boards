@@ -11,10 +11,21 @@ Agency Board is an internal project management platform for a marketing agency. 
 - **Start dev server**: `npx next dev --turbo` (runs on localhost:3000)
 - **Run env vars in node**: `export $(grep -v '^#' .env.local | xargs) && node -e '...'`
 
-## Session Summary (2026-02-17)
+## Session Summary (2026-02-17, continued)
 
-### What Was Done This Session
+### What Was Done This Session (Part 2 - Phase 9)
+1. **P9.1-P9.4 Backend** -- Implemented 4 PRD future features: Productivity Analytics (cron, PDF/XLSX gen, anomaly alerts, 35 tests), WhatsApp Business API (Meta client, webhook, digest cron, 21 tests), Video Design Review (frame extraction, multi-frame pipeline, 25 tests), QA Expansion (link-checker, WCAG mapping, monitoring cron, 49 tests). 5 new migrations (048-052).
+2. **P9.5 Scout Pipeline Enhancements** -- Ported 5 features from local podcast outreach agent: Research Dossiers (deep web research per candidate), Quality Scoring (6-factor algorithm), Dossier Validation, Outreach Email Generation (Claude-powered), Cost Tracking dashboard. 5 new lib modules, 6 API routes, 62 tests. Built 5 UI components (TierBadge, QualityScoreBar, DossierViewer, OutreachEmailPanel, CostDashboard) + /podcast/costs page. 76 component tests.
+3. **P9.6 Phase 9 UI Integration** -- Wired all orphaned P9 components into their target pages:
+   - P9.1: AlertsBanner, ComparisonOverlay, RevisionDeepDive wired into /productivity page with board selector
+   - P9.2: CustomActionBuilder, DigestTemplateEditor wired into /settings/whatsapp page (full-width advanced section)
+   - P9.3: VideoFrameComparison wired into CardModal AI Review tab (conditional on review_type=video). Extended AIReviewResult type with video fields
+   - P9.4: Created /settings/qa dashboard page with QATrendDashboard + LinkCheckResults. Added QA Monitoring card to /settings navigation
+4. **API Keys Found** -- Hunter.io and Snov.io API keys located in local agent directory for Scout Pipeline E2E testing
+
+### What Was Done Earlier This Session (Part 1 - P8.6-P8.7)
 1. **P8.6 Board AI Assistant Inline Charts** -- Added chart generation to the board AI assistant. When users ask analytical questions ("show workload distribution", "chart cards per list", "priority breakdown"), the AI returns an inline SVG chart alongside its text response. Supports bar, pie (donut), and line charts. AI decides when a chart is appropriate via prompt instructions. `validateChartData()` server-side validation (type, bounds 2-12 items, truncation, rounding). 57 new tests, TypeScript clean.
+2. **P8.7 Nano Banana Image Gen Upgrade** -- Multi-provider image generation (Gemini + Replicate FLUX 1.1 Pro). Claude Haiku prompt enhancement rewrites simple prompts into detailed image gen prompts. 6 marketing style presets (Social Post, Ad Banner, Hero Image, Product Shot, Mood Board, Photo Realistic). Upgraded NanoBananaWidget with provider toggle, style preset pills, enhance checkbox, inline image preview, set-as-cover button, generate-another button, collapsible enhanced prompt display. Added `'replicate'` to AIProvider, `'replicate_generate' | 'image_prompt_enhance'` to AIActivity (synced across all 4 Record maps). Replicate uses raw fetch() with polling. 25 new tests, all 2,636 tests pass, TypeScript clean.
 
 ### Previous Session (2026-02-16)
 1. **P8.1 Dedup Cleanup** -- Ran workspace-wide dedup across all 7 boards. Deleted 3,118 duplicate cards (Mariz: 2,895, Glen: 72, Video Training: 65, Daily Cookie: 50, Abs: 35, Remember me: 1).
@@ -64,6 +75,64 @@ Agency Board is an internal project management platform for a marketing agency. 
 - **PlannerView**: 7-day calendar grid with week navigation, unscheduled sidebar
 - **BoardSwitcher**: Slide-up overlay with search, grouped by board type, card counts, star indicators
 - **Components**: `bottom-nav/BottomNavBar.tsx`, `NavTab.tsx`, `InboxView.tsx`, `PlannerView.tsx`, `BoardSwitcher.tsx`
+
+### P8.7 Nano Banana Image Gen Upgrade (Coded + Tested)
+- **Multi-provider**: `generateImage()` dispatches to Gemini (default) or Replicate FLUX 1.1 Pro based on `provider` param
+- **Replicate integration**: Raw `fetch()` to `api.replicate.com/v1/predictions`, polling loop (max 60s, 2s intervals), `Prefer: wait` header, image download + base64 conversion
+- **Prompt enhancement**: `enhanceImagePrompt()` calls Claude Haiku to rewrite simple prompts with composition, lighting, color, style details. Falls back to original on error
+- **Style presets**: `IMAGE_STYLE_PRESETS` constant (6 presets: social_post, ad_banner, hero_image, product_shot, mood_board, photo_realistic). Exported for UI and prompt enhancement
+- **Generate API**: `POST /api/cards/[id]/nano-banana/generate` accepts new fields: `provider`, `stylePreset`, `enhancePrompt`. Returns `enhancedPrompt` in response
+- **Widget upgrade**: Provider toggle (Gemini vs FLUX pills), style preset selector, enhance checkbox (default on), inline image preview (signed URL), set-as-cover button (PATCHes card), generate-another button, collapsible enhanced prompt display, loading skeleton
+- **Cost tracking**: Replicate charges per-image ($0.04/image for FLUX 1.1 Pro), logged in metadata. `replicate_generate` and `image_prompt_enhance` activities added
+- **Types**: `'replicate'` added to `AIProvider`, `'replicate_generate' | 'image_prompt_enhance'` added to `AIActivity`. All 4 Record maps synced (model-resolver, prompt-templates, AIModelConfigTable)
+- **Components**: `NanoBananaWidget.tsx` (rewritten Generate tab ~550 lines)
+- **Tests**: 25 new tests in `nano-banana-upgrade.test.ts`. Updated 3 existing test files for new counts
+
+## Phase 9: PRD Future Features (Coded + Tested)
+
+### P9.1 Team Productivity Analytics (Coded + Tested + UI Wired)
+- **Cron endpoint**: `/api/cron/productivity-snapshot` captures daily snapshots
+- **Report generation**: PDF/XLSX export via `productivity-report-generator.ts`
+- **Department rollup**: Aggregate metrics by department
+- **Anomaly alerts**: AlertsBanner auto-fetches from `/api/productivity/alerts` with dismiss
+- **UI integration**: AlertsBanner, ComparisonOverlay (period delta indicators), RevisionDeepDive (revision patterns with board selector) wired into `/productivity` page
+- **Components**: `AlertsBanner.tsx`, `ComparisonOverlay.tsx`, `RevisionDeepDive.tsx`
+- **API**: `GET /api/productivity/alerts`, `GET /api/productivity/departments`, `POST /api/productivity/reports/generate`
+
+### P9.2 WhatsApp Business API (Coded + Tested + UI Wired)
+- **Meta API client**: `whatsapp-business-api.ts` with template messaging, media upload, webhook verification
+- **Inbound webhook**: `/api/whatsapp/webhook` processes incoming messages
+- **Auto-digest cron**: `/api/cron/whatsapp-digest` sends daily board summaries
+- **Admin config**: WhatsAppConfigForm for Business API credentials (admin-only)
+- **UI integration**: CustomActionBuilder (keyword-triggered commands CRUD) + DigestTemplateEditor (configurable sections with drag/drop) wired into `/settings/whatsapp`
+- **Components**: `WhatsAppConfigForm.tsx`, `MessageStatusIcon.tsx`, `CustomActionBuilder.tsx`, `DigestTemplateEditor.tsx`
+
+### P9.3 AI Video Design Review (Coded + Tested + UI Wired)
+- **Frame extraction**: Extract key frames from video attachments
+- **Multi-frame review**: Brand consistency, text readability, quality analysis per frame
+- **Thumbnail suggestion**: AI-recommended thumbnail frame
+- **UI integration**: VideoFrameComparison (timeline scrubber, frame-by-frame verdicts) wired into CardModal AI Review tab, conditional on `review_type === 'video'`
+- **Type extension**: AIReviewResult extended with `review_type`, `frame_count`, `frame_verdicts`, `thumbnail_suggestion`, `video_duration_seconds`
+- **Migration 050**: Video columns on `ai_review_results`
+
+### P9.4 AI QA Expansion (Coded + Tested + UI Wired)
+- **Link checker**: `link-checker.ts` concurrent broken link scanning
+- **WCAG mapping**: Accessibility compliance report generation
+- **Monitoring cron**: `/api/cron/qa-monitoring` runs scheduled checks
+- **Monitoring config CRUD**: `/api/qa/monitoring-configs` with active/paused toggle
+- **UI integration**: Created `/settings/qa` dashboard with QATrendDashboard + LinkCheckResults + configs table + CSV export. Added QA Monitoring card to `/settings` navigation
+- **Components**: `QATrendDashboard.tsx`, `LinkCheckResults.tsx`, `MultiBrowserResults.tsx`, `WCAGReport.tsx`
+- **Migration 051**: Monitoring configs, link check results tables
+
+### P9.5 Scout Pipeline Enhancements (Coded + Tested)
+- **Research dossiers**: `research-dossier.ts` deep web research per candidate
+- **Quality scoring**: `quality-scorer.ts` 6-factor algorithm (online presence, content quality, engagement, relevance, professionalism, podcast fit)
+- **Dossier validation**: `dossier-validator.ts` checks completeness and accuracy
+- **Outreach emails**: `outreach-copywriter.ts` Claude-powered personalized email generation
+- **Cost tracking**: `scout-cost-tracker.ts` per-candidate cost aggregation across API calls
+- **UI components**: TierBadge (S/A/B/C/D), QualityScoreBar, DossierViewer, OutreachEmailPanel, CostDashboard
+- **Cost page**: `/podcast/costs` with per-run and per-candidate breakdowns
+- **Migration 052**: Research dossiers, quality scores, outreach emails tables
 
 ## Current Work -- LinkedIn Scout Pipeline (Phase 7, P7.12)
 
@@ -132,19 +201,19 @@ Burndown charts, velocity charts, satisfaction trends, saved filter views, clien
 - Next.js 14 (API routes), React 18, TypeScript 5.3, Tailwind 3.4
 - Supabase (Postgres, Auth, Storage, Realtime)
 - @hello-pangea/dnd (drag-drop), TanStack Query, Zustand
-- AI: Anthropic SDK (v0.74.0 w/ web_search_20250305), OpenAI SDK, Google Generative AI SDK
+- AI: Anthropic SDK (v0.74.0 w/ web_search_20250305), OpenAI SDK, Google Generative AI SDK, Replicate API (raw fetch)
 - Testing: Vitest + Playwright
-- 45 SQL migrations, 269+ API routes, 197+ components, 38 pages, 25 AI modules
+- 52 SQL migrations, 282+ API routes, 215+ components, 40 pages, 33 AI modules
 
 ## Conventions
-- Migrations in `supabase/migrations/` numbered sequentially (next: 046)
+- Migrations in `supabase/migrations/` numbered sequentially (next: 053)
 - API routes in `src/app/api/`
-- Components in `src/components/` organized by domain (36 folders)
+- Components in `src/components/` organized by domain (38 folders)
 - Lib code in `src/lib/` (AI code in `src/lib/ai/`)
 - Tests in `src/__tests__/`, E2E in `e2e/`
-- Hooks in `src/hooks/` (9 hooks including usePresence, useEditLock, useBoard)
+- Hooks in `src/hooks/` (11 hooks including usePresence, useEditLock, useBoard, useWebResearch)
 - No emdash in UI headlines -- use plain text
-- AIActivity union type must be kept in sync across 4 Record maps when adding new activities
+- AIActivity union type (16 activities) must be kept in sync across 4 Record maps when adding new activities (model-resolver DEFAULT_CONFIGS + ACTIVITY_LABELS, prompt-templates SYSTEM_PROMPTS, AIModelConfigTable DEFAULTS)
 
 ## Key Architecture Notes
 - `usePresence` hook with Supabase Realtime channels (`'app:global'` for sidebar online users)
@@ -157,15 +226,63 @@ Burndown charts, velocity charts, satisfaction trends, saved filter views, clien
 - Idempotent migrations via `migration_entity_map` table
 - Cross-job dedup via `getGlobalMappings()` in trello-migration.ts
 - My Tasks pagination: 50 cards/page, parallel queries, Map lookups (fixed from timing out)
+- Replicate API: raw fetch() to `api.replicate.com/v1/predictions`, polling loop (max 60s, 2s intervals), per-image cost ($0.04 FLUX Pro, $0.003 Schnell) logged in metadata
+- Nano Banana multi-provider: `generateImage()` dispatches to Gemini or Replicate based on `provider` param; `enhanceImagePrompt()` uses Claude Haiku for prompt rewriting
 
-## Recent File Changes (This Session - 2026-02-17)
-- `src/lib/types.ts` -- Added BoardChartType, BoardChartDataPoint, BoardChartData types; extended AiAssistantResponse with optional chart_data
-- `src/app/api/board-assistant/route.ts` -- Added validateChartData() exported helper, extended system prompt with chart generation rules, integrated chart validation into response pipeline
-- `src/hooks/useSmartSearch.ts` -- Added aiChartData state, reset/set from SSE done event, returned from hook
-- `src/components/smart-search/AiBotResponse.tsx` -- Added chartData prop, renders BoardChartRenderer after response text (hidden during streaming)
-- `src/components/smart-search/SearchBar.tsx` -- Wired aiChartData from hook to AiBotResponse chartData prop
-- `src/components/smart-search/BoardChartRenderer.tsx` -- NEW: SVG chart component (bar/pie/line), 8-color palette, TrendBadge, light/dark mode
-- `src/__tests__/lib/board-assistant-chart.test.ts` -- NEW: 57 tests for validateChartData, type shapes, SSE parsing, chart data prep
+## Recent File Changes (This Session - 2026-02-17, Part 2: Phase 9)
+
+### Phase 9 Backend (P9.1-P9.4)
+- `supabase/migrations/048_productivity_alerts.sql` -- NEW: Productivity alert rules, scheduled reports tables
+- `supabase/migrations/049_whatsapp_business_api.sql` -- NEW: WhatsApp business config, message log tables
+- `supabase/migrations/049_web_research_and_agent_tools.sql` -- NEW: Web research sessions, agent tool configs
+- `supabase/migrations/050_video_design_review.sql` -- NEW: Video review columns on ai_review_results
+- `supabase/migrations/051_qa_monitoring.sql` -- NEW: QA monitoring configs, link check results tables
+- `supabase/migrations/052_research_dossiers_quality_scoring.sql` -- NEW: Research dossiers, quality scores, outreach emails tables
+- `src/lib/productivity-analytics.ts` -- Extended with alert rules, department rollup, anomaly detection
+- `src/lib/productivity-report-generator.ts` -- NEW: PDF/XLSX report generation
+- `src/lib/integrations/whatsapp-business-api.ts` -- NEW: Meta WhatsApp Business API client
+- `src/lib/integrations/browserless.ts` -- NEW: Browserless.io headless browser client
+- `src/lib/ai/link-checker.ts` -- NEW: Broken link scanner with concurrent checking
+- `src/lib/ai/design-review.ts` -- Extended with video frame analysis, FrameVerdict type
+- `src/lib/ai/dev-qa.ts` -- Extended with monitoring config CRUD, link check, WCAG mapping
+- `src/lib/ai/web-research.ts` -- NEW: Web research session management
+- `src/lib/ai/web-research-prompts.ts` -- NEW: Research prompt templates
+- `src/lib/ai/agent-chain.ts` -- NEW: Multi-step agent chaining
+- `src/lib/ai/agent-tools.ts` -- NEW: Agent tool definitions
+- `src/hooks/useWebResearch.ts` -- NEW: Hook for web research sessions
+
+### Phase 9.5 Scout Enhancements
+- `src/lib/ai/research-dossier.ts` -- NEW: Deep web research per candidate
+- `src/lib/ai/quality-scorer.ts` -- NEW: 6-factor quality scoring algorithm
+- `src/lib/ai/dossier-validator.ts` -- NEW: Dossier validation pipeline
+- `src/lib/ai/outreach-copywriter.ts` -- NEW: Claude-powered outreach email generation
+- `src/lib/ai/scout-cost-tracker.ts` -- NEW: Per-candidate cost aggregation
+- `src/app/api/podcast/candidates/[id]/dossier/route.ts` -- NEW: Dossier generation endpoint
+- `src/app/api/podcast/candidates/[id]/outreach/route.ts` -- NEW: Outreach email endpoint
+- `src/app/api/podcast/candidates/[id]/score/route.ts` -- NEW: Quality scoring endpoint
+- `src/app/api/podcast/candidates/score-batch/route.ts` -- NEW: Batch scoring endpoint
+- `src/app/api/podcast/costs/route.ts` -- NEW: Cost tracking endpoint
+- `src/app/api/web-research/route.ts` -- NEW: Web research endpoint
+- `src/components/podcast/TierBadge.tsx` -- NEW: Quality tier badge (S/A/B/C/D)
+- `src/components/podcast/QualityScoreBar.tsx` -- NEW: 6-factor score visualization
+- `src/components/podcast/DossierViewer.tsx` -- NEW: Research dossier display
+- `src/components/podcast/OutreachEmailPanel.tsx` -- NEW: Email generation + preview
+- `src/components/podcast/CostDashboard.tsx` -- NEW: Cost breakdown dashboard
+- `src/app/podcast/costs/page.tsx` -- NEW: Cost tracking page
+
+### Phase 9.6 UI Integration
+- `src/app/productivity/page.tsx` -- Added AlertsBanner, ComparisonOverlay, RevisionDeepDive with board selector
+- `src/app/settings/whatsapp/page.tsx` -- Added CustomActionBuilder + DigestTemplateEditor in full-width section
+- `src/components/card/CardModal.tsx` -- Added VideoFrameComparison in AI Review tab (conditional on review_type=video)
+- `src/lib/types.ts` -- Extended AIReviewResult with video fields (review_type, frame_count, frame_verdicts, thumbnail_suggestion, video_duration_seconds)
+- `src/app/settings/qa/page.tsx` -- NEW: Full QA monitoring dashboard with board selector, configs table, trend charts, link check
+- `src/app/settings/page.tsx` -- Added QA Monitoring card to settings navigation grid
+
+### P8.6-P8.7 (Earlier This Session)
+- `src/lib/ai/nano-banana.ts` -- Major rewrite: multi-provider (Gemini + Replicate FLUX), prompt enhancement, style presets
+- `src/components/card/NanoBananaWidget.tsx` -- Rewritten Generate tab with provider toggle, presets, preview
+- `src/app/api/board-assistant/route.ts` -- Added validateChartData(), chart generation rules
+- `src/components/smart-search/BoardChartRenderer.tsx` -- NEW: SVG chart component (bar/pie/line)
 
 ## Previous Session File Changes (2026-02-16)
 - `src/lib/board-data.ts` -- Performance: reduced card payload, signed URL cache, batched cover signing, timing instrumentation

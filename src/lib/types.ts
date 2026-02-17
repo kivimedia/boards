@@ -586,12 +586,17 @@ export type PGARunStatus = 'running' | 'completed' | 'failed' | 'awaiting_input'
 export type PGASequenceStatus = 'draft' | 'active' | 'paused' | 'completed' | 'stopped';
 export type PGAService = 'instantly' | 'hunter' | 'snov' | 'calendly' | 'scout_config' | 'trello';
 
+export type PGAQualityTier = 'hot' | 'warm' | 'cold';
+export type PGAOutreachSendStatus = 'draft' | 'approved' | 'sent' | 'bounced' | 'replied' | 'unsubscribed';
+export type PGAResponseType = 'interested' | 'maybe_later' | 'declined' | 'question';
+
 export interface PGACandidate {
   id: string;
   name: string;
   one_liner: string | null;
   email: string | null;
   email_verified: boolean;
+  location: string | null;
   platform_presence: Record<string, string>;
   evidence_of_paid_work: Array<{ project: string; description: string; url?: string }>;
   estimated_reach: Record<string, number>;
@@ -604,8 +609,83 @@ export interface PGACandidate {
   reviewed_by: string | null;
   reviewed_at: string | null;
   notes: string | null;
+  quality_score: number;
+  tier: PGAQualityTier;
+  next_followup_date: string | null;
+  last_contacted_at: string | null;
+  touch_count: number;
+  unsubscribed: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface PGAResearchDossier {
+  id: string;
+  candidate_id: string;
+  run_id: string | null;
+  personalization_elements: Array<{
+    fact: string;
+    source_url: string;
+    source_type: string;
+    screenshot_or_quote: string;
+    date_found: string;
+    confidence: PGAConfidence;
+    verification_status: 'verified' | 'unverified' | 'stale' | 'risky';
+  }>;
+  tone_profile: {
+    communication_style: string;
+    favorite_topics: string[];
+    pet_peeves: string[];
+    humor_level: string;
+    formality: string;
+    preferred_platforms: string[];
+  };
+  story_angle: string | null;
+  potential_hooks: string[];
+  red_flags: string[];
+  validation_summary: Record<string, unknown>;
+  sources_checked: number;
+  sources_found: number;
+  research_duration_ms: number;
+  tokens_used: number;
+  cost_usd: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PGAOutreachRun {
+  id: string;
+  candidate_id: string;
+  dossier_id: string | null;
+  run_id: string | null;
+  touch_number: number;
+  subject: string | null;
+  body: string | null;
+  generation_prompt: string | null;
+  copy_validation: Record<string, unknown>;
+  send_status: PGAOutreachSendStatus;
+  sent_at: string | null;
+  resend_id: string | null;
+  response_type: PGAResponseType | null;
+  response_at: string | null;
+  tokens_used: number;
+  cost_usd: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PGAScoutCost {
+  id: string;
+  run_id: string | null;
+  service: 'hunter' | 'snov' | 'anthropic' | 'resend';
+  operation: string;
+  credits_used: number;
+  cost_usd: number;
+  api_calls: number;
+  candidate_name: string | null;
+  candidate_id: string | null;
+  created_at: string;
 }
 
 export interface PGAEmailSequence {
@@ -818,7 +898,7 @@ export interface Backup {
 
 // P2.0: AI Infrastructure
 
-export type AIProvider = 'anthropic' | 'openai' | 'google' | 'browserless';
+export type AIProvider = 'anthropic' | 'openai' | 'google' | 'browserless' | 'replicate';
 
 export type AIActivity =
   | 'design_review'
@@ -833,7 +913,10 @@ export type AIActivity =
   | 'video_generation'
   | 'brief_assist'
   | 'agent_execution'
-  | 'agent_standalone_execution';
+  | 'agent_standalone_execution'
+  | 'web_research'
+  | 'replicate_generate'
+  | 'image_prompt_enhance';
 
 export type AIUsageStatus = 'success' | 'error' | 'budget_blocked' | 'rate_limited';
 
@@ -999,6 +1082,74 @@ export interface AIQAResult {
   updated_at: string;
 }
 
+// P9.4: QA Monitoring
+
+export type QAMonitoringFrequency = '12h' | '24h' | '48h' | '7d';
+
+export interface QAMonitoringConfig {
+  id: string;
+  card_id: string | null;
+  board_id: string;
+  url: string;
+  frequency: QAMonitoringFrequency;
+  browsers: string[];
+  alert_threshold: number;
+  is_active: boolean;
+  last_run_at: string | null;
+  last_scores: Record<string, number>;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QALinkCheck {
+  id: string;
+  qa_result_id: string;
+  url: string;
+  status_code: number | null;
+  response_time_ms: number | null;
+  link_type: 'internal' | 'external' | 'anchor' | 'mailto' | 'tel';
+  is_broken: boolean;
+  error_message: string | null;
+  created_at: string;
+}
+
+export interface WCAGCriterion {
+  id: string;
+  name: string;
+  level: 'A' | 'AA' | 'AAA';
+  principle: 'perceivable' | 'operable' | 'understandable' | 'robust';
+  passed: boolean;
+  violations: number;
+  description: string;
+}
+
+export interface WCAGReport {
+  compliancePercentage: number;
+  principles: {
+    perceivable: { passed: number; failed: number; total: number };
+    operable: { passed: number; failed: number; total: number };
+    understandable: { passed: number; failed: number; total: number };
+    robust: { passed: number; failed: number; total: number };
+  };
+  criteria: WCAGCriterion[];
+  totalViolations: number;
+}
+
+export interface MultiBrowserResult {
+  browser: string;
+  screenshots: QAScreenshot[];
+  lighthouseScores: Record<string, number> | null;
+  differences: BrowserDifference[];
+}
+
+export interface BrowserDifference {
+  viewport: string;
+  diffPercentage: number;
+  diffImagePath: string | null;
+  description: string;
+}
+
 // P2.1: AI Design Review
 
 export type AIReviewVerdict = 'pending' | 'approved' | 'revisions_needed' | 'overridden_approved' | 'overridden_rejected';
@@ -1035,6 +1186,12 @@ export interface AIReviewResult {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  // Video review fields (P9.3)
+  review_type?: 'image' | 'video';
+  frame_count?: number | null;
+  frame_verdicts?: unknown[] | null;
+  thumbnail_suggestion?: string | null;
+  video_duration_seconds?: number | null;
 }
 
 // ============================================================================
@@ -1885,6 +2042,30 @@ export interface UserScorecard {
   rank: number;
 }
 
+export interface ProductivityAlert {
+  id: string;
+  board_id: string | null;
+  user_id: string | null;
+  metric_name: 'cycle_time' | 'on_time_rate' | 'revision_rate' | 'ai_pass_rate' | 'tickets_completed' | 'revision_outliers';
+  current_value: number;
+  threshold_value: number;
+  alert_type: 'above_threshold' | 'below_threshold' | 'trend_change';
+  severity: 'info' | 'warning' | 'critical';
+  acknowledged: boolean;
+  acknowledged_by: string | null;
+  acknowledged_at: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface DepartmentRollup {
+  department: string;
+  boardType: string;
+  metrics: ProductivityMetrics;
+  memberCount: number;
+  previousMetrics?: ProductivityMetrics;
+}
+
 // ============================================================================
 // REVISION ANALYSIS TYPES (P4.3)
 // ============================================================================
@@ -2232,6 +2413,41 @@ export interface DigestSection {
   config?: Record<string, unknown>;
 }
 
+// P9.2: WhatsApp Business API
+
+export interface WhatsAppConfig {
+  id: string;
+  phone_number_id: string;
+  access_token: string;
+  webhook_verify_token: string;
+  business_account_id: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type WhatsAppMediaType = 'image' | 'video' | 'document' | 'audio';
+
+export interface WhatsAppWebhookMessage {
+  from: string;
+  id: string;
+  timestamp: string;
+  type: 'text' | 'image' | 'video' | 'document' | 'audio' | 'interactive' | 'button' | 'reaction';
+  text?: { body: string };
+  image?: { id: string; mime_type: string; caption?: string };
+  video?: { id: string; mime_type: string; caption?: string };
+  document?: { id: string; mime_type: string; filename?: string; caption?: string };
+  interactive?: { type: string; button_reply?: { id: string; title: string }; list_reply?: { id: string; title: string } };
+}
+
+export interface WhatsAppStatusUpdate {
+  id: string;
+  status: 'sent' | 'delivered' | 'read' | 'failed';
+  timestamp: string;
+  recipient_id: string;
+  errors?: Array<{ code: number; title: string }>;
+}
+
 export type ProductivityReportType = 'individual' | 'team' | 'department' | 'executive';
 export type ProductivityReportFormat = 'pdf' | 'csv' | 'xlsx';
 export type ProductivityReportFileStatus = 'pending' | 'generating' | 'completed' | 'failed';
@@ -2503,4 +2719,155 @@ export interface SavedCommand {
   command: string;
   icon: string;
   usage_count: number;
+}
+
+// ============================================================================
+// WEB RESEARCH AGENT TYPES (Migration 049)
+// ============================================================================
+
+export type WebResearchTaskType =
+  | 'url_import'
+  | 'competitor_research'
+  | 'link_health'
+  | 'content_extraction'
+  | 'social_proof'
+  | 'general';
+
+export type WebResearchStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+export type WebResearchExtractedItemType =
+  | 'page_content'
+  | 'testimonial'
+  | 'pricing'
+  | 'feature'
+  | 'review'
+  | 'contact'
+  | 'link_status'
+  | 'social_proof';
+
+export interface WebResearchExtractedItem {
+  type: WebResearchExtractedItemType;
+  title: string;
+  content: string;
+  url?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface WebResearchToolCall {
+  id: string;
+  session_id: string;
+  tool_name: string;
+  tool_input: Record<string, unknown>;
+  tool_result: Record<string, unknown>;
+  status: 'pending' | 'running' | 'success' | 'failed';
+  error_message: string | null;
+  duration_ms: number | null;
+  call_order: number;
+  created_at: string;
+}
+
+export interface WebResearchSession {
+  id: string;
+  board_id: string | null;
+  card_id: string | null;
+  user_id: string;
+  task_type: WebResearchTaskType;
+  input_prompt: string;
+  input_urls: string[];
+  domain_allowlist: string[];
+  status: WebResearchStatus;
+  current_iteration: number;
+  max_iterations: number;
+  output_summary: string | null;
+  output_structured: Record<string, unknown>;
+  extracted_items: WebResearchExtractedItem[];
+  screenshots_taken: number;
+  pages_visited: number;
+  ai_tokens_used: number;
+  ai_cost_usd: number;
+  browser_seconds_used: number;
+  browser_cost_usd: number;
+  total_cost_usd: number;
+  duration_ms: number | null;
+  model_used: string | null;
+  tool_calls_count: number;
+  error_message: string | null;
+  created_at: string;
+  completed_at: string | null;
+  tool_calls?: WebResearchToolCall[];
+}
+
+// ============================================================================
+// ENHANCED AGENT FRAMEWORK TYPES (Migration 049)
+// ============================================================================
+
+export type AgentToolCategory = 'read' | 'write' | 'internal' | 'external';
+
+export interface AgentToolDefinition {
+  name: string;
+  description: string;
+  input_schema: Record<string, unknown>;
+  category: AgentToolCategory;
+  needs_confirmation: boolean;
+}
+
+export type AgentSSEEventType =
+  | 'token'
+  | 'tool_call'
+  | 'tool_result'
+  | 'thinking'
+  | 'confirm'
+  | 'chain_step'
+  | 'complete'
+  | 'error';
+
+export interface AgentToolCallEvent {
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+  status: 'pending' | 'running' | 'success' | 'failed' | 'pending_confirmation' | 'confirmed' | 'rejected';
+  result?: string;
+  error?: string;
+  duration_ms?: number;
+}
+
+export interface SkillChainStep {
+  skill_slug: string;
+  skill_name: string;
+  order: number;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+  output_summary?: string;
+}
+
+export interface SkillChainPlan {
+  chain_id: string;
+  target_skill: string;
+  steps: SkillChainStep[];
+  total_steps: number;
+}
+
+export interface MultiTurnExecutionParams {
+  taskId?: string;
+  skillId: string;
+  boardAgentId?: string;
+  cardId?: string;
+  boardId?: string;
+  userId: string;
+  inputPrompt?: string;
+  maxIterations?: number;
+  enableTools?: boolean;
+  executionId?: string;
+  confirmedToolCallId?: string;
+  rejectedToolCallId?: string;
+}
+
+export interface MultiTurnExecutionCallbacks {
+  onToken: (text: string) => void;
+  onToolCall?: (name: string, input: Record<string, unknown>) => void;
+  onToolResult?: (name: string, result: string, success: boolean) => void;
+  onThinking?: (summary: string) => void;
+  onConfirmationNeeded?: (toolCallId: string, name: string, input: Record<string, unknown>, message: string) => void;
+  onChainStep?: (step: number, skillName: string, status: string) => void;
+  onComplete: (output: string) => void;
+  onError: (error: string) => void;
 }

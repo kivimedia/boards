@@ -23,6 +23,7 @@ const ALL_ACTIVITIES: AIActivity[] = [
   'brief_assist',
   'agent_execution',
   'agent_standalone_execution',
+  'web_research',
 ];
 
 describe('AI Prompt Templates (P2.0)', () => {
@@ -40,8 +41,8 @@ describe('AI Prompt Templates (P2.0)', () => {
       }
     });
 
-    it('has exactly 13 system prompts', () => {
-      expect(Object.keys(SYSTEM_PROMPTS)).toHaveLength(13);
+    it('has exactly 16 system prompts', () => {
+      expect(Object.keys(SYSTEM_PROMPTS)).toHaveLength(16);
     });
 
     it('all system prompts are non-empty strings', () => {

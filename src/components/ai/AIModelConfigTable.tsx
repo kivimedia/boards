@@ -20,6 +20,7 @@ const PROVIDER_LABELS: Record<AIProvider, string> = {
   openai: 'OpenAI',
   google: 'Google',
   browserless: 'Browserless',
+  replicate: 'Replicate',
 };
 
 function getModelsForProvider(provider: AIProvider): string[] {
@@ -43,6 +44,9 @@ const DEFAULTS: Record<AIActivity, { provider: AIProvider; model_id: string; tem
   brief_assist: { provider: 'anthropic', model_id: 'claude-haiku-4-5-20251001', temperature: 0.5, max_tokens: 1024 },
   agent_execution: { provider: 'anthropic', model_id: 'claude-sonnet-4-5-20250929', temperature: 0.4, max_tokens: 8192 },
   agent_standalone_execution: { provider: 'anthropic', model_id: 'claude-sonnet-4-5-20250929', temperature: 0.4, max_tokens: 8192 },
+  web_research: { provider: 'anthropic', model_id: 'claude-sonnet-4-5-20250929', temperature: 0.3, max_tokens: 8192 },
+  replicate_generate: { provider: 'replicate', model_id: 'flux-1.1-pro', temperature: 0.8, max_tokens: 1024 },
+  image_prompt_enhance: { provider: 'anthropic', model_id: 'claude-haiku-4-5-20251001', temperature: 0.7, max_tokens: 1024 },
 };
 
 function isDefaultConfig(config: AIModelConfig): boolean {

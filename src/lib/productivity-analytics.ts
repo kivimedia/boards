@@ -5,6 +5,8 @@ import type {
   ScheduledReport,
   ProductivityMetrics,
   UserScorecard,
+  ProductivityAlert,
+  DepartmentRollup,
 } from './types';
 
 // ============================================================================
@@ -350,4 +352,423 @@ export function calculateNextSendAt(schedule: string): string {
   }
 
   return next.toISOString();
+}
+
+// ============================================================================
+// ANOMALY DETECTION & ALERTS (P9.1)
+// ============================================================================
+
+export interface AlertThresholds {
+  revisionRate?: { warning: number; critical?: number }; // multiplier of team avg (default 1.5x)
+  cycleTime?: { warning: number; critical?: number };     // multiplier of team avg (default 2x)
+  onTimeRate?: { warning: number; critical?: number };    // absolute % floor (default 60%)
+  aiPassRate?: { warning: number; critical?: number };    // absolute % floor (default 50%)
+}
+
+const DEFAULT_THRESHOLDS: AlertThresholds = {
+  revisionRate: { warning: 1.5 },
+  cycleTime: { warning: 2 },
+  onTimeRate: { warning: 60, critical: 40 },
+  aiPassRate: { warning: 50 },
+};
+
+export function generateAlerts(
+  snapshots: ProductivitySnapshot[],
+  thresholds: AlertThresholds = DEFAULT_THRESHOLDS
+): Omit<ProductivityAlert, 'id' | 'created_at'>[] {
+  if (snapshots.length === 0) return [];
+
+  const alerts: Omit<ProductivityAlert, 'id' | 'created_at'>[] = [];
+  const teamMetrics = aggregateSnapshots(snapshots);
+
+  // Group snapshots by user
+  const byUser = new Map<string, ProductivitySnapshot[]>();
+  for (const s of snapshots) {
+    if (!s.user_id) continue;
+    const existing = byUser.get(s.user_id) ?? [];
+    existing.push(s);
+    byUser.set(s.user_id, existing);
+  }
+
+  const userEntries = Array.from(byUser.entries());
+  for (const [userId, userSnapshots] of userEntries) {
+    const userMetrics = aggregateSnapshots(userSnapshots);
+    const boardId = userSnapshots[0]?.board_id ?? null;
+
+    // Revision rate: flag if user revision rate > team avg * multiplier
+    if (thresholds.revisionRate && teamMetrics.revisionRate > 0) {
+      const warningThreshold = teamMetrics.revisionRate * thresholds.revisionRate.warning;
+      if (userMetrics.revisionRate > warningThreshold) {
+        alerts.push({
+          board_id: boardId,
+          user_id: userId,
+          metric_name: 'revision_rate',
+          current_value: userMetrics.revisionRate,
+          threshold_value: warningThreshold,
+          alert_type: 'above_threshold',
+          severity: 'warning',
+          acknowledged: false,
+          acknowledged_by: null,
+          acknowledged_at: null,
+          metadata: { team_avg: teamMetrics.revisionRate },
+        });
+      }
+    }
+
+    // Cycle time: flag if user cycle time > team avg * multiplier
+    if (thresholds.cycleTime && teamMetrics.avgCycleTimeHours > 0) {
+      const warningThreshold = teamMetrics.avgCycleTimeHours * thresholds.cycleTime.warning;
+      if (userMetrics.avgCycleTimeHours > warningThreshold) {
+        alerts.push({
+          board_id: boardId,
+          user_id: userId,
+          metric_name: 'cycle_time',
+          current_value: userMetrics.avgCycleTimeHours,
+          threshold_value: warningThreshold,
+          alert_type: 'above_threshold',
+          severity: 'warning',
+          acknowledged: false,
+          acknowledged_by: null,
+          acknowledged_at: null,
+          metadata: { team_avg: teamMetrics.avgCycleTimeHours },
+        });
+      }
+    }
+
+    // On-time rate: flag if below absolute floor
+    if (thresholds.onTimeRate) {
+      const criticalFloor = thresholds.onTimeRate.critical ?? 0;
+      const warningFloor = thresholds.onTimeRate.warning;
+      if (userMetrics.onTimeRate < criticalFloor && userMetrics.onTimeRate > 0) {
+        alerts.push({
+          board_id: boardId,
+          user_id: userId,
+          metric_name: 'on_time_rate',
+          current_value: userMetrics.onTimeRate,
+          threshold_value: criticalFloor,
+          alert_type: 'below_threshold',
+          severity: 'critical',
+          acknowledged: false,
+          acknowledged_by: null,
+          acknowledged_at: null,
+          metadata: {},
+        });
+      } else if (userMetrics.onTimeRate < warningFloor && userMetrics.onTimeRate > 0) {
+        alerts.push({
+          board_id: boardId,
+          user_id: userId,
+          metric_name: 'on_time_rate',
+          current_value: userMetrics.onTimeRate,
+          threshold_value: warningFloor,
+          alert_type: 'below_threshold',
+          severity: 'warning',
+          acknowledged: false,
+          acknowledged_by: null,
+          acknowledged_at: null,
+          metadata: {},
+        });
+      }
+    }
+
+    // AI pass rate: flag if below absolute floor
+    if (thresholds.aiPassRate && userMetrics.aiPassRate > 0) {
+      const warningFloor = thresholds.aiPassRate.warning;
+      if (userMetrics.aiPassRate < warningFloor) {
+        alerts.push({
+          board_id: boardId,
+          user_id: userId,
+          metric_name: 'ai_pass_rate',
+          current_value: userMetrics.aiPassRate,
+          threshold_value: warningFloor,
+          alert_type: 'below_threshold',
+          severity: 'warning',
+          acknowledged: false,
+          acknowledged_by: null,
+          acknowledged_at: null,
+          metadata: {},
+        });
+      }
+    }
+  }
+
+  return alerts;
+}
+
+export async function storeAlerts(
+  supabase: SupabaseClient,
+  alerts: Omit<ProductivityAlert, 'id' | 'created_at'>[]
+): Promise<number> {
+  if (alerts.length === 0) return 0;
+
+  const rows = alerts.map((a) => ({
+    board_id: a.board_id,
+    user_id: a.user_id,
+    metric_name: a.metric_name,
+    current_value: a.current_value,
+    threshold_value: a.threshold_value,
+    alert_type: a.alert_type,
+    severity: a.severity,
+    acknowledged: false,
+    metadata: a.metadata,
+  }));
+
+  const { data, error } = await supabase.from('productivity_alerts').insert(rows).select('id');
+  if (error) return 0;
+  return data?.length ?? 0;
+}
+
+export async function getAlerts(
+  supabase: SupabaseClient,
+  filters: {
+    boardId?: string;
+    userId?: string;
+    severity?: string;
+    acknowledged?: boolean;
+    limit?: number;
+  }
+): Promise<ProductivityAlert[]> {
+  let query = supabase
+    .from('productivity_alerts')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(filters.limit ?? 50);
+
+  if (filters.boardId) query = query.eq('board_id', filters.boardId);
+  if (filters.userId) query = query.eq('user_id', filters.userId);
+  if (filters.severity) query = query.eq('severity', filters.severity);
+  if (filters.acknowledged !== undefined) query = query.eq('acknowledged', filters.acknowledged);
+
+  const { data } = await query;
+  return (data as ProductivityAlert[]) ?? [];
+}
+
+export async function acknowledgeAlert(
+  supabase: SupabaseClient,
+  alertId: string,
+  userId: string
+): Promise<boolean> {
+  const { error } = await supabase
+    .from('productivity_alerts')
+    .update({
+      acknowledged: true,
+      acknowledged_by: userId,
+      acknowledged_at: new Date().toISOString(),
+    })
+    .eq('id', alertId);
+
+  return !error;
+}
+
+// ============================================================================
+// DEPARTMENT ROLLUP (P9.1)
+// ============================================================================
+
+const BOARD_TYPE_TO_DEPARTMENT: Record<string, string> = {
+  design: 'Design',
+  development: 'Development',
+  account_management: 'Account Management',
+  video_editing: 'Video Editing',
+  video_training: 'Video Training',
+  social_media: 'Social Media',
+  content: 'Content',
+  general: 'General',
+};
+
+export async function getDepartmentRollup(
+  supabase: SupabaseClient,
+  startDate: string,
+  endDate: string,
+  comparePrevious?: boolean
+): Promise<DepartmentRollup[]> {
+  // Get all boards with their types
+  const { data: boards } = await supabase
+    .from('boards')
+    .select('id, type, name')
+    .eq('is_archived', false);
+
+  if (!boards || boards.length === 0) return [];
+
+  // Get member counts per board
+  const { data: members } = await supabase
+    .from('board_members')
+    .select('board_id, user_id');
+
+  const memberCountByBoard = new Map<string, number>();
+  if (members) {
+    for (const m of members) {
+      memberCountByBoard.set(m.board_id, (memberCountByBoard.get(m.board_id) ?? 0) + 1);
+    }
+  }
+
+  // Get snapshots for the date range
+  const snapshots = await getProductivitySnapshots(supabase, { startDate, endDate });
+
+  // Group snapshots by board
+  const snapshotsByBoard = new Map<string, ProductivitySnapshot[]>();
+  for (const s of snapshots) {
+    if (!s.board_id) continue;
+    const existing = snapshotsByBoard.get(s.board_id) ?? [];
+    existing.push(s);
+    snapshotsByBoard.set(s.board_id, existing);
+  }
+
+  // Build department rollups
+  const rollups: DepartmentRollup[] = [];
+
+  for (const board of boards) {
+    const boardType = board.type ?? 'general';
+    const department = BOARD_TYPE_TO_DEPARTMENT[boardType] ?? boardType;
+    const boardSnapshots = snapshotsByBoard.get(board.id) ?? [];
+    const metrics = aggregateSnapshots(boardSnapshots);
+
+    let previousMetrics: ProductivityMetrics | undefined;
+    if (comparePrevious) {
+      // Calculate same-length previous period
+      const startMs = new Date(startDate).getTime();
+      const endMs = new Date(endDate).getTime();
+      const periodMs = endMs - startMs;
+      const prevStart = new Date(startMs - periodMs).toISOString().split('T')[0];
+      const prevEnd = new Date(startMs - 1).toISOString().split('T')[0];
+
+      const prevSnapshots = await getProductivitySnapshots(supabase, {
+        startDate: prevStart,
+        endDate: prevEnd,
+        boardId: board.id,
+      });
+      previousMetrics = aggregateSnapshots(prevSnapshots);
+    }
+
+    rollups.push({
+      department,
+      boardType,
+      metrics,
+      memberCount: memberCountByBoard.get(board.id) ?? 0,
+      previousMetrics,
+    });
+  }
+
+  return rollups;
+}
+
+// ============================================================================
+// NIGHTLY SNAPSHOT COMPUTATION (P9.1)
+// ============================================================================
+
+export async function computeNightlySnapshots(
+  supabase: SupabaseClient,
+  snapshotDate: string
+): Promise<{ snapshotsCreated: number; alertsGenerated: number }> {
+  // Get all active boards
+  const { data: boards } = await supabase
+    .from('boards')
+    .select('id, type, name')
+    .eq('is_archived', false);
+
+  if (!boards || boards.length === 0) return { snapshotsCreated: 0, alertsGenerated: 0 };
+
+  let snapshotsCreated = 0;
+  let totalAlerts = 0;
+
+  for (const board of boards) {
+    // Get all board members
+    const { data: boardMembers } = await supabase
+      .from('board_members')
+      .select('user_id')
+      .eq('board_id', board.id);
+
+    if (!boardMembers || boardMembers.length === 0) continue;
+
+    // Get today's card completions (activity log)
+    const dayStart = `${snapshotDate}T00:00:00Z`;
+    const dayEnd = `${snapshotDate}T23:59:59Z`;
+
+    const { data: completions } = await supabase
+      .from('activity_log')
+      .select('card_id, metadata')
+      .eq('board_id', board.id)
+      .eq('event_type', 'card_completed')
+      .gte('created_at', dayStart)
+      .lte('created_at', dayEnd);
+
+    const { data: creations } = await supabase
+      .from('activity_log')
+      .select('card_id')
+      .eq('board_id', board.id)
+      .eq('event_type', 'card_created')
+      .gte('created_at', dayStart)
+      .lte('created_at', dayEnd);
+
+    // Get column history for cycle time calc
+    const { data: columnHistory } = await supabase
+      .from('card_column_history')
+      .select('*')
+      .eq('board_id', board.id)
+      .gte('moved_at', dayStart)
+      .lte('moved_at', dayEnd)
+      .order('moved_at', { ascending: true });
+
+    // Compute per-user metrics for the day
+    const boardSnapshots: ProductivitySnapshot[] = [];
+
+    for (const member of boardMembers) {
+      // Count completions by this user
+      const userCompletions = (completions ?? []).filter(
+        (c: any) => c.metadata?.user_id === member.user_id
+      );
+
+      // Count cards created by this user
+      const userCreations = (creations ?? []).filter(
+        (c: any) => c.metadata?.user_id === member.user_id
+      );
+
+      // Calculate cycle time for completed cards
+      const completedCardIds = userCompletions.map((c: any) => c.card_id);
+      const cardHistories = (columnHistory ?? []).filter((h: any) =>
+        completedCardIds.includes(h.card_id)
+      );
+      const byCard = new Map<string, CardColumnHistory[]>();
+      for (const h of cardHistories) {
+        const existing = byCard.get(h.card_id) ?? [];
+        existing.push(h as CardColumnHistory);
+        byCard.set(h.card_id, existing);
+      }
+      const cycleTimes = Array.from(byCard.values())
+        .map((h) => calculateCycleTime(h))
+        .filter((t): t is number => t !== null);
+      const avgCycleTime = cycleTimes.length > 0
+        ? cycleTimes.reduce((a, b) => a + b, 0) / cycleTimes.length
+        : null;
+
+      // Revision rate from column history
+      const histories = Array.from(byCard.values());
+      const revisionRate = calculateRevisionRate(histories);
+
+      // Create snapshot
+      const snapshot = await createProductivitySnapshot(supabase, {
+        snapshotDate,
+        userId: member.user_id,
+        boardId: board.id,
+        department: BOARD_TYPE_TO_DEPARTMENT[board.type ?? 'general'] ?? board.type,
+        ticketsCompleted: userCompletions.length,
+        ticketsCreated: userCreations.length,
+        avgCycleTimeHours: avgCycleTime ? Math.round(avgCycleTime * 100) / 100 : undefined,
+        onTimeRate: undefined, // Would need due_date data per card
+        revisionRate: revisionRate > 0 ? revisionRate : undefined,
+      });
+
+      if (snapshot) {
+        snapshotsCreated++;
+        boardSnapshots.push(snapshot);
+      }
+    }
+
+    // Generate alerts for this board
+    if (boardSnapshots.length > 0) {
+      const alerts = generateAlerts(boardSnapshots);
+      const stored = await storeAlerts(supabase, alerts);
+      totalAlerts += stored;
+    }
+  }
+
+  return { snapshotsCreated, alertsGenerated: totalAlerts };
 }

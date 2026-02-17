@@ -56,7 +56,9 @@ export default function ScoutWizard({ onComplete }: ScoutWizardProps) {
   const [selectedStep3, setSelectedStep3] = useState<Set<number>>(new Set());
 
   // Step 4 result
-  const [saveResult, setSaveResult] = useState<{ saved: number; duplicates: number; total: number } | null>(null);
+  const [saveResult, setSaveResult] = useState<{ saved: number; duplicates: number; total: number; candidate_ids?: string[] } | null>(null);
+  const [scoringBatch, setScoringBatch] = useState(false);
+  const [scoringDone, setScoringDone] = useState(false);
 
   // Progress & streaming
   const [progress, setProgress] = useState<string[]>([]);
@@ -796,7 +798,47 @@ export default function ScoutWizard({ onComplete }: ScoutWizardProps) {
                 <div className="text-navy/40 dark:text-slate-500">Total Selected</div>
               </div>
             </div>
-            <div className="mt-6 flex gap-3 justify-center">
+
+            {/* Score saved candidates */}
+            {saveResult.saved > 0 && !scoringDone && (
+              <div className="mt-4 p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800/40">
+                <p className="text-xs text-purple-700 dark:text-purple-300 mb-2">
+                  Score these candidates to assign Hot/Warm/Cold tiers
+                </p>
+                <button
+                  onClick={async () => {
+                    setScoringBatch(true);
+                    try {
+                      await fetch('/api/podcast/candidates/score-batch', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          candidate_ids: saveResult.candidate_ids,
+                        }),
+                      });
+                      setScoringDone(true);
+                    } catch (err) {
+                      console.error('Batch scoring failed:', err);
+                    } finally {
+                      setScoringBatch(false);
+                    }
+                  }}
+                  disabled={scoringBatch}
+                  className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 transition-colors"
+                >
+                  {scoringBatch ? 'Scoring...' : `Score ${saveResult.saved} Candidates`}
+                </button>
+              </div>
+            )}
+            {scoringDone && (
+              <div className="mt-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/40">
+                <p className="text-xs text-green-700 dark:text-green-300">
+                  All candidates scored! View their tiers in the Approval Queue.
+                </p>
+              </div>
+            )}
+
+            <div className="mt-6 flex gap-3 justify-center flex-wrap">
               <button
                 onClick={startNewRun}
                 className="px-5 py-2 text-sm font-semibold rounded-lg bg-electric text-white hover:bg-electric/90 transition-colors"
@@ -808,6 +850,12 @@ export default function ScoutWizard({ onComplete }: ScoutWizardProps) {
                 className="px-5 py-2 text-sm font-semibold rounded-lg bg-navy/5 dark:bg-slate-700 text-navy dark:text-slate-200 hover:bg-navy/10 dark:hover:bg-slate-600 transition-colors"
               >
                 Open Approval Queue
+              </a>
+              <a
+                href="/podcast/costs"
+                className="px-4 py-2 text-sm font-medium rounded-lg text-navy/50 dark:text-slate-400 hover:text-electric dark:hover:text-electric transition-colors"
+              >
+                View Costs
               </a>
               {onComplete && (
                 <button

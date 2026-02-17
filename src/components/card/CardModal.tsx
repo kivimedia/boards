@@ -31,6 +31,8 @@ import CardPresenceBar from './CardPresenceBar';
 import ClientBrainPanel from '@/components/client/ClientBrainPanel';
 import CardAgentTasksPanel from '@/components/agents/CardAgentTasksPanel';
 import CardApprovalPanel from './CardApprovalPanel';
+import VideoFrameComparison from './VideoFrameComparison';
+import type { FrameVerdict } from '@/lib/ai/design-review';
 import ReactMarkdown from 'react-markdown';
 
 interface CardModalProps {
@@ -899,6 +901,20 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                     >
                       Start First Review
                     </button>
+                  </div>
+                )}
+
+                {/* Video frame comparison (P9.3) */}
+                {latestReview?.review_type === 'video' && latestReview.frame_verdicts && (latestReview.frame_verdicts as FrameVerdict[]).length > 0 && (
+                  <div className="rounded-xl border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface p-4">
+                    <h4 className="text-sm font-semibold text-navy dark:text-white font-heading mb-3">
+                      Video Frame Analysis
+                    </h4>
+                    <VideoFrameComparison
+                      frameVerdicts={latestReview.frame_verdicts as FrameVerdict[]}
+                      thumbnailSuggestion={latestReview.thumbnail_suggestion ?? undefined}
+                      videoDuration={latestReview.video_duration_seconds ?? undefined}
+                    />
                   </div>
                 )}
 

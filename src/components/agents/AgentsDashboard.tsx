@@ -30,10 +30,16 @@ export default function AgentsDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [filterCategory, setFilterCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [boards, setBoards] = useState<{ id: string; name: string }[]>([]);
+  const [selectedBoardId, setSelectedBoardId] = useState('');
+  const [toolCalls, setToolCalls] = useState<{ name: string; input: Record<string, unknown>; result?: string; success?: boolean; status: string }[]>([]);
+  const [confirmation, setConfirmation] = useState<{ tool_call_id: string; name: string; input: Record<string, unknown>; message: string } | null>(null);
+  const [executionId, setExecutionId] = useState<string | null>(null);
   const outputRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchSkills();
+    fetchBoards();
   }, []);
 
   const fetchSkills = async () => {
@@ -48,12 +54,22 @@ export default function AgentsDashboard() {
     }
   };
 
+  const fetchBoards = async () => {
+    try {
+      const res = await fetch('/api/boards');
+      const json = await res.json();
+      setBoards((json.data ?? []).map((b: any) => ({ id: b.id, name: b.name })));
+    } catch {}
+  };
+
   const runAgent = async () => {
     if (!selectedSkill || !prompt.trim()) return;
 
     setRunning(true);
     setOutput('');
     setError(null);
+    setToolCalls([]);
+    setConfirmation(null);
 
     try {
       const res = await fetch('/api/agents/run', {
@@ -62,6 +78,7 @@ export default function AgentsDashboard() {
         body: JSON.stringify({
           skill_id: selectedSkill.id,
           input_message: prompt.trim(),
+          board_id: selectedBoardId || undefined,
         }),
       });
 
@@ -99,6 +116,22 @@ export default function AgentsDashboard() {
                 if (outputRef.current) {
                   outputRef.current.scrollTop = outputRef.current.scrollHeight;
                 }
+              } else if (currentEvent === 'tool_call') {
+                setToolCalls(prev => [...prev, { name: data.name, input: data.input, status: 'running' }]);
+              } else if (currentEvent === 'tool_result') {
+                setToolCalls(prev => {
+                  const copy = [...prev];
+                  const last = copy.findIndex(tc => tc.name === data.name && tc.status === 'running');
+                  if (last >= 0) copy[last] = { ...copy[last], result: data.result, success: data.success, status: data.success ? 'completed' : 'failed' };
+                  return copy;
+                });
+              } else if (currentEvent === 'thinking') {
+                // Show brief thinking indicator - already handled by tool_call for 'think'
+              } else if (currentEvent === 'confirm') {
+                setConfirmation({ tool_call_id: data.tool_call_id, name: data.name, input: data.input, message: data.message });
+                setExecutionId(data.execution_id || null);
+              } else if (currentEvent === 'chain_step') {
+                // Chain steps are informational
               } else if (currentEvent === 'complete') {
                 // done
               } else if (currentEvent === 'error' && data.error) {
@@ -110,7 +143,6 @@ export default function AgentsDashboard() {
       }
 
       if (!accumulated && !error) {
-        // Non-streaming response fallback
         setOutput('Agent completed. Check the output above.');
       }
     } catch (err: any) {
@@ -235,9 +267,31 @@ export default function AgentsDashboard() {
               )}
             </div>
 
-            {/* Prompt input */}
+            {/* Board context + prompt input */}
             {selectedSkill && (
               <div className="space-y-3">
+                {/* Board context selector (shown when skill has tools) */}
+                {(selectedSkill.supported_tools?.length ?? 0) > 0 && boards.length > 0 && (
+                  <div>
+                    <label className="text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wider mb-2 block">
+                      Board Context (optional)
+                    </label>
+                    <select
+                      value={selectedBoardId}
+                      onChange={(e) => setSelectedBoardId(e.target.value)}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-navy/10 dark:border-slate-600 bg-cream dark:bg-slate-900 text-navy dark:text-slate-100"
+                    >
+                      <option value="">No board (standalone)</option>
+                      {boards.map((b) => (
+                        <option key={b.id} value={b.id}>{b.name}</option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-navy/30 dark:text-slate-500 mt-1">
+                      Selecting a board enables tools like list_cards, create_card, search_cards.
+                    </p>
+                  </div>
+                )}
+
                 <div>
                   <label className="text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wider mb-2 block">
                     Instructions for {selectedSkill.name}
@@ -274,7 +328,7 @@ export default function AgentsDashboard() {
           </div>
 
           {/* Output section */}
-          {(output || error) && (
+          {(output || error || toolCalls.length > 0) && (
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-navy/5 dark:border-slate-700 p-5">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold text-navy dark:text-slate-100">
@@ -295,6 +349,96 @@ export default function AgentsDashboard() {
               {error && (
                 <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-sm text-red-600 dark:text-red-400 mb-3">
                   {error}
+                </div>
+              )}
+
+              {/* Tool calls display */}
+              {toolCalls.length > 0 && (
+                <div className="space-y-2 mb-3">
+                  {toolCalls.map((tc, i) => (
+                    <div
+                      key={i}
+                      className={`px-3 py-2 rounded-lg text-xs flex items-center gap-2 ${
+                        tc.status === 'running' ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' :
+                        tc.status === 'completed' ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400' :
+                        'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                      }`}
+                    >
+                      {tc.status === 'running' && <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />}
+                      <span className="font-mono font-semibold">{tc.name}</span>
+                      {tc.result && <span className="text-navy/40 dark:text-slate-500 truncate flex-1">{tc.result.slice(0, 100)}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Confirmation dialog */}
+              {confirmation && (
+                <div className="p-3 rounded-lg border-2 border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 mb-3">
+                  <p className="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-2">Confirmation Required</p>
+                  <p className="text-sm text-amber-700 dark:text-amber-400 mb-3">{confirmation.message}</p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={async () => {
+                        setConfirmation(null);
+                        // Resume via the resume endpoint
+                        if (executionId && selectedSkill) {
+                          setRunning(true);
+                          try {
+                            const res = await fetch('/api/agents/run/resume', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                execution_id: executionId,
+                                tool_call_id: confirmation.tool_call_id,
+                                action: 'approve',
+                                skill_id: selectedSkill.id,
+                                input_message: prompt.trim(),
+                                board_id: selectedBoardId || undefined,
+                              }),
+                            });
+                            // Handle SSE for resume (simplified)
+                            const reader = res.body?.getReader();
+                            if (reader) {
+                              const decoder = new TextDecoder();
+                              let buf = '';
+                              let evt = '';
+                              while (true) {
+                                const { done, value } = await reader.read();
+                                if (done) break;
+                                buf += decoder.decode(value, { stream: true });
+                                const lines = buf.split('\n');
+                                buf = lines.pop() ?? '';
+                                for (const ln of lines) {
+                                  if (ln.startsWith('event: ')) evt = ln.slice(7).trim();
+                                  else if (ln.startsWith('data: ')) {
+                                    try {
+                                      const d = JSON.parse(ln.slice(6));
+                                      if (evt === 'token' && d.text) setOutput(prev => prev + d.text);
+                                      else if (evt === 'error' && d.error) setError(d.error);
+                                    } catch {}
+                                  }
+                                }
+                              }
+                            }
+                          } catch (err: any) {
+                            setError(err.message);
+                          } finally {
+                            setRunning(false);
+                          }
+                        }
+                      }}
+                      className="px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => setConfirmation(null)}
+                      className="px-4 py-2 text-sm font-semibold rounded-lg border border-red-300 text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      Reject
+                    </button>
+                  </div>
                 </div>
               )}
 

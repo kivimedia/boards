@@ -2,7 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import type { PGACandidate, PGACandidateStatus } from '@/lib/types';
+import type { PGACandidate, PGACandidateStatus, PGAQualityTier } from '@/lib/types';
+import TierBadge from './TierBadge';
+import DossierViewer from './DossierViewer';
+import OutreachEmailPanel from './OutreachEmailPanel';
 
 const STATUS_COLORS: Record<string, string> = {
   approved: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
@@ -33,6 +36,7 @@ export default function OutreachQueue() {
   const [search, setSearch] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [dossierExistsMap, setDossierExistsMap] = useState<Record<string, boolean>>({});
 
   const fetchCandidates = useCallback(async () => {
     setLoading(true);
@@ -119,8 +123,14 @@ export default function OutreachQueue() {
           Outreach
         </span>
         <Link
-          href="/settings/podcast"
+          href="/podcast/costs"
           className="text-sm font-medium text-navy/50 dark:text-slate-400 hover:text-electric dark:hover:text-electric transition-colors ml-auto"
+        >
+          Costs
+        </Link>
+        <Link
+          href="/settings/podcast"
+          className="text-sm font-medium text-navy/50 dark:text-slate-400 hover:text-electric dark:hover:text-electric transition-colors"
         >
           Integrations
         </Link>
@@ -205,12 +215,28 @@ export default function OutreachQueue() {
                 {/* Main row */}
                 <div
                   className="flex items-center gap-4 p-4 cursor-pointer hover:bg-cream/50 dark:hover:bg-slate-700/30 transition-colors"
-                  onClick={() => setExpandedId(isExpanded ? null : candidate.id)}
+                  onClick={() => {
+                    const nextId = isExpanded ? null : candidate.id;
+                    setExpandedId(nextId);
+                    if (nextId && !(candidate.id in dossierExistsMap)) {
+                      fetch(`/api/podcast/candidates/${candidate.id}/dossier`)
+                        .then((r) => r.json())
+                        .then((json) => {
+                          setDossierExistsMap((prev) => ({ ...prev, [candidate.id]: !!json.data?.dossier }));
+                        })
+                        .catch(() => {});
+                    }
+                  }}
                 >
                   {/* Status */}
                   <span className={`shrink-0 text-[10px] font-semibold uppercase px-2 py-0.5 rounded ${STATUS_COLORS[candidate.status] || 'bg-gray-100 text-gray-600'}`}>
                     {candidate.status.replace(/_/g, ' ')}
                   </span>
+
+                  {/* Tier badge */}
+                  {candidate.tier && (
+                    <TierBadge tier={candidate.tier as PGAQualityTier} score={candidate.quality_score ?? undefined} compact />
+                  )}
 
                   {/* Name + email + one-liner */}
                   <div className="flex-1 min-w-0">
@@ -415,6 +441,24 @@ export default function OutreachQueue() {
                           <p className="text-sm text-navy/60 dark:text-slate-400 whitespace-pre-wrap font-body">{candidate.notes}</p>
                         </div>
                       )}
+
+                      {/* Research Dossier */}
+                      <div className="md:col-span-2">
+                        <DossierViewer
+                          candidateId={candidate.id}
+                          candidateName={candidate.name}
+                        />
+                      </div>
+
+                      {/* Outreach Emails */}
+                      <div className="md:col-span-2">
+                        <OutreachEmailPanel
+                          candidateId={candidate.id}
+                          candidateName={candidate.name}
+                          hasDossier={dossierExistsMap[candidate.id] ?? false}
+                          onRefresh={fetchCandidates}
+                        />
+                      </div>
                     </div>
 
                     {/* Status actions */}

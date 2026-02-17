@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import ViewSwitcher from './ViewSwitcher';
-import PresenceAvatars from './PresenceAvatars';
 import BoardMemberAvatars from './BoardMemberAvatars';
 import ThemeToggle from '@/components/layout/ThemeToggle';
+import { usePresence } from '@/hooks/usePresence';
 import NotificationCenter from '@/components/notifications/NotificationCenter';
 import BoardBackgroundPicker from './BoardBackgroundPicker';
 import SmartSearchBar from '@/components/smart-search/SearchBar';
@@ -51,6 +51,15 @@ export default function BoardHeader({
   const [isArchived, setIsArchived] = useState(board?.is_archived ?? false);
   const supabase = createClient();
   const router = useRouter();
+  const { presentUsers } = usePresence({ channelName: `board:${boardId}` });
+  const onlineUserIds = useMemo(
+    () => new Set(presentUsers.filter((u) => u.status === 'online' || !u.status).map((u) => u.userId)),
+    [presentUsers]
+  );
+  const awayUserIds = useMemo(
+    () => new Set(presentUsers.filter((u) => u.status === 'away').map((u) => u.userId)),
+    [presentUsers]
+  );
 
   const toggleStar = useCallback(async () => {
     const next = !isStarred;
@@ -188,9 +197,7 @@ export default function BoardHeader({
 
           <div className={`w-px h-5 ${dividerColor} hidden sm:block`} />
 
-          <PresenceAvatars channelName={`board:${boardId}`} />
-          <div className={`w-px h-5 ${dividerColor}`} />
-          <BoardMemberAvatars boardId={boardId} />
+          <BoardMemberAvatars boardId={boardId} onlineUserIds={onlineUserIds} awayUserIds={awayUserIds} />
           <ShareButton onClick={() => setShowShare(true)} isDark={hasBackground && isDarkBackground} />
           <div className={`w-px h-5 ${dividerColor} hidden sm:block`} />
           <ProfilingToggle isDark={hasBackground && isDarkBackground} />

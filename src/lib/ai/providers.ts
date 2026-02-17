@@ -83,6 +83,16 @@ export async function createGoogleAIClient(
 }
 
 /**
+ * Get the decrypted Replicate API key from stored credentials.
+ * Returns the raw key string for use with fetch()-based API calls.
+ */
+export async function getReplicateApiKey(
+  supabase: SupabaseClient
+): Promise<string | null> {
+  return getProviderKey(supabase, 'replicate');
+}
+
+/**
  * Unified provider client factory.
  * Returns the appropriate client for the given provider.
  */
