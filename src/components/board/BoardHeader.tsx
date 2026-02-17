@@ -1,0 +1,221 @@
+'use client';
+
+import { useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import ViewSwitcher from './ViewSwitcher';
+import PresenceAvatars from './PresenceAvatars';
+import BoardMemberAvatars from './BoardMemberAvatars';
+import ThemeToggle from '@/components/layout/ThemeToggle';
+import NotificationCenter from '@/components/notifications/NotificationCenter';
+import BoardBackgroundPicker from './BoardBackgroundPicker';
+import SmartSearchBar from '@/components/smart-search/SearchBar';
+import FilterDropdown from './FilterDropdown';
+import DedupModal from './DedupModal';
+import ShareButton from '@/components/team-presence/ShareButton';
+import ShareModal from '@/components/team-presence/ShareModal';
+import ProfilingToggle from '@/components/profiling/ProfilingToggle';
+import { createClient } from '@/lib/supabase/client';
+import type { BoardViewMode, BoardWithLists, BoardFilter } from '@/lib/types';
+
+interface BoardHeaderProps {
+  boardId: string;
+  boardName: string;
+  currentView: BoardViewMode;
+  onViewChange: (view: BoardViewMode) => void;
+  hasBackground?: boolean;
+  isDarkBackground?: boolean;
+  board?: BoardWithLists;
+  filter?: BoardFilter;
+  onFilterChange?: (filter: BoardFilter) => void;
+  onCardClick?: (cardId: string) => void;
+  onRefresh?: () => void;
+}
+
+export default function BoardHeader({
+  boardId,
+  boardName,
+  currentView,
+  onViewChange,
+  hasBackground,
+  isDarkBackground,
+  board,
+  filter,
+  onFilterChange,
+  onCardClick,
+  onRefresh,
+}: BoardHeaderProps) {
+  const [showBgPicker, setShowBgPicker] = useState(false);
+  const [showDedup, setShowDedup] = useState(false);
+  const [showShare, setShowShare] = useState(false);
+  const [isStarred, setIsStarred] = useState(board?.is_starred ?? false);
+  const [isArchived, setIsArchived] = useState(board?.is_archived ?? false);
+  const supabase = createClient();
+  const router = useRouter();
+
+  const toggleStar = useCallback(async () => {
+    const next = !isStarred;
+    setIsStarred(next);
+    await supabase.from('boards').update({ is_starred: next }).eq('id', boardId);
+  }, [isStarred, boardId, supabase]);
+
+  const toggleArchive = useCallback(async () => {
+    const next = !isArchived;
+    setIsArchived(next);
+    await supabase.from('boards').update({ is_archived: next }).eq('id', boardId);
+    if (next) router.push('/');
+  }, [isArchived, boardId, supabase, router]);
+
+  const headerBg = hasBackground && isDarkBackground
+    ? 'bg-black/30 backdrop-blur-md border-b border-white/10'
+    : hasBackground
+    ? 'bg-white/60 backdrop-blur-md border-b border-cream-dark/50'
+    : 'bg-cream/80 dark:bg-navy-light/80 backdrop-blur-md border-b border-cream-dark dark:border-slate-700';
+
+  const textColor = hasBackground && isDarkBackground
+    ? 'text-white'
+    : 'text-navy dark:text-white';
+
+  const subtleColor = hasBackground && isDarkBackground
+    ? 'text-white/60'
+    : 'text-navy/40 dark:text-slate-400';
+
+  const dividerColor = hasBackground && isDarkBackground
+    ? 'bg-white/20'
+    : 'bg-cream-dark dark:bg-slate-700';
+
+  return (
+    <header className={`${headerBg} shrink-0`}>
+      <div className="flex items-center justify-between px-6 h-14">
+        {/* Left side */}
+        <div className="flex items-center gap-4">
+          <h1 className={`text-lg font-semibold font-heading truncate max-w-[200px] sm:max-w-none ${textColor}`}>
+            {boardName}
+          </h1>
+          {/* Star toggle */}
+          <button
+            onClick={toggleStar}
+            className={`p-1 rounded transition-colors ${
+              isStarred
+                ? 'text-yellow-400'
+                : `${subtleColor} hover:text-yellow-400`
+            }`}
+            title={isStarred ? 'Unstar board' : 'Star board'}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill={isStarred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            </svg>
+          </button>
+          {/* Archive toggle */}
+          <button
+            onClick={toggleArchive}
+            className={`p-1 rounded transition-colors ${subtleColor} hover:${textColor}`}
+            title={isArchived ? 'Unarchive board' : 'Archive board'}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              {isArchived ? (
+                <><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" /></>
+              ) : (
+                <><polyline points="21 8 21 21 3 21 3 8" /><rect x="1" y="3" width="22" height="5" /><line x1="10" y1="12" x2="14" y2="12" /></>
+              )}
+            </svg>
+          </button>
+          <ViewSwitcher currentView={currentView} onViewChange={onViewChange} />
+        </div>
+
+        {/* Right side */}
+        <div className="flex items-center gap-2">
+          {/* Smart Search Bar with AI + Create */}
+          {onCardClick && (
+            <SmartSearchBar boardId={boardId} onCardClick={onCardClick} onOpenShareModal={() => setShowShare(true)} isDark={hasBackground && isDarkBackground} />
+          )}
+
+          {/* Filter */}
+          {filter && onFilterChange && board && (
+            <FilterDropdown
+              filter={filter}
+              onFilterChange={onFilterChange}
+              labels={board.labels || []}
+              boardId={boardId}
+              isDark={hasBackground && isDarkBackground}
+            />
+          )}
+
+          <div className={`w-px h-5 ${dividerColor} hidden sm:block`} />
+
+          {/* Background picker */}
+          <div className="relative">
+            <button
+              onClick={() => setShowBgPicker(!showBgPicker)}
+              title="Board background"
+              className={`p-2 rounded-lg transition-colors ${
+                hasBackground && isDarkBackground
+                  ? 'text-white/70 hover:text-white hover:bg-white/10'
+                  : 'text-navy/40 dark:text-slate-400 hover:text-navy dark:hover:text-white hover:bg-cream-dark dark:hover:bg-slate-800'
+              }`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+              </svg>
+            </button>
+            {showBgPicker && (
+              <BoardBackgroundPicker
+                boardId={boardId}
+                currentColor={board?.background_color}
+                currentImage={board?.background_image_url}
+                onUpdate={() => {
+                  setShowBgPicker(false);
+                  onRefresh?.();
+                }}
+                onClose={() => setShowBgPicker(false)}
+              />
+            )}
+          </div>
+
+          {/* Dedup button */}
+          <button
+            onClick={() => setShowDedup(true)}
+            title="Find &amp; remove duplicate cards"
+            className={`p-2 rounded-lg transition-colors ${
+              hasBackground && isDarkBackground
+                ? 'text-white/70 hover:text-white hover:bg-white/10'
+                : 'text-navy/40 dark:text-slate-400 hover:text-navy dark:hover:text-white hover:bg-cream-dark dark:hover:bg-slate-800'
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="4" y="4" width="12" height="14" rx="2" /><rect x="8" y="6" width="12" height="14" rx="2" />
+            </svg>
+          </button>
+
+          <div className={`w-px h-5 ${dividerColor} hidden sm:block`} />
+
+          <PresenceAvatars channelName={`board:${boardId}`} />
+          <div className={`w-px h-5 ${dividerColor}`} />
+          <BoardMemberAvatars boardId={boardId} />
+          <ShareButton onClick={() => setShowShare(true)} isDark={hasBackground && isDarkBackground} />
+          <div className={`w-px h-5 ${dividerColor} hidden sm:block`} />
+          <ProfilingToggle isDark={hasBackground && isDarkBackground} />
+          <ThemeToggle />
+          <NotificationCenter />
+        </div>
+      </div>
+
+      {/* Dedup modal */}
+      {showDedup && (
+        <DedupModal
+          boardId={boardId}
+          onClose={() => setShowDedup(false)}
+          onRefresh={onRefresh}
+        />
+      )}
+
+      {/* Share modal */}
+      {showShare && (
+        <ShareModal
+          boardId={boardId}
+          boardName={boardName}
+          onClose={() => setShowShare(false)}
+        />
+      )}
+    </header>
+  );
+}

@@ -1,0 +1,30 @@
+import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
+import Sidebar from '@/components/layout/Sidebar';
+import Header from '@/components/layout/Header';
+import AnalyticsDashboardContent from './AnalyticsDashboardContent';
+
+export default async function AnalyticsPage() {
+  const supabase = createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect('/login');
+  }
+
+  // Fetch boards for the selector
+  const { data: boards } = await supabase
+    .from('boards')
+    .select('id, name, type')
+    .order('name', { ascending: true });
+
+  return (
+    <div className="flex h-screen overflow-hidden">
+      <Sidebar />
+      <main className="flex-1 flex flex-col overflow-hidden">
+        <Header title="Analytics" />
+        <AnalyticsDashboardContent boards={boards ?? []} />
+      </main>
+    </div>
+  );
+}
