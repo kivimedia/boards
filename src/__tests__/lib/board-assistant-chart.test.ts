@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateChartData } from '@/app/api/board-assistant/route';
+import { validateChartData } from '@/lib/ai/chart-validator';
 import type { BoardChartData, BoardChartDataPoint } from '@/lib/types';
 
 // ─── validateChartData ─────────────────────────────────────
