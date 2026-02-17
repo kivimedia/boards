@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -43,14 +44,21 @@ export default function LoginForm() {
         onChange={(e) => setEmail(e.target.value)}
         required
       />
-      <Input
-        label="Password"
-        type="password"
-        placeholder="••••••••"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        required
-      />
+      <div>
+        <Input
+          label="Password"
+          type="password"
+          placeholder="••••••••"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+        <div className="mt-1 text-right">
+          <Link href="/forgot-password" className="text-sm text-electric hover:text-electric-bright transition-colors font-body">
+            Forgot password?
+          </Link>
+        </div>
+      </div>
       {error && (
         <div className="p-3 rounded-xl bg-danger/10 text-danger text-sm font-body">
           {error}
