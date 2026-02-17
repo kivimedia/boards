@@ -68,6 +68,9 @@ export default function MigrationWizard() {
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteError, setInviteError] = useState('');
 
+  // Step 5: Sync mode
+  const [syncMode, setSyncMode] = useState<'fresh' | 'merge'>('fresh');
+
   // Step 4/5: Job state
   const [creatingJob, setCreatingJob] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -546,6 +549,7 @@ export default function MigrationWizard() {
         user_mapping: userMapping,
         list_filter: Object.keys(listFilter).length > 0 ? listFilter : undefined,
         board_merge_targets: Object.keys(boardMergeTargets).length > 0 ? boardMergeTargets : undefined,
+        sync_mode: syncMode,
       };
 
       // Create the job
@@ -1389,6 +1393,40 @@ export default function MigrationWizard() {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Sync Mode Toggle */}
+            <div className="bg-cream dark:bg-navy rounded-xl p-4">
+              <p className="text-xs font-medium text-navy/40 dark:text-slate-500 font-body mb-3 uppercase tracking-wide">
+                Sync Mode
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setSyncMode('fresh')}
+                  className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-heading font-semibold transition-colors ${
+                    syncMode === 'fresh'
+                      ? 'bg-electric text-white'
+                      : 'bg-white dark:bg-slate-800 text-navy/60 dark:text-slate-400 hover:text-navy dark:hover:text-slate-200 border border-cream-dark dark:border-slate-600'
+                  }`}
+                >
+                  Fresh Import
+                </button>
+                <button
+                  onClick={() => setSyncMode('merge')}
+                  className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-heading font-semibold transition-colors ${
+                    syncMode === 'merge'
+                      ? 'bg-electric text-white'
+                      : 'bg-white dark:bg-slate-800 text-navy/60 dark:text-slate-400 hover:text-navy dark:hover:text-slate-200 border border-cream-dark dark:border-slate-600'
+                  }`}
+                >
+                  Merge Updates
+                </button>
+              </div>
+              <p className="text-xs text-navy/40 dark:text-slate-400 font-body mt-2">
+                {syncMode === 'fresh'
+                  ? 'Skips already-imported entities. Best for first-time imports.'
+                  : 'Updates existing cards, adds new comments/attachments, syncs checklist completion. Best for re-syncing from Trello.'}
+              </p>
             </div>
 
             {connectError && (

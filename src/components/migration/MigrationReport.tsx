@@ -12,14 +12,18 @@ export default function MigrationReport({ report }: MigrationReportProps) {
   const router = useRouter();
   const [errorsExpanded, setErrorsExpanded] = useState(false);
 
+  const hasMergeStats = (report.cards_updated ?? 0) > 0 || (report.checklist_items_updated ?? 0) > 0;
+
   const stats = [
     { label: 'Boards', value: report.boards_created, icon: 'board' },
     { label: 'Lists', value: report.lists_created, icon: 'list' },
     { label: 'Cards', value: report.cards_created, icon: 'card' },
+    ...(hasMergeStats ? [{ label: 'Cards Updated', value: report.cards_updated ?? 0, icon: 'card' }] : []),
     { label: 'Comments', value: report.comments_created, icon: 'comment' },
     { label: 'Attachments', value: report.attachments_created, icon: 'attachment' },
     { label: 'Labels', value: report.labels_created, icon: 'label' },
     { label: 'Checklists', value: report.checklists_created, icon: 'checklist' },
+    ...(hasMergeStats ? [{ label: 'Items Updated', value: report.checklist_items_updated ?? 0, icon: 'checklist' }] : []),
   ];
 
   return (

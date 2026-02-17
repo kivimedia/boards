@@ -531,10 +531,12 @@ export interface MigrationReport {
   boards_created: number;
   lists_created: number;
   cards_created: number;
+  cards_updated: number;
   comments_created: number;
   attachments_created: number;
   labels_created: number;
   checklists_created: number;
+  checklist_items_updated: number;
   errors: string[];
 }
 
@@ -548,6 +550,8 @@ export interface MigrationJobConfig {
   list_filter?: Record<string, string[]>;
   /** Per-board merge target: trelloBoardId -> existing Agency Board board ID. */
   board_merge_targets?: Record<string, string>;
+  /** Sync mode: 'fresh' skips already-imported entities (default), 'merge' updates existing + adds new. */
+  sync_mode?: 'fresh' | 'merge';
 }
 
 export interface MigrationJob {
