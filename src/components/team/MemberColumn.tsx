@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import type { TeamMemberWorkload } from '@/lib/team-view';
 import Avatar from '@/components/ui/Avatar';
 import WorkloadBar from './WorkloadBar';
@@ -8,6 +9,8 @@ interface MemberColumnProps {
   member: TeamMemberWorkload;
 }
 
+const INITIAL_SHOW = 5;
+
 function formatDueDate(dueDate: string | null): string {
   if (!dueDate) return '';
   const d = new Date(dueDate);
@@ -15,6 +18,11 @@ function formatDueDate(dueDate: string | null): string {
 }
 
 export default function MemberColumn({ member }: MemberColumnProps) {
+  const [expanded, setExpanded] = useState(false);
+  const visibleCards = expanded ? member.cards : member.cards.slice(0, INITIAL_SHOW);
+  const hasMore = member.cards.length > INITIAL_SHOW;
+  const hiddenFromApi = member.totalCards - member.cards.length;
+
   return (
     <div className="bg-white dark:bg-navy-light rounded-2xl p-4 min-w-[280px] shadow-card">
       {/* Header: avatar + name + role */}
@@ -44,9 +52,9 @@ export default function MemberColumn({ member }: MemberColumnProps) {
       </div>
 
       {/* Cards list */}
-      {member.cards.length > 0 && (
+      {visibleCards.length > 0 && (
         <div className="space-y-2">
-          {member.cards.map((card) => (
+          {visibleCards.map((card) => (
             <div
               key={card.id}
               className="px-3 py-2 rounded-lg bg-cream dark:bg-white/5 border border-cream-dark dark:border-white/10"
@@ -67,6 +75,25 @@ export default function MemberColumn({ member }: MemberColumnProps) {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Show more / Show less toggle */}
+      {hasMore && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="w-full mt-2 py-1.5 text-[11px] font-medium text-electric hover:text-electric/80 transition-colors"
+        >
+          {expanded
+            ? 'Show less'
+            : `Show ${member.cards.length - INITIAL_SHOW} more${hiddenFromApi > 0 ? ` (${member.totalCards} total)` : ''}`}
+        </button>
+      )}
+
+      {/* Indicator when API returned fewer cards than total */}
+      {hiddenFromApi > 0 && expanded && (
+        <p className="text-[10px] text-navy/30 dark:text-white/30 text-center mt-1">
+          +{hiddenFromApi} more cards not shown
+        </p>
       )}
 
       {member.cards.length === 0 && (

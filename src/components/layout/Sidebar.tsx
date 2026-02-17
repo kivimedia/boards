@@ -33,19 +33,30 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
   }, [supabase]);
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchBoards = async () => {
       const { data } = await supabase
         .from('boards')
-        .select('*')
+        .select('id, name, type, is_starred, is_archived, created_at')
         .order('created_at', { ascending: true });
-      if (data) setBoards(data);
+      if (data && !cancelled) setBoards(data as Board[]);
     };
 
-    // Wait for auth to be ready before fetching boards
+    // Wait for auth to be ready, retry up to 3 times with backoff
     const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        fetchBoards();
+      // If we have SSR-provided boards, skip the immediate fetch (will still refresh via realtime)
+      if (initialBoards && initialBoards.length > 0) return;
+
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (cancelled) return;
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          fetchBoards();
+          return;
+        }
+        // Auth not ready yet, wait and retry
+        await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
       }
     };
     init();
@@ -53,7 +64,7 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
     // Re-fetch when auth state changes (handles delayed session initialization)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        if (session) {
+        if (session && !cancelled) {
           fetchBoards();
         }
       }
@@ -62,11 +73,12 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
     const channel = supabase
       .channel('boards-sidebar')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'boards' }, () => {
-        fetchBoards();
+        if (!cancelled) fetchBoards();
       })
       .subscribe();
 
     return () => {
+      cancelled = true;
       subscription.unsubscribe();
       supabase.removeChannel(channel);
     };

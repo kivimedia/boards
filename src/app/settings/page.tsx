@@ -23,9 +23,15 @@ export default async function SettingsPage() {
   const userRole = (profile?.user_role || profile?.role || 'member') as UserRole;
   const userIsAdmin = isAdmin(userRole) || isAgencyOwner(profile?.agency_role ?? null);
 
+  // Pre-fetch boards for sidebar (avoids client-side refetch flash)
+  const { data: boards } = await supabase
+    .from('boards')
+    .select('*')
+    .order('created_at', { ascending: true });
+
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar />
+      <Sidebar initialBoards={boards || []} />
       <main className="flex-1 flex flex-col overflow-hidden">
         <Header title="Settings" />
         <div className="flex-1 overflow-y-auto bg-cream dark:bg-dark-bg p-6">
