@@ -256,6 +256,38 @@ async function getGlobalMappings(
 }
 
 /**
+ * Like getGlobalMappings but returns Map<sourceKey, targetId> instead of Set.
+ * Used in merge mode to resolve target UUIDs for entities imported by previous jobs.
+ */
+async function getGlobalMappingsWithTargets(
+  supabase: SupabaseClient,
+  currentJobId: string,
+  sourceTypes: MigrationEntityType[]
+): Promise<Map<string, string>> {
+  const globalMap = new Map<string, string>();
+  for (const sourceType of sourceTypes) {
+    let offset = 0;
+    const pageSize = 1000;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const { data } = await supabase
+        .from('migration_entity_map')
+        .select('source_id, target_id')
+        .eq('source_type', sourceType)
+        .neq('job_id', currentJobId)
+        .range(offset, offset + pageSize - 1);
+      if (!data || data.length === 0) break;
+      for (const row of data) {
+        globalMap.set(`${sourceType}:${row.source_id}`, row.target_id);
+      }
+      if (data.length < pageSize) break;
+      offset += pageSize;
+    }
+  }
+  return globalMap;
+}
+
+/**
  * Check if an entity was already migrated (idempotency).
  */
 export async function isAlreadyMigrated(
@@ -346,14 +378,18 @@ export async function runMigration(
     countMappings('checklist'),
   ]);
 
+  const mergeMode = config.sync_mode === 'merge';
+
   const report: MigrationReport = {
     boards_created: boards,
     lists_created: lists,
     cards_created: cards,
+    cards_updated: 0,
     comments_created: comments,
     attachments_created: attachments,
     labels_created: labels,
     checklists_created: checklists,
+    checklist_items_updated: 0,
     errors: [],
   };
 
@@ -397,20 +433,20 @@ export async function runMigration(
       // 4. Import cards
       await updateProgress(supabase, jobId, ++currentStep, totalSteps, 'importing_cards', `${boardLabel} Importing cards...`);
       await importCards(
-        supabase, auth, jobId, trelloBoardId, boardTargetId, userId, config.user_mapping, report, listFilter
+        supabase, auth, jobId, trelloBoardId, boardTargetId, userId, config.user_mapping, report, listFilter, mergeMode
       );
       await updateReport(supabase, jobId, report);
 
       // 5. Import comments
       await updateProgress(supabase, jobId, ++currentStep, totalSteps, 'importing_comments', `${boardLabel} Importing comments...`);
       await importComments(
-        supabase, auth, jobId, trelloBoardId, userId, config.user_mapping, report
+        supabase, auth, jobId, trelloBoardId, userId, config.user_mapping, report, mergeMode
       );
       await updateReport(supabase, jobId, report);
 
       // 6. Import attachments (per card)
       await updateProgress(supabase, jobId, ++currentStep, totalSteps, 'importing_attachments', `${boardLabel} Importing attachments...`);
-      await importAttachments(supabase, auth, jobId, trelloBoardId, userId, report);
+      await importAttachments(supabase, auth, jobId, trelloBoardId, userId, report, mergeMode);
       await updateReport(supabase, jobId, report);
 
       // 6b. Resolve card covers from Trello's idAttachmentCover
@@ -420,7 +456,7 @@ export async function runMigration(
 
       // 7. Import checklists (per card)
       await updateProgress(supabase, jobId, ++currentStep, totalSteps, 'importing_checklists', `${boardLabel} Importing checklists...`);
-      await importChecklists(supabase, auth, jobId, trelloBoardId, report);
+      await importChecklists(supabase, auth, jobId, trelloBoardId, report, mergeMode);
       await updateReport(supabase, jobId, report);
     }
 
@@ -716,7 +752,8 @@ async function importCards(
   userId: string,
   userMapping: Record<string, string>,
   report: MigrationReport,
-  listFilter?: string[]
+  listFilter?: string[],
+  mergeMode = false
 ): Promise<void> {
   try {
     const trelloCards = await fetchTrelloCards(auth, trelloBoardId);
@@ -735,15 +772,24 @@ async function importCards(
 
     // Batch-load all existing card + list + label mappings in one query each (avoids N+1)
     const existingMappings = await batchGetMappings(supabase, jobId, ['card', 'list', 'label']);
-    // Cross-job dedup: skip cards imported by any previous job
-    const globalCardMappings = await getGlobalMappings(supabase, jobId, ['card']);
+    // Cross-job dedup: check cards imported by any previous job
+    // Always use WithTargets (returns Map) so we can resolve target IDs in merge mode
+    const globalCardMappings = await getGlobalMappingsWithTargets(supabase, jobId, ['card']);
+    // In merge mode, also load global label mappings for re-syncing labels on existing cards
+    const globalLabelMap = mergeMode
+      ? await getGlobalMappingsWithTargets(supabase, jobId, ['label'])
+      : new Map<string, string>();
+    const globalListMap = mergeMode
+      ? await getGlobalMappingsWithTargets(supabase, jobId, ['list'])
+      : new Map<string, string>();
+
     const skippedThisJob = openCards.filter((c) => existingMappings.has(`card:${c.id}`)).length;
     const skippedGlobal = openCards.filter((c) => globalCardMappings.has(`card:${c.id}`) && !existingMappings.has(`card:${c.id}`)).length;
     if (skippedThisJob > 0) {
-      await updateDetail(supabase, jobId, `${skippedThisJob}/${openCards.length} cards already imported in this job — skipping`);
+      await updateDetail(supabase, jobId, `${skippedThisJob}/${openCards.length} cards already imported in this job${mergeMode ? ' — will update' : ' — skipping'}`);
     }
     if (skippedGlobal > 0) {
-      await updateDetail(supabase, jobId, `${skippedGlobal} cards already imported in previous jobs — skipping`);
+      await updateDetail(supabase, jobId, `${skippedGlobal} cards from previous jobs${mergeMode ? ' — will update' : ' — skipping'}`);
     }
 
     // Track per-list position counters to preserve Trello card ordering
@@ -752,8 +798,64 @@ async function importCards(
     for (let i = 0; i < openCards.length; i++) {
       const trelloCard = openCards[i];
 
-      if (existingMappings.has(`card:${trelloCard.id}`) || globalCardMappings.has(`card:${trelloCard.id}`)) continue;
+      // Check if card was already imported (this job or previous)
+      const mappedInThisJob = existingMappings.get(`card:${trelloCard.id}`);
+      const mappedGlobally = globalCardMappings.get(`card:${trelloCard.id}`);
+      const alreadyImported = mappedInThisJob || mappedGlobally;
 
+      if (alreadyImported && !mergeMode) continue;
+
+      // --- Merge mode: UPDATE existing card ---
+      if (alreadyImported && mergeMode) {
+        const targetCardId = mappedInThisJob || (mappedGlobally as string);
+        try {
+          if ((i + 1) % 5 === 0) {
+            await updateDetail(supabase, jobId, `Merging card ${i + 1}/${openCards.length}: "${trelloCard.name}"`);
+          }
+
+          const priority = inferPriority(trelloCard, trelloLabels);
+
+          // Update Trello-sourced fields only (preserve created_by, created_at)
+          await supabase
+            .from('cards')
+            .update({
+              title: trelloCard.name,
+              description: trelloCard.desc || '',
+              due_date: trelloCard.due,
+              priority,
+            })
+            .eq('id', targetCardId);
+
+          // Re-sync labels: delete old, add current
+          await supabase.from('card_labels').delete().eq('card_id', targetCardId);
+          for (const trelloLabelId of trelloCard.idLabels) {
+            const targetLabelId = existingMappings.get(`label:${trelloLabelId}`) || globalLabelMap.get(`label:${trelloLabelId}`) || null;
+            if (targetLabelId) {
+              await supabase.from('card_labels').insert({ card_id: targetCardId, label_id: targetLabelId });
+            }
+          }
+
+          // Re-sync assignees: delete old, add current
+          await supabase.from('card_assignees').delete().eq('card_id', targetCardId);
+          for (const trelloMemberId of trelloCard.idMembers) {
+            const mappedUserId = userMapping[trelloMemberId];
+            if (mappedUserId && mappedUserId !== '__skip__') {
+              await supabase.from('card_assignees').insert({ card_id: targetCardId, user_id: mappedUserId });
+            }
+          }
+
+          report.cards_updated++;
+        } catch (mergeErr) {
+          report.errors.push(`Merge card "${trelloCard.name}": ${mergeErr instanceof Error ? mergeErr.message : String(mergeErr)}`);
+        }
+
+        if (report.cards_updated % 25 === 0 && report.cards_updated > 0) {
+          await updateReport(supabase, jobId, report);
+        }
+        continue;
+      }
+
+      // --- Fresh: INSERT new card ---
       // Update detail every 5 new cards for better progress visibility
       if (report.cards_created % 5 === 0) {
         await updateDetail(supabase, jobId, `Card ${i + 1}/${openCards.length}: "${trelloCard.name}"`);
@@ -761,7 +863,7 @@ async function importCards(
 
       try {
         // Find the target list
-        const targetListId = existingMappings.get(`list:${trelloCard.idList}`) || null;
+        const targetListId = existingMappings.get(`list:${trelloCard.idList}`) || globalListMap.get(`list:${trelloCard.idList}`) || null;
         if (!targetListId) {
           report.errors.push(`Card "${trelloCard.name}": target list not found for Trello list ${trelloCard.idList}`);
           continue;
@@ -798,7 +900,7 @@ async function importCards(
 
         // Map card labels
         for (const trelloLabelId of trelloCard.idLabels) {
-          const targetLabelId = existingMappings.get(`label:${trelloLabelId}`) || null;
+          const targetLabelId = existingMappings.get(`label:${trelloLabelId}`) || globalLabelMap.get(`label:${trelloLabelId}`) || null;
           if (targetLabelId) {
             await supabase.from('card_labels').insert({
               card_id: card.id,
@@ -844,7 +946,8 @@ async function importComments(
   trelloBoardId: string,
   userId: string,
   userMapping: Record<string, string>,
-  report: MigrationReport
+  report: MigrationReport,
+  mergeMode = false
 ): Promise<void> {
   try {
     const trelloComments = await fetchTrelloComments(auth, trelloBoardId);
@@ -853,6 +956,11 @@ async function importComments(
     // Batch-load existing comment + card mappings (avoids N+1)
     const existingMappings = await batchGetMappings(supabase, jobId, ['comment', 'card']);
     const globalCommentMappings = await getGlobalMappings(supabase, jobId, ['comment']);
+    // In merge mode, load global card mappings with targets to resolve cards from previous jobs
+    const globalCardMap = mergeMode
+      ? await getGlobalMappingsWithTargets(supabase, jobId, ['card'])
+      : new Map<string, string>();
+
     const skipped = trelloComments.filter((c) => existingMappings.has(`comment:${c.id}`)).length;
     const skippedGlobal = trelloComments.filter((c) => globalCommentMappings.has(`comment:${c.id}`) && !existingMappings.has(`comment:${c.id}`)).length;
     if (skipped > 0) {
@@ -867,9 +975,13 @@ async function importComments(
       const trelloComment = trelloComments[ci];
       if (!trelloComment.data.card) continue;
 
+      // Skip already-imported comments (same in both modes)
       if (existingMappings.has(`comment:${trelloComment.id}`) || globalCommentMappings.has(`comment:${trelloComment.id}`)) continue;
 
-      const targetCardId = existingMappings.get(`card:${trelloComment.data.card.id}`) || null;
+      // Resolve the target card: try current job first, then global (merge mode)
+      const targetCardId = existingMappings.get(`card:${trelloComment.data.card.id}`)
+        || globalCardMap.get(`card:${trelloComment.data.card.id}`)
+        || null;
       if (!targetCardId) continue;
 
       // Update detail every 10 new comments
@@ -986,7 +1098,8 @@ async function importChecklists(
   auth: TrelloAuth,
   jobId: string,
   trelloBoardId: string,
-  report: MigrationReport
+  report: MigrationReport,
+  mergeMode = false
 ): Promise<void> {
   try {
     const trelloCards = await fetchTrelloCards(auth, trelloBoardId);
@@ -997,12 +1110,19 @@ async function importChecklists(
 
     // Batch-load existing card, checklist, and checklist_item mappings (avoids N+1)
     const existingMappings = await batchGetMappings(supabase, jobId, ['card', 'checklist', 'checklist_item']);
-    const globalChecklistMappings = await getGlobalMappings(supabase, jobId, ['checklist', 'checklist_item']);
+    // Always use WithTargets (returns Map) so we can resolve target IDs in merge mode
+    const globalChecklistMappings = await getGlobalMappingsWithTargets(supabase, jobId, ['checklist', 'checklist_item']);
+    // In merge mode, also load global card mappings to resolve cards from previous jobs
+    const globalCardMap = mergeMode
+      ? await getGlobalMappingsWithTargets(supabase, jobId, ['card'])
+      : new Map<string, string>();
 
     let processedCards = 0;
     for (let ci = 0; ci < cardsWithChecklists.length; ci++) {
       const trelloCard = cardsWithChecklists[ci];
-      const targetCardId = existingMappings.get(`card:${trelloCard.id}`) || null;
+      const targetCardId = existingMappings.get(`card:${trelloCard.id}`)
+        || globalCardMap.get(`card:${trelloCard.id}`)
+        || null;
       if (!targetCardId) continue;
 
       // Update detail every 5 cards
@@ -1016,7 +1136,47 @@ async function importChecklists(
       for (let i = 0; i < trelloChecklists.length; i++) {
         const trelloChecklist = trelloChecklists[i];
 
-        if (existingMappings.has(`checklist:${trelloChecklist.id}`) || globalChecklistMappings.has(`checklist:${trelloChecklist.id}`)) continue;
+        const existingChecklistId = existingMappings.get(`checklist:${trelloChecklist.id}`);
+        const globalChecklistId = globalChecklistMappings.get(`checklist:${trelloChecklist.id}`);
+        const alreadyImported = existingChecklistId || globalChecklistId;
+
+        // Merge mode: update completion status on existing checklist items
+        if (alreadyImported && mergeMode) {
+          const resolvedChecklistId = existingChecklistId || (globalChecklistId as string);
+          for (const item of trelloChecklist.checkItems) {
+            const existingItemId = existingMappings.get(`checklist_item:${item.id}`)
+              || globalChecklistMappings.get(`checklist_item:${item.id}`);
+            if (existingItemId) {
+              // Update completion status
+              const { error: updateErr } = await supabase
+                .from('checklist_items')
+                .update({ is_completed: item.state === 'complete' })
+                .eq('id', existingItemId);
+              if (!updateErr) report.checklist_items_updated++;
+            } else {
+              // New item on existing checklist — insert it
+              const { data: newItem, error: itemErr } = await supabase
+                .from('checklist_items')
+                .insert({
+                  checklist_id: resolvedChecklistId,
+                  content: item.name,
+                  is_completed: item.state === 'complete',
+                  position: trelloChecklist.checkItems.indexOf(item),
+                })
+                .select()
+                .single();
+              if (newItem) {
+                await recordMapping(supabase, jobId, 'checklist_item', item.id, newItem.id);
+              } else if (itemErr) {
+                report.errors.push(`Failed to create checklist item: ${itemErr.message}`);
+              }
+            }
+          }
+          continue;
+        }
+
+        // Fresh mode: skip already-imported checklists
+        if (alreadyImported) continue;
 
         const { data: checklist, error } = await supabase
           .from('checklists')
@@ -1061,7 +1221,7 @@ async function importChecklists(
         }
       }
 
-      if (report.checklists_created % 25 === 0 && report.checklists_created > 0) {
+      if ((report.checklists_created + report.checklist_items_updated) % 25 === 0 && (report.checklists_created + report.checklist_items_updated) > 0) {
         await updateReport(supabase, jobId, report);
       }
     }
@@ -1080,12 +1240,27 @@ async function importAttachments(
   jobId: string,
   trelloBoardId: string,
   userId: string,
-  report: MigrationReport
+  report: MigrationReport,
+  mergeMode = false
 ): Promise<void> {
   try {
     // Batch-load existing card + attachment mappings (avoids N+1)
     const existingMappings = await batchGetMappings(supabase, jobId, ['card', 'attachment']);
     const globalAttachmentMappings = await getGlobalMappings(supabase, jobId, ['attachment']);
+    // In merge mode, load global card mappings to resolve cards from previous jobs
+    const globalCardMap = mergeMode
+      ? await getGlobalMappingsWithTargets(supabase, jobId, ['card'])
+      : new Map<string, string>();
+
+    // In merge mode, invalidate cached manifest so Trello is re-scanned for new attachments
+    if (mergeMode) {
+      await supabase
+        .from('migration_entity_map')
+        .delete()
+        .eq('job_id', jobId)
+        .eq('source_type', 'attachment_manifest')
+        .eq('source_id', trelloBoardId);
+    }
 
     // Pass 1: Try to load cached attachment manifest from DB first (avoids re-scanning Trello)
     const allAttachments: { card: TrelloCard; targetCardId: string; att: TrelloAttachment }[] = [];
@@ -1112,7 +1287,7 @@ async function importAttachments(
         });
       }
     } else {
-      // Slow path: first run — scan Trello and cache the results
+      // Slow path: first run or merge mode — scan Trello and cache the results
       const trelloCards = await fetchTrelloCards(auth, trelloBoardId);
       const openCards = trelloCards.filter((c) => !c.closed);
       await updateDetail(supabase, jobId, `Scanning ${openCards.length} cards for attachments...`);
@@ -1120,7 +1295,10 @@ async function importAttachments(
       let scanned = 0;
       for (const trelloCard of openCards) {
         scanned++;
-        const targetCardId = existingMappings.get(`card:${trelloCard.id}`) || null;
+        // Resolve target card: current job or global (merge mode)
+        const targetCardId = existingMappings.get(`card:${trelloCard.id}`)
+          || globalCardMap.get(`card:${trelloCard.id}`)
+          || null;
         if (!targetCardId) continue;
 
         if (scanned % 25 === 0) {
@@ -1345,10 +1523,12 @@ export async function backfillAttachments(
     boards_created: prev?.boards_created ?? 0,
     lists_created: prev?.lists_created ?? 0,
     cards_created: prev?.cards_created ?? 0,
+    cards_updated: prev?.cards_updated ?? 0,
     comments_created: prev?.comments_created ?? 0,
     attachments_created: prev?.attachments_created ?? 0,
     labels_created: prev?.labels_created ?? 0,
     checklists_created: prev?.checklists_created ?? 0,
+    checklist_items_updated: prev?.checklist_items_updated ?? 0,
     errors: [],  // Fresh errors for this backfill run
   };
 

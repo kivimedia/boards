@@ -65,20 +65,24 @@ describe('P1.7 Migration Types', () => {
         boards_created: 2,
         lists_created: 10,
         cards_created: 50,
+        cards_updated: 3,
         comments_created: 120,
         attachments_created: 15,
         labels_created: 8,
         checklists_created: 5,
+        checklist_items_updated: 7,
         errors: ['Some error occurred'],
       };
 
       expect(report.boards_created).toBe(2);
       expect(report.lists_created).toBe(10);
       expect(report.cards_created).toBe(50);
+      expect(report.cards_updated).toBe(3);
       expect(report.comments_created).toBe(120);
       expect(report.attachments_created).toBe(15);
       expect(report.labels_created).toBe(8);
       expect(report.checklists_created).toBe(5);
+      expect(report.checklist_items_updated).toBe(7);
       expect(report.errors).toHaveLength(1);
     });
 
@@ -87,10 +91,12 @@ describe('P1.7 Migration Types', () => {
         boards_created: 0,
         lists_created: 0,
         cards_created: 0,
+        cards_updated: 0,
         comments_created: 0,
         attachments_created: 0,
         labels_created: 0,
         checklists_created: 0,
+        checklist_items_updated: 0,
         errors: [],
       };
       expect(report.errors).toEqual([]);
@@ -146,10 +152,12 @@ describe('P1.7 Migration Types', () => {
           boards_created: 0,
           lists_created: 0,
           cards_created: 0,
+          cards_updated: 0,
           comments_created: 0,
           attachments_created: 0,
           labels_created: 0,
           checklists_created: 0,
+          checklist_items_updated: 0,
           errors: [],
         },
         error_message: null,
