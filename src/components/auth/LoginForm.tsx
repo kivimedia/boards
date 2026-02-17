@@ -1,0 +1,64 @@
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import Button from '@/components/ui/Button';
+import Input from '@/components/ui/Input';
+
+export default function LoginForm() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      setError(error.message);
+      setLoading(false);
+    } else {
+      router.push('/');
+      router.refresh();
+    }
+  };
+
+  return (
+    <form onSubmit={handleLogin} className="space-y-4">
+      <Input
+        label="Email"
+        type="email"
+        placeholder="you@agency.com"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        required
+      />
+      <Input
+        label="Password"
+        type="password"
+        placeholder="••••••••"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        required
+      />
+      {error && (
+        <div className="p-3 rounded-xl bg-danger/10 text-danger text-sm font-body">
+          {error}
+        </div>
+      )}
+      <Button type="submit" loading={loading} className="w-full">
+        Sign In
+      </Button>
+    </form>
+  );
+}
