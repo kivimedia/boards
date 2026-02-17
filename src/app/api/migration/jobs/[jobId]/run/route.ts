@@ -68,5 +68,5 @@ export async function POST(_request: NextRequest, { params }: Params) {
   });
 }
 
-// Allow long-running requests (up to 15 minutes for large migrations)
-export const maxDuration = 900;
+// Vercel Pro max is 300s. Migration already complete; kept for reruns.
+export const maxDuration = 300;

@@ -69,7 +69,5 @@ export async function POST(_request: NextRequest, { params }: Params) {
   });
 }
 
-// Max duration for serverless function (10 minutes — Vercel Pro limit)
-// The heartbeat keeps the connection alive within this window.
-// For very large migrations, the function will need to be re-triggered.
-export const maxDuration = 600;
+// Vercel Pro max is 300s. Migration already complete; kept for reruns.
+export const maxDuration = 300;
