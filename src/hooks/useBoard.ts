@@ -218,6 +218,7 @@ export function useBoard(boardId: string, initialBoard?: BoardWithLists) {
   return {
     board: query.data ?? null,
     loading: query.isLoading,
+    isPlaceholderData: query.isPlaceholderData,
     error: query.error,
     refresh,
   };

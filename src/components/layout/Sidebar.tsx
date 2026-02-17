@@ -216,7 +216,7 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
         )}
 
         {boards
-          .filter((board) => !board.is_archived && canAccessBoardByRole(profile?.agency_role ?? null, board.type))
+          .filter((board) => !board.is_archived && (!profile ? true : canAccessBoardByRole(profile.agency_role ?? null, board.type)))
           .sort((a, b) => (a.is_starred === b.is_starred ? 0 : a.is_starred ? -1 : 1))
           .map((board) => {
           const config = BOARD_TYPE_CONFIG[board.type];

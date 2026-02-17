@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { DragDropContext, Droppable, DropResult } from '@hello-pangea/dnd';
+import { useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { BoardWithLists, BoardFilter } from '@/lib/types';
 import BoardList from './BoardList';
@@ -16,10 +17,12 @@ interface BoardProps {
   filter?: BoardFilter;
   externalSelectedCardId?: string | null;
   onExternalCardClose?: () => void;
+  isLoadingCards?: boolean;
 }
 
-export default function Board({ board, onRefresh, filter, externalSelectedCardId, onExternalCardClose }: BoardProps) {
+export default function Board({ board, onRefresh, filter, externalSelectedCardId, onExternalCardClose, isLoadingCards }: BoardProps) {
   const panRef = useBoardPan();
+  const queryClient = useQueryClient();
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [isAddingList, setIsAddingList] = useState(false);
   const [newListName, setNewListName] = useState('');
@@ -152,7 +155,7 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
   };
 
   const handleDragEnd = useCallback(
-    async (result: DropResult) => {
+    (result: DropResult) => {
       const { source, destination, type } = result;
 
       if (!destination) return;
@@ -163,11 +166,18 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
         return;
 
       if (type === 'list') {
-        // Reorder lists - only update positions that changed
+        // Optimistic update: reorder lists in cache immediately
         const lists = [...board.lists].sort((a, b) => a.position - b.position);
         const [moved] = lists.splice(source.index, 1);
         lists.splice(destination.index, 0, moved);
+        const updatedLists = lists.map((l, i) => ({ ...l, position: i }));
 
+        queryClient.setQueryData(['board', board.id], {
+          ...board,
+          lists: updatedLists,
+        });
+
+        // Fire DB writes in background
         const minIdx = Math.min(source.index, destination.index);
         const maxIdx = Math.max(source.index, destination.index);
         const updates = [];
@@ -176,12 +186,10 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
             supabase
               .from('lists')
               .update({ position: i })
-              .eq('id', lists[i].id)
+              .eq('id', updatedLists[i].id)
           );
         }
-        await Promise.all(updates);
-
-        onRefresh();
+        Promise.all(updates);
         return;
       }
 
@@ -190,14 +198,34 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
         const destList = board.lists.find((l) => l.id === destination.droppableId);
         if (!sourceList || !destList) return;
 
-        const sourcePlacements = [...sourceList.cards].sort(
-          (a, b) => a.position - b.position
-        );
+        // Build optimistic board state
+        const newLists = board.lists.map((l) => ({ ...l, cards: [...l.cards] }));
+        const srcList = newLists.find((l) => l.id === source.droppableId)!;
+        const dstList = newLists.find((l) => l.id === destination.droppableId)!;
+
+        const srcCards = srcList.cards.sort((a, b) => a.position - b.position);
+        const [movedCard] = srcCards.splice(source.index, 1);
 
         if (source.droppableId === destination.droppableId) {
-          // Same list reorder - only update cards whose position actually changed
-          const [moved] = sourcePlacements.splice(source.index, 1);
-          sourcePlacements.splice(destination.index, 0, moved);
+          srcCards.splice(destination.index, 0, movedCard);
+          srcList.cards = srcCards.map((c, i) => ({ ...c, position: i }));
+        } else {
+          const dstCards = dstList.cards.sort((a, b) => a.position - b.position);
+          dstCards.splice(destination.index, 0, { ...movedCard, list_id: destination.droppableId });
+          srcList.cards = srcCards.map((c, i) => ({ ...c, position: i }));
+          dstList.cards = dstCards.map((c, i) => ({ ...c, position: i }));
+        }
+
+        queryClient.setQueryData(['board', board.id], {
+          ...board,
+          lists: newLists,
+        });
+
+        // Fire DB writes in background
+        if (source.droppableId === destination.droppableId) {
+          const sortedSrc = [...sourceList.cards].sort((a, b) => a.position - b.position);
+          const [mv] = sortedSrc.splice(source.index, 1);
+          sortedSrc.splice(destination.index, 0, mv);
 
           const minIdx = Math.min(source.index, destination.index);
           const maxIdx = Math.max(source.index, destination.index);
@@ -207,53 +235,46 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
               supabase
                 .from('card_placements')
                 .update({ position: i })
-                .eq('id', sourcePlacements[i].id)
+                .eq('id', sortedSrc[i].id)
             );
           }
-          await Promise.all(updates);
+          Promise.all(updates);
         } else {
-          // Move between lists
-          const destPlacements = [...destList.cards].sort(
-            (a, b) => a.position - b.position
-          );
-
-          const [moved] = sourcePlacements.splice(source.index, 1);
-          destPlacements.splice(destination.index, 0, moved);
+          const sourcePlacements = [...sourceList.cards].sort((a, b) => a.position - b.position);
+          const destPlacements = [...destList.cards].sort((a, b) => a.position - b.position);
+          const [mv] = sourcePlacements.splice(source.index, 1);
+          destPlacements.splice(destination.index, 0, mv);
 
           // Update moved card's list_id and position
-          await supabase
+          supabase
             .from('card_placements')
             .update({ list_id: destination.droppableId, position: destination.index })
-            .eq('id', moved.id);
-
-          // Only update positions that shifted (not ALL cards in both lists)
-          const sourceUpdates = [];
-          for (let i = source.index; i < sourcePlacements.length; i++) {
-            sourceUpdates.push(
-              supabase
-                .from('card_placements')
-                .update({ position: i })
-                .eq('id', sourcePlacements[i].id)
-            );
-          }
-
-          const destUpdates = [];
-          for (let i = destination.index + 1; i < destPlacements.length; i++) {
-            destUpdates.push(
-              supabase
-                .from('card_placements')
-                .update({ position: i })
-                .eq('id', destPlacements[i].id)
-            );
-          }
-
-          await Promise.all([...sourceUpdates, ...destUpdates]);
+            .eq('id', mv.id)
+            .then(() => {
+              const sourceUpdates = [];
+              for (let i = source.index; i < sourcePlacements.length; i++) {
+                sourceUpdates.push(
+                  supabase
+                    .from('card_placements')
+                    .update({ position: i })
+                    .eq('id', sourcePlacements[i].id)
+                );
+              }
+              const destUpdates = [];
+              for (let i = destination.index + 1; i < destPlacements.length; i++) {
+                destUpdates.push(
+                  supabase
+                    .from('card_placements')
+                    .update({ position: i })
+                    .eq('id', destPlacements[i].id)
+                );
+              }
+              Promise.all([...sourceUpdates, ...destUpdates]);
+            });
         }
-
-        onRefresh();
       }
     },
-    [board, supabase, onRefresh]
+    [board, supabase, queryClient]
   );
 
   const handleAddList = async () => {
@@ -296,6 +317,7 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
                   selectedCards={selectedCards}
                   toggleCardSelection={toggleCardSelection}
                   filter={filter}
+                  isLoadingCards={isLoadingCards}
                 />
               ))}
               {provided.placeholder}

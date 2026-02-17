@@ -25,6 +25,7 @@ interface BoardListProps {
   selectedCards?: Set<string>;
   toggleCardSelection?: (cardId: string, shiftKey?: boolean) => void;
   filter?: BoardFilter;
+  isLoadingCards?: boolean;
 }
 
 /** Apply board filter to a single placement. */
@@ -54,7 +55,7 @@ function matchesFilter(placement: any, filter: BoardFilter | undefined): boolean
   return true;
 }
 
-export default function BoardList({ list, index, boardId, allLists, onCardClick, onRefresh, selectedCards, toggleCardSelection, filter }: BoardListProps) {
+export default function BoardList({ list, index, boardId, allLists, onCardClick, onRefresh, selectedCards, toggleCardSelection, filter, isLoadingCards }: BoardListProps) {
   const [isAddingCard, setIsAddingCard] = useState(false);
   const [newCardTitle, setNewCardTitle] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
@@ -152,7 +153,9 @@ export default function BoardList({ list, index, boardId, allLists, onCardClick,
               >
                 {list.name}
                 <span className="ml-2 px-1.5 py-0.5 rounded-full bg-cream-dark/60 dark:bg-slate-700/60 text-navy/50 dark:text-slate-400 font-normal text-[11px] tabular-nums">
-                  {isFiltered ? `${filteredCardCount}/${totalCardCount}` : totalCardCount}
+                  {isLoadingCards && totalCardCount === 0 ? (
+                    <span className="inline-block w-4 h-3 rounded bg-cream-dark/80 dark:bg-slate-600 animate-pulse" />
+                  ) : isFiltered ? `${filteredCardCount}/${totalCardCount}` : totalCardCount}
                 </span>
               </h3>
             )}
@@ -177,27 +180,35 @@ export default function BoardList({ list, index, boardId, allLists, onCardClick,
                   ${snapshot.isDraggingOver ? 'bg-electric/5' : ''}
                 `}
               >
-                {visibleCards.map((placement, cardIndex) => (
-                  <BoardCard
-                    key={placement.id}
-                    card={placement.card}
-                    placement_id={placement.id}
-                    index={cardIndex}
-                    labels={placement.labels || []}
-                    assignees={placement.assignees || []}
-                    is_mirror={placement.is_mirror}
-                    onClick={() => onCardClick(placement.card.id)}
-                    selected={selectedCards?.has(placement.card.id)}
-                    onToggleSelect={toggleCardSelection}
-                    comment_count={placement.comment_count || 0}
-                    attachment_count={placement.attachment_count || 0}
-                    checklist_total={placement.checklist_total || 0}
-                    checklist_done={placement.checklist_done || 0}
-                    cover_image_url={placement.cover_image_url || null}
-                    boardId={boardId}
-                    onRefresh={onRefresh}
-                  />
-                ))}
+                {isLoadingCards && visibleCards.length === 0 ? (
+                  <>
+                    {[0, 1, 2].map((i) => (
+                      <div key={`skel-${i}`} className="animate-pulse rounded-xl bg-cream-dark/50 dark:bg-slate-700/40 h-[72px]" />
+                    ))}
+                  </>
+                ) : (
+                  visibleCards.map((placement, cardIndex) => (
+                    <BoardCard
+                      key={placement.id}
+                      card={placement.card}
+                      placement_id={placement.id}
+                      index={cardIndex}
+                      labels={placement.labels || []}
+                      assignees={placement.assignees || []}
+                      is_mirror={placement.is_mirror}
+                      onClick={() => onCardClick(placement.card.id)}
+                      selected={selectedCards?.has(placement.card.id)}
+                      onToggleSelect={toggleCardSelection}
+                      comment_count={placement.comment_count || 0}
+                      attachment_count={placement.attachment_count || 0}
+                      checklist_total={placement.checklist_total || 0}
+                      checklist_done={placement.checklist_done || 0}
+                      cover_image_url={placement.cover_image_url || null}
+                      boardId={boardId}
+                      onRefresh={onRefresh}
+                    />
+                  ))
+                )}
                 {provided.placeholder}
 
                 {/* Show more button for large lists */}
