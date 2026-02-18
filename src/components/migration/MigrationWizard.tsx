@@ -755,6 +755,9 @@ export default function MigrationWizard() {
         {/* Step 1: Connect to Trello */}
         {step === 1 && (
           <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-6 space-y-5">
+            <div className="text-center mb-2">
+              <h1 className="text-xl font-heading font-bold text-electric">The New Migration Tool - migrate-opti-2.0!</h1>
+            </div>
             <div>
               <h2 className="text-lg font-heading font-semibold text-navy dark:text-slate-100 mb-1">
                 Connect to Trello
