@@ -71,6 +71,7 @@ export default function MigrationWizard() {
 
   // Step 5: Sync mode
   const [syncMode, setSyncMode] = useState<'fresh' | 'merge'>('fresh');
+  const [syncModeAutoSet, setSyncModeAutoSet] = useState(false);
 
   // Step 4/5: Job state
   const [creatingJob, setCreatingJob] = useState(false);
@@ -694,6 +695,17 @@ export default function MigrationWizard() {
     const interval = setInterval(pollProgress, 2000);
     return () => clearInterval(interval);
   }, [step, jobId, pollProgress]);
+
+  // Auto-default to merge mode when any selected board already exists
+  useEffect(() => {
+    if (step === 5 && !syncModeAutoSet) {
+      const hasExistingBoard = Array.from(selectedBoardIds).some((id) => boardMatches[id]);
+      if (hasExistingBoard) {
+        setSyncMode('merge');
+        setSyncModeAutoSet(true);
+      }
+    }
+  }, [step, selectedBoardIds, boardMatches, syncModeAutoSet]);
 
   // Phase display text
   const phaseText = (phase: string) => {
