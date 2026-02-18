@@ -48,6 +48,7 @@ export default function MigrationWizard() {
   const [trelloBoards, setTrelloBoards] = useState<TrelloBoard[]>([]);
   const [selectedBoardIds, setSelectedBoardIds] = useState<Set<string>>(new Set());
   const [boardTypeMapping, setBoardTypeMapping] = useState<Record<string, BoardType>>({});
+  const [savedBoardSelections, setSavedBoardSelections] = useState<{ board_name: string; board_id: string; board_type: BoardType }[] | null>(null);
 
   // Step 3: List selection & board matching
   const [trelloLists, setTrelloLists] = useState<Record<string, { id: string; name: string }[]>>({});
@@ -98,7 +99,7 @@ export default function MigrationWizard() {
           const json = await res.json();
           const trelloConfig = (json.data || []).find((c: any) => c.service === 'trello');
           if (trelloConfig?.config) {
-            const config = trelloConfig.config as { api_key?: string; token?: string; user_mapping?: Record<string, string> };
+            const config = trelloConfig.config as { api_key?: string; token?: string; user_mapping?: Record<string, string>; board_selections?: { board_name: string; board_id: string; board_type: BoardType }[] };
             if (config.api_key) {
               setApiKey(config.api_key);
               sessionStorage.setItem('trello_api_key', config.api_key);
@@ -110,6 +111,9 @@ export default function MigrationWizard() {
             }
             if (config.user_mapping && Object.keys(config.user_mapping).length > 0) {
               setSavedUserMapping(config.user_mapping);
+            }
+            if (config.board_selections && config.board_selections.length > 0) {
+              setSavedBoardSelections(config.board_selections);
             }
           }
         }
@@ -248,12 +252,30 @@ export default function MigrationWizard() {
       const boards = json.data as TrelloBoard[];
       setTrelloBoards(boards);
 
-      // Initialize board type mapping with 'dev' as default
+      // Initialize board type mapping with 'dev' as default, then apply saved selections
       const mapping: Record<string, BoardType> = {};
+      const preSelectedIds = new Set<string>();
       boards.forEach((b) => {
         mapping[b.id] = 'dev';
       });
+
+      // Apply saved board selections - match by board name (stable across sessions) or ID
+      if (savedBoardSelections && savedBoardSelections.length > 0) {
+        for (const saved of savedBoardSelections) {
+          const matchedBoard = boards.find(
+            (b) => b.id === saved.board_id || b.name.toLowerCase() === saved.board_name.toLowerCase()
+          );
+          if (matchedBoard) {
+            mapping[matchedBoard.id] = saved.board_type;
+            preSelectedIds.add(matchedBoard.id);
+          }
+        }
+      }
+
       setBoardTypeMapping(mapping);
+      if (preSelectedIds.size > 0) {
+        setSelectedBoardIds(preSelectedIds);
+      }
 
       // Save validated credentials to pga_integration_configs via API for persistence
       try {
@@ -487,7 +509,7 @@ export default function MigrationWizard() {
     }
   };
 
-  // Save user mapping to pga_integration_configs alongside Trello credentials
+  // Save user mapping + board selections to pga_integration_configs alongside Trello credentials
   const saveUserMappingToConfig = async () => {
     try {
       // Build mapping keyed by trello username (stable across sessions) -> agencyBoardUserId
@@ -499,6 +521,16 @@ export default function MigrationWizard() {
         }
       }
 
+      // Build board selections keyed by name (stable across sessions)
+      const boardSelections = Array.from(selectedBoardIds).map((boardId) => {
+        const board = trelloBoards.find((b) => b.id === boardId);
+        return {
+          board_name: board?.name || '',
+          board_id: boardId,
+          board_type: boardTypeMapping[boardId] || 'dev',
+        };
+      }).filter((s) => s.board_name);
+
       await fetch('/api/podcast/integrations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -508,6 +540,7 @@ export default function MigrationWizard() {
             api_key: apiKey.trim(),
             token: token.trim(),
             user_mapping: mappingByUsername,
+            board_selections: boardSelections,
           },
           is_active: true,
         }),

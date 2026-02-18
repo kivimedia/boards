@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useProfilingStore, BoardProfilingData, CardProfilingData, ProfilingPhase } from '@/stores/profiling-store';
+import { useProfilingStore, BoardProfilingData, CardProfilingData, PageProfilingData, ProfilingPhase } from '@/stores/profiling-store';
 
 function formatMs(ms: number): string {
   if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
@@ -100,12 +100,44 @@ function CardPanel({ data, onDismiss }: { data: CardProfilingData; onDismiss: ()
   );
 }
 
+function PagePanel({ data, onDismiss }: { data: PageProfilingData; onDismiss: () => void }) {
+  return (
+    <div className="w-80 bg-white dark:bg-dark-surface rounded-xl shadow-modal dark:shadow-none border border-cream-dark dark:border-slate-700 p-3 animate-in fade-in slide-in-from-bottom-2 duration-200">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-teal-500">Page Profile</span>
+        <button
+          onClick={onDismiss}
+          className="p-0.5 rounded text-navy/30 dark:text-slate-500 hover:text-navy dark:hover:text-slate-300 transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+      </div>
+
+      {/* Summary */}
+      <div className="flex items-baseline gap-2 mb-3">
+        <span className="text-2xl font-bold text-navy dark:text-slate-100 font-heading">{formatMs(data.totalMs)}</span>
+        <span className="text-[10px] text-navy/40 dark:text-slate-500">{data.pageName}</span>
+      </div>
+
+      {/* Phase breakdown */}
+      {data.phases.length > 0 ? (
+        <PhaseTable phases={data.phases} totalMs={data.totalMs} />
+      ) : (
+        <div className="text-[11px] text-navy/40 dark:text-slate-500 font-body">
+          No tracked phases (static page)
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ProfilingPopup() {
   const {
-    boardProfiling, cardProfiling,
-    showBoardPopup, showCardPopup,
+    boardProfiling, cardProfiling, pageProfiling,
+    showBoardPopup, showCardPopup, showPagePopup,
     enabled,
-    dismissBoard, dismissCard, setEnabled,
+    dismissBoard, dismissCard, dismissPage, setEnabled,
   } = useProfilingStore();
 
   // Hydrate enabled state from localStorage on mount (default is enabled, only disable if explicitly set)
@@ -116,10 +148,13 @@ export default function ProfilingPopup() {
     }
   }, [setEnabled]);
 
-  if (!showBoardPopup && !showCardPopup) return null;
+  if (!showBoardPopup && !showCardPopup && !showPagePopup) return null;
 
   return createPortal(
     <div className="fixed bottom-20 right-4 z-[9999] flex flex-col gap-2">
+      {showPagePopup && pageProfiling && (
+        <PagePanel data={pageProfiling} onDismiss={dismissPage} />
+      )}
       {showCardPopup && cardProfiling && (
         <CardPanel data={cardProfiling} onDismiss={dismissCard} />
       )}
