@@ -5,6 +5,7 @@ import { useState } from 'react';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import KeyboardShortcutsProvider from '@/components/layout/KeyboardShortcutsProvider';
 import ProfilingPopup from '@/components/profiling/ProfilingPopup';
+import PageProfiler from '@/components/profiling/PageProfiler';
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -24,6 +25,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       <QueryClientProvider client={queryClient}>
         <KeyboardShortcutsProvider>
           {children}
+          <PageProfiler />
           <ProfilingPopup />
         </KeyboardShortcutsProvider>
       </QueryClientProvider>
