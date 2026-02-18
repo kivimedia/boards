@@ -43,30 +43,17 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
       if (data && !cancelled) setBoards(data as Board[]);
     };
 
-    // Wait for auth to be ready, retry up to 3 times with backoff
-    const init = async () => {
-      // If we have SSR-provided boards, skip the immediate fetch (will still refresh via realtime)
-      if (initialBoards && initialBoards.length > 0) return;
-
-      for (let attempt = 0; attempt < 3; attempt++) {
-        if (cancelled) return;
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          fetchBoards();
-          return;
-        }
-        // Auth not ready yet, wait and retry
-        await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+    // Fetch boards immediately if user is authenticated
+    if (user) {
+      if (!initialBoards || initialBoards.length === 0) {
+        fetchBoards();
       }
-    };
-    init();
+    }
 
-    // Re-fetch when auth state changes (handles delayed session initialization)
+    // Also listen for auth state changes (handles delayed session on non-board pages)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (session && !cancelled) {
-          fetchBoards();
-        }
+      (_event, session) => {
+        if (session && !cancelled) fetchBoards();
       }
     );
 
@@ -82,7 +69,7 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
       subscription.unsubscribe();
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [user]);
 
   return (
     <aside

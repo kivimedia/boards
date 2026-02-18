@@ -11,7 +11,6 @@ import SavedFilterBar from './SavedFilterBar';
 import BottomNavBar from '@/components/bottom-nav/BottomNavBar';
 import InboxView from '@/components/bottom-nav/InboxView';
 import PlannerView from '@/components/bottom-nav/PlannerView';
-import ProfilingPopup from '@/components/profiling/ProfilingPopup';
 import { useProfilingStore, BoardProfilingData } from '@/stores/profiling-store';
 import { BoardWithLists, BoardViewMode, BoardFilter } from '@/lib/types';
 
@@ -229,8 +228,6 @@ export default function BoardView({ boardId, boardName, initialBoard, initialTim
         boardId={boardId}
       />
 
-      {/* Profiling Popup */}
-      <ProfilingPopup />
     </div>
   );
 }
