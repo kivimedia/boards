@@ -87,7 +87,7 @@ async function trelloFetch<T>(
       const res = await fetch(url.toString(), { signal: AbortSignal.timeout(60000) });
       if (res.status === 429) {
         // Trello rate limit — wait and retry
-        const retryAfter = parseInt(res.headers.get('retry-after') || '10', 10);
+        const retryAfter = parseInt(res.headers.get('retry-after') || '10', 10) || 10;
         console.warn(`[TrelloMigration] Rate limited on ${path}, waiting ${retryAfter}s (attempt ${attempt}/${retries})`);
         await new Promise((r) => setTimeout(r, retryAfter * 1000));
         continue;
