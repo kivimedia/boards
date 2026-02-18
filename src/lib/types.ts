@@ -525,6 +525,7 @@ export interface MigrationProgress {
   total: number;
   phase: string;
   detail?: string;
+  needs_resume?: boolean;
 }
 
 export interface MigrationReport {
