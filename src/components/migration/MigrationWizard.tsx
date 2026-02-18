@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { BOARD_TYPE_CONFIG } from '@/lib/constants';
 import type {
@@ -644,6 +644,9 @@ export default function MigrationWizard() {
     }
   };
 
+  // Track whether we're currently firing an auto-resume call
+  const autoResuming = useRef(false);
+
   // Step 5: Poll for progress
   const pollProgress = useCallback(async () => {
     if (!jobId) return;
@@ -657,6 +660,25 @@ export default function MigrationWizard() {
         setProgress(job.progress);
         setJobStatus(job.status);
         if (job.report) setReport(job.report);
+
+        // Auto-resume: if the job hit the Vercel deadline and is back to pending,
+        // automatically fire another /run call to continue where it left off
+        if (
+          job.status === 'pending' &&
+          job.progress?.needs_resume &&
+          !autoResuming.current
+        ) {
+          autoResuming.current = true;
+          console.log('[MigrationWizard] Auto-resuming migration after deadline...');
+          try {
+            fetch(`/api/migration/jobs/${jobId}/run`, { method: 'POST' }).catch(() => {
+              // Connection may close, that's fine — migration runs server-side
+            });
+          } finally {
+            // Reset after a short delay to allow the job to transition to 'running'
+            setTimeout(() => { autoResuming.current = false; }, 5000);
+          }
+        }
       }
     } catch {
       // silently fail, will retry

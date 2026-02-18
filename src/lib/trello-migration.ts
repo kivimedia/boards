@@ -432,14 +432,19 @@ async function updateReport(
 
 /**
  * Run a full Trello migration job.
- * This processes boards in order: boards → labels → lists → cards → comments → attachments → checklists
+ * This processes boards in order: boards → labels → lists → cards → attachments+covers → comments+checklists
+ *
+ * @param deadline - Unix timestamp (ms). When approaching this time, the migration saves progress and exits
+ *                   gracefully so it can be resumed in a new function invocation. Pass 0 for no deadline.
+ * @returns The report, plus `needs_resume: true` on the report if the deadline was reached before completion.
  */
 export async function runMigration(
   supabase: SupabaseClient,
   jobId: string,
   config: MigrationJobConfig,
-  userId: string
-): Promise<MigrationReport> {
+  userId: string,
+  deadline = 0
+): Promise<MigrationReport & { needs_resume?: boolean }> {
   const auth: TrelloAuth = { key: config.trello_api_key, token: config.trello_token };
   clearTrelloCache();
   _lastDetailWrite = 0;
@@ -475,6 +480,9 @@ export async function runMigration(
     errors: [],
   };
 
+  // Deadline helper: returns true when we're within 30s of the deadline
+  const isNearDeadline = () => deadline > 0 && Date.now() > deadline - 30_000;
+
   // Mark job as running and save accurate report immediately
   await supabase
     .from('migration_jobs')
@@ -486,6 +494,8 @@ export async function runMigration(
     let currentStep = 0;
 
     const totalBoards = config.board_ids.length;
+    let hitDeadline = false;
+
     for (let bi = 0; bi < config.board_ids.length; bi++) {
       const trelloBoardId = config.board_ids[bi];
       const boardType = config.board_type_mapping[trelloBoardId] || 'dev';
@@ -513,16 +523,21 @@ export async function runMigration(
       await updateReport(supabase, jobId, report);
 
       // 4. Import cards
+      if (isNearDeadline()) { hitDeadline = true; currentStep += 3; break; }
       await updateProgress(supabase, jobId, ++currentStep, totalSteps, 'importing_cards', `${boardLabel} Importing cards...`);
       await importCards(
         supabase, auth, jobId, trelloBoardId, boardTargetId, userId, config.user_mapping, report, listFilter, mergeMode
       );
       await updateReport(supabase, jobId, report);
 
-      // 5. Import attachments + resolve covers (must complete before comments/checklists for cover resolution)
+      // 5. Import attachments + resolve covers
+      if (isNearDeadline()) { hitDeadline = true; currentStep += 2; break; }
       await updateProgress(supabase, jobId, ++currentStep, totalSteps, 'importing_attachments', `${boardLabel} Importing attachments...`);
-      await importAttachments(supabase, auth, jobId, trelloBoardId, userId, report, mergeMode);
+      await importAttachments(supabase, auth, jobId, trelloBoardId, userId, report, mergeMode, deadline);
       await updateReport(supabase, jobId, report);
+
+      // Check if importAttachments bailed early due to deadline
+      if (isNearDeadline()) { hitDeadline = true; currentStep += 1; break; }
 
       // 5b. Resolve card covers from Trello's idAttachmentCover
       await updateDetail(supabase, jobId, `${boardLabel} Resolving card covers...`);
@@ -530,12 +545,27 @@ export async function runMigration(
       await updateReport(supabase, jobId, report);
 
       // 6. Import comments + checklists in parallel (both only need card mappings)
+      if (isNearDeadline()) { hitDeadline = true; currentStep += 1; break; }
       await updateProgress(supabase, jobId, ++currentStep, totalSteps, 'importing_comments_checklists', `${boardLabel} Importing comments + checklists...`);
       await Promise.all([
         importComments(supabase, auth, jobId, trelloBoardId, userId, config.user_mapping, report, mergeMode),
         importChecklists(supabase, auth, jobId, trelloBoardId, report, mergeMode),
       ]);
       await updateReport(supabase, jobId, report);
+    }
+
+    if (hitDeadline) {
+      // Save progress and mark for auto-resume (job stays "running" with needs_resume flag)
+      const resumeReport = { ...report, needs_resume: true } as any;
+      await supabase
+        .from('migration_jobs')
+        .update({
+          status: 'pending',
+          progress: { ..._cachedProgress, current: currentStep, total: totalSteps, detail: 'Auto-resuming in a few seconds...', needs_resume: true },
+          report: resumeReport,
+        })
+        .eq('id', jobId);
+      return { ...report, needs_resume: true };
     }
 
     // Mark completed
@@ -1395,7 +1425,8 @@ async function importAttachments(
   trelloBoardId: string,
   userId: string,
   report: MigrationReport,
-  mergeMode = false
+  mergeMode = false,
+  deadline = 0
 ): Promise<void> {
   try {
     // Batch-load existing card + attachment mappings (avoids N+1)
@@ -1509,8 +1540,15 @@ async function importAttachments(
     // Pass 2: Concurrent download+upload with semaphore(5)
     const downloadSem = createSemaphore(5);
     let downloadedCount = 0;
+    let deadlineBailed = false;
 
     await Promise.all(pendingAttachments.map(async ({ card: trelloCard, targetCardId, att }) => {
+      // Check deadline before starting new downloads
+      if (deadline > 0 && Date.now() > deadline - 30_000) {
+        deadlineBailed = true;
+        return;
+      }
+
       // Skip files over our absolute max unless S3 is configured
       if (att.bytes > MAX_ATTACHMENT_BYTES && !isS3Configured()) {
         report.errors.push(

@@ -10,6 +10,9 @@ interface Params {
  * POST /api/migration/jobs/[jobId]/run
  * Start executing a migration job.
  * Uses a streaming response to keep the connection alive for the duration.
+ * Supports auto-resume: if the migration hits the Vercel timeout deadline,
+ * it saves progress and returns `needs_resume: true`. The client detects
+ * this and automatically fires another /run call.
  */
 export async function POST(_request: NextRequest, { params }: Params) {
   const auth = await getAuthContext();
@@ -30,6 +33,9 @@ export async function POST(_request: NextRequest, { params }: Params) {
     return errorResponse(`Cannot start a job with status "${job.status}". Job must be pending.`);
   }
 
+  // Deadline: 270s from now (leaving 30s buffer before Vercel's 300s hard limit)
+  const deadline = Date.now() + 270_000;
+
   // Use a streaming response to keep the function alive for the entire migration
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -47,8 +53,12 @@ export async function POST(_request: NextRequest, { params }: Params) {
       }, 30000);
 
       try {
-        await runMigration(supabase, jobId, job.config, userId);
-        controller.enqueue(encoder.encode('data: {"completed":true}\n\n'));
+        const result = await runMigration(supabase, jobId, job.config, userId, deadline);
+        if (result.needs_resume) {
+          controller.enqueue(encoder.encode('data: {"needs_resume":true}\n\n'));
+        } else {
+          controller.enqueue(encoder.encode('data: {"completed":true}\n\n'));
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         controller.enqueue(encoder.encode(`data: {"error":"${msg.replace(/"/g, '\\"')}"}\n\n`));
@@ -68,5 +78,5 @@ export async function POST(_request: NextRequest, { params }: Params) {
   });
 }
 
-// Vercel Pro max is 300s. Migration already complete; kept for reruns.
+// Vercel Pro max is 300s. We use 270s deadline with 30s buffer.
 export const maxDuration = 300;
