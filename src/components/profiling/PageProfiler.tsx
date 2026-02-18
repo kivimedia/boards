@@ -84,7 +84,6 @@ function pageNameFromPath(pathname: string): string {
  */
 export default function PageProfiler() {
   const pathname = usePathname();
-  const mountTimeRef = useRef(performance.now());
   const fetchPhases = useRef<Map<string, number>>(new Map());
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const trackedRef = useRef('');
@@ -97,7 +96,6 @@ export default function PageProfiler() {
     if (!pageName) return;
 
     // Reset on navigation
-    mountTimeRef.current = performance.now();
     fetchPhases.current = new Map();
     trackedRef.current = pathname;
 
@@ -127,19 +125,16 @@ export default function PageProfiler() {
     const emitProfiling = () => {
       if (trackedRef.current !== pathname) return;
 
-      const totalMs = performance.now() - mountTimeRef.current;
       const phases = Array.from(fetchPhases.current.entries())
         .map(([name, ms]) => ({ name, ms }))
         .sort((a, b) => b.ms - a.ms); // Slowest first
 
-      // Add render phase (time not spent on fetches)
-      const fetchTotal = phases.reduce((s, p) => s + p.ms, 0);
-      const renderMs = Math.max(totalMs - fetchTotal, 0);
-      if (renderMs > 5) {
-        phases.push({ name: 'Render', ms: renderMs });
-      }
+      // Total = slowest API call (parallel fetches overlap)
+      const totalMs = phases.length > 0
+        ? Math.max(...phases.map((p) => p.ms))
+        : 0;
 
-      if (phases.length > 0) {
+      if (phases.length > 0 && totalMs > 0) {
         useProfilingStore.getState().setPageProfiling({
           phases,
           totalMs,
