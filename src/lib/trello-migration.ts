@@ -526,7 +526,7 @@ export async function runMigration(
       if (isNearDeadline()) { hitDeadline = true; currentStep += 3; break; }
       await updateProgress(supabase, jobId, ++currentStep, totalSteps, 'importing_cards', `${boardLabel} Importing cards...`);
       await importCards(
-        supabase, auth, jobId, trelloBoardId, boardTargetId, userId, config.user_mapping, report, listFilter, mergeMode
+        supabase, auth, jobId, trelloBoardId, boardTargetId, userId, config.user_mapping, report, listFilter, mergeMode, deadline
       );
       await updateReport(supabase, jobId, report);
 
@@ -861,7 +861,8 @@ async function importCards(
   userMapping: Record<string, string>,
   report: MigrationReport,
   listFilter?: string[],
-  mergeMode = false
+  mergeMode = false,
+  deadline = 0
 ): Promise<void> {
   try {
     const trelloCards = await cachedFetchTrelloCards(auth, trelloBoardId);
@@ -903,67 +904,28 @@ async function importCards(
     // Track per-list position counters to preserve Trello card ordering
     const listPositionCounters = new Map<string, number>();
 
-    // Pass 1: Handle merge-mode updates individually, collect new cards for batch insert
+    const nearDeadline = () => deadline > 0 && Date.now() > deadline - 30_000;
+
+    // Pass 1: Handle merge-mode updates with concurrency, collect new cards for batch insert
     type BatchCardItem = { trelloCard: TrelloCard; targetListId: string; listPos: number; priority: string };
     const newCardsToInsert: BatchCardItem[] = [];
+
+    // Separate cards into merge vs new
+    type MergeCardItem = { trelloCard: TrelloCard; targetCardId: string; index: number };
+    const mergeCards: MergeCardItem[] = [];
 
     for (let i = 0; i < openCards.length; i++) {
       const trelloCard = openCards[i];
 
-      // Check if card was already imported (this job or previous)
       const mappedInThisJob = existingMappings.get(`card:${trelloCard.id}`);
       const mappedGlobally = globalCardMappings.get(`card:${trelloCard.id}`);
       const alreadyImported = mappedInThisJob || mappedGlobally;
 
       if (alreadyImported && !mergeMode) continue;
 
-      // --- Merge mode: UPDATE existing card ---
       if (alreadyImported && mergeMode) {
         const targetCardId = mappedInThisJob || (mappedGlobally as string);
-        try {
-          if ((i + 1) % 5 === 0) {
-            await updateDetail(supabase, jobId, `Merging card ${i + 1}/${openCards.length}: "${trelloCard.name}"`);
-          }
-
-          const priority = inferPriority(trelloCard, trelloLabels);
-
-          // Update Trello-sourced fields only (preserve created_by, created_at)
-          await supabase
-            .from('cards')
-            .update({
-              title: trelloCard.name,
-              description: trelloCard.desc || '',
-              due_date: trelloCard.due,
-              priority,
-            })
-            .eq('id', targetCardId);
-
-          // Re-sync labels: delete old, add current
-          await supabase.from('card_labels').delete().eq('card_id', targetCardId);
-          for (const trelloLabelId of trelloCard.idLabels) {
-            const targetLabelId = existingMappings.get(`label:${trelloLabelId}`) || globalLabelMap.get(`label:${trelloLabelId}`) || null;
-            if (targetLabelId) {
-              await supabase.from('card_labels').insert({ card_id: targetCardId, label_id: targetLabelId });
-            }
-          }
-
-          // Re-sync assignees: delete old, add current
-          await supabase.from('card_assignees').delete().eq('card_id', targetCardId);
-          for (const trelloMemberId of trelloCard.idMembers) {
-            const mappedUserId = userMapping[trelloMemberId];
-            if (mappedUserId && mappedUserId !== '__skip__') {
-              await supabase.from('card_assignees').insert({ card_id: targetCardId, user_id: mappedUserId });
-            }
-          }
-
-          report.cards_updated++;
-        } catch (mergeErr) {
-          report.errors.push(`Merge card "${trelloCard.name}": ${mergeErr instanceof Error ? mergeErr.message : String(mergeErr)}`);
-        }
-
-        if (report.cards_updated % 25 === 0 && report.cards_updated > 0) {
-          await updateReport(supabase, jobId, report);
-        }
+        mergeCards.push({ trelloCard, targetCardId, index: i });
         continue;
       }
 
@@ -980,9 +942,62 @@ async function importCards(
       newCardsToInsert.push({ trelloCard, targetListId, listPos, priority });
     }
 
+    // Process merge cards with concurrency (semaphore of 6)
+    if (mergeCards.length > 0) {
+      const mergeSem = createSemaphore(6);
+      let mergeProcessed = 0;
+
+      const MERGE_BATCH = 50;
+      for (let bStart = 0; bStart < mergeCards.length; bStart += MERGE_BATCH) {
+        if (nearDeadline()) break; // Bail for auto-resume
+
+        const mBatch = mergeCards.slice(bStart, bStart + MERGE_BATCH);
+        await updateDetail(supabase, jobId, `Merging cards ${bStart + 1}-${Math.min(bStart + MERGE_BATCH, mergeCards.length)}/${mergeCards.length}...`);
+
+        await Promise.all(mBatch.map(async ({ trelloCard, targetCardId }) => {
+          await mergeSem.acquire();
+          try {
+            const priority = inferPriority(trelloCard, trelloLabels);
+
+            // Update card fields
+            await supabase
+              .from('cards')
+              .update({ title: trelloCard.name, description: trelloCard.desc || '', due_date: trelloCard.due, priority })
+              .eq('id', targetCardId);
+
+            // Re-sync labels: delete old, add current
+            await supabase.from('card_labels').delete().eq('card_id', targetCardId);
+            const labelInserts = trelloCard.idLabels
+              .map((lid) => existingMappings.get(`label:${lid}`) || globalLabelMap.get(`label:${lid}`) || null)
+              .filter(Boolean)
+              .map((labelId) => ({ card_id: targetCardId, label_id: labelId as string }));
+            if (labelInserts.length > 0) await supabase.from('card_labels').insert(labelInserts);
+
+            // Re-sync assignees: delete old, add current
+            await supabase.from('card_assignees').delete().eq('card_id', targetCardId);
+            const assigneeInserts = trelloCard.idMembers
+              .map((mid) => userMapping[mid])
+              .filter((mu) => mu && mu !== '__skip__')
+              .map((mu) => ({ card_id: targetCardId, user_id: mu }));
+            if (assigneeInserts.length > 0) await supabase.from('card_assignees').insert(assigneeInserts);
+
+            report.cards_updated++;
+          } catch (mergeErr) {
+            report.errors.push(`Merge card "${trelloCard.name}": ${mergeErr instanceof Error ? mergeErr.message : String(mergeErr)}`);
+          } finally {
+            mergeSem.release();
+          }
+        }));
+
+        mergeProcessed += mBatch.length;
+        await updateReport(supabase, jobId, report);
+      }
+    }
+
     // Pass 2: Batch insert new cards in groups of 50
     const CARD_BATCH_SIZE = 50;
     for (let batchStart = 0; batchStart < newCardsToInsert.length; batchStart += CARD_BATCH_SIZE) {
+      if (nearDeadline()) break; // Bail for auto-resume
       const batch = newCardsToInsert.slice(batchStart, batchStart + CARD_BATCH_SIZE);
       const batchEnd = Math.min(batchStart + CARD_BATCH_SIZE, newCardsToInsert.length);
       await updateDetail(supabase, jobId, `Inserting cards ${batchStart + 1}-${batchEnd}/${newCardsToInsert.length}...`);
