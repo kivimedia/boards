@@ -1325,12 +1325,7 @@ async function resolveCardCovers(
     }
     const cardsWithCovers = filteredCards.filter((c) => c.idAttachmentCover);
 
-    if (cardsWithCovers.length === 0) {
-      await updateDetail(supabase, jobId, 'No card covers to resolve');
-      return;
-    }
-
-    await updateDetail(supabase, jobId, `Resolving ${cardsWithCovers.length} card covers...`);
+    await updateDetail(supabase, jobId, `Resolving ${cardsWithCovers.length} card covers (${filteredCards.length - cardsWithCovers.length} without)...`);
 
     // Batch load all card and attachment mappings (replaces N+1 individual lookups)
     const mappings = await batchGetMappings(supabase, jobId, ['card', 'attachment']);
@@ -1348,47 +1343,66 @@ async function resolveCardCovers(
       }
     }
 
-    if (coverPairs.length === 0) {
-      await updateDetail(supabase, jobId, 'No card cover mappings found');
-      return;
-    }
-
-    // Batch fetch all attachment records (pages of 200 for .in() limit)
-    const attIds = Array.from(new Set(coverPairs.map((p) => p.targetAttId)));
-    const attMap = new Map<string, { storage_path: string; mime_type: string }>();
-    for (let i = 0; i < attIds.length; i += 200) {
-      const chunk = attIds.slice(i, i + 200);
-      const { data: attachments } = await supabase
-        .from('attachments')
-        .select('id, storage_path, mime_type')
-        .in('id', chunk);
-      for (const att of attachments || []) {
-        if (att.storage_path && att.mime_type?.startsWith('image/')) {
-          attMap.set(att.id, { storage_path: att.storage_path, mime_type: att.mime_type });
+    // Set covers for cards that have idAttachmentCover in Trello
+    let resolved = 0;
+    if (coverPairs.length > 0) {
+      const attIds = Array.from(new Set(coverPairs.map((p) => p.targetAttId)));
+      const attMap = new Map<string, { storage_path: string; mime_type: string }>();
+      for (let i = 0; i < attIds.length; i += 200) {
+        const chunk = attIds.slice(i, i + 200);
+        const { data: attachments } = await supabase
+          .from('attachments')
+          .select('id, storage_path, mime_type')
+          .in('id', chunk);
+        for (const att of attachments || []) {
+          if (att.storage_path && att.mime_type?.startsWith('image/')) {
+            attMap.set(att.id, { storage_path: att.storage_path, mime_type: att.mime_type });
+          }
         }
       }
+
+      const coverSem = createSemaphore(10);
+      await Promise.all(coverPairs.map(async ({ targetCardId, targetAttId }) => {
+        const att = attMap.get(targetAttId);
+        if (!att) return;
+        await coverSem.acquire();
+        try {
+          await supabase
+            .from('cards')
+            .update({ cover_image_url: att.storage_path })
+            .eq('id', targetCardId);
+          resolved++;
+          report.covers_resolved++;
+        } finally {
+          coverSem.release();
+        }
+      }));
     }
 
-    // Concurrent cover updates with semaphore(10)
-    const coverSem = createSemaphore(10);
-    let resolved = 0;
-    await Promise.all(coverPairs.map(async ({ targetCardId, targetAttId }) => {
-      const att = attMap.get(targetAttId);
-      if (!att) return;
-      await coverSem.acquire();
+    // Clear covers on cards where Trello has NO idAttachmentCover (user removed or never set it)
+    const cardsWithoutCovers = filteredCards.filter((c) => !c.idAttachmentCover);
+    const clearSem = createSemaphore(10);
+    let cleared = 0;
+    await Promise.all(cardsWithoutCovers.map(async (tc) => {
+      const targetCardId = mappings.get(`card:${tc.id}`) || globalCardMap.get(`card:${tc.id}`);
+      if (!targetCardId) return;
+      await clearSem.acquire();
       try {
-        await supabase
+        const { data } = await supabase
           .from('cards')
-          .update({ cover_image_url: att.storage_path })
-          .eq('id', targetCardId);
-        resolved++;
-        report.covers_resolved++;
+          .select('cover_image_url')
+          .eq('id', targetCardId)
+          .single();
+        if (data?.cover_image_url) {
+          await supabase.from('cards').update({ cover_image_url: null }).eq('id', targetCardId);
+          cleared++;
+        }
       } finally {
-        coverSem.release();
+        clearSem.release();
       }
     }));
 
-    await updateDetail(supabase, jobId, `Resolved ${resolved}/${cardsWithCovers.length} card covers`);
+    await updateDetail(supabase, jobId, `Resolved ${resolved} covers, cleared ${cleared} stale covers`);
   } catch (err) {
     report.errors.push(`Error resolving card covers: ${err instanceof Error ? err.message : String(err)}`);
   }
