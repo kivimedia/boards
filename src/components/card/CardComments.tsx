@@ -36,11 +36,12 @@ interface CardCommentsProps {
   cardId: string;
   comments: Comment[];
   onRefresh: () => void;
+  onCommentAdded?: (comment: Comment) => void;
   boardId?: string;
   currentUserId?: string | null;
 }
 
-export default function CardComments({ cardId, comments, onRefresh, currentUserId }: CardCommentsProps) {
+export default function CardComments({ cardId, comments, onRefresh, onCommentAdded, currentUserId }: CardCommentsProps) {
   const [newComment, setNewComment] = useState('');
   const [replyText, setReplyText] = useState('');
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
@@ -89,6 +90,10 @@ export default function CardComments({ cardId, comments, onRefresh, currentUserI
         return;
       }
 
+      // Parse the saved comment from the response for instant rendering
+      const responseData = await res.json().catch(() => null);
+      const savedComment = responseData?.data as Comment | undefined;
+
       if (parentId) {
         setReplyText('');
         setReplyingTo(null);
@@ -96,6 +101,13 @@ export default function CardComments({ cardId, comments, onRefresh, currentUserI
       } else {
         setNewComment('');
       }
+
+      // Immediately show the new comment without waiting for refresh
+      if (savedComment && onCommentAdded) {
+        onCommentAdded(savedComment);
+      }
+
+      // Also refresh in background for consistency
       onRefresh();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Network error';
