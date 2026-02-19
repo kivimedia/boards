@@ -933,13 +933,26 @@ export default function MigrationWizard() {
         {/* Step 2: Select Boards & Map Types */}
         {step === 2 && (
           <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-6 space-y-5">
-            <div>
-              <h2 className="text-lg font-heading font-semibold text-navy dark:text-slate-100 mb-1">
-                Select Boards
-              </h2>
-              <p className="text-sm font-body text-navy/50 dark:text-slate-400">
-                Choose which Trello boards to import and map them to board types.
-              </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-heading font-semibold text-navy dark:text-slate-100 mb-1">
+                  Select Boards
+                </h2>
+                <p className="text-sm font-body text-navy/50 dark:text-slate-400">
+                  Choose which Trello boards to import and map them to board types.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  saveBoardSelectionsToConfig();
+                  fetchListsAndMatches();
+                  setStep(3);
+                }}
+                disabled={selectedBoardIds.size === 0}
+                className="px-6 py-2.5 bg-electric text-white rounded-xl font-heading font-semibold text-sm hover:bg-electric/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
+              >
+                Next
+              </button>
             </div>
 
             {trelloBoards.length === 0 ? (
@@ -1034,13 +1047,25 @@ export default function MigrationWizard() {
         {/* Step 3: Select Lists */}
         {step === 3 && (
           <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-6 space-y-5">
-            <div>
-              <h2 className="text-lg font-heading font-semibold text-navy dark:text-slate-100 mb-1">
-                Select Lists
-              </h2>
-              <p className="text-sm font-body text-navy/50 dark:text-slate-400">
-                Choose which lists to import from each board. Uncheck lists you don&apos;t need.
-              </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-heading font-semibold text-navy dark:text-slate-100 mb-1">
+                  Select Lists
+                </h2>
+                <p className="text-sm font-body text-navy/50 dark:text-slate-400">
+                  Choose which lists to import from each board. Uncheck lists you don&apos;t need.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  fetchMembers();
+                  setStep(4);
+                }}
+                disabled={loadingLists || loadingMatches || Array.from(selectedBoardIds).every((id) => !(selectedListIds[id]?.size))}
+                className="px-6 py-2.5 bg-electric text-white rounded-xl font-heading font-semibold text-sm hover:bg-electric/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
+              >
+                Next
+              </button>
             </div>
 
             {/* Board match info */}
@@ -1198,13 +1223,22 @@ export default function MigrationWizard() {
         {/* Step 4: Map Users */}
         {step === 4 && (
           <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-6 space-y-5">
-            <div>
-              <h2 className="text-lg font-heading font-semibold text-navy dark:text-slate-100 mb-1">
-                Map Users
-              </h2>
-              <p className="text-sm font-body text-navy/50 dark:text-slate-400">
-                Match Trello members to existing users, or invite them by email. Anyone left on &ldquo;Skip&rdquo; will have their cards assigned to you.
-              </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-heading font-semibold text-navy dark:text-slate-100 mb-1">
+                  Map Users
+                </h2>
+                <p className="text-sm font-body text-navy/50 dark:text-slate-400">
+                  Match Trello members to existing users, or invite them by email. Anyone left on &ldquo;Skip&rdquo; will have their cards assigned to you.
+                </p>
+              </div>
+              <button
+                onClick={() => { saveUserMappingToConfig(); setStep(5); }}
+                disabled={loadingMembers || loadingProfiles}
+                className="px-6 py-2.5 bg-electric text-white rounded-xl font-heading font-semibold text-sm hover:bg-electric/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
+              >
+                Next
+              </button>
             </div>
 
             {(loadingMembers || loadingProfiles) ? (
@@ -1384,13 +1418,22 @@ export default function MigrationWizard() {
         {/* Step 5: Review & Start */}
         {step === 5 && (
           <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-6 space-y-5">
-            <div>
-              <h2 className="text-lg font-heading font-semibold text-navy dark:text-slate-100 mb-1">
-                Review & Start
-              </h2>
-              <p className="text-sm font-body text-navy/50 dark:text-slate-400">
-                Review your migration configuration before starting.
-              </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-heading font-semibold text-navy dark:text-slate-100 mb-1">
+                  Review & Start
+                </h2>
+                <p className="text-sm font-body text-navy/50 dark:text-slate-400">
+                  Review your migration configuration before starting.
+                </p>
+              </div>
+              <button
+                onClick={handleStartMigration}
+                disabled={creatingJob}
+                className="px-6 py-2.5 bg-electric text-white rounded-xl font-heading font-semibold text-sm hover:bg-electric/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
+              >
+                {creatingJob ? 'Starting...' : 'Start Migration'}
+              </button>
             </div>
 
             {/* Summary */}
