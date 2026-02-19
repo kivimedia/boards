@@ -43,11 +43,9 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
       if (data && !cancelled) setBoards(data as Board[]);
     };
 
-    // Fetch boards immediately if user is authenticated
+    // Always fetch boards client-side (initialBoards is only for first paint)
     if (user) {
-      if (!initialBoards || initialBoards.length === 0) {
-        fetchBoards();
-      }
+      fetchBoards();
     }
 
     // Also listen for auth state changes (handles delayed session on non-board pages)
@@ -215,7 +213,7 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
         )}
 
         {boards
-          .filter((board) => !board.is_archived && (!profile ? true : canAccessBoardByRole(profile.agency_role ?? null, board.type)))
+          .filter((board) => !board.is_archived && (!profile || !profile.agency_role || canAccessBoardByRole(profile.agency_role, board.type)))
           .sort((a, b) => (a.is_starred === b.is_starred ? 0 : a.is_starred ? -1 : 1))
           .map((board) => {
           const config = BOARD_TYPE_CONFIG[board.type];
@@ -268,7 +266,7 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
               <span>Archived ({boards.filter(b => b.is_archived).length})</span>
             </button>
             {showArchived && boards
-              .filter(b => b.is_archived && canAccessBoardByRole(profile?.agency_role ?? null, b.type))
+              .filter(b => b.is_archived && (!profile?.agency_role || canAccessBoardByRole(profile.agency_role, b.type)))
               .map((board) => {
                 const config = BOARD_TYPE_CONFIG[board.type];
                 const isActive = pathname === `/board/${board.id}`;

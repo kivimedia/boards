@@ -26,22 +26,12 @@ export default async function UsersSettingsPage() {
     redirect('/settings');
   }
 
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('*')
-    .order('display_name', { ascending: true });
-
-  const profilesWithRole = (profiles || []).map((p) => ({
-    ...p,
-    user_role: (p.user_role || 'member') as UserRole,
-  }));
-
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <main className="flex-1 flex flex-col overflow-hidden">
         <Header title="User Management" backHref="/settings" />
-        <UserManagement initialProfiles={profilesWithRole} currentUserId={user.id} />
+        <UserManagement currentUserId={user.id} />
       </main>
     </div>
   );
