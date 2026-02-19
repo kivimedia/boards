@@ -147,7 +147,7 @@ export default function BulkSelectToolbar({
       {/* Success/Error feedback toast */}
       {feedback && (
         <div
-          className={`fixed bottom-24 left-1/2 -translate-x-1/2 z-[60] px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg transition-all animate-in fade-in slide-in-from-bottom-4 duration-300 ${
+          className={`fixed bottom-[7.5rem] left-1/2 -translate-x-1/2 z-[60] px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg transition-all animate-in fade-in slide-in-from-bottom-4 duration-300 ${
             feedback.type === 'success'
               ? 'bg-green-600 text-white'
               : 'bg-red-600 text-white'
@@ -170,7 +170,7 @@ export default function BulkSelectToolbar({
       {/* Main toolbar */}
       <div
         ref={pickerRef}
-        className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100vw-2rem)] sm:w-auto bg-white dark:bg-dark-surface shadow-modal dark:shadow-none dark:border dark:border-slate-700 rounded-2xl px-4 sm:px-6 py-3 flex items-center gap-2 sm:gap-3 z-50 overflow-x-auto scrollbar-thin"
+        className="fixed bottom-20 left-1/2 -translate-x-1/2 w-[calc(100vw-2rem)] sm:w-auto bg-white dark:bg-dark-surface shadow-modal dark:shadow-none dark:border dark:border-slate-700 rounded-2xl px-4 sm:px-6 py-3 flex items-center gap-2 sm:gap-3 z-50 overflow-x-auto scrollbar-thin"
       >
         {/* Selected count */}
         <span className="text-sm font-medium text-navy dark:text-slate-100 font-body shrink-0">
