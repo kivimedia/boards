@@ -50,8 +50,5 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // NOTE: account_status (pending/suspended) check moved to layout level
-  // to avoid double-fetching in middleware which causes 504 timeouts on Vercel.
-
   return supabaseResponse;
 }

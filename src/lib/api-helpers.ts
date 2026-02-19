@@ -9,17 +9,21 @@ export interface AuthContext {
 
 /**
  * Extract authenticated user from request. Returns AuthContext or an error response.
+ *
+ * Uses getSession() (local JWT decode, no network call) instead of getUser()
+ * (network roundtrip to Supabase Auth). Safe because the middleware already
+ * called getUser() to verify the token before the request reaches here.
  */
 export async function getAuthContext(): Promise<
   { ok: true; ctx: AuthContext } | { ok: false; response: NextResponse }
 > {
   const supabase = createServerSupabaseClient();
   const {
-    data: { user },
+    data: { session },
     error,
-  } = await supabase.auth.getUser();
+  } = await supabase.auth.getSession();
 
-  if (error || !user) {
+  if (error || !session?.user) {
     return {
       ok: false,
       response: NextResponse.json(
@@ -31,7 +35,7 @@ export async function getAuthContext(): Promise<
 
   return {
     ok: true,
-    ctx: { supabase, userId: user.id },
+    ctx: { supabase, userId: session.user.id },
   };
 }
 
