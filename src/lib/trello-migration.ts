@@ -1229,9 +1229,9 @@ async function importComments(
       await updateDetail(supabase, jobId, `${skippedGlobal} comments from previous imports — skipping`);
     }
 
-    // Collect new comments for batch insert
+    // Collect candidate comments
     type CommentItem = { trelloComment: TrelloComment; targetCardId: string; commentUserId: string };
-    const commentsToInsert: CommentItem[] = [];
+    const candidates: CommentItem[] = [];
 
     for (const trelloComment of trelloComments) {
       if (!trelloComment.data.card) continue;
@@ -1244,7 +1244,21 @@ async function importComments(
 
       const mapped = userMapping[trelloComment.idMemberCreator];
       const commentUserId = (mapped && mapped !== '__skip__') ? mapped : userId;
-      commentsToInsert.push({ trelloComment, targetCardId, commentUserId });
+      candidates.push({ trelloComment, targetCardId, commentUserId });
+    }
+
+    // Validate target cards still exist (some may have been deleted by dedup)
+    const uniqueCardIds = Array.from(new Set(candidates.map((c) => c.targetCardId)));
+    const existingCardIds = new Set<string>();
+    for (let i = 0; i < uniqueCardIds.length; i += 200) {
+      const chunk = uniqueCardIds.slice(i, i + 200);
+      const { data: cards } = await supabase.from('cards').select('id').in('id', chunk);
+      for (const card of cards || []) existingCardIds.add(card.id);
+    }
+    const commentsToInsert = candidates.filter((c) => existingCardIds.has(c.targetCardId));
+    const droppedOrphans = candidates.length - commentsToInsert.length;
+    if (droppedOrphans > 0) {
+      await updateDetail(supabase, jobId, `Skipped ${droppedOrphans} comments referencing deleted cards`);
     }
 
     await updateDetail(supabase, jobId, `${commentsToInsert.length} new comments to insert`);
