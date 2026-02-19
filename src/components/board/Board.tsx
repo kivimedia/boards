@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { DragDropContext, Droppable, DropResult } from '@hello-pangea/dnd';
+import { DragDropContext, Droppable, DropResult, BeforeCapture } from '@hello-pangea/dnd';
 import { useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { BoardWithLists, BoardFilter } from '@/lib/types';
@@ -295,9 +295,23 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
     onRefresh();
   };
 
+  const [draggingListType, setDraggingListType] = useState(false);
+
+  const handleDragStart = useCallback((start: { type: string }) => {
+    if (start.type === 'list') setDraggingListType(true);
+  }, []);
+
+  const wrappedDragEnd = useCallback(
+    (result: DropResult) => {
+      setDraggingListType(false);
+      handleDragEnd(result);
+    },
+    [handleDragEnd]
+  );
+
   return (
     <>
-      <DragDropContext onDragEnd={handleDragEnd}>
+      <DragDropContext onDragStart={handleDragStart} onDragEnd={wrappedDragEnd}>
         <Droppable droppableId="board" type="list" direction="horizontal">
           {(provided) => (
             <div
@@ -321,6 +335,7 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
                   toggleCardSelection={toggleCardSelection}
                   filter={filter}
                   isLoadingCards={isLoadingCards}
+                  isDraggingList={draggingListType}
                 />
               ))}
               {provided.placeholder}
