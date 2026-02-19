@@ -45,6 +45,7 @@ export default function CardComments({ cardId, comments, onRefresh, currentUserI
   const [replyText, setReplyText] = useState('');
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [commentError, setCommentError] = useState<string | null>(null);
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
 
   // Group comments into threads
@@ -67,6 +68,7 @@ export default function CardComments({ cardId, comments, onRefresh, currentUserI
     const text = parentId ? replyText : newComment;
     if (!text.trim()) return;
     setLoading(true);
+    setCommentError(null);
 
     try {
       const res = await fetch(`/api/cards/${cardId}/comments`, {
@@ -80,7 +82,9 @@ export default function CardComments({ cardId, comments, onRefresh, currentUserI
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        console.error('Failed to save comment:', data.error || res.statusText);
+        const msg = data.error || `Error ${res.status}`;
+        console.error('Failed to save comment:', msg);
+        setCommentError(msg);
         setLoading(false);
         return;
       }
@@ -94,7 +98,9 @@ export default function CardComments({ cardId, comments, onRefresh, currentUserI
       }
       onRefresh();
     } catch (err) {
-      console.error('Failed to save comment:', err);
+      const msg = err instanceof Error ? err.message : 'Network error';
+      console.error('Failed to save comment:', msg);
+      setCommentError(msg);
     }
     setLoading(false);
   };
@@ -274,18 +280,23 @@ export default function CardComments({ cardId, comments, onRefresh, currentUserI
       <div className="mb-4">
         <textarea
           value={newComment}
-          onChange={(e) => setNewComment(e.target.value)}
+          onChange={(e) => { setNewComment(e.target.value); setCommentError(null); }}
           placeholder="Write a comment..."
           className="w-full p-2.5 rounded-xl bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-none font-body transition-all"
           rows={newComment ? 3 : 1}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
               handleAddComment();
             }
           }}
         />
+        {commentError && (
+          <p className="text-xs text-danger mt-1 font-body">{commentError}</p>
+        )}
         {newComment.trim() && (
-          <div className="flex justify-end mt-1.5">
+          <div className="flex items-center justify-between mt-1.5">
+            <span className="text-[10px] text-navy/30 dark:text-slate-500 font-body">Enter to send, Shift+Enter for new line</span>
             <Button size="sm" onClick={() => handleAddComment()} loading={loading}>
               Comment
             </Button>
