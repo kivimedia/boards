@@ -554,7 +554,7 @@ export async function runMigration(
       // 5. Import attachments + resolve covers
       if (isNearDeadline()) { hitDeadline = true; currentStep += 2; break; }
       await updateProgress(supabase, jobId, ++currentStep, totalSteps, 'importing_attachments', `${boardLabel} Importing attachments...`);
-      await importAttachments(supabase, auth, jobId, trelloBoardId, userId, report, mergeMode, deadline);
+      await importAttachments(supabase, auth, jobId, trelloBoardId, userId, report, mergeMode, deadline, listFilter);
       await updateReport(supabase, jobId, report);
 
       // Check if importAttachments bailed early due to deadline
@@ -562,7 +562,7 @@ export async function runMigration(
 
       // 5b. Resolve card covers from Trello's idAttachmentCover
       await updateDetail(supabase, jobId, `${boardLabel} Resolving card covers...`);
-      await resolveCardCovers(supabase, auth, jobId, trelloBoardId, report);
+      await resolveCardCovers(supabase, auth, jobId, trelloBoardId, report, listFilter);
       await updateReport(supabase, jobId, report);
 
       // 6. Import comments + checklists in parallel (both only need card mappings)
@@ -570,7 +570,7 @@ export async function runMigration(
       await updateProgress(supabase, jobId, ++currentStep, totalSteps, 'importing_comments_checklists', `${boardLabel} Importing comments + checklists...`);
       await Promise.all([
         importComments(supabase, auth, jobId, trelloBoardId, userId, config.user_mapping, report, mergeMode),
-        importChecklists(supabase, auth, jobId, trelloBoardId, report, mergeMode),
+        importChecklists(supabase, auth, jobId, trelloBoardId, report, mergeMode, listFilter),
       ]);
       await updateReport(supabase, jobId, report);
     }
@@ -1305,11 +1305,17 @@ async function resolveCardCovers(
   auth: TrelloAuth,
   jobId: string,
   trelloBoardId: string,
-  report: MigrationReport
+  report: MigrationReport,
+  listFilter?: string[]
 ) {
   try {
     const trelloCards = await cachedFetchTrelloCards(auth, trelloBoardId);
-    const cardsWithCovers = trelloCards.filter((c) => c.idAttachmentCover && !c.closed);
+    let filteredCards = trelloCards.filter((c) => !c.closed);
+    if (listFilter && listFilter.length > 0) {
+      const allowedSet = new Set(listFilter);
+      filteredCards = filteredCards.filter((c) => allowedSet.has(c.idList));
+    }
+    const cardsWithCovers = filteredCards.filter((c) => c.idAttachmentCover);
 
     if (cardsWithCovers.length === 0) {
       await updateDetail(supabase, jobId, 'No card covers to resolve');
@@ -1386,12 +1392,18 @@ async function importChecklists(
   jobId: string,
   trelloBoardId: string,
   report: MigrationReport,
-  mergeMode = false
+  mergeMode = false,
+  listFilter?: string[]
 ): Promise<void> {
   try {
     const trelloCardsAll = await cachedFetchTrelloCards(auth, trelloBoardId);
-    const cardsWithChecklists = trelloCardsAll.filter(
-      (c) => !c.closed && c.idChecklists.length > 0
+    let openCards = trelloCardsAll.filter((c) => !c.closed);
+    if (listFilter && listFilter.length > 0) {
+      const allowedSet = new Set(listFilter);
+      openCards = openCards.filter((c) => allowedSet.has(c.idList));
+    }
+    const cardsWithChecklists = openCards.filter(
+      (c) => c.idChecklists.length > 0
     );
     await updateDetail(supabase, jobId, `${cardsWithChecklists.length} cards have checklists — checking already imported...`);
 
@@ -1555,7 +1567,8 @@ async function importAttachments(
   userId: string,
   report: MigrationReport,
   mergeMode = false,
-  deadline = 0
+  deadline = 0,
+  listFilter?: string[]
 ): Promise<void> {
   try {
     // Batch-load existing card + attachment mappings (avoids N+1)
@@ -1603,7 +1616,11 @@ async function importAttachments(
     } else {
       // Slow path: first run or merge mode — scan Trello and cache the results
       const trelloCards = await cachedFetchTrelloCards(auth, trelloBoardId);
-      const openCards = trelloCards.filter((c) => !c.closed);
+      let openCards = trelloCards.filter((c) => !c.closed);
+      if (listFilter && listFilter.length > 0) {
+        const allowedSet = new Set(listFilter);
+        openCards = openCards.filter((c) => allowedSet.has(c.idList));
+      }
       await updateDetail(supabase, jobId, `Scanning ${openCards.length} cards for attachments...`);
 
       // Concurrent attachment scanning with semaphore(8)
