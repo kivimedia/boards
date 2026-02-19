@@ -50,27 +50,8 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Check account_status for authenticated users on non-public paths
-  if (user && !isPublicPath && !pathname.startsWith('/api/')) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('account_status')
-      .eq('id', user.id)
-      .single();
-
-    if (profile?.account_status === 'pending') {
-      const url = request.nextUrl.clone();
-      url.pathname = '/pending-approval';
-      return NextResponse.redirect(url);
-    }
-
-    if (profile?.account_status === 'suspended') {
-      // Sign them out and redirect to login
-      const url = request.nextUrl.clone();
-      url.pathname = '/login';
-      return NextResponse.redirect(url);
-    }
-  }
+  // NOTE: account_status (pending/suspended) check moved to layout level
+  // to avoid double-fetching in middleware which causes 504 timeouts on Vercel.
 
   return supabaseResponse;
 }

@@ -815,6 +815,13 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                     cardId={cardId}
                     comments={comments}
                     onRefresh={fetchCardDetails}
+                    onCommentAdded={(comment) => {
+                      setComments((prev) => {
+                        // Avoid duplicates if refresh already added it
+                        if (prev.some((c) => c.id === comment.id)) return prev;
+                        return [...prev, comment];
+                      });
+                    }}
                     currentUserId={currentUserId}
                   />
                 </div>
