@@ -12,6 +12,21 @@ function extractUrls(text: string): string[] {
   return text.match(new RegExp(URL_PATTERN.source, 'g')) || [];
 }
 
+function shortenUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/^www\./, '');
+    let path = parsed.pathname;
+    if (path === '/') return host;
+    // Truncate long paths
+    if (path.length > 30) path = path.slice(0, 27) + '...';
+    return host + path;
+  } catch {
+    // Fallback: just truncate the raw URL
+    return url.length > 50 ? url.slice(0, 47) + '...' : url;
+  }
+}
+
 function linkifyContent(text: string) {
   const parts = text.split(URL_PATTERN);
   return parts.map((part, i) =>
@@ -21,10 +36,11 @@ function linkifyContent(text: string) {
         href={part}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-electric hover:underline break-all"
+        className="text-electric hover:underline"
         onClick={(e) => e.stopPropagation()}
+        title={part}
       >
-        {part}
+        {shortenUrl(part)}
       </a>
     ) : (
       <span key={i}>{part}</span>

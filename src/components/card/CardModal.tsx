@@ -33,6 +33,7 @@ import CardAgentTasksPanel from '@/components/agents/CardAgentTasksPanel';
 import CardApprovalPanel from './CardApprovalPanel';
 import VideoFrameComparison from './VideoFrameComparison';
 import CardAIChat from './CardAIChat';
+import CardDetailAttachments from './CardDetailAttachments';
 import type { FrameVerdict } from '@/lib/ai/design-review';
 import ReactMarkdown from 'react-markdown';
 
@@ -810,6 +811,14 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                     cardId={cardId}
                     boardId={boardId}
                     onRefresh={onRefresh}
+                  />
+
+                  {/* Attachments inline with cover controls */}
+                  <CardDetailAttachments
+                    cardId={cardId}
+                    coverImageUrl={coverImageUrl}
+                    onCoverChange={(url) => setCoverImageUrl(url)}
+                    onRefresh={() => { fetchCardDetails(); onRefresh(); }}
                   />
                 </div>
 
