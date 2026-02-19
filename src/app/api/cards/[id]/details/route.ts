@@ -55,6 +55,7 @@ export async function GET(request: NextRequest, { params }: Params) {
 
   return successResponse({
     card,
+    userId: auth.ctx.userId,
     boardType: boardResult.data?.type || null,
     boardName: boardResult.data?.name || '',
     listName: (placementResult.data?.list as any)?.name || '',

@@ -1,9 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { Comment } from '@/lib/types';
-import { useAuth } from '@/hooks/useAuth';
 import Avatar from '@/components/ui/Avatar';
 import Button from '@/components/ui/Button';
 import CommentReactions from './CommentReactions';
@@ -39,16 +37,15 @@ interface CardCommentsProps {
   comments: Comment[];
   onRefresh: () => void;
   boardId?: string;
+  currentUserId?: string | null;
 }
 
-export default function CardComments({ cardId, comments, onRefresh }: CardCommentsProps) {
+export default function CardComments({ cardId, comments, onRefresh, currentUserId }: CardCommentsProps) {
   const [newComment, setNewComment] = useState('');
   const [replyText, setReplyText] = useState('');
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
-  const { user } = useAuth();
-  const supabase = createClient();
 
   // Group comments into threads
   const { topLevel, repliesByParent } = useMemo(() => {
@@ -68,29 +65,54 @@ export default function CardComments({ cardId, comments, onRefresh }: CardCommen
 
   const handleAddComment = async (parentId?: string) => {
     const text = parentId ? replyText : newComment;
-    if (!text.trim() || !user) return;
+    if (!text.trim()) return;
     setLoading(true);
 
-    await supabase.from('comments').insert({
-      card_id: cardId,
-      user_id: user.id,
-      content: text.trim(),
-      parent_comment_id: parentId || null,
-    });
+    try {
+      const res = await fetch(`/api/cards/${cardId}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: text.trim(),
+          parent_comment_id: parentId || null,
+        }),
+      });
 
-    if (parentId) {
-      setReplyText('');
-      setReplyingTo(null);
-      setExpandedThreads((prev) => new Set(prev).add(parentId));
-    } else {
-      setNewComment('');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        console.error('Failed to save comment:', data.error || res.statusText);
+        setLoading(false);
+        return;
+      }
+
+      if (parentId) {
+        setReplyText('');
+        setReplyingTo(null);
+        setExpandedThreads((prev) => new Set(prev).add(parentId));
+      } else {
+        setNewComment('');
+      }
+      onRefresh();
+    } catch (err) {
+      console.error('Failed to save comment:', err);
     }
     setLoading(false);
-    onRefresh();
   };
 
   const handleDeleteComment = async (commentId: string) => {
-    await supabase.from('comments').delete().eq('id', commentId);
+    try {
+      const res = await fetch(`/api/cards/${cardId}/comments`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commentId }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        console.error('Failed to delete comment:', data.error || res.statusText);
+      }
+    } catch (err) {
+      console.error('Failed to delete comment:', err);
+    }
     onRefresh();
   };
 
@@ -98,24 +120,25 @@ export default function CardComments({ cardId, comments, onRefresh }: CardCommen
     const urls = extractUrls(comment.content);
     if (urls.length === 0) return;
     for (const url of urls) {
-      // Derive a readable name from the URL
       let name = url;
       try {
         const parsed = new URL(url);
         name = parsed.hostname + parsed.pathname;
         if (name.length > 60) name = name.slice(0, 60) + '...';
       } catch { /* use raw url */ }
-      await supabase.from('attachments').insert({
-        card_id: cardId,
-        file_name: name,
-        file_size: 0,
-        mime_type: 'text/x-uri',
-        storage_path: url,
-        uploaded_by: user?.id,
+      await fetch(`/api/cards/${cardId}/attachments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          file_name: name,
+          file_size: 0,
+          mime_type: 'text/x-uri',
+          storage_path: url,
+        }),
       });
     }
     onRefresh();
-  }, [cardId, user, supabase, onRefresh]);
+  }, [cardId, onRefresh]);
 
   const toggleThread = (commentId: string) => {
     setExpandedThreads((prev) => {
@@ -152,7 +175,7 @@ export default function CardComments({ cardId, comments, onRefresh }: CardCommen
                   minute: '2-digit',
                 })}
               </span>
-              {user?.id === comment.user_id && (
+              {currentUserId === comment.user_id && (
                 <button
                   onClick={() => handleDeleteComment(comment.id)}
                   className="opacity-0 group-hover:opacity-100 text-navy/30 dark:text-slate-500 hover:text-danger text-xs transition-all ml-auto"
