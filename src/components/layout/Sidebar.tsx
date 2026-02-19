@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Board } from '@/lib/types';
 import { BOARD_TYPE_CONFIG } from '@/lib/constants';
-import { canAccessBoardByRole, isAgencyOwner } from '@/lib/permissions';
+// canAccessBoardByRole is now handled server-side in /api/boards
 import { useAuth } from '@/hooks/useAuth';
 import { usePresence } from '@/hooks/usePresence';
 import Avatar from '@/components/ui/Avatar';
@@ -36,25 +36,28 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
     let cancelled = false;
 
     const fetchBoards = async () => {
-      const { data } = await supabase
-        .from('boards')
-        .select('id, name, type, is_starred, is_archived, created_at')
-        .order('created_at', { ascending: true });
-      if (data && !cancelled) setBoards(data as Board[]);
+      try {
+        // Use API endpoint instead of direct Supabase client - more reliable
+        // because cookies are sent automatically (no auth state timing issues)
+        const res = await fetch('/api/boards');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.data && !cancelled) setBoards(json.data as Board[]);
+        }
+      } catch {
+        // Network error - boards will stay at initialBoards or empty
+      }
     };
 
-    // Always fetch boards client-side (initialBoards is only for first paint)
+    // Always fetch boards on mount (covers both SSR hydration and client navigation)
+    fetchBoards();
+
+    // Also re-fetch when user state changes (handles late auth)
     if (user) {
       fetchBoards();
     }
 
-    // Also listen for auth state changes (handles delayed session on non-board pages)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (session && !cancelled) fetchBoards();
-      }
-    );
-
+    // Listen for realtime board changes
     const channel = supabase
       .channel('boards-sidebar')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'boards' }, () => {
@@ -64,7 +67,6 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
 
     return () => {
       cancelled = true;
-      subscription.unsubscribe();
       supabase.removeChannel(channel);
     };
   }, [user]);
@@ -213,7 +215,7 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
         )}
 
         {boards
-          .filter((board) => !board.is_archived && (!profile || !profile.agency_role || canAccessBoardByRole(profile.agency_role, board.type)))
+          .filter((board) => !board.is_archived)
           .sort((a, b) => (a.is_starred === b.is_starred ? 0 : a.is_starred ? -1 : 1))
           .map((board) => {
           const config = BOARD_TYPE_CONFIG[board.type];
@@ -266,7 +268,7 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
               <span>Archived ({boards.filter(b => b.is_archived).length})</span>
             </button>
             {showArchived && boards
-              .filter(b => b.is_archived && (!profile?.agency_role || canAccessBoardByRole(profile.agency_role, b.type)))
+              .filter(b => b.is_archived)
               .map((board) => {
                 const config = BOARD_TYPE_CONFIG[board.type];
                 const isActive = pathname === `/board/${board.id}`;
