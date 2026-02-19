@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { ActivityLogEntry } from '@/lib/types';
 import Avatar from '@/components/ui/Avatar';
 
@@ -87,7 +86,6 @@ function formatEventDescription(entry: ActivityLogEntry): string {
 export default function CardActivityLog({ cardId }: CardActivityLogProps) {
   const [entries, setEntries] = useState<ActivityLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
 
   useEffect(() => {
     fetchActivityLog();
@@ -95,15 +93,15 @@ export default function CardActivityLog({ cardId }: CardActivityLogProps) {
 
   const fetchActivityLog = async () => {
     setLoading(true);
-
-    const { data } = await supabase
-      .from('activity_log')
-      .select('*, profile:profiles(*)')
-      .eq('card_id', cardId)
-      .order('created_at', { ascending: false })
-      .limit(50);
-
-    setEntries(data || []);
+    try {
+      const res = await fetch(`/api/cards/${cardId}/activity`);
+      if (res.ok) {
+        const json = await res.json();
+        setEntries(json.data || []);
+      }
+    } catch {
+      // Silently fail
+    }
     setLoading(false);
   };
 

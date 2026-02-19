@@ -12,13 +12,24 @@ export async function GET(_request: NextRequest, { params }: Params) {
   const { supabase } = auth.ctx;
   const cardId = params.id;
 
-  const { data, error } = await supabase
-    .from('activity_log')
-    .select('*, profile:profiles(*)')
-    .eq('card_id', cardId)
-    .order('created_at', { ascending: false })
-    .limit(50);
+  // Fetch activity + profiles separately (no FK from activity_log→profiles)
+  const [activityRes, profilesRes] = await Promise.all([
+    supabase
+      .from('activity_log')
+      .select('*')
+      .eq('card_id', cardId)
+      .order('created_at', { ascending: false })
+      .limit(50),
+    supabase.from('profiles').select('*'),
+  ]);
 
-  if (error) return errorResponse(error.message, 500);
-  return successResponse(data);
+  if (activityRes.error) return errorResponse(activityRes.error.message, 500);
+
+  const profilesMap = new Map((profilesRes.data || []).map((p: any) => [p.id, p]));
+  const dataWithProfiles = (activityRes.data || []).map((entry: any) => ({
+    ...entry,
+    profile: profilesMap.get(entry.user_id) || null,
+  }));
+
+  return successResponse(dataWithProfiles);
 }
