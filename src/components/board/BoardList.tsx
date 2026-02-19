@@ -125,17 +125,21 @@ export default function BoardList({ list, index, boardId, allLists, onCardClick,
 
   return (
     <Draggable draggableId={`list-${list.id}`} index={index}>
-      {(provided) => (
+      {(provided, snapshot) => (
         <div
           ref={provided.innerRef}
           {...provided.draggableProps}
-          className="w-[85vw] sm:w-72 shrink-0 flex flex-col bg-[#f1f2f4] dark:bg-slate-800/70 rounded-xl pb-1"
+          className={`w-[85vw] sm:w-72 shrink-0 flex flex-col bg-[#f1f2f4] dark:bg-slate-800/70 rounded-xl pb-1 transition-shadow duration-200 ${
+            snapshot.isDragging
+              ? 'shadow-xl ring-2 ring-electric/30 rotate-[1.5deg] scale-[1.02] opacity-95'
+              : ''
+          }`}
           style={{ maxHeight: 'calc(100vh - 140px)' }}
         >
           {/* List header */}
           <div
             {...provided.dragHandleProps}
-            className="flex items-center justify-between px-3 py-2.5 mb-2"
+            className="flex items-center justify-between px-3 py-2.5 mb-2 cursor-grab active:cursor-grabbing"
           >
             {isEditingName ? (
               <input

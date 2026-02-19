@@ -132,10 +132,28 @@ export async function fetchTrelloLabels(auth: TrelloAuth, boardId: string): Prom
 }
 
 export async function fetchTrelloComments(auth: TrelloAuth, boardId: string): Promise<TrelloComment[]> {
-  return trelloFetch<TrelloComment[]>(`/boards/${boardId}/actions`, auth, {
-    filter: 'commentCard',
-    limit: '1000',
-  });
+  const allComments: TrelloComment[] = [];
+  let before: string | undefined;
+
+  // Paginate through all comments using the `before` cursor (Trello returns newest first)
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const params: Record<string, string> = { filter: 'commentCard', limit: '1000' };
+    if (before) params.before = before;
+
+    const page = await trelloFetch<TrelloComment[]>(`/boards/${boardId}/actions`, auth, params);
+    if (!page || page.length === 0) break;
+
+    allComments.push(...page);
+
+    // If we got fewer than 1000, we've exhausted all comments
+    if (page.length < 1000) break;
+
+    // Use the last comment's ID as the cursor for the next page
+    before = page[page.length - 1].id;
+  }
+
+  return allComments;
 }
 
 export async function fetchTrelloChecklists(auth: TrelloAuth, cardId: string): Promise<TrelloChecklist[]> {
@@ -477,6 +495,9 @@ export async function runMigration(
     labels_created: labels,
     checklists_created: checklists,
     checklist_items_updated: 0,
+    placements_removed: 0,
+    covers_resolved: 0,
+    positions_synced: 0,
     errors: [],
   };
 
@@ -1010,6 +1031,77 @@ async function importCards(
         mergeProcessed += mBatch.length;
         await updateReport(supabase, jobId, report);
       }
+
+      // Pass 1B: Sync positions to match Trello order
+      if (!nearDeadline()) {
+        await updateDetail(supabase, jobId, 'Syncing card positions to match Trello order...');
+        const posSem = createSemaphore(10);
+        // Group openCards by Trello list (already sorted by pos within each list)
+        const cardsByTrelloList = new Map<string, TrelloCard[]>();
+        for (const tc of openCards) {
+          const group = cardsByTrelloList.get(tc.idList) || [];
+          group.push(tc);
+          cardsByTrelloList.set(tc.idList, group);
+        }
+        for (const [trelloListId, cardsInList] of Array.from(cardsByTrelloList.entries())) {
+          const targetListId = existingMappings.get(`list:${trelloListId}`) || globalListMap.get(`list:${trelloListId}`);
+          if (!targetListId) continue;
+          await Promise.all(cardsInList.map(async (tc: TrelloCard, posIndex: number) => {
+            const targetCardId = existingMappings.get(`card:${tc.id}`) || globalCardMappings.get(`card:${tc.id}`);
+            if (!targetCardId) return;
+            await posSem.acquire();
+            try {
+              await supabase
+                .from('card_placements')
+                .update({ position: posIndex })
+                .eq('card_id', targetCardId)
+                .eq('list_id', targetListId)
+                .eq('is_mirror', false);
+              report.positions_synced++;
+            } finally {
+              posSem.release();
+            }
+          }));
+        }
+        await updateReport(supabase, jobId, report);
+        await updateDetail(supabase, jobId, `Synced ${report.positions_synced} card positions`);
+      }
+
+      // Pass 1C: Remove stale placements (cards moved/deleted on Trello)
+      if (!nearDeadline()) {
+        await updateDetail(supabase, jobId, 'Removing stale card placements...');
+        // Build expected card IDs per target list from Trello openCards
+        const expectedByList = new Map<string, Set<string>>();
+        for (const tc of openCards) {
+          const targetListId = existingMappings.get(`list:${tc.idList}`) || globalListMap.get(`list:${tc.idList}`);
+          if (!targetListId) continue;
+          const targetCardId = existingMappings.get(`card:${tc.id}`) || globalCardMappings.get(`card:${tc.id}`);
+          if (!targetCardId) continue;
+          if (!expectedByList.has(targetListId)) expectedByList.set(targetListId, new Set());
+          expectedByList.get(targetListId)!.add(targetCardId);
+        }
+        for (const [targetListId, expectedCardIds] of Array.from(expectedByList.entries())) {
+          // Fetch all non-mirror placements in this list
+          const { data: placements } = await supabase
+            .from('card_placements')
+            .select('id, card_id')
+            .eq('list_id', targetListId)
+            .eq('is_mirror', false);
+          if (!placements) continue;
+          const staleIds = placements
+            .filter((p) => !expectedCardIds.has(p.card_id))
+            .map((p) => p.id);
+          if (staleIds.length > 0) {
+            // Delete in chunks of 200 for .in() limit
+            for (let i = 0; i < staleIds.length; i += 200) {
+              await supabase.from('card_placements').delete().in('id', staleIds.slice(i, i + 200));
+            }
+            report.placements_removed += staleIds.length;
+          }
+        }
+        await updateReport(supabase, jobId, report);
+        await updateDetail(supabase, jobId, `Removed ${report.placements_removed} stale placements`);
+      }
     }
 
     // Pass 2: Batch insert new cards in groups of 50
@@ -1228,12 +1320,15 @@ async function resolveCardCovers(
 
     // Batch load all card and attachment mappings (replaces N+1 individual lookups)
     const mappings = await batchGetMappings(supabase, jobId, ['card', 'attachment']);
+    // Also load global mappings for cards/attachments from previous jobs
+    const globalCardMap = await getGlobalMappingsWithTargets(supabase, jobId, ['card']);
+    const globalAttMap = await getGlobalMappingsWithTargets(supabase, jobId, ['attachment']);
 
     // Collect all cover pairs that need resolving
     const coverPairs: { targetCardId: string; targetAttId: string }[] = [];
     for (const trelloCard of cardsWithCovers) {
-      const targetCardId = mappings.get(`card:${trelloCard.id}`);
-      const targetAttId = mappings.get(`attachment:${trelloCard.idAttachmentCover!}`);
+      const targetCardId = mappings.get(`card:${trelloCard.id}`) || globalCardMap.get(`card:${trelloCard.id}`);
+      const targetAttId = mappings.get(`attachment:${trelloCard.idAttachmentCover!}`) || globalAttMap.get(`attachment:${trelloCard.idAttachmentCover!}`);
       if (targetCardId && targetAttId) {
         coverPairs.push({ targetCardId, targetAttId });
       }
@@ -1273,6 +1368,7 @@ async function resolveCardCovers(
           .update({ cover_image_url: att.storage_path })
           .eq('id', targetCardId);
         resolved++;
+        report.covers_resolved++;
       } finally {
         coverSem.release();
       }
@@ -1761,6 +1857,9 @@ export async function backfillAttachments(
     labels_created: prev?.labels_created ?? 0,
     checklists_created: prev?.checklists_created ?? 0,
     checklist_items_updated: prev?.checklist_items_updated ?? 0,
+    placements_removed: prev?.placements_removed ?? 0,
+    covers_resolved: prev?.covers_resolved ?? 0,
+    positions_synced: prev?.positions_synced ?? 0,
     errors: [],  // Fresh errors for this backfill run
   };
 
