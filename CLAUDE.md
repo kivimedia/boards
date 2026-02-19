@@ -10,6 +10,13 @@ Agency Board is an internal project management platform for a marketing agency. 
 - **No emdash in headlines**: Never use `---` in page titles or UI headlines (use plain dashes)
 - **Start dev server**: `npx next dev --turbo` (runs on localhost:3000)
 - **Run env vars in node**: `export $(grep -v '^#' .env.local | xargs) && node -e '...'`
+- **Trello migration board selections** (6 boards, used for re-imports):
+  - Abs → Dev Board
+  - Daily Cookie Copywriters → Account Managers
+  - Glen → Design Board
+  - Mariz → Executive Assistant
+  - Video Editing → Video Board
+  - (+ 1 more with Design Board badge — likely the second Mariz or similar)
 
 ## Session Summary (2026-02-17, continued)
 

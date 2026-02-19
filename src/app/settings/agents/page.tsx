@@ -1,6 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import Sidebar from '@/components/layout/Sidebar';
+import SidebarWithBoards from '@/components/layout/SidebarWithBoards';
 import Header from '@/components/layout/Header';
 import SkillQualityDashboard from '@/components/agents/SkillQualityDashboard';
 
@@ -14,7 +14,7 @@ export default async function AgentSkillsPage() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar />
+      <SidebarWithBoards />
       <main className="flex-1 flex flex-col overflow-hidden">
         <Header title="Agent Skills" backHref="/settings" />
         <div className="flex-1 overflow-y-auto p-6">

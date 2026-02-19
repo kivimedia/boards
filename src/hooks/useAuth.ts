@@ -49,7 +49,13 @@ export function useAuth() {
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      // Server-side signout properly clears auth cookies
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {
+      // Fallback: client-side signout
+      await supabase.auth.signOut();
+    }
     window.location.href = '/login';
   };
 

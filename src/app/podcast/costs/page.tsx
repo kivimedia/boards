@@ -1,6 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import Sidebar from '@/components/layout/Sidebar';
+import SidebarWithBoards from '@/components/layout/SidebarWithBoards';
 import Header from '@/components/layout/Header';
 import CostDashboard from '@/components/podcast/CostDashboard';
 import Link from 'next/link';
@@ -15,7 +15,7 @@ export default async function PodcastCostsPage() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar />
+      <SidebarWithBoards />
       <main className="flex-1 flex flex-col overflow-hidden">
         <Header title="Scout Pipeline Costs" />
         <div className="flex-1 overflow-auto p-6 bg-cream dark:bg-slate-900">

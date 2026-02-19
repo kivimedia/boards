@@ -1,7 +1,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { redirect, notFound } from 'next/navigation';
 import { getWikiPage } from '@/lib/wiki';
-import Sidebar from '@/components/layout/Sidebar';
+import SidebarWithBoards from '@/components/layout/SidebarWithBoards';
 import Header from '@/components/layout/Header';
 import WikiPageView from '@/components/wiki/WikiPageView';
 
@@ -25,7 +25,7 @@ export default async function WikiPageDetailPage({ params }: Props) {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar />
+      <SidebarWithBoards />
       <main className="flex-1 flex flex-col overflow-hidden">
         <Header title={page.title} />
         <WikiPageView page={page} />

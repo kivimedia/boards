@@ -91,7 +91,7 @@ export default function BoardCard({
   const [showQuickEdit, setShowQuickEdit] = useState(false);
   const [copying, setCopying] = useState(false);
   const wasDraggingRef = useRef(false);
-  const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
+  const pointerDownRef = useRef<{ x: number; y: number; time: number } | null>(null);
 
   const handleQuickCopy = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -106,20 +106,25 @@ export default function BoardCard({
     setCopying(false);
   }, [card.id, copying, onRefresh]);
 
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    // If the mouse moved significantly between mousedown and click, it was a drag
-    if (mouseDownPosRef.current) {
-      const dx = Math.abs(e.clientX - mouseDownPosRef.current.x);
-      const dy = Math.abs(e.clientY - mouseDownPosRef.current.y);
-      if (dx > 5 || dy > 5) {
-        wasDraggingRef.current = true;
-      }
-    }
-    if (wasDraggingRef.current) {
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    pointerDownRef.current = { x: e.clientX, y: e.clientY, time: Date.now() };
+  }, []);
+
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    if (!pointerDownRef.current || wasDraggingRef.current) {
       wasDraggingRef.current = false;
+      pointerDownRef.current = null;
       return;
     }
-    onClick();
+    const { x, y, time } = pointerDownRef.current;
+    pointerDownRef.current = null;
+    const dx = Math.abs(e.clientX - x);
+    const dy = Math.abs(e.clientY - y);
+    const dt = Date.now() - time;
+    // Quick tap with minimal movement = click to open card
+    if (dx < 10 && dy < 10 && dt < 500) {
+      onClick();
+    }
   }, [onClick]);
 
   const isOverdue = card.due_date && new Date(card.due_date) < new Date();
@@ -135,16 +140,18 @@ export default function BoardCard({
 
   return (
     <Draggable draggableId={placement_id} index={index}>
-      {(provided, snapshot) => (
+      {(provided, snapshot) => {
+        // Track drag state: mark ref true when dragging starts so click handler can skip
+        if (snapshot.isDragging) {
+          wasDraggingRef.current = true;
+        }
+        return (
         <div
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          onPointerDown={(e: React.PointerEvent) => {
-            mouseDownPosRef.current = { x: e.clientX, y: e.clientY };
-            wasDraggingRef.current = false;
-          }}
-          onClick={handleClick}
+          onPointerDown={handlePointerDown}
+          onPointerUp={handlePointerUp}
           className={`
             relative group bg-white dark:bg-dark-surface rounded-xl cursor-pointer
             transition-all duration-200 ease-out
@@ -371,7 +378,8 @@ export default function BoardCard({
             )}
           </div>
         </div>
-      )}
+        );
+      }}
     </Draggable>
   );
 }

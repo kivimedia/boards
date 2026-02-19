@@ -1,6 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import Sidebar from '@/components/layout/Sidebar';
+import SidebarWithBoards from '@/components/layout/SidebarWithBoards';
 import Header from '@/components/layout/Header';
 import UserManagement from '@/components/settings/UserManagement';
 import { isAdmin } from '@/lib/permissions';
@@ -28,7 +28,7 @@ export default async function UsersSettingsPage() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar />
+      <SidebarWithBoards />
       <main className="flex-1 flex flex-col overflow-hidden">
         <Header title="User Management" backHref="/settings" />
         <UserManagement currentUserId={user.id} />

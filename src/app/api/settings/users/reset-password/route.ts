@@ -11,6 +11,7 @@ function generateTempPassword(): string {
   return pwd;
 }
 
+/** Send credentials email via Resend */
 async function sendCredentialsEmail(params: {
   to: string;
   displayName: string;
@@ -31,7 +32,7 @@ async function sendCredentialsEmail(params: {
       body: JSON.stringify({
         from: fromEmail,
         to: [params.to],
-        subject: 'Welcome to Kivi Media Boards - Your Login Credentials',
+        subject: 'Your Kivi Media Boards Login Credentials',
         html: `
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 0;">
             <div style="background: #1a1f36; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
@@ -41,7 +42,7 @@ async function sendCredentialsEmail(params: {
               Hi ${params.displayName},
             </p>
             <p style="color: #333; font-size: 15px; line-height: 1.6;">
-              You have been invited to Kivi Media Boards. Here are your login credentials:
+              Here are your login credentials for Kivi Media Boards:
             </p>
             <div style="background: #f5f5f5; border-radius: 8px; padding: 16px; margin: 20px 0; font-family: monospace;">
               <p style="margin: 4px 0; font-size: 14px;"><strong>Email:</strong> ${params.to}</p>
@@ -63,44 +64,29 @@ async function sendCredentialsEmail(params: {
   }
 }
 
-interface InviteBody {
-  email: string;
-  display_name: string;
+interface ResetPasswordBody {
+  user_id: string;
 }
 
 /**
- * POST /api/team/invite
- * Invite a new user by email. Creates an auth user + profile, marks them active.
- * Requires the caller to be an admin or agency_owner.
+ * POST /api/settings/users/reset-password
+ * Generate a new temporary password for a user and email it to them.
+ * Any authenticated user can trigger this.
  */
 export async function POST(request: NextRequest) {
   const auth = await getAuthContext();
   if (!auth.ok) return auth.response;
 
-  const { supabase, userId } = auth.ctx;
-
-  // Check if requester has permission (agency_owner or admin)
-  const { data: requester } = await supabase
-    .from('profiles')
-    .select('agency_role, user_role')
-    .eq('id', userId)
-    .single();
-
-  if (requester?.agency_role !== 'agency_owner' && requester?.user_role !== 'admin') {
-    return errorResponse('Only agency owners or admins can invite users', 403);
-  }
-
-  const body = await parseBody<InviteBody>(request);
+  const body = await parseBody<ResetPasswordBody>(request);
   if (!body.ok) return body.response;
 
-  const { email, display_name } = body.body;
-  if (!email?.trim()) return errorResponse('email is required');
-  if (!display_name?.trim()) return errorResponse('display_name is required');
+  const { user_id } = body.body;
+  if (!user_id) return errorResponse('user_id is required');
 
-  // Need service role key for auth.admin
+  // Allow resend to any user including self
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceRoleKey) {
-    return errorResponse('Server is not configured for user invitations (missing service role key)', 500);
+    return errorResponse('Server is not configured for password management (missing service role key)', 500);
   }
 
   const adminClient = createClient(
@@ -109,75 +95,56 @@ export async function POST(request: NextRequest) {
   );
 
   try {
-    // Check if user already exists
-    const { data: existingProfile } = await adminClient
-      .from('profiles')
-      .select('id, display_name')
-      .eq('email', email.trim().toLowerCase())
-      .maybeSingle();
-
-    if (existingProfile) {
-      // User already exists — just return their profile
-      return successResponse(existingProfile);
+    // Get user's email
+    const { data: { user }, error: getUserError } = await adminClient.auth.admin.getUserById(user_id);
+    if (getUserError || !user) {
+      return errorResponse('User not found', 404);
     }
 
-    // Create user directly via admin API with a temp password
+    const email = user.email;
+    if (!email) {
+      return errorResponse('User has no email address', 400);
+    }
+
+    // Generate temp password and update (also confirm email to fix unconfirmed accounts)
     const tempPassword = generateTempPassword();
-    const { data: createData, error: createError } = await adminClient.auth.admin.createUser({
-      email: email.trim(),
+    const { error: updateError } = await adminClient.auth.admin.updateUserById(user_id, {
       password: tempPassword,
       email_confirm: true,
-      user_metadata: {
-        display_name: display_name.trim(),
-      },
     });
 
-    if (createError || !createData.user) {
-      return errorResponse(createError?.message || 'Failed to create user', 500);
+    if (updateError) {
+      return errorResponse(updateError.message, 500);
     }
 
-    const newUserId = createData.user.id;
-
-    // The handle_new_user trigger creates the profile row automatically.
-    // Update it to active since an admin is explicitly inviting them.
-    // Small delay to allow trigger to complete.
-    await new Promise((r) => setTimeout(r, 500));
-
-    await adminClient
-      .from('profiles')
-      .update({
-        account_status: 'active',
-        display_name: display_name.trim(),
-      })
-      .eq('id', newUserId);
-
-    // Fetch the final profile to return
+    // Get display name from profile
     const { data: profile } = await adminClient
       .from('profiles')
-      .select('id, display_name, avatar_url, role')
-      .eq('id', newUserId)
+      .select('display_name')
+      .eq('id', user_id)
       .single();
 
-    // Send credentials via email
+    const displayName = profile?.display_name || 'Team Member';
     const loginUrl = process.env.NEXT_PUBLIC_SITE_URL
       ? `${process.env.NEXT_PUBLIC_SITE_URL}/login`
       : 'https://kmboards.co/login';
 
+    // Send credentials via email
     const emailSent = await sendCredentialsEmail({
-      to: email.trim(),
-      displayName: display_name.trim(),
+      to: email,
+      displayName,
       password: tempPassword,
       loginUrl,
     });
 
     return successResponse({
-      ...profile,
-      email: email.trim(),
+      display_name: displayName,
+      email,
       temp_password: tempPassword,
       email_sent: emailSent,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to invite user';
+    const message = err instanceof Error ? err.message : 'Failed to reset password';
     return errorResponse(message, 500);
   }
 }
