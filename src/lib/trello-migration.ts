@@ -965,6 +965,24 @@ async function importCards(
               .update({ title: trelloCard.name, description: trelloCard.desc || '', due_date: trelloCard.due, priority })
               .eq('id', targetCardId);
 
+            // Re-sync list placement: move card if its Trello list changed
+            const targetListId = existingMappings.get(`list:${trelloCard.idList}`) || globalListMap.get(`list:${trelloCard.idList}`) || null;
+            if (targetListId) {
+              const { data: currentPlacement } = await supabase
+                .from('card_placements')
+                .select('id, list_id')
+                .eq('card_id', targetCardId)
+                .eq('is_mirror', false)
+                .limit(1)
+                .single();
+              if (currentPlacement && currentPlacement.list_id !== targetListId) {
+                await supabase
+                  .from('card_placements')
+                  .update({ list_id: targetListId })
+                  .eq('id', currentPlacement.id);
+              }
+            }
+
             // Re-sync labels: delete old, add current
             await supabase.from('card_labels').delete().eq('card_id', targetCardId);
             const labelInserts = trelloCard.idLabels
