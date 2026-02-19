@@ -58,6 +58,28 @@ function FileIcon({ type }: { type: string }) {
   );
 }
 
+function ImageThumbnail({ storagePath, fileName, supabase }: { storagePath: string; fileName: string; supabase: ReturnType<typeof createClient> }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (storagePath.startsWith('s3://')) return;
+    supabase.storage
+      .from('card-attachments')
+      .createSignedUrl(storagePath, 300, { transform: { width: 80, height: 80, resize: 'cover' } })
+      .then(({ data }) => { if (data?.signedUrl) setUrl(data.signedUrl); });
+  }, [storagePath, supabase]);
+
+  if (!url) {
+    return <FileIcon type="image" />;
+  }
+  return (
+    <img
+      src={url}
+      alt={fileName}
+      className="w-10 h-10 rounded-lg object-cover bg-cream-dark dark:bg-slate-700"
+    />
+  );
+}
+
 export default function CardAttachments({ cardId, coverImageUrl, onCoverChange, onRefresh }: CardAttachmentsProps) {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -373,6 +395,8 @@ export default function CardAttachments({ cardId, coverImageUrl, onCoverChange, 
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                   </svg>
                 </div>
+              ) : attachment.mime_type?.startsWith('image/') && !attachment.storage_path.startsWith('s3://') ? (
+                <ImageThumbnail storagePath={attachment.storage_path} fileName={attachment.file_name} supabase={supabase} />
               ) : (
                 <FileIcon type={getFileIcon(attachment.mime_type)} />
               )}
