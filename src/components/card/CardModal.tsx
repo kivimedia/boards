@@ -32,6 +32,7 @@ import ClientBrainPanel from '@/components/client/ClientBrainPanel';
 import CardAgentTasksPanel from '@/components/agents/CardAgentTasksPanel';
 import CardApprovalPanel from './CardApprovalPanel';
 import VideoFrameComparison from './VideoFrameComparison';
+import CardAIChat from './CardAIChat';
 import type { FrameVerdict } from '@/lib/ai/design-review';
 import ReactMarkdown from 'react-markdown';
 
@@ -705,6 +706,9 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
           )}
         </div>
 
+        {/* Card AI Chat */}
+        <CardAIChat cardId={cardId} boardId={boardId} />
+
         <div className="relative">
           {/* Main content */}
           <div className="space-y-5">
@@ -819,7 +823,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                       setComments((prev) => {
                         // Avoid duplicates if refresh already added it
                         if (prev.some((c) => c.id === comment.id)) return prev;
-                        return [...prev, comment];
+                        return [comment, ...prev];
                       });
                     }}
                     currentUserId={currentUserId}

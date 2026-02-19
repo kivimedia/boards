@@ -19,7 +19,7 @@ export async function GET(_request: NextRequest, { params }: Params) {
       .from('comments')
       .select('*')
       .eq('card_id', params.id)
-      .order('created_at', { ascending: true }),
+      .order('created_at', { ascending: false }),
     supabase.from('profiles').select('id, display_name, avatar_url'),
   ]);
   const tQuery = performance.now() - tQuery0;
