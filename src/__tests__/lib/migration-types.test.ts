@@ -71,6 +71,9 @@ describe('P1.7 Migration Types', () => {
         labels_created: 8,
         checklists_created: 5,
         checklist_items_updated: 7,
+        placements_removed: 0,
+        covers_resolved: 0,
+        positions_synced: 0,
         errors: ['Some error occurred'],
       };
 
@@ -97,6 +100,9 @@ describe('P1.7 Migration Types', () => {
         labels_created: 0,
         checklists_created: 0,
         checklist_items_updated: 0,
+        placements_removed: 0,
+        covers_resolved: 0,
+        positions_synced: 0,
         errors: [],
       };
       expect(report.errors).toEqual([]);
@@ -158,6 +164,9 @@ describe('P1.7 Migration Types', () => {
           labels_created: 0,
           checklists_created: 0,
           checklist_items_updated: 0,
+          placements_removed: 0,
+          covers_resolved: 0,
+          positions_synced: 0,
           errors: [],
         },
         error_message: null,

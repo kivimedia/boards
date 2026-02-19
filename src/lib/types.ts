@@ -538,6 +538,9 @@ export interface MigrationReport {
   labels_created: number;
   checklists_created: number;
   checklist_items_updated: number;
+  placements_removed: number;
+  covers_resolved: number;
+  positions_synced: number;
   errors: string[];
 }
 

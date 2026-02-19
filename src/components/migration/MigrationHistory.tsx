@@ -360,6 +360,20 @@ export default function MigrationHistory() {
                         ))}
                       </div>
                     )}
+                    {report && ((report.positions_synced ?? 0) > 0 || (report.placements_removed ?? 0) > 0 || (report.covers_resolved ?? 0) > 0) && (
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { label: 'Pos Synced', value: report.positions_synced },
+                          { label: 'Stale Removed', value: report.placements_removed },
+                          { label: 'Covers Fixed', value: report.covers_resolved },
+                        ].map((stat) => (
+                          <div key={stat.label} className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-2 text-center">
+                            <p className="text-lg font-heading font-bold text-blue-700 dark:text-blue-300">{stat.value ?? 0}</p>
+                            <p className="text-[10px] font-body text-blue-500/60">{stat.label}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                     {/* Errors */}
                     {report?.errors && report.errors.length > 0 && (
