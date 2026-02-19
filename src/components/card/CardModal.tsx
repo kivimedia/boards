@@ -91,6 +91,8 @@ const PRIORITY_OPTIONS: { value: CardPriority; label: string; color: string }[] 
 
 export default function CardModal({ cardId, boardId, onClose, onRefresh, allCardIds, onNavigate }: CardModalProps) {
   const [card, setCard] = useState<Card | null>(null);
+  const [cardLoading, setCardLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [labels, setLabels] = useState<Label[]>([]);
   const [boardLabels, setBoardLabels] = useState<Label[]>([]);
   const [assignees, setAssignees] = useState<Profile[]>([]);
@@ -196,91 +198,71 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
     }
   }, [cardId, showAIQATab, qaRefreshKey]);
 
-  // fetchAllCardData: parallel fetch of ALL card data in a single Promise.all
-  // This replaces the old sequential fetchCardDetails + fetchBoardType
+  // fetchAllCardData: single API call to get ALL card data (server-side auth)
   const fetchAllCardData = async () => {
     const t0 = performance.now();
+    setCardLoading(true);
+    setFetchError(null);
 
-    // Phase 1: ALL independent queries in parallel
-    const tParallel = performance.now();
-    const [
-      cardResult,
-      boardResult,
-      placementResult,
-      cardLabelsResult,
-      boardLabelsResult,
-      assigneesResult,
-      profilesResult,
-      commentsResult,
-    ] = await Promise.all([
-      supabase.from('cards').select('*').eq('id', cardId).single(),
-      supabase.from('boards').select('type, name').eq('id', boardId).single(),
-      supabase.from('card_placements').select('list:lists(name)').eq('card_id', cardId).eq('is_mirror', false).single(),
-      supabase.from('card_labels').select('label:labels(*)').eq('card_id', cardId),
-      supabase.from('labels').select('*').eq('board_id', boardId),
-      supabase.from('card_assignees').select('user:profiles(*)').eq('card_id', cardId),
-      supabase.from('profiles').select('*'),
-      supabase.from('comments').select('*, profile:profiles(*)').eq('card_id', cardId).order('created_at', { ascending: true }),
-    ]);
-    timingsRef.current['Parallel fetch (8 queries)'] = performance.now() - tParallel;
+    try {
+      const res = await fetch(`/api/cards/${cardId}/details?boardId=${boardId}`);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        const msg = errData.error || `HTTP ${res.status}`;
+        console.error('[CardModal] API error:', msg);
+        setFetchError(msg);
+        setCardLoading(false);
+        return;
+      }
 
-    // Process card record
-    const cardData = cardResult.data;
-    if (cardData) {
+      const { data } = await res.json();
+      const tNetwork = performance.now() - t0;
+      timingsRef.current['API fetch (details)'] = tNetwork;
+
+      const cardData = data.card;
+      if (!cardData) {
+        setFetchError('Card not found');
+        setCardLoading(false);
+        return;
+      }
+
       setCard(cardData);
       setTitle(cardData.title);
       setDescription(cardData.description || '');
       setDueDate(cardData.due_date ? cardData.due_date.split('T')[0] : '');
       setStartDate(cardData.start_date ? cardData.start_date.split('T')[0] : '');
       setCardSize(cardData.size || 'medium');
+      setCoverImageUrl(data.signedCoverUrl || cardData.cover_image_url || null);
 
-      // Cover sign only if needed (storage path, not full URL)
-      if (cardData.cover_image_url && !cardData.cover_image_url.startsWith('http')) {
-        const tCover = performance.now();
-        const { data: signedData } = await supabase.storage
-          .from('card-attachments')
-          .createSignedUrl(cardData.cover_image_url, 3600);
-        timingsRef.current['Cover sign'] = performance.now() - tCover;
-        setCoverImageUrl(signedData?.signedUrl || cardData.cover_image_url);
-      } else {
-        setCoverImageUrl(cardData.cover_image_url || null);
-      }
+      setBoardType(data.boardType || null);
+      setBoardName(data.boardName || '');
+      setListName(data.listName || '');
+
+      setLabels(data.labels || []);
+      setBoardLabels(data.boardLabels || []);
+      setAssignees(data.assignees || []);
+      setAllProfiles(data.profiles || []);
+      setComments(data.comments || []);
+
+      // Report profiling
+      const totalMs = performance.now() - t0;
+      completedRef.current.add('details');
+      completedRef.current.add('boardType');
+
+      const phases = Object.entries(timingsRef.current).map(([name, ms]) => ({ name, ms }));
+      console.log(`[CardModal] ${cardData?.title || cardId} - ${totalMs.toFixed(0)}ms total`);
+
+      useProfilingStore.getState().setCardProfiling({
+        phases,
+        totalMs,
+        cardTitle: cardData?.title || cardId,
+      });
+    } catch (err) {
+      console.error('[CardModal] Fetch error:', err);
+      setFetchError(err instanceof Error ? err.message : 'Failed to load card data');
+    } finally {
+      setCardLoading(false);
     }
-
-    // Process board data
-    if (boardResult.data) {
-      setBoardType(boardResult.data.type || null);
-      setBoardName(boardResult.data.name || '');
-    }
-
-    // Process placement
-    if (placementResult.data?.list) {
-      setListName((placementResult.data.list as any).name || '');
-    }
-
-    // Process labels, assignees, profiles, comments
-    setLabels(cardLabelsResult.data?.map((cl: any) => cl.label).filter(Boolean) || []);
-    setBoardLabels(boardLabelsResult.data || []);
-    setAssignees(assigneesResult.data?.map((a: any) => a.user).filter(Boolean) || []);
-    setAllProfiles(profilesResult.data || []);
-    setComments(commentsResult.data || []);
-
-    // Report profiling
-    const totalMs = performance.now() - t0;
-    completedRef.current.add('details');
-    completedRef.current.add('boardType');
-
-    // Log profiling to console
-    const phases = Object.entries(timingsRef.current).map(([name, ms]) => ({ name, ms }));
-    const sorted = [...phases].sort((a, b) => b.ms - a.ms);
-    console.log(`[CardModal] ${cardData?.title || cardId} - ${totalMs.toFixed(0)}ms total`);
-    sorted.forEach(p => console.log(`  ${p.name}: ${p.ms.toFixed(0)}ms (${((p.ms / totalMs) * 100).toFixed(1)}%)`));
-
-    useProfilingStore.getState().setCardProfiling({
-      phases,
-      totalMs,
-      cardTitle: cardData?.title || cardId,
-    });
   };
 
   const fetchLatestReview = useCallback(async () => {
@@ -350,58 +332,40 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
     setQARefreshKey((k) => k + 1);
   };
 
-  // Parallel refresh: re-fetches card + related data (used after edits)
+  // Refresh: re-fetches card + related data (used after edits)
   const fetchCardDetails = async () => {
-    const [
-      cardResult,
-      placementResult,
-      cardLabelsResult,
-      boardLabelsResult,
-      assigneesResult,
-      profilesResult,
-      commentsResult,
-    ] = await Promise.all([
-      supabase.from('cards').select('*').eq('id', cardId).single(),
-      supabase.from('card_placements').select('list:lists(name)').eq('card_id', cardId).eq('is_mirror', false).single(),
-      supabase.from('card_labels').select('label:labels(*)').eq('card_id', cardId),
-      supabase.from('labels').select('*').eq('board_id', boardId),
-      supabase.from('card_assignees').select('user:profiles(*)').eq('card_id', cardId),
-      supabase.from('profiles').select('*'),
-      supabase.from('comments').select('*, profile:profiles(*)').eq('card_id', cardId).order('created_at', { ascending: true }),
-    ]);
+    try {
+      const res = await fetch(`/api/cards/${cardId}/details?boardId=${boardId}`);
+      if (!res.ok) return;
 
-    const cardData = cardResult.data;
-    if (cardData) {
-      setCard(cardData);
-      setTitle(cardData.title);
-      setDescription(cardData.description || '');
-      setDueDate(cardData.due_date ? cardData.due_date.split('T')[0] : '');
-      setStartDate(cardData.start_date ? cardData.start_date.split('T')[0] : '');
-      setCardSize(cardData.size || 'medium');
-      if (cardData.cover_image_url && !cardData.cover_image_url.startsWith('http')) {
-        const { data: signedData } = await supabase.storage
-          .from('card-attachments')
-          .createSignedUrl(cardData.cover_image_url, 3600);
-        setCoverImageUrl(signedData?.signedUrl || cardData.cover_image_url);
-      } else {
-        setCoverImageUrl(cardData.cover_image_url || null);
+      const { data } = await res.json();
+      const cardData = data.card;
+      if (cardData) {
+        setCard(cardData);
+        setTitle(cardData.title);
+        setDescription(cardData.description || '');
+        setDueDate(cardData.due_date ? cardData.due_date.split('T')[0] : '');
+        setStartDate(cardData.start_date ? cardData.start_date.split('T')[0] : '');
+        setCardSize(cardData.size || 'medium');
+        setCoverImageUrl(data.signedCoverUrl || cardData.cover_image_url || null);
       }
+      setListName(data.listName || '');
+      setLabels(data.labels || []);
+      setBoardLabels(data.boardLabels || []);
+      setAssignees(data.assignees || []);
+      setAllProfiles(data.profiles || []);
+      setComments(data.comments || []);
+    } catch (err) {
+      console.error('[CardModal] Refresh error:', err);
     }
-    if (placementResult.data?.list) {
-      setListName((placementResult.data.list as any).name || '');
-    }
-    setLabels(cardLabelsResult.data?.map((cl: any) => cl.label).filter(Boolean) || []);
-    setBoardLabels(boardLabelsResult.data || []);
-    setAssignees(assigneesResult.data?.map((a: any) => a.user).filter(Boolean) || []);
-    setAllProfiles(profilesResult.data || []);
-    setComments(commentsResult.data || []);
   };
 
   const updateCard = async (updates: Partial<Card>) => {
-    await supabase
-      .from('cards')
-      .update(updates)
-      .eq('id', cardId);
+    await fetch(`/api/cards/${cardId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
     fetchCardDetails();
     onRefresh();
   };
@@ -469,35 +433,21 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
   };
 
   const toggleLabel = async (labelId: string) => {
-    const hasLabel = labels.some((l) => l.id === labelId);
-    if (hasLabel) {
-      await supabase
-        .from('card_labels')
-        .delete()
-        .eq('card_id', cardId)
-        .eq('label_id', labelId);
-    } else {
-      await supabase
-        .from('card_labels')
-        .insert({ card_id: cardId, label_id: labelId });
-    }
+    await fetch(`/api/cards/${cardId}/labels`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label_id: labelId }),
+    });
     fetchCardDetails();
     onRefresh();
   };
 
   const toggleAssignee = async (userId: string) => {
-    const isAssigned = assignees.some((a) => a.id === userId);
-    if (isAssigned) {
-      await supabase
-        .from('card_assignees')
-        .delete()
-        .eq('card_id', cardId)
-        .eq('user_id', userId);
-    } else {
-      await supabase
-        .from('card_assignees')
-        .insert({ card_id: cardId, user_id: userId });
-    }
+    await fetch(`/api/cards/${cardId}/assignees`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId }),
+    });
     fetchCardDetails();
     onRefresh();
   };
@@ -523,7 +473,36 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
     }
   }, [allCardIds, onNavigate, cardId]);
 
-  if (!card) return null;
+  if (!card) {
+    return (
+      <Modal isOpen={true} onClose={onClose} size="xl">
+        <div className="p-8 flex flex-col items-center justify-center min-h-[200px]">
+          {fetchError ? (
+            <>
+              <svg className="w-10 h-10 text-danger/60 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              <p className="text-sm text-navy/60 dark:text-slate-400 font-body mb-3 text-center">{fetchError}</p>
+              <button
+                onClick={fetchAllCardData}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-electric text-white hover:bg-electric-bright transition-colors"
+              >
+                Retry
+              </button>
+            </>
+          ) : (
+            <>
+              <svg className="animate-spin h-6 w-6 text-electric mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              <p className="text-sm text-navy/40 dark:text-slate-400 font-body">Loading card...</p>
+            </>
+          )}
+        </div>
+      </Modal>
+    );
+  }
 
   const currentPriority = PRIORITY_OPTIONS.find((p) => p.value === card.priority) || PRIORITY_OPTIONS[4];
   const currentIndex = allCardIds ? allCardIds.indexOf(cardId) : -1;
