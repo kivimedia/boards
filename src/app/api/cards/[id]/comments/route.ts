@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getAuthContext, successResponse, errorResponse, parseBody } from '@/lib/api-helpers';
 
 interface Params {
@@ -6,20 +6,23 @@ interface Params {
 }
 
 export async function GET(_request: NextRequest, { params }: Params) {
+  const t0 = performance.now();
   const auth = await getAuthContext();
+  const tAuth = performance.now() - t0;
   if (!auth.ok) return auth.response;
 
   const { supabase } = auth.ctx;
 
-  // Fetch comments and profiles separately (no FK from comments→profiles)
+  const tQuery0 = performance.now();
   const [commentsRes, profilesRes] = await Promise.all([
     supabase
       .from('comments')
       .select('*')
       .eq('card_id', params.id)
       .order('created_at', { ascending: true }),
-    supabase.from('profiles').select('*'),
+    supabase.from('profiles').select('id, display_name, avatar_url'),
   ]);
+  const tQuery = performance.now() - tQuery0;
 
   if (commentsRes.error) return errorResponse(commentsRes.error.message, 500);
 
@@ -29,7 +32,10 @@ export async function GET(_request: NextRequest, { params }: Params) {
     profile: profilesMap.get(c.user_id) || null,
   }));
 
-  return successResponse(commentsWithProfiles);
+  const total = performance.now() - t0;
+  const res = NextResponse.json({ data: commentsWithProfiles });
+  res.headers.set('Server-Timing', `auth;dur=${tAuth.toFixed(0)}, query;dur=${tQuery.toFixed(0)}, total;dur=${total.toFixed(0)}`);
+  return res;
 }
 
 interface CreateCommentBody {
@@ -38,7 +44,9 @@ interface CreateCommentBody {
 }
 
 export async function POST(request: NextRequest, { params }: Params) {
+  const t0 = performance.now();
   const auth = await getAuthContext();
+  const tAuth = performance.now() - t0;
   if (!auth.ok) return auth.response;
 
   const body = await parseBody<CreateCommentBody>(request);
@@ -48,27 +56,36 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   const { supabase, userId } = auth.ctx;
 
-  const { data, error } = await supabase
-    .from('comments')
-    .insert({
-      card_id: params.id,
-      user_id: userId,
-      content: body.body.content.trim(),
-      parent_comment_id: body.body.parent_comment_id || null,
-    })
-    .select('*')
-    .single();
+  // Insert comment and fetch profile in parallel
+  const tQuery0 = performance.now();
+  const [insertRes, profileRes] = await Promise.all([
+    supabase
+      .from('comments')
+      .insert({
+        card_id: params.id,
+        user_id: userId,
+        content: body.body.content.trim(),
+        parent_comment_id: body.body.parent_comment_id || null,
+      })
+      .select('*')
+      .single(),
+    supabase
+      .from('profiles')
+      .select('id, display_name, avatar_url')
+      .eq('id', userId)
+      .single(),
+  ]);
+  const tQuery = performance.now() - tQuery0;
 
-  if (error) return errorResponse(error.message, 500);
+  if (insertRes.error) return errorResponse(insertRes.error.message, 500);
 
-  // Attach profile to the returned comment
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .single();
-
-  return successResponse({ ...data, profile: profile || null }, 201);
+  const total = performance.now() - t0;
+  const res = NextResponse.json(
+    { data: { ...insertRes.data, profile: profileRes.data || null } },
+    { status: 201 }
+  );
+  res.headers.set('Server-Timing', `auth;dur=${tAuth.toFixed(0)}, query;dur=${tQuery.toFixed(0)}, total;dur=${total.toFixed(0)}`);
+  return res;
 }
 
 interface DeleteCommentBody {

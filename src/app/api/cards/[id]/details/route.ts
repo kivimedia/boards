@@ -1,5 +1,5 @@
-import { NextRequest } from 'next/server';
-import { getAuthContext, successResponse, errorResponse } from '@/lib/api-helpers';
+import { NextRequest, NextResponse } from 'next/server';
+import { getAuthContext, errorResponse } from '@/lib/api-helpers';
 
 interface Params {
   params: { id: string };
@@ -7,17 +7,21 @@ interface Params {
 
 /**
  * GET /api/cards/[id]/details?boardId=xxx
- * Returns all data needed by CardModal in a single request:
- *   card, board info, placement, labels, board labels, assignees, profiles, comments, signed cover URL
+ * Returns all data needed by CardModal in a single request.
+ * Server-Timing header shows per-phase durations for profiling.
  */
 export async function GET(request: NextRequest, { params }: Params) {
+  const t0 = performance.now();
+
   const auth = await getAuthContext();
+  const tAuth = performance.now() - t0;
   if (!auth.ok) return auth.response;
 
   const { supabase } = auth.ctx;
   const boardId = request.nextUrl.searchParams.get('boardId');
   if (!boardId) return errorResponse('boardId query param is required');
 
+  const tQuery0 = performance.now();
   const [
     cardResult,
     boardResult,
@@ -34,9 +38,10 @@ export async function GET(request: NextRequest, { params }: Params) {
     supabase.from('card_labels').select('label:labels(*)').eq('card_id', params.id),
     supabase.from('labels').select('*').eq('board_id', boardId),
     supabase.from('card_assignees').select('*').eq('card_id', params.id),
-    supabase.from('profiles').select('*'),
+    supabase.from('profiles').select('id, display_name, avatar_url, role'),
     supabase.from('comments').select('*').eq('card_id', params.id).order('created_at', { ascending: true }),
   ]);
+  const tQuery = performance.now() - tQuery0;
 
   if (cardResult.error || !cardResult.data) {
     return errorResponse(cardResult.error?.message || 'Card not found', 404);
@@ -46,21 +51,26 @@ export async function GET(request: NextRequest, { params }: Params) {
 
   // Sign cover URL if needed
   let signedCoverUrl: string | null = card.cover_image_url || null;
+  let tCover = 0;
   if (card.cover_image_url && !card.cover_image_url.startsWith('http')) {
+    const tCover0 = performance.now();
     const { data: signedData } = await supabase.storage
       .from('card-attachments')
       .createSignedUrl(card.cover_image_url, 3600);
     signedCoverUrl = signedData?.signedUrl || card.cover_image_url;
+    tCover = performance.now() - tCover0;
   }
 
-  // Manually attach profiles to comments (no FK from comments→profiles)
+  // Manually attach profiles to comments and assignees (no FK from these tables→profiles)
   const profilesMap = new Map((profilesResult.data || []).map((p: any) => [p.id, p]));
   const commentsWithProfiles = (commentsResult.data || []).map((c: any) => ({
     ...c,
     profile: profilesMap.get(c.user_id) || null,
   }));
 
-  return successResponse({
+  const total = performance.now() - t0;
+
+  const responseData = {
     card,
     userId: auth.ctx.userId,
     boardType: boardResult.data?.type || null,
@@ -72,5 +82,12 @@ export async function GET(request: NextRequest, { params }: Params) {
     profiles: profilesResult.data || [],
     comments: commentsWithProfiles,
     signedCoverUrl,
-  });
+  };
+
+  const res = NextResponse.json({ data: responseData });
+  const timings = [`auth;dur=${tAuth.toFixed(0)}`, `queries;dur=${tQuery.toFixed(0)}`];
+  if (tCover > 0) timings.push(`cover;dur=${tCover.toFixed(0)}`);
+  timings.push(`total;dur=${total.toFixed(0)}`);
+  res.headers.set('Server-Timing', timings.join(', '));
+  return res;
 }

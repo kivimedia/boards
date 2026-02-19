@@ -102,13 +102,10 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
         setNewComment('');
       }
 
-      // Immediately show the new comment without waiting for refresh
+      // Immediately show the new comment from POST response (no full refresh needed)
       if (savedComment && onCommentAdded) {
         onCommentAdded(savedComment);
       }
-
-      // Also refresh in background for consistency
-      onRefresh();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Network error';
       console.error('Failed to save comment:', msg);
