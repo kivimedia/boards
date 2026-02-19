@@ -32,7 +32,7 @@ export default async function WhatsAppSettingsPage() {
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <main className="flex-1 flex flex-col overflow-hidden">
-        <Header title="WhatsApp Integration" />
+        <Header title="WhatsApp Integration" backHref="/settings" />
         <div className="flex-1 overflow-auto p-6">
           <div className="max-w-4xl mx-auto">
             <div className="mb-6">

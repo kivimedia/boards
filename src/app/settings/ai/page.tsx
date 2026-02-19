@@ -16,7 +16,7 @@ export default async function AISettingsPage() {
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <main className="flex-1 flex flex-col overflow-hidden">
-        <Header title="AI Configuration" />
+        <Header title="AI Configuration" backHref="/settings" />
         <AISettingsDashboard />
       </main>
     </div>

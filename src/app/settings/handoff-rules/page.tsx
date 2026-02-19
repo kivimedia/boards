@@ -16,7 +16,7 @@ export default async function HandoffRulesPage() {
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <main className="flex-1 flex flex-col overflow-hidden">
-        <Header title="Handoff Rules" />
+        <Header title="Handoff Rules" backHref="/settings" />
         <HandoffRulesManager />
       </main>
     </div>

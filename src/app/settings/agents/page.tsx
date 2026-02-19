@@ -16,7 +16,7 @@ export default async function AgentSkillsPage() {
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <main className="flex-1 flex flex-col overflow-hidden">
-        <Header title="Agent Skills" />
+        <Header title="Agent Skills" backHref="/settings" />
         <div className="flex-1 overflow-y-auto p-6">
           <SkillQualityDashboard />
         </div>

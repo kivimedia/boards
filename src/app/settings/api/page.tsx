@@ -16,7 +16,7 @@ export default async function ApiSettingsPage() {
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <main className="flex-1 flex flex-col overflow-hidden">
-        <Header title="API & Webhooks" />
+        <Header title="API & Webhooks" backHref="/settings" />
         <ApiSettingsContent />
       </main>
     </div>

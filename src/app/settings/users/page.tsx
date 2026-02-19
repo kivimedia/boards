@@ -40,7 +40,7 @@ export default async function UsersSettingsPage() {
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <main className="flex-1 flex flex-col overflow-hidden">
-        <Header title="User Management" />
+        <Header title="User Management" backHref="/settings" />
         <UserManagement initialProfiles={profilesWithRole} currentUserId={user.id} />
       </main>
     </div>

@@ -33,7 +33,7 @@ export default async function ClientBrainPage({ params }: Params) {
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <main className="flex-1 flex flex-col overflow-hidden">
-        <Header title={`${client.name} — Client Brain`} />
+        <Header title={`${client.name} — Client Brain`} backHref="/settings" />
         <div className="flex-1 overflow-y-auto">
           <ClientBrainSettings clientId={clientId} clientName={client.name} />
         </div>
