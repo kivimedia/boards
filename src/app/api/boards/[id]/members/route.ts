@@ -18,17 +18,27 @@ export async function GET(_request: NextRequest, { params }: Params) {
   const { supabase } = auth.ctx;
   const boardId = params.id;
 
-  const { data, error } = await supabase
-    .from('board_members')
-    .select('*, profile:profiles(*)')
-    .eq('board_id', boardId)
-    .order('created_at', { ascending: true });
+  // Fetch members + profiles separately (no FK from board_members→profiles)
+  const [membersRes, profilesRes] = await Promise.all([
+    supabase
+      .from('board_members')
+      .select('*')
+      .eq('board_id', boardId)
+      .order('created_at', { ascending: true }),
+    supabase.from('profiles').select('*'),
+  ]);
 
-  if (error) {
-    return errorResponse(error.message, 500);
+  if (membersRes.error) {
+    return errorResponse(membersRes.error.message, 500);
   }
 
-  return successResponse(data || []);
+  const profilesMap = new Map((profilesRes.data || []).map((p: any) => [p.id, p]));
+  const membersWithProfiles = (membersRes.data || []).map((m: any) => ({
+    ...m,
+    profile: profilesMap.get(m.user_id) || null,
+  }));
+
+  return successResponse(membersWithProfiles);
 }
 
 interface AddMemberBody {
@@ -106,7 +116,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     return errorResponse('User not found', 404);
   }
 
-  const { data, error } = await supabase
+  const { data: inserted, error } = await supabase
     .from('board_members')
     .insert({
       board_id: boardId,
@@ -114,12 +124,19 @@ export async function POST(request: NextRequest, { params }: Params) {
       role,
       added_by: userId,
     })
-    .select('*, profile:profiles(*)')
+    .select('*')
     .single();
 
   if (error) {
     return errorResponse(error.message, 500);
   }
 
-  return successResponse(data, 201);
+  // Attach profile manually
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user_id)
+    .single();
+
+  return successResponse({ ...inserted, profile: profile || null }, 201);
 }

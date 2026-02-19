@@ -33,9 +33,9 @@ export async function GET(request: NextRequest, { params }: Params) {
     supabase.from('card_placements').select('list:lists(name)').eq('card_id', params.id).eq('is_mirror', false).single(),
     supabase.from('card_labels').select('label:labels(*)').eq('card_id', params.id),
     supabase.from('labels').select('*').eq('board_id', boardId),
-    supabase.from('card_assignees').select('user:profiles(*)').eq('card_id', params.id),
+    supabase.from('card_assignees').select('*').eq('card_id', params.id),
     supabase.from('profiles').select('*'),
-    supabase.from('comments').select('*, profile:profiles(*)').eq('card_id', params.id).order('created_at', { ascending: true }),
+    supabase.from('comments').select('*').eq('card_id', params.id).order('created_at', { ascending: true }),
   ]);
 
   if (cardResult.error || !cardResult.data) {
@@ -53,6 +53,13 @@ export async function GET(request: NextRequest, { params }: Params) {
     signedCoverUrl = signedData?.signedUrl || card.cover_image_url;
   }
 
+  // Manually attach profiles to comments (no FK from comments→profiles)
+  const profilesMap = new Map((profilesResult.data || []).map((p: any) => [p.id, p]));
+  const commentsWithProfiles = (commentsResult.data || []).map((c: any) => ({
+    ...c,
+    profile: profilesMap.get(c.user_id) || null,
+  }));
+
   return successResponse({
     card,
     userId: auth.ctx.userId,
@@ -61,9 +68,9 @@ export async function GET(request: NextRequest, { params }: Params) {
     listName: (placementResult.data?.list as any)?.name || '',
     labels: cardLabelsResult.data?.map((cl: any) => cl.label).filter(Boolean) || [],
     boardLabels: boardLabelsResult.data || [],
-    assignees: assigneesResult.data?.map((a: any) => a.user).filter(Boolean) || [],
+    assignees: (assigneesResult.data || []).map((a: any) => profilesMap.get(a.user_id)).filter(Boolean),
     profiles: profilesResult.data || [],
-    comments: commentsResult.data || [],
+    comments: commentsWithProfiles,
     signedCoverUrl,
   });
 }

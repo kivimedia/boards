@@ -10,14 +10,26 @@ export async function GET(_request: NextRequest, { params }: Params) {
   if (!auth.ok) return auth.response;
 
   const { supabase } = auth.ctx;
-  const { data, error } = await supabase
-    .from('comments')
-    .select('*, profile:profiles(*)')
-    .eq('card_id', params.id)
-    .order('created_at', { ascending: true });
 
-  if (error) return errorResponse(error.message, 500);
-  return successResponse(data);
+  // Fetch comments and profiles separately (no FK from comments→profiles)
+  const [commentsRes, profilesRes] = await Promise.all([
+    supabase
+      .from('comments')
+      .select('*')
+      .eq('card_id', params.id)
+      .order('created_at', { ascending: true }),
+    supabase.from('profiles').select('*'),
+  ]);
+
+  if (commentsRes.error) return errorResponse(commentsRes.error.message, 500);
+
+  const profilesMap = new Map((profilesRes.data || []).map((p: any) => [p.id, p]));
+  const commentsWithProfiles = (commentsRes.data || []).map((c: any) => ({
+    ...c,
+    profile: profilesMap.get(c.user_id) || null,
+  }));
+
+  return successResponse(commentsWithProfiles);
 }
 
 interface CreateCommentBody {
@@ -44,11 +56,19 @@ export async function POST(request: NextRequest, { params }: Params) {
       content: body.body.content.trim(),
       parent_comment_id: body.body.parent_comment_id || null,
     })
-    .select('*, profile:profiles(*)')
+    .select('*')
     .single();
 
   if (error) return errorResponse(error.message, 500);
-  return successResponse(data, 201);
+
+  // Attach profile to the returned comment
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single();
+
+  return successResponse({ ...data, profile: profile || null }, 201);
 }
 
 interface DeleteCommentBody {

@@ -77,19 +77,26 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     return errorResponse('Board member not found', 404);
   }
 
-  const { data, error } = await supabase
+  const { data: updated, error } = await supabase
     .from('board_members')
     .update({ role })
     .eq('id', memberId)
     .eq('board_id', boardId)
-    .select('*, profile:profiles(*)')
+    .select('*')
     .single();
 
   if (error) {
     return errorResponse(error.message, 500);
   }
 
-  return successResponse(data);
+  // Attach profile manually (no FK from board_members→profiles)
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', updated.user_id)
+    .single();
+
+  return successResponse({ ...updated, profile: profile || null });
 }
 
 /**
