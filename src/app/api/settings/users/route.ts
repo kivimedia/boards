@@ -1,11 +1,39 @@
 import { NextRequest } from 'next/server';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { getAuthContext, successResponse, errorResponse, parseBody } from '@/lib/api-helpers';
 import { UserRole } from '@/lib/types';
 import { ALL_ROLES } from '@/lib/permissions';
 
+/** Helper: verify the requesting user is an admin */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function requireAdmin(supabase: SupabaseClient<any>, userId: string) {
+  const { data: currentProfile, error }: { data: any; error: any } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single();
+
+  if (error || !currentProfile) return null;
+
+  const userRole = currentProfile.user_role || currentProfile.role || 'member';
+  if (userRole !== 'admin') return null;
+
+  return currentProfile;
+}
+
+/** Helper: get admin Supabase client with service role */
+function getAdminClient() {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceRoleKey) return null;
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    serviceRoleKey
+  );
+}
+
 /**
  * GET /api/settings/users
- * List all profiles with user_role. Admin only.
+ * List all profiles with user_role and email. Admin only.
  */
 export async function GET() {
   const auth = await getAuthContext();
@@ -13,21 +41,8 @@ export async function GET() {
 
   const { supabase, userId } = auth.ctx;
 
-  // Check if the requesting user is an admin
-  const { data: currentProfile, error: profileError } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .single();
-
-  if (profileError || !currentProfile) {
-    return errorResponse('Profile not found', 404);
-  }
-
-  const userRole = currentProfile.user_role || currentProfile.role || 'member';
-  if (userRole !== 'admin') {
-    return errorResponse('Forbidden: Admin access required', 403);
-  }
+  const admin = await requireAdmin(supabase, userId);
+  if (!admin) return errorResponse('Forbidden: Admin access required', 403);
 
   const { data: profiles, error } = await supabase
     .from('profiles')
@@ -38,9 +53,24 @@ export async function GET() {
     return errorResponse(error.message, 500);
   }
 
+  // Fetch emails from auth.users via admin API
+  const adminClient = getAdminClient();
+  let emailMap = new Map<string, string>();
+  if (adminClient) {
+    try {
+      const { data: { users } } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
+      for (const u of users) {
+        if (u.email) emailMap.set(u.id, u.email);
+      }
+    } catch {
+      // If admin API fails, emails just won't be included
+    }
+  }
+
   const profilesWithRole = (profiles || []).map((p) => ({
     ...p,
     user_role: p.user_role || 'member',
+    email: p.email || emailMap.get(p.id) || null,
   }));
 
   return successResponse(profilesWithRole);
@@ -62,21 +92,8 @@ export async function PATCH(request: NextRequest) {
 
   const { supabase, userId } = auth.ctx;
 
-  // Check if the requesting user is an admin
-  const { data: currentProfile, error: profileError } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .single();
-
-  if (profileError || !currentProfile) {
-    return errorResponse('Profile not found', 404);
-  }
-
-  const currentUserRole = currentProfile.user_role || currentProfile.role || 'member';
-  if (currentUserRole !== 'admin') {
-    return errorResponse('Forbidden: Admin access required', 403);
-  }
+  const admin = await requireAdmin(supabase, userId);
+  if (!admin) return errorResponse('Forbidden: Admin access required', 403);
 
   const body = await parseBody<UpdateUserRoleBody>(request);
   if (!body.ok) return body.response;
@@ -108,4 +125,132 @@ export async function PATCH(request: NextRequest) {
   }
 
   return successResponse(data);
+}
+
+interface DeleteUserBody {
+  user_id: string;
+  reassign_to: string;
+}
+
+/**
+ * DELETE /api/settings/users
+ * Delete a user and reassign their cards to another user. Admin only.
+ * Body: { user_id: string, reassign_to: string }
+ */
+export async function DELETE(request: NextRequest) {
+  const auth = await getAuthContext();
+  if (!auth.ok) return auth.response;
+
+  const { supabase, userId } = auth.ctx;
+
+  const admin = await requireAdmin(supabase, userId);
+  if (!admin) return errorResponse('Forbidden: Admin access required', 403);
+
+  const body = await parseBody<DeleteUserBody>(request);
+  if (!body.ok) return body.response;
+
+  const { user_id, reassign_to } = body.body;
+
+  if (!user_id || !reassign_to) {
+    return errorResponse('user_id and reassign_to are required');
+  }
+
+  if (user_id === userId) {
+    return errorResponse('You cannot delete your own account');
+  }
+
+  if (user_id === reassign_to) {
+    return errorResponse('Cannot reassign cards to the same user being deleted');
+  }
+
+  // Verify both users exist
+  const { data: targetProfile } = await supabase
+    .from('profiles')
+    .select('id, display_name')
+    .eq('id', reassign_to)
+    .single();
+
+  if (!targetProfile) {
+    return errorResponse('Reassignment target user not found', 404);
+  }
+
+  const { data: deleteProfile } = await supabase
+    .from('profiles')
+    .select('id, display_name')
+    .eq('id', user_id)
+    .single();
+
+  if (!deleteProfile) {
+    return errorResponse('User to delete not found', 404);
+  }
+
+  const adminClient = getAdminClient();
+  if (!adminClient) {
+    return errorResponse('Server is not configured for user deletion (missing service role key)', 500);
+  }
+
+  try {
+    // 1. Reassign card_assignees: delete old, insert new (avoiding duplicates)
+    // First get all cards assigned to the user being deleted
+    const { data: assignments } = await adminClient
+      .from('card_assignees')
+      .select('card_id')
+      .eq('user_id', user_id);
+
+    const cardIds = (assignments || []).map(a => a.card_id);
+
+    if (cardIds.length > 0) {
+      // Check which cards are already assigned to the target user
+      const { data: existingAssignments } = await adminClient
+        .from('card_assignees')
+        .select('card_id')
+        .eq('user_id', reassign_to)
+        .in('card_id', cardIds);
+
+      const alreadyAssigned = new Set((existingAssignments || []).map(a => a.card_id));
+
+      // Delete all assignments from the old user
+      await adminClient
+        .from('card_assignees')
+        .delete()
+        .eq('user_id', user_id);
+
+      // Insert assignments for the new user (only for cards they don't already have)
+      const newAssignments = cardIds
+        .filter(cardId => !alreadyAssigned.has(cardId))
+        .map(cardId => ({ card_id: cardId, user_id: reassign_to }));
+
+      if (newAssignments.length > 0) {
+        // Insert in batches of 100
+        for (let i = 0; i < newAssignments.length; i += 100) {
+          const batch = newAssignments.slice(i, i + 100);
+          await adminClient.from('card_assignees').insert(batch);
+        }
+      }
+    }
+
+    // 2. Remove from board_members
+    await adminClient
+      .from('board_members')
+      .delete()
+      .eq('user_id', user_id);
+
+    // 3. Delete profile
+    await adminClient
+      .from('profiles')
+      .delete()
+      .eq('id', user_id);
+
+    // 4. Delete auth user
+    await adminClient.auth.admin.deleteUser(user_id);
+
+    return successResponse({
+      deleted: deleteProfile.display_name,
+      reassigned_to: targetProfile.display_name,
+      cards_reassigned: cardIds.length,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to delete user';
+    return errorResponse(message, 500);
+  }
 }

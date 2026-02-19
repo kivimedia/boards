@@ -95,6 +95,9 @@ export default function PageProfiler() {
     const pageName = pageNameFromPath(pathname);
     if (!pageName) return;
 
+    // Record mount time to filter out stale entries from previous pages
+    const mountTime = performance.now();
+
     // Reset on navigation
     fetchPhases.current = new Map();
     trackedRef.current = pathname;
@@ -106,6 +109,8 @@ export default function PageProfiler() {
         for (const entry of list.getEntries()) {
           if (entry.entryType === 'resource') {
             const res = entry as PerformanceResourceTiming;
+            // Only include entries that started after this page mounted
+            if (res.startTime < mountTime) continue;
             const label = labelForUrl(res.name);
             if (label) {
               const duration = res.responseEnd - res.fetchStart;
