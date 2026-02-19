@@ -54,6 +54,7 @@ export default function MigrationWizard() {
   const [trelloLists, setTrelloLists] = useState<Record<string, { id: string; name: string }[]>>({});
   const [selectedListIds, setSelectedListIds] = useState<Record<string, Set<string>>>({});
   const [loadingLists, setLoadingLists] = useState(false);
+  const [listFetchError, setListFetchError] = useState('');
   const [boardMatches, setBoardMatches] = useState<Record<string, { id: string; name: string } | null>>({});
   const [loadingMatches, setLoadingMatches] = useState(false);
 
@@ -325,6 +326,7 @@ export default function MigrationWizard() {
     setLoadingMatches(true);
 
     // Fetch lists from Trello
+    setListFetchError('');
     try {
       const res = await fetch('/api/migration/trello/lists', {
         method: 'POST',
@@ -339,15 +341,17 @@ export default function MigrationWizard() {
       if (res.ok && json.data) {
         const listsData = json.data as Record<string, { id: string; name: string }[]>;
         setTrelloLists(listsData);
-        // Default: select all lists
+        // Default: no lists selected — user must explicitly pick which lists to import
         const defaultSelection: Record<string, Set<string>> = {};
-        for (const [boardId, lists] of Object.entries(listsData)) {
-          defaultSelection[boardId] = new Set(lists.map((l) => l.id));
+        for (const boardId of Object.keys(listsData)) {
+          defaultSelection[boardId] = new Set<string>();
         }
         setSelectedListIds(defaultSelection);
+      } else {
+        setListFetchError(json.error || `Failed to fetch lists (${res.status})`);
       }
-    } catch {
-      // Lists will be empty - user can still proceed
+    } catch (err) {
+      setListFetchError(err instanceof Error ? err.message : 'Network error fetching lists');
     } finally {
       setLoadingLists(false);
     }
@@ -586,12 +590,11 @@ export default function MigrationWizard() {
     setCreatingJob(true);
 
     try {
-      // Build list filter (only include boards that have a subset selected)
+      // Build list filter (always apply when lists are selected)
       const listFilter: Record<string, string[]> = {};
       for (const boardId of Array.from(selectedBoardIds)) {
-        const allLists = trelloLists[boardId] || [];
         const selected = selectedListIds[boardId];
-        if (selected && selected.size > 0 && selected.size < allLists.length) {
+        if (selected && selected.size > 0) {
           listFilter[boardId] = Array.from(selected);
         }
       }
@@ -1079,6 +1082,13 @@ export default function MigrationWizard() {
               </div>
             )}
 
+            {listFetchError && (
+              <div className="p-3 rounded-xl bg-danger/10 text-danger text-sm font-body mb-3">
+                Failed to load lists: {listFetchError}
+                <button onClick={fetchListsAndMatches} className="ml-2 underline font-medium">Retry</button>
+              </div>
+            )}
+
             {(loadingLists || loadingMatches) ? (
               <div className="flex flex-col items-center py-8 gap-3">
                 <svg className="animate-spin h-8 w-8 text-electric" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -1176,7 +1186,7 @@ export default function MigrationWizard() {
                   fetchMembers();
                   setStep(4);
                 }}
-                disabled={loadingLists || loadingMatches}
+                disabled={loadingLists || loadingMatches || Array.from(selectedBoardIds).every((id) => !(selectedListIds[id]?.size))}
                 className="px-6 py-2.5 bg-electric text-white rounded-xl font-heading font-semibold text-sm hover:bg-electric/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Next
@@ -1397,7 +1407,7 @@ export default function MigrationWizard() {
                     const match = boardMatches[id];
                     const listsForBoard = trelloLists[id] || [];
                     const selectedLists = selectedListIds[id] || new Set<string>();
-                    const listCount = selectedLists.size || listsForBoard.length;
+                    const listCount = selectedLists.size;
                     return (
                       <div key={id} className="space-y-1">
                         <div className="flex items-center gap-2">
@@ -1450,7 +1460,7 @@ export default function MigrationWizard() {
                 </div>
                 <div className="bg-cream dark:bg-navy rounded-xl p-4 text-center">
                   <p className="text-2xl font-heading font-bold text-navy dark:text-slate-100">
-                    {Array.from(selectedBoardIds).reduce((sum, id) => sum + (selectedListIds[id]?.size || trelloLists[id]?.length || 0), 0)}
+                    {Array.from(selectedBoardIds).reduce((sum, id) => sum + (selectedListIds[id]?.size || 0), 0)}
                   </p>
                   <p className="text-xs text-navy/40 dark:text-slate-500 font-body mt-1">
                     Lists

@@ -189,7 +189,10 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
               .eq('id', updatedLists[i].id)
           );
         }
-        Promise.all(updates);
+        Promise.all(updates).catch((err) => {
+          console.error('Failed to save list reorder:', err);
+          onRefresh();
+        });
         return;
       }
 
