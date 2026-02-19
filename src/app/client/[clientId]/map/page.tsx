@@ -1,6 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { redirect, notFound } from 'next/navigation';
-import Sidebar from '@/components/layout/Sidebar';
+import SidebarWithBoards from '@/components/layout/SidebarWithBoards';
 import Header from '@/components/layout/Header';
 import MapBoardView from '@/components/map/MapBoardView';
 
@@ -28,7 +28,7 @@ export default async function ClientMapPage({ params }: MapPageProps) {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar />
+      <SidebarWithBoards />
       <main className="flex-1 flex flex-col overflow-hidden">
         <Header title={`${client.name} — Strategy Map`} />
         <MapBoardView clientId={client.id} />

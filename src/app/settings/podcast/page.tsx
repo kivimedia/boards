@@ -1,6 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import Sidebar from '@/components/layout/Sidebar';
+import SidebarWithBoards from '@/components/layout/SidebarWithBoards';
 import Header from '@/components/layout/Header';
 import PodcastIntegrationSettings from '@/components/podcast/PodcastIntegrationSettings';
 
@@ -14,7 +14,7 @@ export default async function PodcastSettingsPage() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar />
+      <SidebarWithBoards />
       <main className="flex-1 flex flex-col overflow-hidden">
         <Header title="Podcast Integrations" backHref="/settings" />
         <div className="flex-1 overflow-auto p-6">

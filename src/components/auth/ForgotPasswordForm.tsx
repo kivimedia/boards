@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 
@@ -9,6 +8,8 @@ export default function ForgotPasswordForm() {
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const [actionLink, setActionLink] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -16,16 +17,30 @@ export default function ForgotPasswordForm() {
     setError('');
     setLoading(true);
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
-    });
+    try {
+      // Use server-side endpoint to bypass Supabase email rate limits
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+        }),
+      });
 
-    if (error) {
-      setError(error.message);
-    } else {
-      setSuccess(true);
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'Failed to send reset link');
+      } else {
+        setSuccess(true);
+        setEmailSent(data.email_sent || false);
+        setActionLink(data.action_link || null);
+      }
+    } catch {
+      setError('Network error. Please try again.');
     }
+
     setLoading(false);
   };
 
@@ -33,11 +48,31 @@ export default function ForgotPasswordForm() {
     return (
       <div className="text-center space-y-4">
         <div className="p-3 rounded-xl bg-mint/20 text-mint-dark text-sm font-body">
-          Check your email for a password reset link.
+          {emailSent
+            ? 'A password reset link has been sent to your email.'
+            : 'A password reset link has been generated.'}
         </div>
-        <p className="text-navy/70 text-sm font-body">
-          If you don&apos;t see it, check your spam folder.
-        </p>
+        {emailSent ? (
+          <p className="text-navy/70 text-sm font-body">
+            Check your inbox (and spam folder) for an email from Kivi Media Boards with a reset link.
+          </p>
+        ) : actionLink ? (
+          <div className="space-y-3">
+            <p className="text-navy/70 text-sm font-body">
+              Click the button below to reset your password:
+            </p>
+            <a
+              href={actionLink}
+              className="block w-full px-4 py-2.5 bg-electric hover:bg-electric-bright text-white text-sm font-semibold rounded-xl text-center transition-colors"
+            >
+              Reset Password Now
+            </a>
+          </div>
+        ) : (
+          <p className="text-navy/70 text-sm font-body">
+            Check your email for a password reset link. If you don&apos;t see it, check your spam folder.
+          </p>
+        )}
       </div>
     );
   }

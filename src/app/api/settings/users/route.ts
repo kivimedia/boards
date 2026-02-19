@@ -76,15 +76,17 @@ export async function GET() {
   return successResponse(profilesWithRole);
 }
 
-interface UpdateUserRoleBody {
+interface UpdateUserBody {
   user_id: string;
-  user_role: UserRole;
+  user_role?: UserRole;
+  display_name?: string;
+  email?: string;
 }
 
 /**
  * PATCH /api/settings/users
- * Update a user's user_role. Admin only.
- * Body: { user_id: string, user_role: UserRole }
+ * Update a user's user_role, display_name, or email. Admin only.
+ * Body: { user_id: string, user_role?: UserRole, display_name?: string, email?: string }
  */
 export async function PATCH(request: NextRequest) {
   const auth = await getAuthContext();
@@ -95,33 +97,75 @@ export async function PATCH(request: NextRequest) {
   const admin = await requireAdmin(supabase, userId);
   if (!admin) return errorResponse('Forbidden: Admin access required', 403);
 
-  const body = await parseBody<UpdateUserRoleBody>(request);
+  const body = await parseBody<UpdateUserBody>(request);
   if (!body.ok) return body.response;
 
-  const { user_id, user_role } = body.body;
+  const { user_id, user_role, display_name, email } = body.body;
 
-  if (!user_id || !user_role) {
-    return errorResponse('user_id and user_role are required');
+  if (!user_id) {
+    return errorResponse('user_id is required');
   }
 
-  if (!ALL_ROLES.includes(user_role)) {
-    return errorResponse(`Invalid role. Must be one of: ${ALL_ROLES.join(', ')}`);
+  if (user_role) {
+    if (!ALL_ROLES.includes(user_role)) {
+      return errorResponse(`Invalid role. Must be one of: ${ALL_ROLES.join(', ')}`);
+    }
+
+    // Prevent admin from changing their own role
+    if (user_id === userId) {
+      return errorResponse('You cannot change your own role');
+    }
   }
 
-  // Prevent admin from changing their own role
-  if (user_id === userId) {
-    return errorResponse('You cannot change your own role');
+  // Build profile update
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const profileUpdate: Record<string, any> = {};
+  if (user_role) profileUpdate.user_role = user_role;
+  if (display_name?.trim()) profileUpdate.display_name = display_name.trim();
+
+  // Update profile fields
+  if (Object.keys(profileUpdate).length > 0) {
+    const { error } = await supabase
+      .from('profiles')
+      .update(profileUpdate)
+      .eq('id', user_id);
+
+    if (error) {
+      return errorResponse(error.message, 500);
+    }
   }
 
-  const { data, error } = await supabase
+  // Update email via admin API (requires service role)
+  if (email?.trim()) {
+    const adminClient = getAdminClient();
+    if (!adminClient) {
+      return errorResponse('Server is not configured for email changes (missing service role key)', 500);
+    }
+
+    const { error: emailError } = await adminClient.auth.admin.updateUserById(user_id, {
+      email: email.trim(),
+    });
+
+    if (emailError) {
+      return errorResponse(`Failed to update email: ${emailError.message}`, 500);
+    }
+
+    // Also update email in profiles table if the column exists
+    await supabase
+      .from('profiles')
+      .update({ email: email.trim() })
+      .eq('id', user_id);
+  }
+
+  // Fetch updated profile to return
+  const { data, error: fetchError } = await supabase
     .from('profiles')
-    .update({ user_role })
+    .select('*')
     .eq('id', user_id)
-    .select()
     .single();
 
-  if (error) {
-    return errorResponse(error.message, 500);
+  if (fetchError) {
+    return errorResponse(fetchError.message, 500);
   }
 
   return successResponse(data);

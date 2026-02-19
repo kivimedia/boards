@@ -1,6 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import Sidebar from '@/components/layout/Sidebar';
+import SidebarWithBoards from '@/components/layout/SidebarWithBoards';
 import Header from '@/components/layout/Header';
 import ClientBrainSettings from '@/components/client/ClientBrainSettings';
 
@@ -31,7 +31,7 @@ export default async function ClientBrainPage({ params }: Params) {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar />
+      <SidebarWithBoards />
       <main className="flex-1 flex flex-col overflow-hidden">
         <Header title={`${client.name} — Client Brain`} backHref="/settings" />
         <div className="flex-1 overflow-y-auto">

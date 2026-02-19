@@ -39,6 +39,20 @@ export default function UserManagement({ currentUserId }: UserManagementProps) {
   const [reassignTo, setReassignTo] = useState('');
   const [deleting, setDeleting] = useState(false);
 
+  // Edit user state
+  const [editTarget, setEditTarget] = useState<ProfileWithRole | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  // Credentials modal state
+  const [credentials, setCredentials] = useState<{ name: string; email: string; password: string; emailSent?: boolean } | null>(null);
+  const [resettingUserId, setResettingUserId] = useState<string | null>(null);
+
+  // Resend all state
+  const [resendingAll, setResendingAll] = useState(false);
+  const [resendAllResults, setResendAllResults] = useState<{ sent: number; failed: number; total: number } | null>(null);
+
   const fetchUsers = useCallback(async () => {
     try {
       const res = await fetch('/api/settings/users');
@@ -115,7 +129,18 @@ export default function UserManagement({ currentUserId }: UserManagementProps) {
         throw new Error(err.error || 'Failed to invite user');
       }
 
-      showToast('success', `Invited ${inviteName.trim()} (${inviteEmail.trim()}) successfully.`);
+      const result = await response.json();
+      // Show credentials to admin so they can share with the user
+      if (result.data?.temp_password) {
+        setCredentials({
+          name: inviteName.trim(),
+          email: inviteEmail.trim(),
+          password: result.data.temp_password,
+          emailSent: result.data.email_sent,
+        });
+      } else {
+        showToast('success', `Invited ${inviteName.trim()} (${inviteEmail.trim()}) successfully.`);
+      }
       setInviteEmail('');
       setInviteName('');
       setShowInviteForm(false);
@@ -156,6 +181,117 @@ export default function UserManagement({ currentUserId }: UserManagementProps) {
       showToast('error', err instanceof Error ? err.message : 'Failed to delete user.');
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleResetPassword = async (userId: string) => {
+    setResettingUserId(userId);
+    try {
+      const response = await fetch('/api/settings/users/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Failed to reset password');
+      }
+
+      const result = await response.json();
+      setCredentials({
+        name: result.data.display_name,
+        email: result.data.email,
+        password: result.data.temp_password,
+        emailSent: result.data.email_sent,
+      });
+    } catch (err) {
+      showToast('error', err instanceof Error ? err.message : 'Failed to reset password.');
+    } finally {
+      setResettingUserId(null);
+    }
+  };
+
+  const copyCredentials = () => {
+    if (!credentials) return;
+    const text = `Login: ${credentials.email}\nPassword: ${credentials.password}\nURL: ${window.location.origin}/login`;
+    navigator.clipboard.writeText(text);
+    showToast('success', 'Credentials copied to clipboard.');
+  };
+
+  const handleResendAll = async () => {
+    if (resendingAll) return;
+    setResendingAll(true);
+    setResendAllResults(null);
+    let sent = 0;
+    let failed = 0;
+    const usersWithEmail = profiles.filter(p => p.email);
+
+    for (const profile of usersWithEmail) {
+      try {
+        const response = await fetch('/api/settings/users/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: profile.id }),
+        });
+        if (response.ok) {
+          sent++;
+        } else {
+          failed++;
+        }
+      } catch {
+        failed++;
+      }
+    }
+
+    setResendAllResults({ sent, failed, total: usersWithEmail.length });
+    setResendingAll(false);
+    showToast('success', `Credentials sent to ${sent} of ${usersWithEmail.length} users.`);
+  };
+
+  const openEditModal = (profile: ProfileWithRole) => {
+    setEditTarget(profile);
+    setEditName(profile.display_name);
+    setEditEmail(profile.email || '');
+  };
+
+  const handleEditSave = async () => {
+    if (!editTarget) return;
+    setSaving(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const body: Record<string, any> = { user_id: editTarget.id };
+      if (editName.trim() !== editTarget.display_name) {
+        body.display_name = editName.trim();
+      }
+      if (editEmail.trim() && editEmail.trim() !== (editTarget.email || '')) {
+        body.email = editEmail.trim();
+      }
+
+      if (Object.keys(body).length === 1) {
+        // Only user_id, nothing changed
+        setEditTarget(null);
+        return;
+      }
+
+      const response = await fetch('/api/settings/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Failed to update user');
+      }
+
+      showToast('success', 'User updated successfully.');
+      setEditTarget(null);
+      await fetchUsers();
+    } catch (err) {
+      showToast('error', err instanceof Error ? err.message : 'Failed to update user.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -213,6 +349,13 @@ export default function UserManagement({ currentUserId }: UserManagementProps) {
             <span className="text-sm text-navy/40 dark:text-slate-500 font-body">
               {profiles.length} user{profiles.length !== 1 ? 's' : ''} total
             </span>
+            <button
+              onClick={handleResendAll}
+              disabled={resendingAll}
+              className="text-sm px-3 py-1.5 rounded-lg border-2 border-electric/30 text-electric hover:bg-electric/5 font-medium font-body transition-colors disabled:opacity-50"
+            >
+              {resendingAll ? 'Sending...' : 'Resend to All'}
+            </button>
             <Button
               onClick={() => setShowInviteForm(!showInviteForm)}
               className="text-sm"
@@ -357,7 +500,7 @@ export default function UserManagement({ currentUserId }: UserManagementProps) {
                                 handleRoleChange(profile.id, e.target.value as UserRole)
                               }
                               className={`
-                                appearance-none w-full max-w-[180px] px-3 py-1.5 pr-8 rounded-lg
+                                appearance-none w-full max-w-[180px] px-3 py-1.5 pr-10 rounded-lg
                                 bg-white dark:bg-dark-surface border-2 border-navy/10 dark:border-slate-700 text-sm font-body text-navy dark:text-slate-100
                                 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric
                                 transition-all duration-200
@@ -371,7 +514,7 @@ export default function UserManagement({ currentUserId }: UserManagementProps) {
                                 </option>
                               ))}
                             </select>
-                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
                               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-navy/30">
                                 <polyline points="6 9 12 15 18 9" />
                               </svg>
@@ -390,16 +533,41 @@ export default function UserManagement({ currentUserId }: UserManagementProps) {
                                 </svg>
                                 Saving...
                               </span>
-                            ) : isCurrentUser ? (
-                              <span className="text-xs text-navy/30 dark:text-slate-500 font-body">--</span>
                             ) : (
-                              <button
-                                onClick={() => { setDeleteTarget(profile); setReassignTo(''); }}
-                                className="text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-body transition-colors"
-                                title="Delete user and reassign cards"
-                              >
-                                Delete
-                              </button>
+                              <>
+                                {!isCurrentUser && (
+                                  <>
+                                    <button
+                                      onClick={() => openEditModal(profile)}
+                                      className="text-xs text-navy/60 hover:text-navy dark:text-slate-400 dark:hover:text-slate-200 font-body transition-colors"
+                                      title="Edit user name or email"
+                                    >
+                                      Edit
+                                    </button>
+                                    <span className="text-navy/20 dark:text-slate-600">|</span>
+                                  </>
+                                )}
+                                <button
+                                  onClick={() => handleResetPassword(profile.id)}
+                                  disabled={resettingUserId === profile.id}
+                                  className="text-xs text-electric hover:text-electric-bright font-body transition-colors disabled:opacity-50"
+                                  title="Reset password and email new credentials"
+                                >
+                                  {resettingUserId === profile.id ? 'Sending...' : 'Resend'}
+                                </button>
+                                {!isCurrentUser && (
+                                  <>
+                                    <span className="text-navy/20 dark:text-slate-600">|</span>
+                                    <button
+                                      onClick={() => { setDeleteTarget(profile); setReassignTo(''); }}
+                                      className="text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-body transition-colors"
+                                      title="Delete user and reassign cards"
+                                    >
+                                      Delete
+                                    </button>
+                                  </>
+                                )}
+                              </>
                             )}
                           </div>
                         </td>
@@ -411,6 +579,114 @@ export default function UserManagement({ currentUserId }: UserManagementProps) {
             </table>
           </div>
         </div>
+
+        {/* Credentials Modal */}
+        {credentials && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 shadow-xl p-6 w-full max-w-md mx-4">
+              <h3 className="text-lg font-semibold text-navy dark:text-white font-heading mb-2">
+                Login Credentials
+              </h3>
+              {credentials.emailSent ? (
+                <p className="text-sm text-green-700 dark:text-green-300 font-body mb-4">
+                  Credentials emailed to <strong>{credentials.email}</strong> successfully.
+                </p>
+              ) : (
+                <p className="text-sm text-navy/60 dark:text-slate-400 font-body mb-4">
+                  Share these credentials with <strong className="text-navy dark:text-white">{credentials.name}</strong> so they can log in.
+                </p>
+              )}
+
+              <div className="bg-cream/50 dark:bg-navy/30 rounded-xl p-4 mb-4 space-y-2 font-mono text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-navy/50 dark:text-slate-400">Email:</span>
+                  <span className="text-navy dark:text-white font-medium">{credentials.email}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-navy/50 dark:text-slate-400">Password:</span>
+                  <span className="text-navy dark:text-white font-medium">{credentials.password}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-navy/50 dark:text-slate-400">URL:</span>
+                  <span className="text-navy dark:text-white font-medium text-xs">{typeof window !== 'undefined' ? window.location.origin : ''}/login</span>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={copyCredentials}
+                  className="px-4 py-2 text-sm font-medium rounded-lg bg-electric hover:bg-electric-bright text-white transition-colors font-body"
+                >
+                  Copy to Clipboard
+                </button>
+                <button
+                  onClick={() => setCredentials(null)}
+                  className="px-4 py-2 text-sm text-navy/60 dark:text-slate-400 hover:text-navy dark:hover:text-slate-200 font-body transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit User Modal */}
+        {editTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 shadow-xl p-6 w-full max-w-md mx-4">
+              <h3 className="text-lg font-semibold text-navy dark:text-white font-heading mb-4">
+                Edit User
+              </h3>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-navy dark:text-slate-200 mb-1 font-body">
+                    Display Name
+                  </label>
+                  <Input
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder="Display name"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-navy dark:text-slate-200 mb-1 font-body">
+                    Email
+                  </label>
+                  <Input
+                    type="email"
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    placeholder="Email address"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => setEditTarget(null)}
+                  className="px-4 py-2 text-sm text-navy/60 dark:text-slate-400 hover:text-navy dark:hover:text-slate-200 font-body transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleEditSave}
+                  disabled={saving || !editName.trim()}
+                  className={`
+                    px-4 py-2 text-sm font-medium rounded-lg transition-colors font-body
+                    ${saving || !editName.trim()
+                      ? 'bg-electric/50 text-white/70 cursor-not-allowed'
+                      : 'bg-electric hover:bg-electric-bright text-white'
+                    }
+                  `}
+                >
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Delete Confirmation Modal */}
         {deleteTarget && (

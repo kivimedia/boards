@@ -1,6 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import Sidebar from '@/components/layout/Sidebar';
+import SidebarWithBoards from '@/components/layout/SidebarWithBoards';
 import Header from '@/components/layout/Header';
 import BoardMaintenanceContent from '@/components/settings/BoardMaintenanceContent';
 
@@ -20,7 +20,7 @@ export default async function BoardMaintenancePage() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar />
+      <SidebarWithBoards />
       <main className="flex-1 flex flex-col overflow-hidden">
         <Header title="Board Maintenance" backHref="/settings" />
         <div className="flex-1 overflow-y-auto bg-cream dark:bg-dark-bg p-6">
