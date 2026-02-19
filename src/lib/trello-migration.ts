@@ -1602,9 +1602,16 @@ async function importAttachments(
 
     if (cachedManifest?.metadata?.attachments?.length && cachedManifest.metadata.attachments.length > 0) {
       // Fast path: load from cache — no Trello API calls needed
-      const cached = cachedManifest!.metadata.attachments as Array<{
+      let cached = cachedManifest!.metadata.attachments as Array<{
         cardId: string; cardName: string; targetCardId: string; att: TrelloAttachment;
       }>;
+      // Apply list filter to cached manifest (cache may include cards from all lists)
+      if (listFilter && listFilter.length > 0) {
+        const trelloCards = await cachedFetchTrelloCards(auth, trelloBoardId);
+        const allowedSet = new Set(listFilter);
+        const allowedCardIds = new Set(trelloCards.filter((c) => !c.closed && allowedSet.has(c.idList)).map((c) => c.id));
+        cached = cached.filter((item) => allowedCardIds.has(item.cardId));
+      }
       await updateDetail(supabase, jobId, `Loaded ${cached.length} attachments from cache (skipping Trello scan)`);
       for (const item of cached) {
         allAttachments.push({
