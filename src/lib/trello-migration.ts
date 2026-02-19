@@ -569,7 +569,7 @@ export async function runMigration(
       if (isNearDeadline()) { hitDeadline = true; currentStep += 1; break; }
       await updateProgress(supabase, jobId, ++currentStep, totalSteps, 'importing_comments_checklists', `${boardLabel} Importing comments + checklists...`);
       await Promise.all([
-        importComments(supabase, auth, jobId, trelloBoardId, userId, config.user_mapping, report, mergeMode),
+        importComments(supabase, auth, jobId, trelloBoardId, userId, config.user_mapping, report, mergeMode, listFilter),
         importChecklists(supabase, auth, jobId, trelloBoardId, report, mergeMode, listFilter),
       ]);
       await updateReport(supabase, jobId, report);
@@ -1198,10 +1198,18 @@ async function importComments(
   userId: string,
   userMapping: Record<string, string>,
   report: MigrationReport,
-  mergeMode = false
+  mergeMode = false,
+  listFilter?: string[]
 ): Promise<void> {
   try {
-    const trelloComments = await fetchTrelloComments(auth, trelloBoardId);
+    let trelloComments = await fetchTrelloComments(auth, trelloBoardId);
+    // Filter comments to only cards on selected lists
+    if (listFilter && listFilter.length > 0) {
+      const trelloCards = await cachedFetchTrelloCards(auth, trelloBoardId);
+      const allowedSet = new Set(listFilter);
+      const allowedCardIds = new Set(trelloCards.filter((c) => !c.closed && allowedSet.has(c.idList)).map((c) => c.id));
+      trelloComments = trelloComments.filter((c) => c.data.card && allowedCardIds.has(c.data.card.id));
+    }
     await updateDetail(supabase, jobId, `Found ${trelloComments.length} comments — checking already imported...`);
 
     // Batch-load existing comment + card mappings (avoids N+1)
