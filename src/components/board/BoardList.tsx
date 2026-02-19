@@ -26,6 +26,7 @@ interface BoardListProps {
   toggleCardSelection?: (cardId: string, shiftKey?: boolean) => void;
   filter?: BoardFilter;
   isLoadingCards?: boolean;
+  isDraggingList?: boolean;
 }
 
 /** Apply board filter to a single placement. */
@@ -55,7 +56,7 @@ function matchesFilter(placement: any, filter: BoardFilter | undefined): boolean
   return true;
 }
 
-export default function BoardList({ list, index, boardId, allLists, onCardClick, onRefresh, selectedCards, toggleCardSelection, filter, isLoadingCards }: BoardListProps) {
+export default function BoardList({ list, index, boardId, allLists, onCardClick, onRefresh, selectedCards, toggleCardSelection, filter, isLoadingCards, isDraggingList }: BoardListProps) {
   const [isAddingCard, setIsAddingCard] = useState(false);
   const [newCardTitle, setNewCardTitle] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
@@ -129,10 +130,12 @@ export default function BoardList({ list, index, boardId, allLists, onCardClick,
         <div
           ref={provided.innerRef}
           {...provided.draggableProps}
-          className={`w-[85vw] sm:w-72 shrink-0 flex flex-col bg-[#f1f2f4] dark:bg-slate-800/70 rounded-xl pb-1 transition-shadow duration-200 ${
+          className={`w-[85vw] sm:w-72 shrink-0 flex flex-col rounded-xl pb-1 transition-all duration-200 ease-out ${
             snapshot.isDragging
-              ? 'shadow-xl ring-2 ring-electric/30 rotate-[1.5deg] scale-[1.02] opacity-95'
-              : ''
+              ? 'bg-white dark:bg-slate-700 shadow-2xl shadow-electric/20 ring-2 ring-electric/40 rotate-[2deg] scale-[1.03] z-50'
+              : isDraggingList
+                ? 'bg-[#f1f2f4] dark:bg-slate-800/70 border-2 border-dashed border-electric/30 opacity-70'
+                : 'bg-[#f1f2f4] dark:bg-slate-800/70'
           }`}
           style={{ maxHeight: 'calc(100vh - 140px)' }}
         >
