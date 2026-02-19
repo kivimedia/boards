@@ -16,7 +16,7 @@ export default async function MigrationPage() {
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <main className="flex-1 flex flex-col overflow-hidden">
-        <Header title="Trello Migration" />
+        <Header title="Trello Migration" backHref="/settings" />
         <MigrationWizard />
       </main>
     </div>

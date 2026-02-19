@@ -16,7 +16,7 @@ export default async function BackupsPage() {
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <main className="flex-1 flex flex-col overflow-hidden">
-        <Header title="Backups" />
+        <Header title="Backups" backHref="/settings" />
         <BackupDashboard />
       </main>
     </div>

@@ -16,7 +16,7 @@ export default async function PodcastSettingsPage() {
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <main className="flex-1 flex flex-col overflow-hidden">
-        <Header title="Podcast Integrations" />
+        <Header title="Podcast Integrations" backHref="/settings" />
         <div className="flex-1 overflow-auto p-6">
           <div className="max-w-4xl mx-auto">
             <div className="mb-6">
