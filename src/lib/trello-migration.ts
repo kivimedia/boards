@@ -171,6 +171,13 @@ export async function fetchTrelloAttachments(auth: TrelloAuth, cardId: string): 
 
 const _trelloResponseCache = new Map<string, unknown>();
 
+class MigrationCancelledError extends Error {
+  constructor() {
+    super('Migration cancelled by user');
+    this.name = 'MigrationCancelledError';
+  }
+}
+
 function clearTrelloCache() {
   _trelloResponseCache.clear();
 }
@@ -720,6 +727,20 @@ export async function runBoardMigration(
 
   const isNearDeadline = () => deadline > 0 && Date.now() > deadline - 30_000;
 
+  // Cancellation check - queries DB for current status
+  let lastCancelCheck = 0;
+  const isCancelled = async (): Promise<boolean> => {
+    const now = Date.now();
+    if (now - lastCancelCheck < 3000) return false; // Check at most every 3s
+    lastCancelCheck = now;
+    const { data } = await supabase
+      .from('migration_jobs')
+      .select('status')
+      .eq('id', jobId)
+      .single();
+    return data?.status === 'cancelled';
+  };
+
   // Mark child as running
   await supabase
     .from('migration_jobs')
@@ -755,6 +776,7 @@ export async function runBoardMigration(
     await pw.update('importing_lists', 'Importing lists', 1, 1);
 
     // Phase 4: Import cards
+    if (await isCancelled()) throw new MigrationCancelledError();
     if (isNearDeadline()) {
       await pw.forceFlush();
       await saveChildResume(supabase, jobId, report, 'importing_cards');
@@ -766,6 +788,7 @@ export async function runBoardMigration(
     await pw.update('importing_cards', 'Importing cards', 1, 1);
 
     // Phase 5: Import attachments + resolve covers
+    if (await isCancelled()) throw new MigrationCancelledError();
     if (isNearDeadline()) {
       await pw.forceFlush();
       await saveChildResume(supabase, jobId, report, 'importing_attachments');
@@ -775,6 +798,7 @@ export async function runBoardMigration(
     await importAttachments(supabase, auth, jobId, trelloBoardId, userId, report, mergeMode, deadline, listFilter);
     await updateReport(supabase, jobId, report);
 
+    if (await isCancelled()) throw new MigrationCancelledError();
     if (isNearDeadline()) {
       await pw.forceFlush();
       await saveChildResume(supabase, jobId, report, 'resolving_covers');
@@ -787,6 +811,7 @@ export async function runBoardMigration(
     await pw.update('resolving_covers', 'Resolving covers', 1, 1);
 
     // Phase 6: Comments + checklists in parallel
+    if (await isCancelled()) throw new MigrationCancelledError();
     if (isNearDeadline()) {
       await pw.forceFlush();
       await saveChildResume(supabase, jobId, report, 'importing_comments');
@@ -811,12 +836,20 @@ export async function runBoardMigration(
       })
       .eq('id', jobId);
   } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    report.errors.push(`Fatal error: ${errorMessage}`);
-    await supabase
-      .from('migration_jobs')
-      .update({ status: 'failed', error_message: errorMessage, report })
-      .eq('id', jobId);
+    if (err instanceof MigrationCancelledError) {
+      // Already set to 'cancelled' by the API - just save the partial report
+      await supabase
+        .from('migration_jobs')
+        .update({ report, progress: { phase: 'cancelled', phase_label: 'Cancelled', items_done: 0, items_total: 1 } })
+        .eq('id', jobId);
+    } else {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      report.errors.push(`Fatal error: ${errorMessage}`);
+      await supabase
+        .from('migration_jobs')
+        .update({ status: 'failed', error_message: errorMessage, report })
+        .eq('id', jobId);
+    }
   }
 
   await pw.forceFlush();

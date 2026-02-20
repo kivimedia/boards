@@ -18,6 +18,7 @@ interface StatusResponse {
 export default function ParallelMigrationProgress({ parentJobId }: ParallelMigrationProgressProps) {
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [error, setError] = useState('');
+  const [cancelling, setCancelling] = useState(false);
   const resumingRef = useRef<Set<string>>(new Set());
 
   const pollStatus = useCallback(async () => {
@@ -65,6 +66,27 @@ export default function ParallelMigrationProgress({ parentJobId }: ParallelMigra
     setTimeout(() => resumingRef.current.delete(childJobId), 10000);
   };
 
+  const handleStop = async () => {
+    if (cancelling) return;
+    setCancelling(true);
+    try {
+      const res = await fetch(`/api/migration/jobs/${parentJobId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'cancelled' }),
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        setError(json.error || 'Failed to cancel');
+        setCancelling(false);
+      }
+      // Poll will pick up the cancelled state
+    } catch {
+      setError('Failed to cancel migration');
+      setCancelling(false);
+    }
+  };
+
   if (error && !status) {
     return (
       <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4">
@@ -87,13 +109,30 @@ export default function ParallelMigrationProgress({ parentJobId }: ParallelMigra
   }
 
   const { parent, children, overall_percent } = status;
-  const isComplete = parent.status === 'completed' || parent.status === 'failed';
+  const isComplete = parent.status === 'completed' || parent.status === 'failed' || parent.status === 'cancelled';
   const aggregatedReport = parent.report as MigrationReport | null;
 
-  // Completed: show full report
-  if (isComplete && aggregatedReport) {
+  // Completed / Cancelled: show final state
+  if (isComplete) {
     return (
       <>
+        {parent.status === 'cancelled' && (
+          <div className="text-center mb-4">
+            <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mx-auto mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="15" y1="9" x2="9" y2="15" />
+                <line x1="9" y1="9" x2="15" y2="15" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-heading font-semibold text-navy dark:text-slate-100 mb-1">
+              Migration Cancelled
+            </h3>
+            <p className="text-sm text-navy/50 dark:text-slate-400 font-body">
+              Stopped by user. Partial data may have been imported.
+            </p>
+          </div>
+        )}
         {parent.status === 'completed' && (
           <div className="text-center mb-4">
             <div className="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mx-auto mb-4">
@@ -117,7 +156,7 @@ export default function ParallelMigrationProgress({ parentJobId }: ParallelMigra
           ))}
         </div>
 
-        <MigrationReportDisplay report={aggregatedReport} />
+        {aggregatedReport && <MigrationReportDisplay report={aggregatedReport} />}
       </>
     );
   }
@@ -132,6 +171,28 @@ export default function ParallelMigrationProgress({ parentJobId }: ParallelMigra
         <p className="text-sm font-body text-navy/50 dark:text-slate-400">
           {children.length} board{children.length !== 1 ? 's' : ''} running in parallel - safe to refresh or close this page.
         </p>
+        <button
+          onClick={handleStop}
+          disabled={cancelling}
+          className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500 hover:bg-red-600 disabled:bg-red-300 text-white text-sm font-medium transition-colors"
+        >
+          {cancelling ? (
+            <>
+              <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              Stopping...
+            </>
+          ) : (
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                <rect x="6" y="6" width="12" height="12" rx="2" />
+              </svg>
+              Stop Migration
+            </>
+          )}
+        </button>
       </div>
 
       {/* Overall progress bar */}
