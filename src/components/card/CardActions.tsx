@@ -88,15 +88,24 @@ export default function CardActions({ cardId, boardId, onClose, onRefresh }: Car
     if (!targetListId) return;
     setLoading(true);
 
-    const { data: placement } = await supabase
-      .from('card_placements')
-      .select('*')
-      .eq('card_id', cardId)
-      .eq('is_mirror', false)
-      .limit(1)
-      .single();
+    try {
+      // Find the primary (non-mirror) placement for this card
+      const { data: placements } = await supabase
+        .from('card_placements')
+        .select('*')
+        .eq('card_id', cardId)
+        .eq('is_mirror', false)
+        .limit(1);
 
-    if (placement) {
+      const placement = placements && placements.length > 0 ? placements[0] : null;
+
+      if (!placement) {
+        alert('Could not find card placement. The card may have been deleted.');
+        setLoading(false);
+        return;
+      }
+
+      // Get the highest position in the target list
       const { data: maxPos } = await supabase
         .from('card_placements')
         .select('position')
@@ -106,10 +115,27 @@ export default function CardActions({ cardId, boardId, onClose, onRefresh }: Car
 
       const position = maxPos && maxPos.length > 0 ? maxPos[0].position + 1 : 0;
 
-      await supabase
+      // Move the primary placement to the target list
+      const { error } = await supabase
         .from('card_placements')
         .update({ list_id: targetListId, position })
         .eq('id', placement.id);
+
+      if (error) {
+        alert('Failed to move card: ' + error.message);
+        setLoading(false);
+        return;
+      }
+
+      // Remove any mirror placements (card is fully moving to new board)
+      await supabase
+        .from('card_placements')
+        .delete()
+        .eq('card_id', cardId)
+        .eq('is_mirror', true);
+
+    } catch (err) {
+      alert('Failed to move card. Please try again.');
     }
 
     setLoading(false);

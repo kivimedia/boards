@@ -779,10 +779,10 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                       <div className="relative">
                         <div
                           onClick={() => setIsEditingDescription(true)}
-                          className={`p-3 rounded-xl bg-cream dark:bg-navy hover:bg-cream-dark dark:hover:bg-slate-800 cursor-pointer transition-colors min-h-[60px] text-sm text-navy dark:text-slate-200 font-body ${description && !descriptionExpanded && description.length > 300 ? 'max-h-[200px] overflow-hidden' : ''}`}
+                          className={`p-3 rounded-xl bg-cream dark:bg-navy hover:bg-cream-dark dark:hover:bg-slate-800 cursor-pointer transition-colors min-h-[60px] text-sm text-navy dark:text-slate-200 font-body ${description && !descriptionExpanded && description.length > 300 ? 'max-h-[200px] overflow-hidden' : 'overflow-x-hidden'}`}
                         >
                           {description ? (
-                            <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-heading prose-p:font-body prose-p:text-navy dark:prose-p:text-slate-200 prose-a:text-electric prose-code:text-electric prose-code:bg-electric/10 prose-code:px-1 prose-code:rounded">
+                            <div className="prose prose-sm dark:prose-invert max-w-full prose-headings:font-heading prose-p:font-body prose-p:text-navy dark:prose-p:text-slate-200 prose-a:text-electric prose-code:text-electric prose-code:bg-electric/10 prose-code:px-1 prose-code:rounded [overflow-wrap:break-word] [word-break:break-word]">
                               <ReactMarkdown>{description}</ReactMarkdown>
                             </div>
                           ) : (

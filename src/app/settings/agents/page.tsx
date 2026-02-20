@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import SidebarWithBoards from '@/components/layout/SidebarWithBoards';
 import Header from '@/components/layout/Header';
 import SkillQualityDashboard from '@/components/agents/SkillQualityDashboard';
+import { hasFeatureAccess } from '@/lib/feature-access';
 
 export default async function AgentSkillsPage() {
   const supabase = createServerSupabaseClient();
@@ -10,6 +11,11 @@ export default async function AgentSkillsPage() {
 
   if (!user) {
     redirect('/login');
+  }
+
+  const canAccess = await hasFeatureAccess(supabase, user.id, 'agent_skills');
+  if (!canAccess) {
+    redirect('/settings');
   }
 
   return (

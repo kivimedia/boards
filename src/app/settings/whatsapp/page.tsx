@@ -10,6 +10,7 @@ import DigestConfigForm from '@/components/whatsapp/DigestConfigForm';
 import MessageLog from '@/components/whatsapp/MessageLog';
 import CustomActionBuilder from '@/components/whatsapp/CustomActionBuilder';
 import DigestTemplateEditor from '@/components/whatsapp/DigestTemplateEditor';
+import { hasFeatureAccess } from '@/lib/feature-access';
 
 export default async function WhatsAppSettingsPage() {
   const supabase = createServerSupabaseClient();
@@ -19,14 +20,7 @@ export default async function WhatsAppSettingsPage() {
     redirect('/login');
   }
 
-  // Check if user is admin for showing Business API config
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = await hasFeatureAccess(supabase, user.id, 'whatsapp_config');
 
   return (
     <div className="flex h-screen overflow-hidden">

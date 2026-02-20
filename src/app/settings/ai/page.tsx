@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import SidebarWithBoards from '@/components/layout/SidebarWithBoards';
 import Header from '@/components/layout/Header';
 import AISettingsDashboard from '@/components/ai/AISettingsDashboard';
+import { hasFeatureAccess } from '@/lib/feature-access';
 
 export default async function AISettingsPage() {
   const supabase = createServerSupabaseClient();
@@ -10,6 +11,11 @@ export default async function AISettingsPage() {
 
   if (!user) {
     redirect('/login');
+  }
+
+  const canAccess = await hasFeatureAccess(supabase, user.id, 'ai_config');
+  if (!canAccess) {
+    redirect('/settings');
   }
 
   return (

@@ -95,7 +95,7 @@ export default function BoardHeader({
     : 'bg-cream-dark dark:bg-slate-700';
 
   return (
-    <header className={`${headerBg} shrink-0`}>
+    <header className={`${headerBg} shrink-0 relative z-[100]`}>
       <div className="flex items-center justify-between px-6 h-14">
         {/* Left side */}
         <div className="flex items-center gap-4">
