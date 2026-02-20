@@ -3,8 +3,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
-import { isAdmin, isAgencyOwner } from '@/lib/permissions';
-import { UserRole } from '@/lib/types';
+import { getFeatureAccessMap, isTrueAdmin } from '@/lib/feature-access';
 
 export default async function SettingsPage() {
   const supabase = createServerSupabaseClient();
@@ -14,14 +13,10 @@ export default async function SettingsPage() {
     redirect('/login');
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single();
-
-  const userRole = (profile?.user_role || profile?.role || 'member') as UserRole;
-  const userIsAdmin = isAdmin(userRole) || isAgencyOwner(profile?.agency_role ?? null);
+  const [featureAccess, isRealAdmin] = await Promise.all([
+    getFeatureAccessMap(supabase, user.id),
+    isTrueAdmin(supabase, user.id),
+  ]);
 
   // Pre-fetch boards for sidebar (avoids client-side refetch flash)
   const { data: boards } = await supabase
@@ -41,8 +36,8 @@ export default async function SettingsPage() {
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* User Management Card - Admin Only */}
-              {userIsAdmin && (
+              {/* User Management Card */}
+              {featureAccess.user_management && (
                 <Link
                   href="/settings/users"
                   className="group block bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 hover:border-electric/30 p-6 transition-all duration-200 hover:shadow-lg"
@@ -154,7 +149,7 @@ export default async function SettingsPage() {
               </Link>
 
               {/* AI Configuration Card */}
-              {userIsAdmin && (
+              {featureAccess.ai_config && (
                 <Link
                   href="/settings/ai"
                   className="group block bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 hover:border-electric/30 p-6 transition-all duration-200 hover:shadow-lg"
@@ -185,7 +180,7 @@ export default async function SettingsPage() {
               )}
 
               {/* Agent Skills Card */}
-              {userIsAdmin && (
+              {featureAccess.agent_skills && (
                 <Link
                   href="/settings/agents"
                   className="group block bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 hover:border-electric/30 p-6 transition-all duration-200 hover:shadow-lg"
@@ -266,6 +261,34 @@ export default async function SettingsPage() {
                   </svg>
                 </div>
               </Link>
+
+              {/* Permission Delegation Card - True Admins Only */}
+              {isRealAdmin && (
+                <Link
+                  href="/settings/permissions"
+                  className="group block bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 hover:border-electric/30 p-6 transition-all duration-200 hover:shadow-lg"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-electric/10 flex items-center justify-center shrink-0 group-hover:bg-electric/20 transition-colors">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-electric">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                        <path d="M9 12l2 2 4-4" />
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-navy dark:text-slate-100 font-heading font-semibold text-base mb-1">
+                        Permission Delegation
+                      </h3>
+                      <p className="text-navy/50 font-body text-sm leading-relaxed">
+                        Delegate access to admin features for specific roles or users without granting full admin.
+                      </p>
+                    </div>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-navy/20 group-hover:text-electric transition-colors mt-1 shrink-0">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </div>
+                </Link>
+              )}
 
               {/* Board Permissions Card - Informational */}
               <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-6">

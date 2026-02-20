@@ -1978,7 +1978,31 @@ async function importAttachments(
 
     const totalAttachments = allAttachments.length;
     // Filter down to only unimported attachments — skip successes entirely
-    const pendingAttachments = allAttachments.filter((a) => !existingMappings.has(`attachment:${a.att.id}`) && !globalAttachmentMappings.has(`attachment:${a.att.id}`));
+    let pendingAttachments = allAttachments.filter((a) => !existingMappings.has(`attachment:${a.att.id}`) && !globalAttachmentMappings.has(`attachment:${a.att.id}`));
+
+    // Validate target cards still exist (cached manifest may reference cards deleted by dedup)
+    const uniqueTargetIds = Array.from(new Set(pendingAttachments.map((a) => a.targetCardId)));
+    if (uniqueTargetIds.length > 0) {
+      const validCardIds = new Set<string>();
+      // Batch check in groups of 100 to stay within query limits
+      for (let i = 0; i < uniqueTargetIds.length; i += 100) {
+        const batch = uniqueTargetIds.slice(i, i + 100);
+        const { data: existingCards } = await supabase
+          .from('cards')
+          .select('id')
+          .in('id', batch);
+        if (existingCards) {
+          for (const c of existingCards) validCardIds.add(c.id);
+        }
+      }
+      const beforeCount = pendingAttachments.length;
+      pendingAttachments = pendingAttachments.filter((a) => validCardIds.has(a.targetCardId));
+      const staleCount = beforeCount - pendingAttachments.length;
+      if (staleCount > 0) {
+        report.errors.push(`Skipped ${staleCount} attachments referencing ${uniqueTargetIds.length - validCardIds.size} deleted card(s)`);
+      }
+    }
+
     const alreadyImported = totalAttachments - pendingAttachments.length;
     await updateDetail(supabase, jobId, `Found ${totalAttachments} total (${alreadyImported} done, ${pendingAttachments.length} remaining — retrying failures only)`);
 

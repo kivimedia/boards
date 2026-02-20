@@ -2,10 +2,10 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import SidebarWithBoards from '@/components/layout/SidebarWithBoards';
 import Header from '@/components/layout/Header';
-import UserManagement from '@/components/settings/UserManagement';
-import { hasFeatureAccess } from '@/lib/feature-access';
+import PermissionDelegation from '@/components/settings/PermissionDelegation';
+import { isTrueAdmin } from '@/lib/feature-access';
 
-export default async function UsersSettingsPage() {
+export default async function PermissionsSettingsPage() {
   const supabase = createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -13,8 +13,8 @@ export default async function UsersSettingsPage() {
     redirect('/login');
   }
 
-  const canAccess = await hasFeatureAccess(supabase, user.id, 'user_management');
-  if (!canAccess) {
+  const admin = await isTrueAdmin(supabase, user.id);
+  if (!admin) {
     redirect('/settings');
   }
 
@@ -22,8 +22,10 @@ export default async function UsersSettingsPage() {
     <div className="flex h-screen overflow-hidden">
       <SidebarWithBoards />
       <main className="flex-1 flex flex-col overflow-hidden">
-        <Header title="User Management" backHref="/settings" />
-        <UserManagement currentUserId={user.id} />
+        <Header title="Permission Delegation" backHref="/settings" />
+        <div className="flex-1 overflow-y-auto p-6">
+          <PermissionDelegation currentUserId={user.id} />
+        </div>
       </main>
     </div>
   );

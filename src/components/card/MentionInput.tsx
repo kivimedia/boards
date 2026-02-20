@@ -170,7 +170,7 @@ export default function MentionInput({ cardId, onSubmit }: MentionInputProps) {
         {showDropdown && filteredProfiles.length > 0 && (
           <div
             ref={dropdownRef}
-            className="absolute bottom-full left-0 right-0 mb-1 bg-white dark:bg-dark-surface rounded-xl border border-cream-dark dark:border-slate-700 shadow-lg dark:shadow-none z-30 max-h-48 overflow-y-auto"
+            className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-dark-surface rounded-xl border border-cream-dark dark:border-slate-700 shadow-lg dark:shadow-none z-[60] max-h-48 overflow-y-auto"
           >
             {filteredProfiles.map((profile, index) => (
               <button
@@ -207,7 +207,7 @@ export default function MentionInput({ cardId, onSubmit }: MentionInputProps) {
         )}
 
         {showDropdown && filteredProfiles.length === 0 && dropdownFilter.length > 0 && (
-          <div className="absolute bottom-full left-0 right-0 mb-1 bg-white dark:bg-dark-surface rounded-xl border border-cream-dark dark:border-slate-700 shadow-lg dark:shadow-none z-30 p-3 text-sm text-navy/40 dark:text-slate-400 text-center font-body">
+          <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-dark-surface rounded-xl border border-cream-dark dark:border-slate-700 shadow-lg dark:shadow-none z-[60] p-3 text-sm text-navy/40 dark:text-slate-400 text-center font-body">
             No users found
           </div>
         )}

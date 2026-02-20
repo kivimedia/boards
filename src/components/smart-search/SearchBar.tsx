@@ -229,7 +229,7 @@ export default function SearchBar({ boardId, onCardClick, onOpenShareModal, onCr
 
         {/* Dropdown panel */}
         {showDropdown && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 rounded-xl shadow-modal z-50 overflow-hidden">
+          <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 rounded-xl shadow-modal z-[999] overflow-hidden">
             {mode === 'search' && (
               <SearchResults
                 results={searchResults}

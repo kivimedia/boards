@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { hasFeatureAccess, AdminFeatureKey } from '@/lib/feature-access';
 
 export interface AuthContext {
   supabase: SupabaseClient;
@@ -51,6 +52,26 @@ export function successResponse(data: unknown, status = 200) {
  */
 export function errorResponse(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
+}
+
+/**
+ * Require feature access for an API route.
+ * Checks admin/agency_owner first, then delegated grants.
+ * Returns null if access is granted, or a 403 NextResponse if denied.
+ */
+export async function requireFeatureAccess(
+  supabase: SupabaseClient,
+  userId: string,
+  featureKey: AdminFeatureKey
+): Promise<NextResponse | null> {
+  const allowed = await hasFeatureAccess(supabase, userId, featureKey);
+  if (!allowed) {
+    return NextResponse.json(
+      { error: `Forbidden: ${featureKey} access required` },
+      { status: 403 }
+    );
+  }
+  return null;
 }
 
 /**

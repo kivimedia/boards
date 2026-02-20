@@ -232,7 +232,7 @@ export default function NotificationCenter() {
 
       {/* Dropdown Panel */}
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-[calc(100vw-1rem)] sm:w-80 max-w-sm bg-white dark:bg-dark-surface rounded-2xl shadow-xl dark:shadow-none border border-cream-dark dark:border-slate-700 z-50 overflow-hidden">
+        <div className="absolute right-0 top-full mt-2 w-[calc(100vw-1rem)] sm:w-80 max-w-sm bg-white dark:bg-dark-surface rounded-2xl shadow-xl dark:shadow-none border border-cream-dark dark:border-slate-700 z-[999] overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-cream-dark dark:border-slate-700">
             <h3 className="text-sm font-semibold text-navy dark:text-slate-100 font-heading">
