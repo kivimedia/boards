@@ -163,6 +163,7 @@ export interface Card {
   client_status: ClientCardStatus | null;
   client_ticket_type: ClientTicketType | null;
   approval_status: ApprovalStatus | null;
+  owner_id: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -191,6 +192,7 @@ export interface Comment {
   content: string;
   parent_comment_id: string | null;
   created_at: string;
+  updated_at?: string;
   profile?: Profile;
   replies?: Comment[];
 }
@@ -571,6 +573,19 @@ export interface MigrationJob {
   completed_at: string | null;
   created_at: string;
   updated_at: string;
+  /** Parent-child parallel migration fields */
+  parent_job_id: string | null;
+  board_index: number | null;
+  trello_board_id: string | null;
+  trello_board_name: string | null;
+}
+
+export interface MigrationBoardProgress {
+  phase: string;
+  phase_label: string;
+  items_done: number;
+  items_total: number;
+  detail?: string;
 }
 
 export interface MigrationEntityMap {

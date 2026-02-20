@@ -15,6 +15,7 @@ import type {
 } from '@/lib/types';
 import MigrationReport from './MigrationReport';
 import MigrationHistory from './MigrationHistory';
+import ParallelMigrationProgress from './ParallelMigrationProgress';
 
 type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -77,6 +78,7 @@ export default function MigrationWizard() {
   // Step 4/5: Job state
   const [creatingJob, setCreatingJob] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
+  const [parentJobId, setParentJobId] = useState<string | null>(null);
   const [progress, setProgress] = useState<MigrationProgressType>({
     current: 0,
     total: 0,
@@ -138,7 +140,9 @@ export default function MigrationWizard() {
           const jobs = json.data as MigrationJob[];
           const running = jobs.find((j) => j.status === 'running');
           if (running) {
+            // Check if this is a parallel parent job (has children)
             setJobId(running.id);
+            setParentJobId(running.id);
             setProgress(running.progress);
             setJobStatus(running.status);
             setStep(6);
@@ -585,7 +589,7 @@ export default function MigrationWizard() {
     }
   };
 
-  // Step 4: Create and start migration
+  // Step 4: Create and start migration (parallel mode)
   const handleStartMigration = async () => {
     setCreatingJob(true);
 
@@ -608,6 +612,13 @@ export default function MigrationWizard() {
         }
       }
 
+      // Build board name map for display
+      const boardNames: Record<string, string> = {};
+      for (const boardId of Array.from(selectedBoardIds)) {
+        const board = trelloBoards.find((b) => b.id === boardId);
+        if (board) boardNames[boardId] = board.name;
+      }
+
       const config: MigrationJobConfig = {
         trello_api_key: apiKey.trim(),
         trello_token: token.trim(),
@@ -619,11 +630,11 @@ export default function MigrationWizard() {
         sync_mode: syncMode,
       };
 
-      // Create the job
+      // Create parent + child jobs (parallel mode)
       const createRes = await fetch('/api/migration/jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ config }),
+        body: JSON.stringify({ config, parallel: true, board_names: boardNames }),
       });
 
       const createJson = await createRes.json();
@@ -632,12 +643,13 @@ export default function MigrationWizard() {
         return;
       }
 
-      const job = createJson.data as MigrationJob;
-      setJobId(job.id);
+      const { parent } = createJson.data;
+      setParentJobId(parent.id);
+      setJobId(parent.id);
 
-      // Start the job (streaming — don't await, just fire)
-      fetch(`/api/migration/jobs/${job.id}/run`, { method: 'POST' }).catch(() => {
-        // Connection may close, that's fine — migration runs server-side
+      // Launch all children in parallel (fire-and-forget)
+      fetch(`/api/migration/jobs/${parent.id}/launch`, { method: 'POST' }).catch(() => {
+        // Connection may close, that's fine
       });
 
       setStep(6);
@@ -1613,7 +1625,10 @@ export default function MigrationWizard() {
         {/* Step 6: Progress */}
         {step === 6 && (
           <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-6 space-y-5">
-            {(jobStatus === 'completed' || jobStatus === 'failed' || jobStatus === 'cancelled') && report ? (
+            {/* Parallel mode: render ParallelMigrationProgress */}
+            {parentJobId ? (
+              <ParallelMigrationProgress parentJobId={parentJobId} />
+            ) : (jobStatus === 'completed' || jobStatus === 'failed' || jobStatus === 'cancelled') && report ? (
               <>
                 {jobStatus === 'failed' && (
                   <div className="text-center mb-4">
@@ -1654,7 +1669,7 @@ export default function MigrationWizard() {
                     Migration in Progress
                   </h2>
                   <p className="text-sm font-body text-navy/50 dark:text-slate-400">
-                    Migration runs on the server &mdash; safe to refresh or close this page.
+                    Migration runs on the server - safe to refresh or close this page.
                   </p>
                 </div>
 
