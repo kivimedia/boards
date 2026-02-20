@@ -129,6 +129,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const moreBtnRef = useRef<HTMLButtonElement>(null);
   const [moreMenuPos, setMoreMenuPos] = useState({ top: 0, left: 0 });
+  const [linkCopied, setLinkCopied] = useState(false);
   // Profiling refs
   const openTimeRef = useRef(performance.now());
   const timingsRef = useRef<Record<string, number>>({});
@@ -1106,6 +1107,42 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                     />
                   </div>
 
+                  {/* Owner / Lead */}
+                  <div>
+                    <h4 className="text-xs font-semibold text-navy/40 dark:text-slate-400 mb-1.5 uppercase tracking-wider font-heading">
+                      Owner
+                    </h4>
+                    {card.owner_id ? (
+                      <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200/50 dark:border-amber-800/30 group">
+                        <span className="text-amber-500 text-[10px]" title="Card owner">&#9733;</span>
+                        <Avatar name={allProfiles.find(p => p.id === card.owner_id)?.display_name || 'Owner'} src={allProfiles.find(p => p.id === card.owner_id)?.avatar_url} size="sm" />
+                        <span className="truncate font-body text-xs text-navy dark:text-slate-100 font-medium">{allProfiles.find(p => p.id === card.owner_id)?.display_name || 'Owner'}</span>
+                        <button
+                          onClick={() => updateCard({ owner_id: null } as any)}
+                          className="ml-auto opacity-0 group-hover:opacity-100 text-navy/30 dark:text-slate-500 hover:text-danger transition-all"
+                          title="Remove owner"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <select
+                          onChange={(e) => {
+                            if (e.target.value) updateCard({ owner_id: e.target.value } as any);
+                          }}
+                          value=""
+                          className="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium text-navy/40 dark:text-slate-500 border border-dashed border-cream-dark dark:border-slate-700 hover:border-electric/40 bg-transparent cursor-pointer appearance-none font-body"
+                        >
+                          <option value="">Assign owner...</option>
+                          {allProfiles.map((p) => (
+                            <option key={p.id} value={p.id}>{p.display_name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Assignees */}
                   <div>
                     <h4 className="text-xs font-semibold text-navy/40 dark:text-slate-400 mb-1.5 uppercase tracking-wider font-heading">
@@ -1238,15 +1275,40 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
           )}
 
           <button
-            onClick={() => {
+            onClick={async () => {
               const url = `${window.location.origin}/card/${cardId}`;
-              navigator.clipboard.writeText(url);
+              try {
+                await navigator.clipboard.writeText(url);
+                setLinkCopied(true);
+                setTimeout(() => setLinkCopied(false), 2000);
+              } catch {
+                // Fallback for non-secure contexts
+                const textarea = document.createElement('textarea');
+                textarea.value = url;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                setLinkCopied(true);
+                setTimeout(() => setLinkCopied(false), 2000);
+              }
             }}
-            className="text-navy/30 dark:text-slate-500 hover:text-electric transition-colors flex items-center gap-1"
+            className={`transition-colors flex items-center gap-1 ${linkCopied ? 'text-green-500' : 'text-navy/30 dark:text-slate-500 hover:text-electric'}`}
             title="Copy card link"
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
-            Copy link
+            {linkCopied ? (
+              <>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                Copied!
+              </>
+            ) : (
+              <>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                Copy link
+              </>
+            )}
           </button>
           <span>Updated {new Date(card.updated_at).toLocaleDateString()}</span>
         </div>

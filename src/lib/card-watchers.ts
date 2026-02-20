@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import type { CardWatcher } from './types';
-import { createBulkNotifications } from './notification-service';
+import { createBulkNotifications, sendEmailNotification } from './notification-service';
 
 // ============================================================================
 // CARD WATCHERS
@@ -111,4 +111,9 @@ export async function notifyWatchers(
     boardId,
     metadata,
   });
+
+  // Send email to each watcher (non-blocking)
+  for (const uid of userIds) {
+    sendEmailNotification(supabase, uid, eventTitle, eventBody || '', cardId).catch(() => {});
+  }
 }

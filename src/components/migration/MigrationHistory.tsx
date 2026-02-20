@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import type { MigrationJob, MigrationProgress, MigrationReport as MigrationReportType } from '@/lib/types';
+import { BOARD_TYPE_CONFIG } from '@/lib/constants';
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
   pending: { bg: 'bg-amber-100', text: 'text-amber-700', label: 'Pending' },
@@ -20,6 +21,10 @@ export default function MigrationHistory() {
   const [backfillProgress, setBackfillProgress] = useState<MigrationProgress | null>(null);
   const [backfillReport, setBackfillReport] = useState<MigrationReportType | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Child jobs for parallel migration parents
+  const [childJobs, setChildJobs] = useState<Record<string, MigrationJob[]>>({});
+  const [loadingChildren, setLoadingChildren] = useState<string | null>(null);
 
   // Re-import state
   const [reimportJobId, setReimportJobId] = useState<string | null>(null);
@@ -162,6 +167,22 @@ export default function MigrationHistory() {
     }
   };
 
+  const fetchChildJobs = async (parentId: string) => {
+    if (childJobs[parentId]) return; // Already loaded
+    setLoadingChildren(parentId);
+    try {
+      const res = await fetch(`/api/migration/jobs/${parentId}/status`);
+      const json = await res.json();
+      if (json.data?.children) {
+        setChildJobs((prev) => ({ ...prev, [parentId]: json.data.children }));
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setLoadingChildren(null);
+    }
+  };
+
   const toggleReimportBoard = (boardId: string) => {
     setReimportBoardIds((prev) => {
       const next = new Set(prev);
@@ -300,7 +321,11 @@ export default function MigrationHistory() {
             return (
               <div key={job.id}>
                 <button
-                  onClick={() => setExpandedId(isExpanded ? null : job.id)}
+                  onClick={() => {
+                    const nextId = isExpanded ? null : job.id;
+                    setExpandedId(nextId);
+                    if (nextId) fetchChildJobs(nextId);
+                  }}
                   className="w-full flex items-center gap-4 p-4 hover:bg-cream/50 dark:hover:bg-slate-800/30 transition-colors text-left"
                 >
                   <div className="flex-1 min-w-0">
@@ -372,6 +397,57 @@ export default function MigrationHistory() {
                             <p className="text-[10px] font-body text-blue-500/60">{stat.label}</p>
                           </div>
                         ))}
+                      </div>
+                    )}
+
+                    {/* Per-board breakdown (parallel migration children) */}
+                    {childJobs[job.id] && childJobs[job.id].length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium text-navy/40 dark:text-slate-500 font-body uppercase tracking-wide">
+                          Per-Board Results
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {childJobs[job.id].map((child) => {
+                            const childReport = child.report as MigrationReportType;
+                            const childStatus = STATUS_STYLES[child.status] || STATUS_STYLES.pending;
+                            const boardType = child.config?.board_type_mapping?.[child.trello_board_id || ''];
+                            const typeConfig = boardType ? BOARD_TYPE_CONFIG[boardType] : null;
+                            return (
+                              <div key={child.id} className="bg-cream dark:bg-navy rounded-lg p-3 space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5 min-w-0">
+                                    {typeConfig && <span className="text-xs">{typeConfig.icon}</span>}
+                                    <span className="text-xs font-heading font-semibold text-navy dark:text-slate-100 truncate">
+                                      {child.trello_board_name || 'Board'}
+                                    </span>
+                                  </div>
+                                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${childStatus.bg} ${childStatus.text}`}>
+                                    {childStatus.label}
+                                  </span>
+                                </div>
+                                {childReport && (
+                                  <div className="flex gap-3 text-[10px] text-navy/40 dark:text-slate-500 font-body">
+                                    <span>{childReport.cards_created ?? 0} cards</span>
+                                    <span>{childReport.comments_created ?? 0} comments</span>
+                                    <span>{childReport.attachments_created ?? 0} files</span>
+                                    {(childReport.errors?.length || 0) > 0 && (
+                                      <span className="text-red-500">{childReport.errors.length} errors</span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {loadingChildren === job.id && (
+                      <div className="flex items-center gap-2 text-xs text-navy/40 dark:text-slate-500 font-body">
+                        <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        Loading board details...
                       </div>
                     )}
 

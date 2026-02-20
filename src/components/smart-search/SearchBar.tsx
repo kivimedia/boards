@@ -12,6 +12,7 @@ interface SearchBarProps {
   boardId: string;
   onCardClick: (cardId: string) => void;
   onOpenShareModal?: () => void;
+  onCreateCard?: () => void;
   isDark?: boolean;
 }
 
@@ -23,7 +24,7 @@ const PLACEHOLDERS = [
   'Search cards, people, or ask AI...',
 ];
 
-export default function SearchBar({ boardId, onCardClick, onOpenShareModal, isDark }: SearchBarProps) {
+export default function SearchBar({ boardId, onCardClick, onOpenShareModal, onCreateCard, isDark }: SearchBarProps) {
   const [focused, setFocused] = useState(false);
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -294,7 +295,7 @@ export default function SearchBar({ boardId, onCardClick, onOpenShareModal, isDa
       </div>
 
       {/* Create button */}
-      <CreateMenu boardId={boardId} />
+      <CreateMenu boardId={boardId} onCreateCard={onCreateCard} />
     </div>
   );
 }

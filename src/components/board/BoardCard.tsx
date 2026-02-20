@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import Image from 'next/image';
 import { Draggable } from '@hello-pangea/dnd';
 import { Card, Label, Profile } from '@/lib/types';
@@ -90,8 +90,7 @@ export default function BoardCard({
 }: BoardCardProps) {
   const [showQuickEdit, setShowQuickEdit] = useState(false);
   const [copying, setCopying] = useState(false);
-  const wasDraggingRef = useRef(false);
-  const pointerDownRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const handleQuickCopy = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -106,26 +105,24 @@ export default function BoardCard({
     setCopying(false);
   }, [card.id, copying, onRefresh]);
 
-  const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    pointerDownRef.current = { x: e.clientX, y: e.clientY, time: Date.now() };
-  }, []);
-
-  const handlePointerUp = useCallback((e: React.PointerEvent) => {
-    if (!pointerDownRef.current || wasDraggingRef.current) {
-      wasDraggingRef.current = false;
-      pointerDownRef.current = null;
-      return;
+  const handleCopyLink = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const url = `${window.location.origin}/card/${card.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = url;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
     }
-    const { x, y, time } = pointerDownRef.current;
-    pointerDownRef.current = null;
-    const dx = Math.abs(e.clientX - x);
-    const dy = Math.abs(e.clientY - y);
-    const dt = Date.now() - time;
-    // Quick tap with minimal movement = click to open card
-    if (dx < 10 && dy < 10 && dt < 500) {
-      onClick();
-    }
-  }, [onClick]);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 1500);
+  }, [card.id]);
 
   const isOverdue = card.due_date && new Date(card.due_date) < new Date();
   const isDueSoon =
@@ -140,20 +137,12 @@ export default function BoardCard({
 
   return (
     <Draggable draggableId={placement_id} index={index}>
-      {(provided, snapshot) => {
-        // Track drag state: mark ref true when dragging starts so click handler can skip
-        if (snapshot.isDragging) {
-          wasDraggingRef.current = true;
-        }
-        return (
+      {(provided, snapshot) => (
         <div
           ref={provided.innerRef}
           {...provided.draggableProps}
-          {...provided.dragHandleProps}
-          onPointerDown={handlePointerDown}
-          onPointerUp={handlePointerUp}
           className={`
-            relative group bg-white dark:bg-dark-surface rounded-xl cursor-pointer
+            relative group bg-white dark:bg-dark-surface rounded-xl
             transition-all duration-200 ease-out
             border border-transparent overflow-hidden
             ${snapshot.isDragging
@@ -162,11 +151,26 @@ export default function BoardCard({
             }
           `}
         >
+          {/* Drag handle - thin top bar, visible on hover */}
+          <div
+            {...provided.dragHandleProps}
+            className="h-1 group-hover:h-3 transition-all duration-150 bg-transparent group-hover:bg-cream-dark/40 dark:group-hover:bg-slate-700/60 cursor-grab active:cursor-grabbing flex items-center justify-center"
+          >
+            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5">
+              <div className="w-0.5 h-0.5 rounded-full bg-navy/20 dark:bg-slate-500" />
+              <div className="w-0.5 h-0.5 rounded-full bg-navy/20 dark:bg-slate-500" />
+              <div className="w-0.5 h-0.5 rounded-full bg-navy/20 dark:bg-slate-500" />
+              <div className="w-0.5 h-0.5 rounded-full bg-navy/20 dark:bg-slate-500" />
+              <div className="w-0.5 h-0.5 rounded-full bg-navy/20 dark:bg-slate-500" />
+              <div className="w-0.5 h-0.5 rounded-full bg-navy/20 dark:bg-slate-500" />
+            </div>
+          </div>
+
           {/* Selection checkbox */}
           {onToggleSelect && (
             <div
-              className={`absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity ${hasCover ? 'bg-white/80 dark:bg-dark-surface/80 rounded-md p-0.5' : ''}`}
-              style={selected ? { opacity: 1 } : undefined}
+              className={`absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity ${hasCover ? 'bg-white/80 dark:bg-dark-surface/80 rounded-md p-0.5' : ''}`}
+              style={selected ? { opacity: 1, pointerEvents: 'auto' } : undefined}
             >
               <CardCheckbox
                 checked={!!selected}
@@ -177,7 +181,23 @@ export default function BoardCard({
 
           {/* Quick action buttons on hover */}
           {boardId && onRefresh && (
-            <div className={`absolute ${hasCover ? 'top-[140px]' : 'top-2'} right-2 z-10 opacity-0 group-hover:opacity-100 flex gap-1 transition-all`}>
+            <div className={`absolute ${hasCover ? 'top-[140px]' : 'top-2'} right-2 z-10 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto flex gap-1 transition-all`}>
+              {/* Copy link button */}
+              <button
+                onClick={handleCopyLink}
+                className={`p-1.5 rounded-lg transition-all ${linkCopied ? 'bg-green-100 dark:bg-green-900/40 text-green-600' : 'bg-cream-dark/90 dark:bg-slate-700/90 hover:bg-cream-dark dark:hover:bg-slate-600 text-navy/60 dark:text-slate-300'}`}
+                title={linkCopied ? 'Copied!' : 'Copy card link'}
+              >
+                {linkCopied ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                  </svg>
+                )}
+              </button>
               {/* Quick copy button */}
               <button
                 onClick={handleQuickCopy}
@@ -223,148 +243,162 @@ export default function BoardCard({
             />
           )}
 
-          {/* Cover Image */}
-          {hasCover && (
-            <CoverImage src={cover_image_url!} />
-          )}
-
-          {/* Card content */}
-          <div className="p-3">
-            {/* Labels */}
-            {labels.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {labels.map((label) => (
-                  <span
-                    key={label.id}
-                    className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)]"
-                    style={{ backgroundColor: label.color }}
-                  >
-                    {label.name}
-                  </span>
-                ))}
-              </div>
+          {/* Clickable card body - NO dragHandleProps, pure click target */}
+          <button
+            type="button"
+            onClick={onClick}
+            className="w-full text-left cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-electric/40 focus-visible:ring-inset"
+          >
+            {/* Cover Image */}
+            {hasCover && (
+              <CoverImage src={cover_image_url!} />
             )}
 
-            {/* Priority Badge */}
-            {showPriority && (
-              <div className="mb-1.5">
-                <span className={`
-                  inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold
-                  ${card.priority === 'urgent' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : ''}
-                  ${card.priority === 'high' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : ''}
-                  ${card.priority === 'medium' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' : ''}
-                  ${card.priority === 'low' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : ''}
-                `}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" className="shrink-0">
-                    {card.priority === 'urgent' ? (
-                      <path d="M12 2L1 21h22L12 2zm0 4l7.53 13H4.47L12 6zm-1 4v4h2v-4h-2zm0 6v2h2v-2h-2z"/>
-                    ) : card.priority === 'high' ? (
-                      <path d="M7 14l5-5 5 5H7z"/>
-                    ) : card.priority === 'medium' ? (
-                      <path d="M4 11h16v2H4z"/>
-                    ) : (
-                      <path d="M7 10l5 5 5-5H7z"/>
-                    )}
-                  </svg>
-                  {card.priority.charAt(0).toUpperCase() + card.priority.slice(1)}
-                </span>
-              </div>
-            )}
-
-            {/* Approval Status Badge */}
-            {card.approval_status && (
-              <div className="mb-1.5">
-                <span className={`
-                  inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold
-                  ${card.approval_status === 'pending' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : ''}
-                  ${card.approval_status === 'approved' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : ''}
-                  ${card.approval_status === 'rejected' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : ''}
-                  ${card.approval_status === 'revision_requested' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : ''}
-                `}>
-                  {card.approval_status === 'pending' && '⏳'}
-                  {card.approval_status === 'approved' && '✓'}
-                  {card.approval_status === 'rejected' && '✕'}
-                  {card.approval_status === 'revision_requested' && '↻'}
-                  {' '}{card.approval_status === 'revision_requested' ? 'Revision' : card.approval_status.charAt(0).toUpperCase() + card.approval_status.slice(1)}
-                </span>
-              </div>
-            )}
-
-            {/* Title */}
-            <p className="text-sm text-navy dark:text-slate-100 font-medium leading-snug line-clamp-3">
-              {is_mirror && (
-                <span className="inline-block mr-1.5 text-electric" title="Mirrored card">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="inline -mt-0.5">
-                    <polyline points="7 17 2 12 7 7"/><polyline points="17 7 22 12 17 17"/><line x1="2" y1="12" x2="22" y2="12"/>
-                  </svg>
-                </span>
+            {/* Card content */}
+            <div className="p-3">
+              {/* Labels */}
+              {labels.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {labels.map((label) => (
+                    <span
+                      key={label.id}
+                      className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)]"
+                      style={{ backgroundColor: label.color }}
+                    >
+                      {label.name}
+                    </span>
+                  ))}
+                </div>
               )}
-              {card.title}
-            </p>
 
-            {/* Metadata badges: description, comments, attachments, checklists */}
-            {hasMetaBadges && (
-              <div className="flex items-center gap-3 mt-2 text-navy/50 dark:text-slate-400">
-                {hasDescription && (
-                  <span className="flex items-center text-[11px]" title="This card has a description">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="18" y2="18"/>
+              {/* Priority Badge */}
+              {showPriority && (
+                <div className="mb-1.5">
+                  <span className={`
+                    inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold
+                    ${card.priority === 'urgent' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : ''}
+                    ${card.priority === 'high' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : ''}
+                    ${card.priority === 'medium' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' : ''}
+                    ${card.priority === 'low' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : ''}
+                  `}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" className="shrink-0">
+                      {card.priority === 'urgent' ? (
+                        <path d="M12 2L1 21h22L12 2zm0 4l7.53 13H4.47L12 6zm-1 4v4h2v-4h-2zm0 6v2h2v-2h-2z"/>
+                      ) : card.priority === 'high' ? (
+                        <path d="M7 14l5-5 5 5H7z"/>
+                      ) : card.priority === 'medium' ? (
+                        <path d="M4 11h16v2H4z"/>
+                      ) : (
+                        <path d="M7 10l5 5 5-5H7z"/>
+                      )}
                     </svg>
+                    {card.priority.charAt(0).toUpperCase() + card.priority.slice(1)}
                   </span>
-                )}
-                {comment_count > 0 && (
-                  <span className="flex items-center gap-1 text-[11px]" title={`${comment_count} comment${comment_count !== 1 ? 's' : ''}`}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                    </svg>
-                    {comment_count}
-                  </span>
-                )}
-                {attachment_count > 0 && (
-                  <span className="flex items-center gap-1 text-[11px]" title={`${attachment_count} attachment${attachment_count !== 1 ? 's' : ''}`}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
-                    </svg>
-                    {attachment_count}
-                  </span>
-                )}
-                {checklist_total > 0 && (
-                  <span
-                    className={`flex items-center gap-1 text-[11px] ${
-                      checklist_done === checklist_total ? 'text-green-600 dark:text-green-400' : ''
-                    }`}
-                    title={`${checklist_done}/${checklist_total} checklist items done`}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><polyline points="9 11 12 14 22 4"/>
-                    </svg>
-                    {checklist_done}/{checklist_total}
-                  </span>
-                )}
-              </div>
-            )}
+                </div>
+              )}
 
-            {/* Footer: due date, assignees */}
-            {(card.due_date || assignees.length > 0) && (
-              <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-cream-dark/50 dark:border-slate-700">
-                {card.due_date && (
-                  <span
-                    className={`
-                      text-[11px] font-medium px-2 py-0.5 rounded-md
-                      ${isOverdue ? 'bg-danger/10 text-danger' : ''}
-                      ${isDueSoon ? 'bg-warning/10 text-warning' : ''}
-                      ${!isOverdue && !isDueSoon ? 'bg-cream dark:bg-slate-800 text-navy/60 dark:text-slate-300' : ''}
-                    `}
-                  >
-                    {new Date(card.due_date).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                    })}
+              {/* Approval Status Badge */}
+              {card.approval_status && (
+                <div className="mb-1.5">
+                  <span className={`
+                    inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold
+                    ${card.approval_status === 'pending' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : ''}
+                    ${card.approval_status === 'approved' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : ''}
+                    ${card.approval_status === 'rejected' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : ''}
+                    ${card.approval_status === 'revision_requested' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : ''}
+                  `}>
+                    {card.approval_status === 'pending' && '\u23f3'}
+                    {card.approval_status === 'approved' && '\u2713'}
+                    {card.approval_status === 'rejected' && '\u2715'}
+                    {card.approval_status === 'revision_requested' && '\u21bb'}
+                    {' '}{card.approval_status === 'revision_requested' ? 'Revision' : card.approval_status.charAt(0).toUpperCase() + card.approval_status.slice(1)}
+                  </span>
+                </div>
+              )}
+
+              {/* Title */}
+              <p className="text-sm text-navy dark:text-slate-100 font-medium leading-snug line-clamp-3">
+                {is_mirror && (
+                  <span className="inline-block mr-1.5 text-electric" title="Mirrored card">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="inline -mt-0.5">
+                      <polyline points="7 17 2 12 7 7"/><polyline points="17 7 22 12 17 17"/><line x1="2" y1="12" x2="22" y2="12"/>
+                    </svg>
                   </span>
                 )}
-                {assignees.length > 0 && (
-                  <div className="flex -space-x-1.5 ml-auto">
-                    {assignees.slice(0, 3).map((a) => (
+                {card.title}
+              </p>
+
+              {/* Metadata badges: description, comments, attachments, checklists */}
+              {hasMetaBadges && (
+                <div className="flex items-center gap-3 mt-2 text-navy/50 dark:text-slate-400">
+                  {hasDescription && (
+                    <span className="flex items-center text-[11px]" title="This card has a description">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="18" y2="18"/>
+                      </svg>
+                    </span>
+                  )}
+                  {comment_count > 0 && (
+                    <span className="flex items-center gap-1 text-[11px]" title={`${comment_count} comment${comment_count !== 1 ? 's' : ''}`}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                      </svg>
+                      {comment_count}
+                    </span>
+                  )}
+                  {attachment_count > 0 && (
+                    <span className="flex items-center gap-1 text-[11px]" title={`${attachment_count} attachment${attachment_count !== 1 ? 's' : ''}`}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                      </svg>
+                      {attachment_count}
+                    </span>
+                  )}
+                  {checklist_total > 0 && (
+                    <span
+                      className={`flex items-center gap-1 text-[11px] ${
+                        checklist_done === checklist_total ? 'text-green-600 dark:text-green-400' : ''
+                      }`}
+                      title={`${checklist_done}/${checklist_total} checklist items done`}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><polyline points="9 11 12 14 22 4"/>
+                      </svg>
+                      {checklist_done}/{checklist_total}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Footer: due date, owner, assignees */}
+              {(card.due_date || assignees.length > 0 || card.owner_id) && (
+                <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-cream-dark/50 dark:border-slate-700">
+                  {card.due_date && (
+                    <span
+                      className={`
+                        text-[11px] font-medium px-2 py-0.5 rounded-md
+                        ${isOverdue ? 'bg-danger/10 text-danger' : ''}
+                        ${isDueSoon ? 'bg-warning/10 text-warning' : ''}
+                        ${!isOverdue && !isDueSoon ? 'bg-cream dark:bg-slate-800 text-navy/60 dark:text-slate-300' : ''}
+                      `}
+                    >
+                      {new Date(card.due_date).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </span>
+                  )}
+                  <div className="flex items-center -space-x-1.5 ml-auto">
+                    {card.owner_id && (() => {
+                      const ownerProfile = assignees.find(a => a.id === card.owner_id);
+                      return ownerProfile ? (
+                        <div className="relative" title={`Owner: ${ownerProfile.display_name}`}>
+                          <Avatar name={ownerProfile.display_name} src={ownerProfile.avatar_url} size="sm" />
+                          <span className="absolute -top-0.5 -right-0.5 text-amber-500 text-[8px] leading-none">&#9733;</span>
+                        </div>
+                      ) : null;
+                    })()}
+                    {assignees.filter(a => a.id !== card.owner_id).slice(0, card.owner_id ? 2 : 3).map((a) => (
                       <Avatar key={a.id} name={a.display_name} src={a.avatar_url} size="sm" />
                     ))}
                     {assignees.length > 3 && (
@@ -373,13 +407,12 @@ export default function BoardCard({
                       </div>
                     )}
                   </div>
-                )}
-              </div>
-            )}
-          </div>
+                </div>
+              )}
+            </div>
+          </button>
         </div>
-        );
-      }}
+      )}
     </Draggable>
   );
 }

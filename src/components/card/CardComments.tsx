@@ -5,6 +5,7 @@ import { Comment } from '@/lib/types';
 import Avatar from '@/components/ui/Avatar';
 import Button from '@/components/ui/Button';
 import CommentReactions from './CommentReactions';
+import MentionInput from './MentionInput';
 
 const URL_PATTERN = /(https?:\/\/[^\s<]+)/;
 
@@ -27,7 +28,7 @@ function shortenUrl(url: string): string {
   }
 }
 
-function linkifyContent(text: string) {
+function linkifyContent(text: string, showFullLinks = false) {
   const parts = text.split(URL_PATTERN);
   return parts.map((part, i) =>
     URL_PATTERN.test(part) ? (
@@ -36,11 +37,11 @@ function linkifyContent(text: string) {
         href={part}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-electric hover:underline"
+        className="text-electric hover:underline break-all"
         onClick={(e) => e.stopPropagation()}
-        title={part}
+        title={showFullLinks ? undefined : part}
       >
-        {shortenUrl(part)}
+        {showFullLinks ? part : shortenUrl(part)}
       </a>
     ) : (
       <span key={i}>{part}</span>
@@ -64,6 +65,10 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
   const [loading, setLoading] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
+  const [showFullLinks, setShowFullLinks] = useState(false);
 
   // Group comments into threads
   const { topLevel, repliesByParent } = useMemo(() => {
@@ -81,8 +86,8 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
     return { topLevel: top, repliesByParent: replies };
   }, [comments]);
 
-  const handleAddComment = async (parentId?: string) => {
-    const text = parentId ? replyText : newComment;
+  const handleAddComment = async (parentId?: string, mentionedUserIds?: string[], directContent?: string) => {
+    const text = directContent || (parentId ? replyText : newComment);
     if (!text.trim()) return;
     setLoading(true);
     setCommentError(null);
@@ -94,6 +99,7 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
         body: JSON.stringify({
           content: text.trim(),
           parent_comment_id: parentId || null,
+          ...(mentionedUserIds?.length ? { mentioned_user_ids: mentionedUserIds } : {}),
         }),
       });
 
@@ -145,6 +151,26 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
       console.error('Failed to delete comment:', err);
     }
     onRefresh();
+  };
+
+  const handleEditComment = async (commentId: string) => {
+    if (!editText.trim()) return;
+    setEditLoading(true);
+    try {
+      const res = await fetch(`/api/cards/${cardId}/comments`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commentId, content: editText.trim() }),
+      });
+      if (res.ok) {
+        setEditingCommentId(null);
+        setEditText('');
+        onRefresh();
+      }
+    } catch (err) {
+      console.error('Failed to edit comment:', err);
+    }
+    setEditLoading(false);
   };
 
   const handleAddLinkAsAttachment = useCallback(async (comment: Comment) => {
@@ -207,17 +233,48 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
                 })}
               </span>
               {currentUserId === comment.user_id && (
-                <button
-                  onClick={() => handleDeleteComment(comment.id)}
-                  className="opacity-0 group-hover:opacity-100 text-navy/30 dark:text-slate-500 hover:text-danger text-xs transition-all ml-auto"
-                >
-                  Delete
-                </button>
+                <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all ml-auto">
+                  <button
+                    onClick={() => { setEditingCommentId(comment.id); setEditText(comment.content); }}
+                    className="text-navy/30 dark:text-slate-500 hover:text-electric text-xs"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDeleteComment(comment.id)}
+                    className="text-navy/30 dark:text-slate-500 hover:text-danger text-xs"
+                  >
+                    Delete
+                  </button>
+                </div>
               )}
             </div>
-            <p className="text-sm text-navy/70 dark:text-slate-300 mt-0.5 font-body whitespace-pre-wrap">
-              {linkifyContent(comment.content)}
-            </p>
+            {editingCommentId === comment.id ? (
+              <div className="mt-1">
+                <textarea
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  className="w-full p-2.5 rounded-lg bg-cream dark:bg-navy border border-electric/30 text-sm text-navy dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-electric/30 resize-none font-body"
+                  rows={3}
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleEditComment(comment.id);
+                    if (e.key === 'Escape') { setEditingCommentId(null); setEditText(''); }
+                  }}
+                />
+                <div className="flex items-center gap-2 mt-1.5">
+                  <Button size="sm" onClick={() => handleEditComment(comment.id)} loading={editLoading}>Save</Button>
+                  <button onClick={() => { setEditingCommentId(null); setEditText(''); }} className="text-xs text-navy/40 dark:text-slate-500 hover:text-navy/60 dark:hover:text-slate-300">Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-navy/70 dark:text-slate-300 mt-0.5 font-body whitespace-pre-wrap">
+                {linkifyContent(comment.content, showFullLinks)}
+                {comment.updated_at && comment.updated_at !== comment.created_at && (
+                  <span className="text-[10px] text-navy/25 dark:text-slate-600 ml-1.5">(edited)</span>
+                )}
+              </p>
+            )}
             <div className="flex items-center gap-2 mt-1">
               <CommentReactions commentId={comment.id} cardId={cardId} />
               {!isReply && (
@@ -296,36 +353,31 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
 
   return (
     <div>
-      <h3 className="text-sm font-semibold text-navy/50 dark:text-slate-400 mb-3 font-heading">
-        Comments and activity
-        <span className="ml-1.5 text-navy/30 dark:text-slate-500 font-normal">({comments.length})</span>
-      </h3>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-navy/50 dark:text-slate-400 font-heading">
+          Comments and activity
+          <span className="ml-1.5 text-navy/30 dark:text-slate-500 font-normal">({comments.length})</span>
+        </h3>
+        <button
+          onClick={() => setShowFullLinks(!showFullLinks)}
+          className="text-[10px] text-navy/35 dark:text-slate-500 hover:text-electric transition-colors font-body flex items-center gap-1"
+          title={showFullLinks ? 'Show shortened links' : 'Show full links'}
+        >
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+          {showFullLinks ? 'Shorten links' : 'Full links'}
+        </button>
+      </div>
 
       {/* Add comment — top of column like Trello */}
       <div className="mb-4">
-        <textarea
-          value={newComment}
-          onChange={(e) => { setNewComment(e.target.value); setCommentError(null); }}
-          placeholder="Write a comment..."
-          className="w-full p-2.5 rounded-xl bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-none font-body transition-all"
-          rows={newComment ? 3 : 1}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              handleAddComment();
-            }
+        <MentionInput
+          cardId={cardId}
+          onSubmit={(content, mentionedUserIds) => {
+            handleAddComment(undefined, mentionedUserIds, content);
           }}
         />
         {commentError && (
           <p className="text-xs text-danger mt-1 font-body">{commentError}</p>
-        )}
-        {newComment.trim() && (
-          <div className="flex items-center justify-between mt-1.5">
-            <span className="text-[10px] text-navy/30 dark:text-slate-500 font-body">Enter to send, Shift+Enter for new line</span>
-            <Button size="sm" onClick={() => handleAddComment()} loading={loading}>
-              Comment
-            </Button>
-          </div>
         )}
       </div>
 

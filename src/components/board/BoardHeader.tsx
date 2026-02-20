@@ -29,6 +29,7 @@ interface BoardHeaderProps {
   onFilterChange?: (filter: BoardFilter) => void;
   onCardClick?: (cardId: string) => void;
   onRefresh?: () => void;
+  onCreateCard?: () => void;
 }
 
 export default function BoardHeader({
@@ -43,6 +44,7 @@ export default function BoardHeader({
   onFilterChange,
   onCardClick,
   onRefresh,
+  onCreateCard,
 }: BoardHeaderProps) {
   const [showBgPicker, setShowBgPicker] = useState(false);
   const [showDedup, setShowDedup] = useState(false);
@@ -135,7 +137,7 @@ export default function BoardHeader({
         <div className="flex items-center gap-2">
           {/* Smart Search Bar with AI + Create */}
           {onCardClick && (
-            <SmartSearchBar boardId={boardId} onCardClick={onCardClick} onOpenShareModal={() => setShowShare(true)} isDark={hasBackground && isDarkBackground} />
+            <SmartSearchBar boardId={boardId} onCardClick={onCardClick} onOpenShareModal={() => setShowShare(true)} onCreateCard={onCreateCard} isDark={hasBackground && isDarkBackground} />
           )}
 
           {/* Filter */}

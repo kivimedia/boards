@@ -110,14 +110,15 @@ export async function getUnreadCount(
 }
 
 /**
- * Send email notification (placeholder for Resend.io integration in Phase 2).
+ * Send email notification via Resend.
  * Checks user preferences before sending.
  */
 export async function sendEmailNotification(
   supabase: SupabaseClient,
   userId: string,
   subject: string,
-  body: string
+  body: string,
+  cardId?: string
 ): Promise<void> {
   // Check user notification preferences
   const { data: prefs } = await supabase
@@ -130,10 +131,51 @@ export async function sendEmailNotification(
     return; // User has email notifications disabled
   }
 
-  // Placeholder: In Phase 2, this will use Resend.io
-  console.log(
-    `[NotificationService] Email notification (placeholder): to=${userId}, subject="${subject}"`
-  );
+  const resendKey = process.env.RESEND_API_KEY;
+  if (!resendKey) {
+    console.log(`[NotificationService] RESEND_API_KEY not configured, skipping email to ${userId}`);
+    return;
+  }
+
+  // Get user email from profiles
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('email')
+    .eq('id', userId)
+    .single();
+
+  if (!profile?.email) return;
+
+  const fromEmail = process.env.RESEND_FROM_EMAIL || 'noreply@dailycookie.co';
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://kmboards.co';
+  const cardLink = cardId ? `${siteUrl}/card/${cardId}` : siteUrl;
+
+  try {
+    await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: fromEmail,
+        to: [profile.email],
+        subject: `${subject} - KM Boards`,
+        html: `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px 0;">
+            <div style="background: #1a1f36; border-radius: 12px; padding: 16px 20px; margin-bottom: 20px;">
+              <h1 style="color: #fff; font-size: 16px; margin: 0;">KM Boards</h1>
+            </div>
+            <p style="color: #333; font-size: 14px; line-height: 1.6; font-weight: 600;">${subject}</p>
+            ${body ? `<p style="color: #555; font-size: 13px; line-height: 1.5;">${body.slice(0, 300)}${body.length > 300 ? '...' : ''}</p>` : ''}
+            <div style="text-align: center; margin: 24px 0;">
+              <a href="${cardLink}" style="display: inline-block; background: #4F6BFF; color: #fff; text-decoration: none; padding: 10px 24px; border-radius: 8px; font-weight: 600; font-size: 13px;">View in KM Boards</a>
+            </div>
+            <p style="color: #999; font-size: 11px;">You're receiving this because of your notification preferences.</p>
+          </div>
+        `,
+      }),
+    });
+  } catch (err) {
+    console.error('[NotificationService] Email send failed:', err);
+  }
 }
 
 /**

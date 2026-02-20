@@ -119,7 +119,7 @@ export async function fetchBoardMetadata(
   _mark('placements');
   // OPTIMIZED: Exclude full description text to reduce payload (~500 chars avg per card).
   // Kanban view only needs has_description boolean. Full description loaded on card open.
-  const PLACEMENT_SELECT = '*, card:cards(id, title, priority, due_date, cover_image_url, created_at, updated_at)';
+  const PLACEMENT_SELECT = '*, card:cards(id, title, priority, due_date, cover_image_url, owner_id, created_at, updated_at)';
   const PLACEMENT_PAGE_SIZE = 1000;
 
   async function fetchListPlacements(listId: string): Promise<any[]> {

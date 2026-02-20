@@ -175,6 +175,10 @@ describe('P1.7 Migration Types', () => {
         completed_at: null,
         created_at: '2025-01-01T00:00:00Z',
         updated_at: '2025-01-01T00:00:00Z',
+        parent_job_id: null,
+        board_index: null,
+        trello_board_id: null,
+        trello_board_name: null,
       };
 
       expect(job.id).toBe('job-1');
