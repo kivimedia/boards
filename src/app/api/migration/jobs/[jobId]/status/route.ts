@@ -43,7 +43,16 @@ export async function GET(_request: NextRequest, { params }: Params) {
 
   const childJobs = (children || []) as MigrationJob[];
 
-  // Derive overall status from children
+  // Derive overall status from children (but never override 'cancelled' set by user)
+  if (parent.status === 'cancelled') {
+    // Already cancelled by user - don't re-derive
+    return successResponse({
+      parent: parent as MigrationJob,
+      children: childJobs,
+      overall_percent: 0,
+    });
+  }
+
   const allComplete = childJobs.length > 0 && childJobs.every((c) => c.status === 'completed');
   const anyRunning = childJobs.some((c) => c.status === 'running');
   const anyFailed = childJobs.some((c) => c.status === 'failed');
@@ -58,7 +67,7 @@ export async function GET(_request: NextRequest, { params }: Params) {
     derivedParentStatus = 'running';
   } else if (anyFailed && !anyRunning && !anyNeedsResume) {
     // All done, at least one failed
-    const allDone = childJobs.every((c) => c.status === 'completed' || c.status === 'failed');
+    const allDone = childJobs.every((c) => c.status === 'completed' || c.status === 'failed' || c.status === 'cancelled');
     if (allDone) derivedParentStatus = 'completed'; // partial success
   }
 

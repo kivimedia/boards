@@ -38,6 +38,8 @@ export default function BoardMigrationCard({ job, onResume }: BoardMigrationCard
     borderColor = 'border-green-400 dark:border-green-500';
   } else if (job.status === 'failed') {
     borderColor = 'border-red-400 dark:border-red-500';
+  } else if (job.status === 'cancelled') {
+    borderColor = 'border-amber-400 dark:border-amber-500';
   } else if (needsResume) {
     borderColor = 'border-amber-400 dark:border-amber-500';
   }
@@ -79,6 +81,11 @@ export default function BoardMigrationCard({ job, onResume }: BoardMigrationCard
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
           </svg>
         )}
+        {job.status === 'cancelled' && (
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="6" y="6" width="12" height="12" rx="2" />
+          </svg>
+        )}
       </div>
 
       {/* Phase label + progress bar */}
@@ -108,6 +115,11 @@ export default function BoardMigrationCard({ job, onResume }: BoardMigrationCard
         </p>
       )}
 
+      {/* Cancelled state */}
+      {job.status === 'cancelled' && (
+        <p className="text-xs font-body text-amber-600 dark:text-amber-400">Cancelled</p>
+      )}
+
       {/* Pending state */}
       {job.status === 'pending' && !needsResume && (
         <p className="text-xs font-body text-navy/40 dark:text-slate-500">Waiting...</p>
@@ -124,7 +136,7 @@ export default function BoardMigrationCard({ job, onResume }: BoardMigrationCard
       )}
 
       {/* Mini stats row */}
-      {report && (job.status === 'running' || job.status === 'completed' || job.status === 'failed') && (
+      {report && (job.status === 'running' || job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') && (
         <div className="flex gap-2 text-[10px] font-body text-navy/40 dark:text-slate-500">
           {report.cards_created > 0 && <span>{report.cards_created} cards</span>}
           {report.comments_created > 0 && <span>{report.comments_created} comments</span>}
