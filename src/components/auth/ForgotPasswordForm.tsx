@@ -22,10 +22,7 @@ export default function ForgotPasswordForm() {
       const res = await fetch('/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
-        }),
+        body: JSON.stringify({ email }),
       });
 
       const data = await res.json();
