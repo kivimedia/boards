@@ -70,9 +70,15 @@ export async function GET(request: NextRequest, { params }: Params) {
 
   const total = performance.now() - t0;
 
+  // Check if current user is admin (ziv@dailycookie.co)
+  const currentProfile = profilesMap.get(auth.ctx.userId) as any;
+  const { data: { session } } = await supabase.auth.getSession();
+  const isAdmin = session?.user?.email === 'ziv@dailycookie.co';
+
   const responseData = {
     card,
     userId: auth.ctx.userId,
+    isAdmin,
     boardType: boardResult.data?.type || null,
     boardName: boardResult.data?.name || '',
     listName: (placementResult.data?.list as any)?.name || '',

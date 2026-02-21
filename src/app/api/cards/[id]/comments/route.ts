@@ -215,7 +215,11 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 
   const { supabase, userId } = auth.ctx;
 
-  // Only allow editing own comments
+  // Check if current user is admin
+  const { data: { session } } = await supabase.auth.getSession();
+  const isAdmin = session?.user?.email === 'ziv@dailycookie.co';
+
+  // Only allow editing own comments (or any comment if admin)
   const { data: comment } = await supabase
     .from('comments')
     .select('user_id')
@@ -223,7 +227,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     .single();
 
   if (!comment) return errorResponse('Comment not found', 404);
-  if (comment.user_id !== userId) return errorResponse('Cannot edit another user\'s comment', 403);
+  if (comment.user_id !== userId && !isAdmin) return errorResponse('Cannot edit another user\'s comment', 403);
 
   const { data: updated, error } = await supabase
     .from('comments')
