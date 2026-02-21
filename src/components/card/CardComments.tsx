@@ -56,9 +56,10 @@ interface CardCommentsProps {
   onCommentAdded?: (comment: Comment) => void;
   boardId?: string;
   currentUserId?: string | null;
+  isAdmin?: boolean;
 }
 
-export default function CardComments({ cardId, comments, onRefresh, onCommentAdded, currentUserId }: CardCommentsProps) {
+export default function CardComments({ cardId, comments, onRefresh, onCommentAdded, currentUserId, isAdmin }: CardCommentsProps) {
   const [newComment, setNewComment] = useState('');
   const [replyText, setReplyText] = useState('');
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
@@ -232,7 +233,7 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
                   minute: '2-digit',
                 })}
               </span>
-              {currentUserId === comment.user_id && (
+              {(currentUserId === comment.user_id || isAdmin) && (
                 <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all ml-auto">
                   <button
                     onClick={() => { setEditingCommentId(comment.id); setEditText(comment.content); }}
@@ -240,12 +241,14 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
                   >
                     Edit
                   </button>
-                  <button
-                    onClick={() => handleDeleteComment(comment.id)}
-                    className="text-navy/30 dark:text-slate-500 hover:text-danger text-xs"
-                  >
-                    Delete
-                  </button>
+                  {currentUserId === comment.user_id && (
+                    <button
+                      onClick={() => handleDeleteComment(comment.id)}
+                      className="text-navy/30 dark:text-slate-500 hover:text-danger text-xs"
+                    >
+                      Delete
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -269,7 +272,7 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
               </div>
             ) : (
               <p className="text-sm text-navy/70 dark:text-slate-300 mt-0.5 font-body whitespace-pre-wrap">
-                {linkifyContent(comment.content, showFullLinks)}
+                {linkifyContent(comment.content, showFullLinks || editingCommentId !== null)}
                 {comment.updated_at && comment.updated_at !== comment.created_at && (
                   <span className="text-[10px] text-navy/25 dark:text-slate-600 ml-1.5">(edited)</span>
                 )}

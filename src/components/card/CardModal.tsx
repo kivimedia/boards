@@ -94,6 +94,7 @@ const PRIORITY_OPTIONS: { value: CardPriority; label: string; color: string }[] 
 export default function CardModal({ cardId, boardId, onClose, onRefresh, allCardIds, onNavigate }: CardModalProps) {
   const [card, setCard] = useState<Card | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [cardLoading, setCardLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [labels, setLabels] = useState<Label[]>([]);
@@ -232,6 +233,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
 
       setCard(cardData);
       setCurrentUserId(data.userId || null);
+      setIsAdmin(data.isAdmin || false);
       setTitle(cardData.title);
       setDescription(cardData.description || '');
       setDueDate(cardData.due_date ? cardData.due_date.split('T')[0] : '');
@@ -837,6 +839,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                       });
                     }}
                     currentUserId={currentUserId}
+                    isAdmin={isAdmin}
                   />
                 </div>
               </div>
