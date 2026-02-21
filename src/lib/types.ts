@@ -445,7 +445,11 @@ export type NotificationType =
   | 'approval_needed'
   | 'onboarding_started'
   | 'automation_triggered'
-  | 'card_watched';
+  | 'card_watched'
+  | 'pk_red_flag'
+  | 'pk_reminder'
+  | 'pk_overdue'
+  | 'pk_sync_error';
 
 export interface Notification {
   id: string;
@@ -2894,3 +2898,316 @@ export interface MultiTurnExecutionCallbacks {
   onComplete: (output: string) => void;
   onError: (error: string) => void;
 }
+
+// ============================================================
+// Performance Keeping Module
+// ============================================================
+
+export type PKTrackerType =
+  | 'masterlist'
+  | 'fathom_videos'
+  | 'client_updates'
+  | 'ticket_updates'
+  | 'daily_goals'
+  | 'sanity_checks'
+  | 'sanity_tests'
+  | 'pics_monitoring'
+  | 'flagged_tickets'
+  | 'weekly_tickets'
+  | 'pingdom_tests'
+  | 'google_ads_reports'
+  | 'monthly_summaries'
+  | 'update_schedule'
+  | 'holiday_tracking'
+  | 'website_status'
+  | 'google_analytics_status'
+  | 'other_activities';
+
+export type PKAutomationClass = 'AUTO' | 'SEMI_AUTO' | 'HUMAN_REQUIRED' | 'NOTIFY';
+
+export type PKSyncFrequency = 'hourly' | 'daily' | 'weekly' | 'monthly';
+
+export type PKSyncStatus = 'running' | 'success' | 'error' | 'partial';
+
+export interface PKSyncConfig {
+  id: string;
+  spreadsheet_id: string;
+  sheet_title: string;
+  tracker_type: PKTrackerType;
+  sync_frequency: PKSyncFrequency;
+  is_active: boolean;
+  last_synced_at: string | null;
+  last_sync_status: PKSyncStatus | null;
+  last_sync_error: string | null;
+  row_count: number;
+  config: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PKSyncRun {
+  id: string;
+  config_id: string | null;
+  tracker_type: PKTrackerType;
+  status: PKSyncStatus;
+  sheets_synced: number;
+  rows_synced: number;
+  errors: Array<{ sheet: string; tab: string; error: string }>;
+  duration_ms: number | null;
+  triggered_by: 'cron' | 'manual' | 'webhook';
+  started_at: string;
+  completed_at: string | null;
+}
+
+export interface AMClientAssignment {
+  id: string;
+  profile_id: string;
+  client_id: string;
+  is_primary: boolean;
+  created_at: string;
+  profile?: Profile;
+  client?: Client;
+}
+
+export interface PKFathomVideo {
+  id: string;
+  account_manager_id: string | null;
+  account_manager_name: string;
+  client_name: string | null;
+  meeting_date: string | null;
+  date_watched: string | null;
+  fathom_video_link: string | null;
+  watched: boolean | null;
+  action_items_sent: boolean | null;
+  attachments: string | null;
+  notes: string | null;
+  source_tab: string;
+  source_row: number | null;
+  synced_at: string;
+  created_at: string;
+}
+
+export interface PKClientUpdate {
+  id: string;
+  account_manager_id: string | null;
+  account_manager_name: string;
+  client_name: string | null;
+  date_sent: string | null;
+  on_time: boolean | null;
+  method: string | null;
+  notes: string | null;
+  source_tab: string;
+  source_row: number | null;
+  synced_at: string;
+  created_at: string;
+}
+
+export interface PKTicketUpdate {
+  id: string;
+  month_label: string;
+  client_type: string | null;
+  client_name: string | null;
+  updated: boolean | null;
+  report_timeframe: string | null;
+  report_attachment: string | null;
+  source_tab: string;
+  source_row: number | null;
+  synced_at: string;
+  created_at: string;
+}
+
+export interface PKDailyGoal {
+  id: string;
+  entry_date: string | null;
+  designer_dev: string;
+  commitment: string | null;
+  link: string | null;
+  updated: boolean | null;
+  completed: boolean | null;
+  percent: number | null;
+  remarks: string | null;
+  source_tab: string;
+  source_row: number | null;
+  synced_at: string;
+  created_at: string;
+}
+
+export interface PKSanityCheck {
+  id: string;
+  account_manager_id: string | null;
+  account_manager_name: string;
+  check_date: string | null;
+  client_name: string | null;
+  business_name: string | null;
+  sanity_check_done: boolean | null;
+  notes: string | null;
+  source_tab: string;
+  source_row: number | null;
+  synced_at: string;
+  created_at: string;
+}
+
+export interface PKSanityTest {
+  id: string;
+  account_manager_id: string | null;
+  account_manager_name: string;
+  test_date: string | null;
+  client_name: string | null;
+  website: string | null;
+  form_link: string | null;
+  test_done: boolean | null;
+  email_received: boolean | null;
+  device: string | null;
+  desktop_layout: string | null;
+  mobile_layout: string | null;
+  thank_you_page: boolean | null;
+  notes: string | null;
+  documentation: string | null;
+  source_sheet: string;
+  source_tab: string;
+  source_row: number | null;
+  synced_at: string;
+  created_at: string;
+}
+
+export interface PKPicsMonitoring {
+  id: string;
+  account_manager_id: string | null;
+  account_manager_name: string;
+  week_label: string | null;
+  check_date: string | null;
+  client_name: string | null;
+  duration: string | null;
+  notes: string | null;
+  source_tab: string;
+  source_row: number | null;
+  synced_at: string;
+  created_at: string;
+}
+
+export interface PKFlaggedTicket {
+  id: string;
+  team_type: string;
+  date_range: string | null;
+  person_name: string;
+  project_ticket_id: string | null;
+  red_flag_type: string | null;
+  ticket_count: number | null;
+  reasonable: boolean | null;
+  description: string | null;
+  source_tab: string;
+  source_row: number | null;
+  synced_at: string;
+  created_at: string;
+}
+
+export interface PKPingdomTest {
+  id: string;
+  account_manager_id: string | null;
+  account_manager_name: string | null;
+  test_date: string | null;
+  client_name: string | null;
+  client_website: string | null;
+  report_attachment: string | null;
+  notes: string | null;
+  quarter_label: string | null;
+  source_tab: string;
+  source_row: number | null;
+  synced_at: string;
+  created_at: string;
+}
+
+export interface PKUpdateSchedule {
+  id: string;
+  account_manager_name: string | null;
+  client_name: string | null;
+  preferred_time: string | null;
+  notes: string | null;
+  source_row: number | null;
+  synced_at: string;
+  created_at: string;
+}
+
+export interface PKWebsiteStatus {
+  id: string;
+  account_manager_name: string | null;
+  client_name: string | null;
+  business_name: string | null;
+  website_link: string | null;
+  status: string | null;
+  notes: string | null;
+  source_row: number | null;
+  synced_at: string;
+  created_at: string;
+}
+
+// Dashboard aggregate types
+export interface PKTrackerSummary {
+  tracker_type: PKTrackerType;
+  label: string;
+  frequency: string;
+  total_rows: number;
+  last_synced_at: string | null;
+  sync_status: PKSyncStatus | null;
+  freshness: 'fresh' | 'stale' | 'overdue';
+}
+
+export interface PKDashboardData {
+  trackers: PKTrackerSummary[];
+  last_sync_run: PKSyncRun | null;
+  am_scorecard: PKAMScorecard[];
+  flagged_tickets_count: number;
+}
+
+export interface PKAMScorecard {
+  account_manager_id: string | null;
+  account_manager_name: string;
+  fathom_videos_watched: number;
+  fathom_videos_total: number;
+  client_updates_on_time: number;
+  client_updates_total: number;
+  sanity_checks_done: number;
+  sanity_checks_total: number;
+}
+
+export const PK_TRACKER_LABELS: Record<PKTrackerType, string> = {
+  masterlist: 'Masterlist of Trackers',
+  fathom_videos: 'Fathom Video Tracker',
+  client_updates: 'Client Updates Tracker',
+  ticket_updates: 'AM Ticket Update Tracker',
+  daily_goals: 'Operations Team Daily Goals',
+  sanity_checks: 'Sanity Checks',
+  sanity_tests: 'Sanity Tests (Detailed)',
+  pics_monitoring: 'PICS.IO Monitoring',
+  flagged_tickets: 'Flagged Tickets Tracker',
+  weekly_tickets: 'Weekly Ticket Tracker',
+  pingdom_tests: 'Pingdom Speed Test',
+  google_ads_reports: 'Google Ads Monthly Report',
+  monthly_summaries: 'Monthly Summary',
+  update_schedule: 'Update Schedule',
+  holiday_tracking: 'Holiday Section Tracking',
+  website_status: 'AM Clients Websites Status',
+  google_analytics_status: 'Google Analytics Clients',
+  other_activities: 'KM Other Activities',
+};
+
+export const PK_TRACKER_FREQUENCIES: Record<PKTrackerType, string> = {
+  masterlist: 'Hub',
+  fathom_videos: 'Daily',
+  client_updates: 'Daily',
+  ticket_updates: 'Daily',
+  daily_goals: '2x/week',
+  sanity_checks: 'Weekly',
+  sanity_tests: 'Weekly',
+  pics_monitoring: 'Weekly',
+  flagged_tickets: 'Weekly',
+  weekly_tickets: 'Weekly',
+  pingdom_tests: 'Quarterly',
+  google_ads_reports: 'Monthly',
+  monthly_summaries: 'Monthly',
+  update_schedule: 'Reference',
+  holiday_tracking: 'Seasonal',
+  website_status: 'Reference',
+  google_analytics_status: 'Reference',
+  other_activities: 'Reference',
+};
