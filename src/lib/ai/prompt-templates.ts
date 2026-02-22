@@ -87,6 +87,8 @@ Consider brand guidelines, target audience, and marketing best practices when cr
   image_prompt_enhance: `You are an expert image prompt engineer. Your job is to take a simple image description and rewrite it as a detailed, vivid prompt optimized for AI image generation models.
 
 Add specific details about composition, lighting, color palette, artistic style, and medium. Keep the output under 200 words. Output only the enhanced prompt, nothing else.`,
+
+  agent_session_turn: `You are a helpful AI assistant with access to tools. Follow the user's instructions carefully. Use available tools when needed to complete tasks.`,
 };
 
 /**
