@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type {
   AgentSkill,
   AgentQualityTier,
@@ -135,36 +135,245 @@ function SkillCard({
 // SKILL DETAIL PANEL
 // ============================================================================
 
-function SkillDetailPanel({ skill }: { skill: AgentSkill }) {
+function SkillDetailPanel({
+  skill,
+  onSave,
+}: {
+  skill: AgentSkill;
+  onSave: (skillId: string, updates: Partial<AgentSkill>) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+
+  // Editable fields
+  const [name, setName] = useState(skill.name);
+  const [description, setDescription] = useState(skill.description);
+  const [systemPrompt, setSystemPrompt] = useState(skill.system_prompt);
+  const [qualityScore, setQualityScore] = useState(skill.quality_score);
+  const [qualityTier, setQualityTier] = useState(skill.quality_tier);
+  const [qualityNotes, setQualityNotes] = useState(skill.quality_notes ?? '');
+  const [isActive, setIsActive] = useState(skill.is_active);
+  const [icon, setIcon] = useState(skill.icon ?? '');
+
+  // Reset form when a different skill is selected
+  useEffect(() => {
+    setName(skill.name);
+    setDescription(skill.description);
+    setSystemPrompt(skill.system_prompt);
+    setQualityScore(skill.quality_score);
+    setQualityTier(skill.quality_tier);
+    setQualityNotes(skill.quality_notes ?? '');
+    setIsActive(skill.is_active);
+    setIcon(skill.icon ?? '');
+    setEditing(false);
+    setSaveMsg(null);
+  }, [skill.id]);
+
+  const hasChanges =
+    name !== skill.name ||
+    description !== skill.description ||
+    systemPrompt !== skill.system_prompt ||
+    qualityScore !== skill.quality_score ||
+    qualityTier !== skill.quality_tier ||
+    (qualityNotes || null) !== skill.quality_notes ||
+    isActive !== skill.is_active ||
+    (icon || null) !== skill.icon;
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveMsg(null);
+    try {
+      await onSave(skill.id, {
+        name,
+        description,
+        system_prompt: systemPrompt,
+        quality_score: qualityScore,
+        quality_tier: qualityTier,
+        quality_notes: qualityNotes || null,
+        is_active: isActive,
+        icon: icon || null,
+      });
+      setSaveMsg('Saved!');
+      setEditing(false);
+      setTimeout(() => setSaveMsg(null), 2000);
+    } catch (err: any) {
+      setSaveMsg(`Error: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inputClass = 'w-full px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent';
+  const labelClass = 'text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide';
+
   return (
     <div className="p-6 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-4">
-        <span className="text-3xl">{skill.icon}</span>
-        <div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">{skill.name}</h2>
-          <div className="flex items-center gap-2 mt-1">
-            <TierBadge tier={skill.quality_tier} />
-            <span className="text-sm text-gray-500 dark:text-gray-400">v{skill.version}</span>
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-3">
+          {editing ? (
+            <input
+              value={icon}
+              onChange={e => setIcon(e.target.value)}
+              className="w-10 h-10 text-center text-2xl rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900"
+              placeholder="🤖"
+              title="Skill icon (emoji)"
+            />
+          ) : (
+            <span className="text-3xl">{skill.icon}</span>
+          )}
+          <div className="flex-1 min-w-0">
+            {editing ? (
+              <input value={name} onChange={e => setName(e.target.value)} className={`${inputClass} font-bold text-base`} />
+            ) : (
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">{skill.name}</h2>
+            )}
+            <div className="flex items-center gap-2 mt-1">
+              {editing ? (
+                <select
+                  value={qualityTier}
+                  onChange={e => setQualityTier(e.target.value as AgentQualityTier)}
+                  className={inputClass}
+                  style={{ width: 'auto' }}
+                >
+                  {Object.entries(TIER_CONFIG).map(([key, cfg]) => (
+                    <option key={key} value={key}>{cfg.emoji} {cfg.label}</option>
+                  ))}
+                </select>
+              ) : (
+                <TierBadge tier={skill.quality_tier} />
+              )}
+              <span className="text-sm text-gray-500 dark:text-gray-400">v{skill.version}</span>
+            </div>
           </div>
+        </div>
+
+        {/* Edit / Save buttons */}
+        <div className="flex items-center gap-2 shrink-0">
+          {editing ? (
+            <>
+              <button
+                onClick={() => {
+                  setName(skill.name);
+                  setDescription(skill.description);
+                  setSystemPrompt(skill.system_prompt);
+                  setQualityScore(skill.quality_score);
+                  setQualityTier(skill.quality_tier);
+                  setQualityNotes(skill.quality_notes ?? '');
+                  setIsActive(skill.is_active);
+                  setIcon(skill.icon ?? '');
+                  setEditing(false);
+                }}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving || !hasChanges}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setEditing(true)}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              Edit
+            </button>
+          )}
         </div>
       </div>
 
-      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">{skill.description}</p>
+      {/* Save feedback */}
+      {saveMsg && (
+        <div className={`mb-3 text-xs font-medium ${saveMsg.startsWith('Error') ? 'text-red-500' : 'text-emerald-500'}`}>
+          {saveMsg}
+        </div>
+      )}
+
+      {/* Active toggle */}
+      {editing && (
+        <label className="flex items-center gap-2 mb-4 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={isActive}
+            onChange={e => setIsActive(e.target.checked)}
+            className="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
+          />
+          <span className="text-sm text-gray-700 dark:text-gray-300">Active</span>
+        </label>
+      )}
+
+      {/* Description */}
+      {editing ? (
+        <div className="mb-4">
+          <label className={labelClass}>Description</label>
+          <textarea
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            rows={2}
+            className={`${inputClass} mt-1`}
+          />
+        </div>
+      ) : (
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">{skill.description}</p>
+      )}
 
       {/* Quality Score */}
       <div className="mb-6">
-        <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Quality Score</label>
-        <div className="mt-1">
-          <QualityScoreBar score={skill.quality_score} />
-        </div>
+        <label className={labelClass}>Quality Score</label>
+        {editing ? (
+          <div className="flex items-center gap-2 mt-1">
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={qualityScore}
+              onChange={e => setQualityScore(Number(e.target.value))}
+              className="flex-1"
+            />
+            <span className="text-xs font-mono text-gray-600 dark:text-gray-400 w-8 text-right">{qualityScore}</span>
+          </div>
+        ) : (
+          <div className="mt-1">
+            <QualityScoreBar score={skill.quality_score} />
+          </div>
+        )}
       </div>
 
       {/* Assessment Notes */}
-      {skill.quality_notes && (
+      {(editing || skill.quality_notes) && (
         <div className="mb-6 p-3 rounded-lg bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700">
-          <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Assessment</label>
-          <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{skill.quality_notes}</p>
+          <label className={labelClass}>Assessment</label>
+          {editing ? (
+            <textarea
+              value={qualityNotes}
+              onChange={e => setQualityNotes(e.target.value)}
+              rows={2}
+              className={`${inputClass} mt-1`}
+              placeholder="Quality assessment notes..."
+            />
+          ) : (
+            <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{skill.quality_notes}</p>
+          )}
+        </div>
+      )}
+
+      {/* System Prompt (only in edit mode) */}
+      {editing && (
+        <div className="mb-6">
+          <label className={labelClass}>System Prompt</label>
+          <textarea
+            value={systemPrompt}
+            onChange={e => setSystemPrompt(e.target.value)}
+            rows={8}
+            className={`${inputClass} mt-1 font-mono text-xs`}
+            placeholder="System prompt for the agent..."
+          />
         </div>
       )}
 
@@ -358,6 +567,25 @@ export default function SkillQualityDashboard() {
     ? Math.round(skills.reduce((sum, s) => sum + s.quality_score, 0) / skills.length)
     : 0;
 
+  const handleSkillSave = useCallback(async (skillId: string, updates: Partial<AgentSkill>) => {
+    const res = await fetch(`/api/agents/skills/${skillId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      throw new Error(json.error || 'Failed to save');
+    }
+    const json = await res.json();
+    const updated = json.data as AgentSkill;
+    // Update local state
+    setSkills(prev => prev.map(s => s.id === skillId ? updated : s));
+    setSelectedSkill(prev => prev?.id === skillId ? updated : prev);
+  }, []);
+
+  const [seeding, setSeeding] = useState(false);
+
   return (
     <div className="max-w-7xl mx-auto">
       {/* Header */}
@@ -368,21 +596,6 @@ export default function SkillQualityDashboard() {
             {skills.length} skills &middot; Avg quality: {avgScore}/100
           </p>
         </div>
-        <button
-          onClick={async () => {
-            const res = await fetch('/api/agents/skills', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ action: 'seed' }),
-            });
-            const json = await res.json();
-            alert(`Seeded: ${json.data?.created} created, ${json.data?.skipped} skipped`);
-            fetchSkills();
-          }}
-          className="px-4 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
-        >
-          Seed Default Skills
-        </button>
       </div>
 
       {/* Tier Summary */}
@@ -473,7 +686,7 @@ export default function SkillQualityDashboard() {
         <div className="lg:col-span-1">
           {selectedSkill ? (
             <div className="sticky top-4">
-              <SkillDetailPanel skill={selectedSkill} />
+              <SkillDetailPanel skill={selectedSkill} onSave={handleSkillSave} />
             </div>
           ) : (
             <div className="p-8 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-center text-gray-500 dark:text-gray-400">
@@ -481,6 +694,34 @@ export default function SkillQualityDashboard() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Seed Default Skills — bottom of page, muted */}
+      <div className="mt-12 pt-6 border-t border-gray-200 dark:border-gray-700 text-center">
+        <button
+          onClick={async () => {
+            setSeeding(true);
+            try {
+              const res = await fetch('/api/agents/skills', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'seed' }),
+              });
+              const json = await res.json();
+              alert(`Seeded: ${json.data?.created} created, ${json.data?.skipped} skipped`);
+              fetchSkills();
+            } finally {
+              setSeeding(false);
+            }
+          }}
+          disabled={seeding}
+          className="px-3 py-1.5 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors disabled:opacity-50"
+        >
+          {seeding ? 'Seeding...' : 'Seed Default Skills'}
+        </button>
+        <p className="text-[10px] text-gray-400 dark:text-gray-600 mt-1">
+          Adds built-in skill definitions. Existing skills are not overwritten.
+        </p>
       </div>
     </div>
   );

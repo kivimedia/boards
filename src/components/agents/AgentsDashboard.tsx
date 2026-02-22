@@ -70,10 +70,12 @@ export default function AgentsDashboard() {
 
     setLaunching(true);
     try {
+      const title = prompt.slice(0, 40) + (prompt.length > 40 ? '...' : '');
+
       const res = await fetch('/api/agents/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ skill_id: skillId, input_message: prompt, board_id: boardId }),
+        body: JSON.stringify({ skill_id: skillId, title, board_id: boardId }),
       });
 
       if (!res.ok) {
@@ -81,58 +83,19 @@ export default function AgentsDashboard() {
         throw new Error(errData.error || `HTTP ${res.status}`);
       }
 
-      // Read just enough of the SSE stream to get the session event
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error('No response stream');
-
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let sessionId = '';
-      let currentEvent = '';
-
-      // Read until we get the session event, then we can add the tab
-      // The AgentSessionPanel will handle the rest of the stream via its own SSE
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-
-        for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            currentEvent = line.slice(7).trim();
-          } else if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (currentEvent === 'session' && data.session_id) {
-                sessionId = data.session_id;
-              }
-            } catch {}
-          }
-        }
-
-        if (sessionId) {
-          // Cancel the reader — the panel will start its own conversation
-          await reader.cancel();
-          break;
-        }
-      }
-
-      if (!sessionId) throw new Error('No session ID received');
-
+      const { data } = await res.json();
       const skill = skills.find((s) => s.id === skillId);
       const newTab: AgentTab = {
-        sessionId,
-        title: prompt.slice(0, 40) + (prompt.length > 40 ? '...' : ''),
-        skillIcon: skill?.icon ?? null,
-        skillName: skill?.name ?? skillId,
-        status: 'running',
+        sessionId: data.id,
+        title: data.title || title,
+        skillIcon: data.skill_icon ?? skill?.icon ?? null,
+        skillName: data.skill_name ?? skill?.name ?? skillId,
+        status: 'idle',
+        initialPrompt: prompt,
       };
 
       setTabs(prev => [...prev, newTab]);
-      setActiveTabId(sessionId);
+      setActiveTabId(data.id);
     } catch (err: any) {
       alert(`Failed to launch agent: ${err.message}`);
     } finally {
@@ -161,6 +124,10 @@ export default function AgentsDashboard() {
 
   const handleStatusChange = useCallback((sessionId: string, status: 'idle' | 'running' | 'cancelled' | 'error') => {
     setTabs(prev => prev.map(t => t.sessionId === sessionId ? { ...t, status } : t));
+  }, []);
+
+  const handleInitialPromptConsumed = useCallback((sessionId: string) => {
+    setTabs(prev => prev.map(t => t.sessionId === sessionId ? { ...t, initialPrompt: undefined } : t));
   }, []);
 
   if (loading) {
@@ -229,6 +196,8 @@ export default function AgentsDashboard() {
         <AgentSessionPanel
           key={activeSession.sessionId}
           sessionId={activeSession.sessionId}
+          initialPrompt={activeSession.initialPrompt}
+          onInitialPromptConsumed={() => handleInitialPromptConsumed(activeSession.sessionId)}
           onStatusChange={(status) => handleStatusChange(activeSession.sessionId, status)}
         />
       )}
