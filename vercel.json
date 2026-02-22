@@ -14,7 +14,9 @@
     "src/app/api/podcast/runs/*/execute/route.ts": { "maxDuration": 300 },
     "src/app/api/migration/jobs/*/run/route.ts": { "maxDuration": 300 },
     "src/app/api/migration/jobs/*/backfill-attachments/route.ts": { "maxDuration": 300 },
-    "src/app/api/migration/jobs/*/fix-positions/route.ts": { "maxDuration": 300 }
+    "src/app/api/migration/jobs/*/fix-positions/route.ts": { "maxDuration": 300 },
+    "src/app/api/cron/performance-sync/route.ts": { "maxDuration": 300 },
+    "src/app/api/performance/sync/route.ts": { "maxDuration": 300 }
   },
   "crons": [
     {
@@ -24,6 +26,10 @@
     {
       "path": "/api/cron/qa-monitor",
       "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/performance-sync",
+      "schedule": "0 4,16 * * *"
     }
   ]
 }
