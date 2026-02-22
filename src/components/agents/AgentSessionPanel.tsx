@@ -19,10 +19,13 @@ interface ChatMessage {
 interface AgentSessionPanelProps {
   sessionId: string;
   initialMessages?: ChatMessage[];
+  /** If set, auto-send this as the first message on mount */
+  initialPrompt?: string;
+  onInitialPromptConsumed?: () => void;
   onStatusChange: (status: 'idle' | 'running' | 'cancelled' | 'error') => void;
 }
 
-export default function AgentSessionPanel({ sessionId, initialMessages, onStatusChange }: AgentSessionPanelProps) {
+export default function AgentSessionPanel({ sessionId, initialMessages, initialPrompt, onInitialPromptConsumed, onStatusChange }: AgentSessionPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages || []);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
@@ -31,10 +34,14 @@ export default function AgentSessionPanel({ sessionId, initialMessages, onStatus
   const abortRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const initialPromptSentRef = useRef(false);
 
-  // Load session history from DB on mount (only if no initialMessages)
+  // Load session history from DB on mount (only if no initialMessages and no initialPrompt)
   useEffect(() => {
-    if (initialMessages) return;
+    if (initialMessages || initialPrompt) {
+      setLoaded(true);
+      return;
+    }
     (async () => {
       try {
         const res = await fetch('/api/agents/sessions');
@@ -48,13 +55,13 @@ export default function AgentSessionPanel({ sessionId, initialMessages, onStatus
       } catch {}
       setLoaded(true);
     })();
-  }, [sessionId, initialMessages]);
+  }, [sessionId, initialMessages, initialPrompt]);
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
   }, []);
 
-  const readSSEStream = useCallback(async (res: Response, isFirstTurn: boolean) => {
+  const readSSEStream = useCallback(async (res: Response) => {
     const reader = res.body?.getReader();
     if (!reader) throw new Error('No response stream');
 
@@ -134,19 +141,11 @@ export default function AgentSessionPanel({ sessionId, initialMessages, onStatus
     const controller = new AbortController();
     abortRef.current = controller;
 
-    const isFirstTurn = messages.length === 0;
-    const url = isFirstTurn
-      ? '/api/agents/sessions'
-      : `/api/agents/sessions/${sessionId}/message`;
-
     try {
-      const res = await fetch(url, {
+      const res = await fetch(`/api/agents/sessions/${sessionId}/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(isFirstTurn
-          ? { skill_id: '', input_message: msg } // skill_id set by parent via initial creation
-          : { message: msg }
-        ),
+        body: JSON.stringify({ message: msg }),
         signal: controller.signal,
       });
 
@@ -155,7 +154,7 @@ export default function AgentSessionPanel({ sessionId, initialMessages, onStatus
         throw new Error(errData.error || `HTTP ${res.status}`);
       }
 
-      await readSSEStream(res, isFirstTurn);
+      await readSSEStream(res);
       onStatusChange('idle');
     } catch (err: any) {
       if (err.name !== 'AbortError') {
@@ -173,7 +172,7 @@ export default function AgentSessionPanel({ sessionId, initialMessages, onStatus
       abortRef.current = null;
       scrollToBottom();
     }
-  }, [input, streaming, messages.length, sessionId, onStatusChange, readSSEStream, scrollToBottom]);
+  }, [input, streaming, sessionId, onStatusChange, readSSEStream, scrollToBottom]);
 
   const handleKill = useCallback(async () => {
     abortRef.current?.abort();
@@ -183,6 +182,15 @@ export default function AgentSessionPanel({ sessionId, initialMessages, onStatus
     setStreaming(false);
     onStatusChange('cancelled');
   }, [sessionId, onStatusChange]);
+
+  // Auto-send initial prompt on mount (for newly launched sessions)
+  useEffect(() => {
+    if (!loaded || !initialPrompt || initialPromptSentRef.current) return;
+    initialPromptSentRef.current = true;
+    onInitialPromptConsumed?.();
+    // Small delay to ensure component is fully rendered
+    setTimeout(() => sendMessage(initialPrompt), 100);
+  }, [loaded, initialPrompt, sendMessage, onInitialPromptConsumed]);
 
   if (!loaded) {
     return (

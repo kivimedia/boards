@@ -8,6 +8,8 @@ export interface AgentTab {
   skillIcon: string | null;
   skillName: string;
   status: 'idle' | 'running' | 'cancelled' | 'error';
+  /** Set on creation — consumed by AgentSessionPanel to auto-send first message */
+  initialPrompt?: string;
 }
 
 interface AgentTabBarProps {
@@ -31,6 +33,9 @@ export default function AgentTabBar({ tabs, activeTabId, onTabSelect, onTabClose
     }
   }, [editingTabId]);
 
+  // Don't render the tab bar if there are no sessions
+  if (tabs.length === 0) return null;
+
   const startRename = (tab: AgentTab) => {
     setEditingTabId(tab.sessionId);
     setEditValue(tab.title);
@@ -46,21 +51,6 @@ export default function AgentTabBar({ tabs, activeTabId, onTabSelect, onTabClose
 
   return (
     <div className="flex items-center gap-1 border-b border-navy/10 dark:border-slate-700 mb-4 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-      {/* Launcher tab (always first) */}
-      <button
-        onClick={onNewTab}
-        className={`shrink-0 flex items-center gap-1.5 px-3 py-2 text-xs font-semibold border-b-2 transition-colors ${
-          activeTabId === 'launcher'
-            ? 'border-electric text-electric bg-electric/5'
-            : 'border-transparent text-navy/50 dark:text-slate-400 hover:text-navy dark:hover:text-slate-200 hover:border-navy/20'
-        }`}
-      >
-        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-        </svg>
-        New Agent
-      </button>
-
       {/* Session tabs */}
       {tabs.map((tab) => (
         <div
@@ -123,6 +113,19 @@ export default function AgentTabBar({ tabs, activeTabId, onTabSelect, onTabClose
           </button>
         </div>
       ))}
+
+      {/* New agent button — small "+" at the end, only when viewing a session */}
+      {activeTabId !== 'launcher' && (
+        <button
+          onClick={onNewTab}
+          className="shrink-0 p-2 text-navy/30 dark:text-slate-500 hover:text-electric dark:hover:text-electric transition-colors"
+          title="Launch new agent"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }
