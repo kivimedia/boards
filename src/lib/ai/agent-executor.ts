@@ -553,6 +553,166 @@ export async function executeAgentSkill(
 }
 
 // ============================================================================
+// SESSION-BASED CONVERSATION EXECUTION (multi-turn chat with persistent history)
+// ============================================================================
+
+export interface ConversationAgentParams {
+  skillId: string;
+  boardId?: string;
+  userId: string;
+  systemPrompt: string;
+  messageHistory: Anthropic.MessageParam[];
+  newUserMessage: string;
+  maxIterations?: number;
+  signal?: AbortSignal;
+}
+
+export interface ConversationAgentResult {
+  updatedMessageHistory: Anthropic.MessageParam[];
+  fullOutput: string;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  toolCallCount: number;
+}
+
+/**
+ * Execute an agent conversation turn with persistent message history.
+ * Used by agent sessions for multi-turn chat.
+ */
+export async function executeAgentConversation(
+  supabase: SupabaseClient,
+  params: ConversationAgentParams,
+  callbacks: MultiTurnAgentCallbacks
+): Promise<ConversationAgentResult> {
+  const skill = await getSkill(supabase, params.skillId);
+  if (!skill) throw new Error('Skill not found');
+
+  const tools = getAgentToolDefinitions(skill);
+  const hasTools = tools.length > 0;
+
+  let boardContext: BoardContext | null = null;
+  if (hasTools && params.boardId) {
+    boardContext = await gatherBoardContext(supabase, params.boardId);
+  }
+
+  let userMessage = params.newUserMessage;
+  if (boardContext && params.messageHistory.length === 0) {
+    userMessage += `\n\n## Board Context\n${boardContextToText(boardContext)}`;
+  }
+
+  const client = await createAnthropicClient(supabase);
+  if (!client) throw new Error('Anthropic API key not configured. Go to Settings > AI Keys to add one.');
+
+  const modelId = 'claude-sonnet-4-5-20250929';
+  const maxIterations = params.maxIterations || MAX_AGENT_ITERATIONS;
+
+  const currentMessages: Anthropic.MessageParam[] = [
+    ...params.messageHistory,
+    { role: 'user', content: userMessage },
+  ];
+
+  let fullOutput = '';
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let toolCallCount = 0;
+
+  let iteration = 0;
+  while (iteration < maxIterations) {
+    if (params.signal?.aborted) break;
+    iteration++;
+
+    const streamParams: Anthropic.MessageCreateParams = {
+      model: modelId,
+      max_tokens: Math.min(skill.estimated_tokens * 2, 8192),
+      system: params.systemPrompt,
+      messages: currentMessages,
+    };
+    if (hasTools) streamParams.tools = tools;
+
+    const stream = client.messages.stream(streamParams);
+
+    let streamText = '';
+    const toolUseBlocks: { id: string; name: string; input: Record<string, unknown> }[] = [];
+    let curToolName = '';
+    let curToolId = '';
+    let curToolInput = '';
+
+    for await (const event of stream) {
+      if (params.signal?.aborted) break;
+      if (event.type === 'content_block_start' && event.content_block.type === 'tool_use') {
+        curToolName = event.content_block.name;
+        curToolId = event.content_block.id;
+        curToolInput = '';
+      } else if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+        streamText += event.delta.text;
+        fullOutput += event.delta.text;
+        callbacks.onToken(event.delta.text);
+      } else if (event.type === 'content_block_delta' && event.delta.type === 'input_json_delta') {
+        curToolInput += event.delta.partial_json;
+      } else if (event.type === 'content_block_stop' && curToolName && curToolId) {
+        try { toolUseBlocks.push({ id: curToolId, name: curToolName, input: JSON.parse(curToolInput || '{}') }); } catch {}
+        curToolName = ''; curToolId = ''; curToolInput = '';
+      }
+    }
+
+    if (params.signal?.aborted) break;
+
+    const finalMessage = await stream.finalMessage();
+    totalInputTokens += finalMessage.usage.input_tokens;
+    totalOutputTokens += finalMessage.usage.output_tokens;
+
+    if (toolUseBlocks.length === 0 || finalMessage.stop_reason !== 'tool_use') {
+      if (streamText) currentMessages.push({ role: 'assistant', content: streamText });
+      break;
+    }
+
+    const assistantContent: Anthropic.ContentBlockParam[] = [];
+    if (streamText) assistantContent.push({ type: 'text', text: streamText });
+    const toolResultsArr: Anthropic.ToolResultBlockParam[] = [];
+
+    for (const tool of toolUseBlocks) {
+      assistantContent.push({ type: 'tool_use', id: tool.id, name: tool.name, input: tool.input });
+      toolCallCount++;
+      callbacks.onToolCall?.(tool.name, tool.input);
+
+      if (tool.name === 'think') {
+        callbacks.onThinking?.(String(tool.input.reasoning ?? '').slice(0, 100));
+        toolResultsArr.push({ type: 'tool_result', tool_use_id: tool.id, content: 'Reasoning recorded.' });
+        continue;
+      }
+
+      const result = await executeAgentTool(supabase, params.userId, params.boardId || '', tool.name, tool.input, boardContext);
+      const formatted = result.success ? `OK: ${result.message}` : `ERROR: ${result.message}`;
+      callbacks.onToolResult?.(tool.name, formatted, result.success);
+      toolResultsArr.push({ type: 'tool_result', tool_use_id: tool.id, content: formatted });
+    }
+
+    currentMessages.push(
+      { role: 'assistant', content: assistantContent },
+      { role: 'user', content: toolResultsArr },
+    );
+  }
+
+  const costUsd = calculateCost('anthropic', modelId, totalInputTokens, totalOutputTokens);
+
+  await logUsage(supabase, {
+    userId: params.userId,
+    boardId: params.boardId,
+    activity: 'agent_session_turn',
+    provider: 'anthropic',
+    modelId,
+    inputTokens: totalInputTokens,
+    outputTokens: totalOutputTokens,
+    latencyMs: Date.now() - (Date.now() - totalInputTokens), // approx
+    status: params.signal?.aborted ? 'cancelled' : 'success',
+    metadata: { skill_slug: skill.slug, tool_call_count: toolCallCount, iterations: iteration },
+  });
+
+  return { updatedMessageHistory: currentMessages, fullOutput, inputTokens: totalInputTokens, outputTokens: totalOutputTokens, costUsd, toolCallCount };
+}
+
+// ============================================================================
 // STANDALONE MULTI-TURN EXECUTION (no card context, used by /api/agents/run)
 // ============================================================================
 

@@ -943,9 +943,10 @@ export type AIActivity =
   | 'agent_standalone_execution'
   | 'web_research'
   | 'replicate_generate'
-  | 'image_prompt_enhance';
+  | 'image_prompt_enhance'
+  | 'agent_session_turn';
 
-export type AIUsageStatus = 'success' | 'error' | 'budget_blocked' | 'rate_limited';
+export type AIUsageStatus = 'success' | 'error' | 'cancelled' | 'budget_blocked' | 'rate_limited';
 
 export type AIBudgetScope = 'global' | 'provider' | 'activity' | 'user' | 'board' | 'client';
 
@@ -2897,6 +2898,32 @@ export interface MultiTurnExecutionCallbacks {
   onChainStep?: (step: number, skillName: string, status: string) => void;
   onComplete: (output: string) => void;
   onError: (error: string) => void;
+}
+
+// ============================================================
+// Agent Sessions (multi-turn conversations)
+// ============================================================
+
+export type AgentSessionStatus = 'idle' | 'running' | 'cancelled' | 'error';
+
+export interface AgentSession {
+  id: string;
+  user_id: string;
+  skill_id: string;
+  board_id: string | null;
+  title: string;
+  message_history: unknown[];
+  system_prompt: string;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_cost_usd: number;
+  turn_count: number;
+  tool_call_count: number;
+  status: AgentSessionStatus;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+  skill?: AgentSkill;
 }
 
 // ============================================================
