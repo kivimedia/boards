@@ -95,19 +95,32 @@ export async function POST(request: NextRequest, { params }: Params) {
 
     // Create in-app notifications for mentioned users
     const authorName = profileRes.data?.display_name || 'Someone';
-    const notifRows = mentionedUserIds
-      .filter((uid: string) => uid !== userId)
-      .map((uid: string) => ({
-        user_id: uid,
-        type: 'mention' as const,
-        title: `${authorName} mentioned you in a comment`,
-        body: insertRes.data.content?.slice(0, 120) || '',
-        card_id: params.id,
-        metadata: { comment_id: commentId },
-      }));
-    if (notifRows.length > 0) {
-      supabase.from('notifications').insert(notifRows).then(() => {});
-    }
+
+    // Look up board_id so the notification can deep-link directly to the card
+    supabase
+      .from('card_placements')
+      .select('list_id, lists(board_id)')
+      .eq('card_id', params.id)
+      .eq('is_mirror', false)
+      .limit(1)
+      .single()
+      .then(({ data: placement }) => {
+        const boardId = (placement?.lists as any)?.board_id ?? null;
+        const notifRows = mentionedUserIds
+          .filter((uid: string) => uid !== userId)
+          .map((uid: string) => ({
+            user_id: uid,
+            type: 'mention' as const,
+            title: `${authorName} mentioned you in a comment`,
+            body: insertRes.data.content?.slice(0, 120) || '',
+            card_id: params.id,
+            board_id: boardId,
+            metadata: { comment_id: commentId },
+          }));
+        if (notifRows.length > 0) {
+          supabase.from('notifications').insert(notifRows);
+        }
+      });
 
     // Send email notifications via Resend (non-blocking)
     sendMentionEmails(supabase, mentionedUserIds, userId, authorName, insertRes.data.content, params.id).catch(() => {});

@@ -192,9 +192,12 @@ export default function NotificationCenter() {
 
     if (notification.card_id) {
       setIsOpen(false);
-      // Navigate to the board where the card is located
       if (notification.board_id) {
+        // Direct deep-link: board page opens card modal immediately
         router.push(`/board/${notification.board_id}?card=${notification.card_id}`);
+      } else {
+        // Fallback for older notifications without board_id: use /c/ redirect
+        router.push(`/c/${notification.card_id}`);
       }
     }
   };
