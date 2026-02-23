@@ -131,14 +131,16 @@ export default function CardAttachments({ cardId, coverImageUrl, onCoverChange, 
         const json = await response.json().catch(() => ({}));
         console.error('Upload failed:', json.error || response.statusText);
         alert(json.error || 'Upload failed. Please try again.');
+      } else {
+        await fetchAttachments();
+        onRefresh();
       }
-
-      await fetchAttachments();
-      onRefresh();
     } catch (err) {
       console.error('Upload failed:', err);
     } finally {
       setUploading(false);
+      // Reset input so the same file can be re-selected (or a new pick triggers onChange reliably)
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
