@@ -37,7 +37,7 @@ function CoverImage({ src }: { src: string }) {
   if (errored) return null;
 
   return (
-    <div className="relative w-full aspect-video bg-cream dark:bg-slate-800 overflow-hidden">
+    <div className="relative w-full aspect-square bg-cream dark:bg-slate-800 overflow-hidden">
       <img
         src={src}
         alt=""

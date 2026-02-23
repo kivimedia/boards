@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { getAuthContext, errorResponse } from '@/lib/api-helpers';
-import Anthropic from '@anthropic-ai/sdk';
+import { createAnthropicClient } from '@/lib/ai/providers';
 
 export const maxDuration = 60;
 
@@ -29,8 +29,8 @@ export async function POST(
   const { query, boardId } = body;
   if (!query) return errorResponse('query is required');
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return errorResponse('AI not configured', 500);
+  const anthropic = await createAnthropicClient(supabase);
+  if (!anthropic) return errorResponse('AI not configured. Add an Anthropic key in Settings > AI Configuration.', 500);
 
   try {
     // Gather card context in parallel
@@ -154,7 +154,7 @@ You MUST respond with a valid JSON object:
 Make suggested questions specific to this card's actual content.
 IMPORTANT: Your entire response must be valid JSON.`;
 
-    const client = new Anthropic({ apiKey });
+    const client = anthropic;
     const encoder = new TextEncoder();
 
     const readable = new ReadableStream({
