@@ -19,6 +19,8 @@ export default function CardActions({ cardId, boardId, onClose, onRefresh }: Car
   const [targetBoardId, setTargetBoardId] = useState('');
   const [targetLists, setTargetLists] = useState<List[]>([]);
   const [targetListId, setTargetListId] = useState('');
+  const [targetListCardCount, setTargetListCardCount] = useState(0);
+  const [targetPositionIndex, setTargetPositionIndex] = useState(-1); // -1 = end
   const [loading, setLoading] = useState(false);
   const supabase = createClient();
 
@@ -45,6 +47,17 @@ export default function CardActions({ cardId, boardId, onClose, onRefresh }: Car
       .catch(() => setTargetLists([]));
   }, [targetBoardId]);
 
+  useEffect(() => {
+    if (!targetListId) { setTargetListCardCount(0); setTargetPositionIndex(-1); return; }
+    fetch(`/api/lists/${targetListId}/cards/count`)
+      .then((r) => r.json())
+      .then((json) => {
+        setTargetListCardCount(json.data?.count ?? json.count ?? 0);
+        setTargetPositionIndex(-1); // reset to "bottom" when list changes
+      })
+      .catch(() => { setTargetListCardCount(0); setTargetPositionIndex(-1); });
+  }, [targetListId]);
+
   const handleMirror = async () => {
     if (!targetListId) return;
     setLoading(true);
@@ -52,7 +65,7 @@ export default function CardActions({ cardId, boardId, onClose, onRefresh }: Car
       const res = await fetch(`/api/cards/${cardId}/mirror`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ list_id: targetListId }),
+        body: JSON.stringify({ list_id: targetListId, position_index: targetPositionIndex }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -87,7 +100,7 @@ export default function CardActions({ cardId, boardId, onClose, onRefresh }: Car
       const res = await fetch(`/api/cards/${cardId}/move-to-list`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ list_id: targetListId }),
+        body: JSON.stringify({ list_id: targetListId, position_index: targetPositionIndex }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -141,6 +154,19 @@ export default function CardActions({ cardId, boardId, onClose, onRefresh }: Car
           {targetLists.map((l) => (
             <option key={l.id} value={l.id}>{l.name}</option>
           ))}
+        </select>
+      )}
+      {targetListId && (
+        <select
+          value={targetPositionIndex}
+          onChange={(e) => setTargetPositionIndex(Number(e.target.value))}
+          className="w-full px-3 py-2 rounded-lg bg-cream dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-electric/30 font-body"
+        >
+          <option value={0}>Position 1 (top)</option>
+          {Array.from({ length: targetListCardCount }, (_, i) => (
+            <option key={i + 1} value={i + 1}>Position {i + 2}</option>
+          ))}
+          <option value={-1}>Bottom (last)</option>
         </select>
       )}
       <Button size="sm" onClick={onSubmit} loading={loading} className="w-full">
