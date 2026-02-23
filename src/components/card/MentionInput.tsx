@@ -60,6 +60,18 @@ export default function MentionInput({ onSubmit }: MentionInputProps) {
       const text = content.slice(0, s) + '*' + sel + '*' + content.slice(en);
       setContent(text);
       requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + 1, s + 1 + sel.length); });
+    } else if (ta && e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      const s = ta.selectionStart, en = ta.selectionEnd;
+      const sel = content.slice(s, en) || '';
+      const url = window.prompt('Enter URL:', 'https://');
+      if (url && url !== 'https://') {
+        const linkText = sel || 'link text';
+        const md = `[${linkText}](${url})`;
+        const text = content.slice(0, s) + md + content.slice(en);
+        setContent(text);
+        requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + md.length, s + md.length); });
+      }
     }
   };
 

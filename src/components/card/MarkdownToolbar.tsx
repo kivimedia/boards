@@ -107,6 +107,30 @@ export function MarkdownToolbarUI({ textareaRef, value, onChange }: MarkdownTool
     },
   ];
 
+  const handleLinkInsert = useCallback(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    // Capture selection BEFORE prompt (prompt steals focus + clears selection)
+    const s = ta.selectionStart ?? 0;
+    const e = ta.selectionEnd ?? 0;
+    const selectedText = value.slice(s, e) || '';
+
+    const url = window.prompt('Enter URL:', 'https://');
+    if (!url || url === 'https://') return;
+
+    const linkText = selectedText || 'link text';
+    const markdown = `[${linkText}](${url})`;
+    const newValue = value.slice(0, s) + markdown + value.slice(e);
+    onChange(newValue);
+
+    // Place cursor after the inserted link
+    requestAnimationFrame(() => {
+      ta.focus();
+      const end = s + markdown.length;
+      ta.setSelectionRange(end, end);
+    });
+  }, [textareaRef, value, onChange]);
+
   return (
     <div className="flex items-center gap-0.5 px-1.5 py-1 bg-white dark:bg-slate-800 border border-cream-dark dark:border-slate-600 rounded-t-lg border-b-0">
       {ACTIONS.map((action) => (
@@ -123,6 +147,17 @@ export function MarkdownToolbarUI({ textareaRef, value, onChange }: MarkdownTool
           {action.icon}
         </button>
       ))}
+      {/* Link button - separate because it needs a URL prompt */}
+      <button
+        type="button"
+        title="Insert link (Ctrl+K)"
+        onMouseDown={(e) => { e.preventDefault(); handleLinkInsert(); }}
+        className="w-7 h-7 flex items-center justify-center rounded text-navy/50 dark:text-slate-400 hover:bg-cream-dark dark:hover:bg-slate-700 hover:text-navy dark:hover:text-slate-100 transition-colors"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+        </svg>
+      </button>
       <span className="ml-auto text-[10px] text-navy/25 dark:text-slate-600 pr-1 font-body select-none">md</span>
     </div>
   );
