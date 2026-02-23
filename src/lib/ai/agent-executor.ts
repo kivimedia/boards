@@ -742,6 +742,7 @@ export interface StandaloneAgentParams {
   inputMessage: string;
   conversationHistory?: { role: 'user' | 'assistant'; content: string }[];
   planningMode?: boolean;
+  modelOverride?: string;
   maxIterations?: number;
   executionId?: string;
   confirmedToolCallId?: string;
@@ -792,7 +793,7 @@ export async function executeStandaloneAgent(
     const client = await createAnthropicClient(supabase);
     if (!client) throw new Error('Anthropic API key not configured. Go to Settings > AI Keys to add one.');
 
-    const modelId = 'claude-sonnet-4-5-20250929';
+    const modelId = params.modelOverride || 'claude-sonnet-4-5-20250929';
     const maxIterations = params.maxIterations || MAX_AGENT_ITERATIONS;
 
     // 7. Handle resume from confirmation

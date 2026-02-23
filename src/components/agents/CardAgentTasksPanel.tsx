@@ -58,6 +58,13 @@ function StarRating({
   );
 }
 
+// ─── Models ──────────────────────────────────────────────────────────────────
+const AGENT_MODELS = [
+  { id: 'claude-haiku-4-5-20251001',  label: 'Haiku (fast)' },
+  { id: 'claude-sonnet-4-5-20250929', label: 'Sonnet' },
+  { id: 'claude-opus-4-6',            label: 'Opus (best)' },
+] as const;
+
 // ─── Chat types ──────────────────────────────────────────────────────────────
 interface ChatMsg {
   role: 'user' | 'assistant';
@@ -68,6 +75,7 @@ interface ChatMsg {
 interface ChatState {
   taskId: string;
   skillId: string;
+  model: string;
   messages: ChatMsg[];
   // History passed to /api/agents/run for multi-turn (excludes current streaming msg)
   history: { role: 'user' | 'assistant'; content: string }[];
@@ -200,6 +208,7 @@ export default function CardAgentTasksPanel({ cardId }: Props) {
     message: string,
     history: { role: 'user' | 'assistant'; content: string }[],
     isPlanningMode: boolean,
+    modelOverride?: string,
   ) => {
     // Add streaming placeholder for assistant
     updateChat(taskId, s => ({
@@ -219,6 +228,7 @@ export default function CardAgentTasksPanel({ cardId }: Props) {
           card_id: cardId,
           planning_mode: isPlanningMode,
           conversation_history: history,
+          model_override: modelOverride,
         }),
       });
 
@@ -401,6 +411,7 @@ export default function CardAgentTasksPanel({ cardId }: Props) {
     const initialState: ChatState = {
       taskId: task.id,
       skillId,
+      model: AGENT_MODELS[1].id, // sonnet default
       messages: [{ role: 'user', content: planningMsg }],
       history: [],
       phase: 'planning',
@@ -411,7 +422,7 @@ export default function CardAgentTasksPanel({ cardId }: Props) {
     setChatStates(prev => ({ ...prev, [task.id]: initialState }));
     setExpandedTask(task.id);
 
-    streamAgentMessage(task.id, skillId, planningMsg, [], true);
+    streamAgentMessage(task.id, skillId, planningMsg, [], true, initialState.model);
   };
 
   /** Handle user typing in the chat input and sending */
@@ -435,7 +446,7 @@ export default function CardAgentTasksPanel({ cardId }: Props) {
       await executeActualTask(taskId);
     } else {
       // Continue planning conversation
-      await streamAgentMessage(taskId, cs.skillId, input, cs.history, true);
+      await streamAgentMessage(taskId, cs.skillId, input, cs.history, true, cs.model);
     }
   };
 
@@ -590,17 +601,31 @@ export default function CardAgentTasksPanel({ cardId }: Props) {
                 const cs = chatStates[task.id];
                 return (
                   <div className="mt-3 flex flex-col gap-2">
-                    {/* Phase banner */}
-                    <div className={`text-xs px-2 py-1 rounded font-medium ${
-                      cs.phase === 'planning'
-                        ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
-                        : cs.phase === 'executing'
-                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                        : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'
-                    }`}>
-                      {cs.phase === 'planning' && '💬 Planning — reply to answer questions, or type "go" to start'}
-                      {cs.phase === 'executing' && '⚙️ Running the task…'}
-                      {cs.phase === 'done' && '✅ Done'}
+                    {/* Phase banner + model selector */}
+                    <div className="flex items-center gap-2">
+                      <div className={`flex-1 text-xs px-2 py-1 rounded font-medium ${
+                        cs.phase === 'planning'
+                          ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
+                          : cs.phase === 'executing'
+                          ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                          : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'
+                      }`}>
+                        {cs.phase === 'planning' && '💬 Planning — reply to answer questions, or type "go" to start'}
+                        {cs.phase === 'executing' && '⚙️ Running the task…'}
+                        {cs.phase === 'done' && '✅ Done'}
+                      </div>
+                      {cs.phase !== 'executing' && (
+                        <select
+                          value={cs.model}
+                          onChange={e => updateChat(task.id, s => ({ ...s, model: e.target.value }))}
+                          disabled={cs.streaming}
+                          className="text-[10px] rounded px-1.5 py-0.5 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none shrink-0"
+                        >
+                          {AGENT_MODELS.map(m => (
+                            <option key={m.id} value={m.id}>{m.label}</option>
+                          ))}
+                        </select>
+                      )}
                     </div>
 
                     {/* Messages */}
