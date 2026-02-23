@@ -224,56 +224,39 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
           lists: newLists,
         });
 
-        // Fire DB writes in background
+        // Persist via server API (bypasses RLS on card_placements)
         if (source.droppableId === destination.droppableId) {
           const sortedSrc = [...sourceList.cards].sort((a, b) => a.position - b.position);
           const [mv] = sortedSrc.splice(source.index, 1);
           sortedSrc.splice(destination.index, 0, mv);
 
-          const minIdx = Math.min(source.index, destination.index);
-          const maxIdx = Math.max(source.index, destination.index);
-          const updates = [];
-          for (let i = minIdx; i <= maxIdx; i++) {
-            updates.push(
-              supabase
-                .from('card_placements')
-                .update({ position: i })
-                .eq('id', sortedSrc[i].id)
-            );
-          }
-          Promise.all(updates);
+          fetch('/api/cards/reorder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              list_id: source.droppableId,
+              ordered_placement_ids: sortedSrc.map((c) => c.id),
+            }),
+          }).catch((err) => {
+            console.error('[DragEnd] Failed to persist card order:', err);
+            onRefresh();
+          });
         } else {
           const sourcePlacements = [...sourceList.cards].sort((a, b) => a.position - b.position);
-          const destPlacements = [...destList.cards].sort((a, b) => a.position - b.position);
           const [mv] = sourcePlacements.splice(source.index, 1);
-          destPlacements.splice(destination.index, 0, mv);
 
-          // Update moved card's list_id and position
-          supabase
-            .from('card_placements')
-            .update({ list_id: destination.droppableId, position: destination.index })
-            .eq('id', mv.id)
-            .then(() => {
-              const sourceUpdates = [];
-              for (let i = source.index; i < sourcePlacements.length; i++) {
-                sourceUpdates.push(
-                  supabase
-                    .from('card_placements')
-                    .update({ position: i })
-                    .eq('id', sourcePlacements[i].id)
-                );
-              }
-              const destUpdates = [];
-              for (let i = destination.index + 1; i < destPlacements.length; i++) {
-                destUpdates.push(
-                  supabase
-                    .from('card_placements')
-                    .update({ position: i })
-                    .eq('id', destPlacements[i].id)
-                );
-              }
-              Promise.all([...sourceUpdates, ...destUpdates]);
-            });
+          fetch('/api/cards/reorder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              placement_id: mv.id,
+              dest_list_id: destination.droppableId,
+              dest_index: destination.index,
+            }),
+          }).catch((err) => {
+            console.error('[DragEnd] Failed to persist cross-list move:', err);
+            onRefresh();
+          });
         }
       }
     },
