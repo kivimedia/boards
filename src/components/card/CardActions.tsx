@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Board, List } from '@/lib/types';
-import { safeNextPosition } from '@/lib/safeNextPosition';
 import Button from '@/components/ui/Button';
 
 interface CardActionsProps {
@@ -24,11 +23,11 @@ export default function CardActions({ cardId, boardId, onClose, onRefresh }: Car
   const supabase = createClient();
 
   useEffect(() => {
-    const fetchBoards = async () => {
-      const { data } = await supabase.from('boards').select('*').order('name');
-      setBoards(data || []);
-    };
-    fetchBoards();
+    // Use server API so RLS doesn't filter out boards
+    fetch('/api/boards')
+      .then((r) => r.json())
+      .then((json) => setBoards(json.data || json || []))
+      .catch(() => setBoards([]));
   }, []);
 
   useEffect(() => {
@@ -36,35 +35,37 @@ export default function CardActions({ cardId, boardId, onClose, onRefresh }: Car
       setTargetLists([]);
       return;
     }
-    const fetchLists = async () => {
-      const { data } = await supabase
-        .from('lists')
-        .select('*')
-        .eq('board_id', targetBoardId)
-        .order('position');
-      setTargetLists(data || []);
-      if (data && data.length > 0) setTargetListId(data[0].id);
-    };
-    fetchLists();
+    fetch(`/api/boards/${targetBoardId}/lists`)
+      .then((r) => r.json())
+      .then((json) => {
+        const lists = json.data || json || [];
+        setTargetLists(lists);
+        if (lists.length > 0) setTargetListId(lists[0].id);
+      })
+      .catch(() => setTargetLists([]));
   }, [targetBoardId]);
 
   const handleMirror = async () => {
     if (!targetListId) return;
     setLoading(true);
-
-    // Safe overflow-proof position
-    const position = await safeNextPosition(supabase, targetListId);
-
-    await supabase.from('card_placements').insert({
-      card_id: cardId,
-      list_id: targetListId,
-      position,
-      is_mirror: true,
-    });
-
-    setLoading(false);
-    setShowMirror(false);
-    onRefresh();
+    try {
+      const res = await fetch(`/api/cards/${cardId}/mirror`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ list_id: targetListId }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data?.error || 'Mirror failed. Please try again.');
+      } else {
+        setShowMirror(false);
+        onRefresh();
+      }
+    } catch {
+      alert('Mirror failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDuplicate = async () => {
@@ -82,53 +83,24 @@ export default function CardActions({ cardId, boardId, onClose, onRefresh }: Car
   const handleMove = async () => {
     if (!targetListId) return;
     setLoading(true);
-
     try {
-      // Find the primary (non-mirror) placement for this card
-      const { data: placements } = await supabase
-        .from('card_placements')
-        .select('*')
-        .eq('card_id', cardId)
-        .eq('is_mirror', false)
-        .limit(1);
-
-      const placement = placements && placements.length > 0 ? placements[0] : null;
-
-      if (!placement) {
-        alert('Could not find card placement. The card may have been deleted.');
-        setLoading(false);
-        return;
+      const res = await fetch(`/api/cards/${cardId}/move-to-list`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ list_id: targetListId }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data?.error || 'Move failed. Please try again.');
+      } else {
+        setShowMove(false);
+        onRefresh();
       }
-
-      // Get the highest position in the target list (safe overflow-proof)
-      const position = await safeNextPosition(supabase, targetListId);
-
-      // Move the primary placement to the target list
-      const { error } = await supabase
-        .from('card_placements')
-        .update({ list_id: targetListId, position })
-        .eq('id', placement.id);
-
-      if (error) {
-        alert('Failed to move card: ' + error.message);
-        setLoading(false);
-        return;
-      }
-
-      // Remove any mirror placements (card is fully moving to new board)
-      await supabase
-        .from('card_placements')
-        .delete()
-        .eq('card_id', cardId)
-        .eq('is_mirror', true);
-
-    } catch (err) {
-      alert('Failed to move card. Please try again.');
+    } catch {
+      alert('Move failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
-    setShowMove(false);
-    onRefresh();
   };
 
   const handleArchive = async () => {
