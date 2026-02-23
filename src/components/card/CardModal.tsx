@@ -108,6 +108,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [showDescriptionPreview, setShowDescriptionPreview] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [boardName, setBoardName] = useState('');
   const [listName, setListName] = useState('');
@@ -806,49 +807,77 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                     </div>
                     {isEditingDescription ? (
                       <div>
-                        <MarkdownToolbarUI
-                          textareaRef={descMention.textareaRef}
-                          value={description}
-                          onChange={setDescription}
-                        />
-                        <div className="relative">
-                          <textarea
-                            ref={descMention.textareaRef}
-                            value={description}
-                            onChange={descMention.handleInput}
-                            onKeyDown={(e) => {
-                              if (descMention.handleKeyDown(e)) return;
-                              const ta = descMention.textareaRef.current;
-                              if (ta && e.key === 'b' && (e.metaKey || e.ctrlKey)) {
-                                e.preventDefault();
-                                const s = ta.selectionStart, en = ta.selectionEnd;
-                                const sel = description.slice(s, en) || 'bold text';
-                                const text = description.slice(0, s) + '**' + sel + '**' + description.slice(en);
-                                setDescription(text);
-                                requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + 2, s + 2 + sel.length); });
-                              } else if (ta && e.key === 'i' && (e.metaKey || e.ctrlKey)) {
-                                e.preventDefault();
-                                const s = ta.selectionStart, en = ta.selectionEnd;
-                                const sel = description.slice(s, en) || 'italic text';
-                                const text = description.slice(0, s) + '*' + sel + '*' + description.slice(en);
-                                setDescription(text);
-                                requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + 1, s + 1 + sel.length); });
-                              }
-                            }}
-                            className="w-full p-3 rounded-b-xl rounded-t-none bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 border-t-0 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-y font-body min-h-[120px]"
-                            placeholder="Add a description... (supports **bold**, *italic*, # Heading, - bullet, @ to mention)"
-                            autoFocus
-                          />
-                          {descMention.showDropdown && (
-                            <MentionDropdown
-                              profiles={descMention.filteredProfiles}
-                              selectedIndex={descMention.selectedIndex}
-                              onSelect={descMention.selectProfile}
-                              onHover={descMention.setSelectedIndex}
-                              filter={descMention.dropdownFilter}
-                            />
-                          )}
+                        {/* Write / Preview tabs */}
+                        <div className="flex items-center gap-0 mb-0">
+                          {(['Write', 'Preview'] as const).map((tab) => (
+                            <button
+                              key={tab}
+                              type="button"
+                              onClick={() => setShowDescriptionPreview(tab === 'Preview')}
+                              className={`px-3 py-1.5 text-xs font-medium border border-b-0 transition-colors font-body first:rounded-tl-lg last:rounded-tr-lg ${
+                                (tab === 'Preview') === showDescriptionPreview
+                                  ? 'bg-cream dark:bg-navy border-cream-dark dark:border-slate-700 text-navy dark:text-slate-100'
+                                  : 'bg-white dark:bg-slate-800/50 border-transparent text-navy/40 dark:text-slate-500 hover:text-navy/70'
+                              }`}
+                            >
+                              {tab}
+                            </button>
+                          ))}
                         </div>
+                        {showDescriptionPreview ? (
+                          <div className="min-h-[120px] p-3 rounded-b-xl rounded-tr-xl bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-sm font-body prose prose-sm dark:prose-invert max-w-full prose-p:my-0.5 prose-headings:font-heading prose-a:text-electric prose-code:text-electric prose-code:bg-electric/10 prose-code:px-1 prose-code:rounded [overflow-wrap:break-word]">
+                            {description.trim()
+                              ? <ReactMarkdown>{description}</ReactMarkdown>
+                              : <span className="text-navy/30 dark:text-slate-500">Nothing to preview yet...</span>
+                            }
+                          </div>
+                        ) : (
+                          <>
+                            <MarkdownToolbarUI
+                              textareaRef={descMention.textareaRef}
+                              value={description}
+                              onChange={setDescription}
+                            />
+                            <div className="relative">
+                              <textarea
+                                ref={descMention.textareaRef}
+                                value={description}
+                                onChange={descMention.handleInput}
+                                onKeyDown={(e) => {
+                                  if (descMention.handleKeyDown(e)) return;
+                                  const ta = descMention.textareaRef.current;
+                                  if (ta && e.key === 'b' && (e.metaKey || e.ctrlKey)) {
+                                    e.preventDefault();
+                                    const s = ta.selectionStart, en = ta.selectionEnd;
+                                    const sel = description.slice(s, en) || 'bold text';
+                                    const text = description.slice(0, s) + '**' + sel + '**' + description.slice(en);
+                                    setDescription(text);
+                                    requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + 2, s + 2 + sel.length); });
+                                  } else if (ta && e.key === 'i' && (e.metaKey || e.ctrlKey)) {
+                                    e.preventDefault();
+                                    const s = ta.selectionStart, en = ta.selectionEnd;
+                                    const sel = description.slice(s, en) || 'italic text';
+                                    const text = description.slice(0, s) + '*' + sel + '*' + description.slice(en);
+                                    setDescription(text);
+                                    requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + 1, s + 1 + sel.length); });
+                                  }
+                                }}
+                                className="w-full p-3 rounded-b-xl rounded-t-none bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 border-t-0 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-y font-body min-h-[120px]"
+                                placeholder="Add a description... (supports **bold**, *italic*, # Heading, - bullet, @ to mention)"
+                                autoFocus
+                              />
+                              {descMention.showDropdown && (
+                                <MentionDropdown
+                                  profiles={descMention.filteredProfiles}
+                                  selectedIndex={descMention.selectedIndex}
+                                  onSelect={descMention.selectProfile}
+                                  onHover={descMention.setSelectedIndex}
+                                  filter={descMention.dropdownFilter}
+                                />
+                              )}
+                            </div>
+                          </>
+                        )}
                         <div className="flex gap-2 mt-2">
                           <button
                             onClick={handleDescriptionSave}
@@ -860,6 +889,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                             onClick={() => {
                               setDescription(card.description || '');
                               setIsEditingDescription(false);
+                              setShowDescriptionPreview(false);
                             }}
                             className="px-3 py-1.5 text-navy/50 dark:text-slate-400 text-sm rounded-lg hover:bg-cream-dark dark:hover:bg-slate-800 transition-colors"
                           >
