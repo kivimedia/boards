@@ -42,6 +42,26 @@ async function safeNextPos(listId: string, fallback: any): Promise<number> {
   return maxPos + 1;
 }
 
+async function resolvePosition(listId: string, index: number | undefined, fallback: any): Promise<number> {
+  const db = getAdminClient() ?? fallback;
+  const { data: existing } = await db
+    .from('card_placements')
+    .select('id')
+    .eq('list_id', listId)
+    .order('position', { ascending: true });
+  const cards: { id: string }[] = existing || [];
+  if (index === undefined || index < 0 || index >= cards.length) {
+    if (cards.length > 0) {
+      await Promise.all(cards.map((c, i) => db.from('card_placements').update({ position: i }).eq('id', c.id)));
+    }
+    return cards.length;
+  }
+  await Promise.all(
+    cards.map((c, i) => db.from('card_placements').update({ position: i < index ? i : i + 1 }).eq('id', c.id))
+  );
+  return index;
+}
+
 /**
  * POST /api/cards/[id]/mirror
  * Body: { list_id: string }
@@ -55,9 +75,11 @@ export async function POST(request: NextRequest, { params }: Params) {
   const cardId = params.id;
 
   let listId: string;
+  let positionIndex: number | undefined;
   try {
     const body = await request.json();
     listId = body.list_id;
+    positionIndex = body.position_index;
   } catch {
     return errorResponse('Invalid request body');
   }
@@ -77,7 +99,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     .maybeSingle();
   if (existing) return errorResponse('Card is already in that list', 409);
 
-  const position = await safeNextPos(listId, supabase);
+  const position = await resolvePosition(listId, positionIndex, supabase);
 
   const { error } = await supabase.from('card_placements').insert({
     card_id: cardId,
