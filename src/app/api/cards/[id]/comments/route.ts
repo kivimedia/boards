@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { getAuthContext, successResponse, errorResponse, parseBody } from '@/lib/api-helpers';
 import { notifyWatchers } from '@/lib/card-watchers';
 
@@ -146,17 +147,32 @@ async function sendMentionEmails(
   const targetIds = mentionedUserIds.filter(id => id !== authorId);
   if (targetIds.length === 0) return;
 
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('id, email')
-    .in('id', targetIds);
-
-  if (!profiles?.length) return;
-
+  // Emails are in auth.users, not profiles — use service role to access them
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const emailMap = new Map<string, string>();
-  for (const p of profiles) {
-    if (p.email) emailMap.set(p.id, p.email);
+
+  if (serviceKey) {
+    const adminClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey);
+    const { data: authData } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
+    if (authData?.users) {
+      for (const u of authData.users) {
+        if (targetIds.includes(u.id) && u.email) {
+          emailMap.set(u.id, u.email);
+        }
+      }
+    }
+  } else {
+    // Fallback: try profiles.email (may be null for most users)
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, email')
+      .in('id', targetIds);
+    for (const p of (profiles || [])) {
+      if (p.email) emailMap.set(p.id, p.email);
+    }
   }
+
+  if (emailMap.size === 0) return;
 
   // Get card title
   const { data: card } = await supabase.from('cards').select('title').eq('id', cardId).single();
