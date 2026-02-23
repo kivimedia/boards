@@ -265,7 +265,7 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
                 <textarea
                   value={editText}
                   onChange={(e) => setEditText(e.target.value)}
-                  className="w-full p-2.5 rounded-lg bg-cream dark:bg-navy border border-electric/30 text-sm text-navy dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-electric/30 resize-none font-body"
+                  className="w-full p-2.5 rounded-lg bg-cream dark:bg-navy border border-electric/30 text-sm text-navy dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-electric/30 resize-y font-body"
                   rows={3}
                   autoFocus
                   onKeyDown={(e) => {
@@ -323,7 +323,7 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
               placeholder="Write a reply..."
-              className="w-full p-2.5 rounded-lg bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-none font-body"
+              className="w-full p-2.5 rounded-lg bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-y font-body"
               rows={2}
               autoFocus
               onKeyDown={(e) => {
