@@ -37,11 +37,11 @@ function CoverImage({ src }: { src: string }) {
   if (errored) return null;
 
   return (
-    <div className="relative w-full aspect-video bg-cream dark:bg-slate-800 overflow-hidden flex items-center justify-center">
+    <div className="relative w-full aspect-video bg-cream dark:bg-slate-800 overflow-hidden">
       <img
         src={src}
         alt=""
-        className="w-full h-full object-contain"
+        className="w-full h-full object-cover object-top"
         loading="lazy"
         decoding="async"
         onError={() => setErrored(true)}
