@@ -32,9 +32,9 @@ export default function MentionInput({ cardId, boardId, onSubmit }: MentionInput
 
   useEffect(() => {
     const fetchProfiles = async () => {
-      // Always fetch all team members globally via server-side API (bypasses RLS)
+      // Always fetch all team members globally via service-role API (bypasses RLS)
       try {
-        const res = await fetch('/api/team/profiles');
+        const res = await fetch('/api/mentions');
         if (res.ok) {
           const json = await res.json();
           const members: Profile[] = (json.data || json)
