@@ -129,6 +129,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
   const moreBtnRef = useRef<HTMLButtonElement>(null);
   const [moreMenuPos, setMoreMenuPos] = useState({ top: 0, left: 0 });
   const [linkCopied, setLinkCopied] = useState(false);
+  const [archiving, setArchiving] = useState(false);
   // Profiling refs
   const openTimeRef = useRef(performance.now());
   const timingsRef = useRef<Record<string, number>>({});
@@ -490,6 +491,16 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
     }
   }, [allCardIds, onNavigate, cardId]);
 
+  const handleArchive = async () => {
+    if (!confirm('Archive this ticket? It will be hidden from the board but can be restored later.')) return;
+    setArchiving(true);
+    await supabase.from('cards').update({ is_archived: true }).eq('id', cardId);
+    await supabase.from('card_placements').delete().eq('card_id', cardId);
+    setArchiving(false);
+    onClose();
+    onRefresh();
+  };
+
   if (!card) {
     return (
       <Modal isOpen={true} onClose={onClose} size="xl">
@@ -720,6 +731,18 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                       <span className="font-body">{tab.label}</span>
                     </button>
                   ))}
+                  <hr className="border-cream-dark dark:border-slate-700 my-1" />
+                  <button
+                    onClick={() => {
+                      setMoreMenuOpen(false);
+                      handleArchive();
+                    }}
+                    disabled={archiving}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors text-navy/60 dark:text-slate-400 hover:bg-cream-dark dark:hover:bg-slate-800 disabled:opacity-50"
+                  >
+                    <span className="text-[11px]">📦</span>
+                    <span className="font-body">{archiving ? 'Archiving…' : 'Archive this ticket'}</span>
+                  </button>
                 </div>,
                 document.body
               )}
@@ -846,6 +869,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                 <div className="min-w-0 lg:border-l lg:border-cream-dark lg:dark:border-slate-700 lg:pl-6">
                   <CardComments
                     cardId={cardId}
+                    boardId={boardId}
                     comments={comments}
                     onRefresh={fetchCardDetails}
                     onCommentAdded={(comment) => {
