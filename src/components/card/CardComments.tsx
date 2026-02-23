@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Comment } from '@/lib/types';
@@ -8,6 +8,7 @@ import Avatar from '@/components/ui/Avatar';
 import Button from '@/components/ui/Button';
 import CommentReactions from './CommentReactions';
 import MentionInput from './MentionInput';
+import { MarkdownToolbarUI } from './MarkdownToolbar';
 
 const URL_PATTERN = /(https?:\/\/[^\s<]+)/;
 // Matches Trello/ClickUp smart-link format: [https://url.com "smartCard-inline"] or [https://url.com ""]
@@ -79,6 +80,7 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [editLoading, setEditLoading] = useState(false);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [showFullLinks, setShowFullLinks] = useState(false);
 
   // Group comments into threads
@@ -268,15 +270,35 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
             </div>
             {editingCommentId === comment.id ? (
               <div className="mt-1">
+                <MarkdownToolbarUI
+                  textareaRef={editTextareaRef}
+                  value={editText}
+                  onChange={setEditText}
+                />
                 <textarea
+                  ref={editTextareaRef}
                   value={editText}
                   onChange={(e) => setEditText(e.target.value)}
-                  className="w-full p-2.5 rounded-lg bg-cream dark:bg-navy border border-electric/30 text-sm text-navy dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-electric/30 resize-y font-body"
+                  className="w-full p-2.5 rounded-b-lg rounded-t-none bg-cream dark:bg-navy border border-electric/30 border-t-0 text-sm text-navy dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-electric/30 resize-y font-body"
                   rows={3}
                   autoFocus
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleEditComment(comment.id);
-                    if (e.key === 'Escape') { setEditingCommentId(null); setEditText(''); }
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { handleEditComment(comment.id); return; }
+                    if (e.key === 'Escape') { setEditingCommentId(null); setEditText(''); return; }
+                    const ta = editTextareaRef.current;
+                    if (ta && e.key === 'b' && (e.metaKey || e.ctrlKey)) {
+                      e.preventDefault();
+                      const s = ta.selectionStart, en = ta.selectionEnd;
+                      const sel = editText.slice(s, en) || 'bold text';
+                      setEditText(editText.slice(0, s) + '**' + sel + '**' + editText.slice(en));
+                      requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + 2, s + 2 + sel.length); });
+                    } else if (ta && e.key === 'i' && (e.metaKey || e.ctrlKey)) {
+                      e.preventDefault();
+                      const s = ta.selectionStart, en = ta.selectionEnd;
+                      const sel = editText.slice(s, en) || 'italic text';
+                      setEditText(editText.slice(0, s) + '*' + sel + '*' + editText.slice(en));
+                      requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + 1, s + 1 + sel.length); });
+                    }
                   }}
                 />
                 <div className="flex items-center gap-2 mt-1.5">
