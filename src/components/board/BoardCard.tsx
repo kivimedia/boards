@@ -87,7 +87,14 @@ export default function BoardCard({
 
   const handleCopyLink = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const url = `${window.location.origin}/card/${card.id}`;
+    const slug = card.title
+      .toLowerCase()
+      .replace(/[^\w\s-]/g, '')
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .slice(0, 60);
+    const url = `${window.location.origin}/c/${card.id}/${slug}`;
     try {
       await navigator.clipboard.writeText(url);
     } catch {

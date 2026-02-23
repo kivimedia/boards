@@ -167,6 +167,23 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
     }
   }, [TABS.length, activeTab]);
 
+  // Update URL to /c/[cardId]/[slug] when modal opens, restore on close
+  useEffect(() => {
+    if (!card?.title) return;
+    const slug = card.title
+      .toLowerCase()
+      .replace(/[^\w\s-]/g, '')
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .slice(0, 60);
+    const prevUrl = window.location.href;
+    window.history.replaceState(null, '', `/c/${cardId}/${slug}`);
+    return () => {
+      window.history.replaceState(null, '', prevUrl);
+    };
+  }, [cardId, card?.title]);
+
   // Close More menu on click-outside (portal-aware)
   useEffect(() => {
     if (!moreMenuOpen) return;
