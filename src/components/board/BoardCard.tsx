@@ -131,19 +131,20 @@ export default function BoardCard({
             }
           `}
         >
-          {/* Drag handle - thin top bar, visible on hover */}
+          {/* Drag handle - left-side grip, clearly visible on hover */}
           <div
             {...provided.dragHandleProps}
-            className="h-1 group-hover:h-3 transition-all duration-150 bg-transparent group-hover:bg-cream-dark/40 dark:group-hover:bg-slate-700/60 cursor-grab active:cursor-grabbing flex items-center justify-center"
+            className="absolute left-0 top-0 bottom-0 w-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing z-10 rounded-l-xl"
+            title="Drag to reorder"
           >
-            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5">
-              <div className="w-0.5 h-0.5 rounded-full bg-navy/20 dark:bg-slate-500" />
-              <div className="w-0.5 h-0.5 rounded-full bg-navy/20 dark:bg-slate-500" />
-              <div className="w-0.5 h-0.5 rounded-full bg-navy/20 dark:bg-slate-500" />
-              <div className="w-0.5 h-0.5 rounded-full bg-navy/20 dark:bg-slate-500" />
-              <div className="w-0.5 h-0.5 rounded-full bg-navy/20 dark:bg-slate-500" />
-              <div className="w-0.5 h-0.5 rounded-full bg-navy/20 dark:bg-slate-500" />
-            </div>
+            <svg className="w-3 h-3 text-navy/30 dark:text-slate-500" viewBox="0 0 10 16" fill="currentColor">
+              <circle cx="2" cy="2" r="1.5" />
+              <circle cx="8" cy="2" r="1.5" />
+              <circle cx="2" cy="8" r="1.5" />
+              <circle cx="8" cy="8" r="1.5" />
+              <circle cx="2" cy="14" r="1.5" />
+              <circle cx="8" cy="14" r="1.5" />
+            </svg>
           </div>
 
           {/* Selection checkbox */}
@@ -234,8 +235,8 @@ export default function BoardCard({
               <CoverImage src={cover_image_url!} />
             )}
 
-            {/* Card content */}
-            <div className="p-3">
+            {/* Card content — pl-5 reserves space for the drag handle */}
+            <div className="pl-5 pr-3 py-3">
               {/* Labels */}
               {labels.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mb-2">
