@@ -257,7 +257,7 @@ export default function BoardList({ list, index, boardId, allLists, onCardClick,
           ) : (
             <button
               onClick={() => setIsAddingCard(true)}
-              className="mx-1.5 mb-2 px-3 py-2 rounded-xl text-sm text-navy/40 dark:text-slate-400 hover:text-navy/60 dark:hover:text-slate-300 hover:bg-cream-dark/50 dark:hover:bg-slate-800/50 transition-all duration-200 text-left font-body"
+              className="mx-1.5 mb-2 px-3 py-2.5 rounded-xl text-sm text-navy/40 dark:text-slate-400 hover:text-navy/60 dark:hover:text-slate-300 hover:bg-cream-dark/50 dark:hover:bg-slate-800/50 transition-all duration-200 text-left font-body w-[calc(100%-0.75rem)] min-h-[44px] flex items-center"
             >
               + Add a card
             </button>

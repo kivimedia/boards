@@ -742,7 +742,7 @@ export default function MigrationWizard() {
     progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
 
   return (
-    <div className="flex-1 overflow-y-auto bg-cream dark:bg-dark-bg p-6">
+    <div className="flex-1 overflow-y-auto bg-cream dark:bg-dark-bg p-4 sm:p-6">
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Resume banner for interrupted migrations */}
         {resumableJob && step === 1 && (

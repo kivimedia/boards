@@ -101,7 +101,7 @@ export default function BoardBackgroundPicker({
   };
 
   return (
-    <div className="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-dark-surface rounded-xl shadow-modal border border-cream-dark dark:border-slate-700 z-50 p-4">
+    <div className="absolute top-full right-0 mt-2 w-[min(18rem,_calc(100vw-1rem))] bg-white dark:bg-dark-surface rounded-xl shadow-modal border border-cream-dark dark:border-slate-700 z-50 p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-navy dark:text-slate-100 font-heading">Board Background</h3>
         <button onClick={onClose} className="text-navy/40 dark:text-slate-500 hover:text-navy dark:hover:text-white p-1 rounded-lg transition-colors">

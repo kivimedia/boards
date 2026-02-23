@@ -90,7 +90,7 @@ export default function FilterDropdown({ filter, onFilterChange, labels, isDark 
       </button>
 
       {open && (
-        <div className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-dark-surface rounded-xl shadow-modal border border-cream-dark dark:border-slate-700 z-50 p-3 max-h-[400px] overflow-y-auto scrollbar-thin">
+        <div className="absolute top-full right-0 mt-2 w-[min(16rem,_calc(100vw-1rem))] bg-white dark:bg-dark-surface rounded-xl shadow-modal border border-cream-dark dark:border-slate-700 z-50 p-3 max-h-[400px] overflow-y-auto scrollbar-thin">
           {/* Labels */}
           {labels.length > 0 && (
             <div className="mb-3">

@@ -585,7 +585,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
         </div>
       )}
 
-      <div className="p-5 pb-6">
+      <div className="p-4 sm:p-5 pb-6">
         {/* Board > List breadcrumb */}
         {(boardName || listName) && (
           <div className="flex items-center gap-1.5 text-xs text-navy/40 dark:text-slate-500 font-medium font-body mb-1 pr-8">
@@ -1124,10 +1124,10 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
             <>
               {/* Mobile backdrop */}
               <div
-                className="fixed inset-0 bg-black/20 z-10 sm:hidden"
+                className="fixed inset-0 bg-black/40 z-10 lg:hidden"
                 onClick={() => setSidebarOpen(false)}
               />
-              <div className="absolute top-0 right-0 bottom-0 w-64 bg-white dark:bg-dark-surface border-l border-cream-dark dark:border-slate-700 shadow-lg overflow-y-auto z-10 animate-in slide-in-from-right duration-200 rounded-r-xl">
+              <div className="absolute top-0 right-0 bottom-0 w-full sm:w-72 bg-white dark:bg-dark-surface border-l border-cream-dark dark:border-slate-700 shadow-lg overflow-y-auto z-10 animate-in slide-in-from-right duration-200 rounded-r-xl">
                 <div className="p-4 space-y-4">
                   {/* Panel header */}
                   <div className="flex items-center justify-between">

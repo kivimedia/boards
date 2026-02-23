@@ -124,8 +124,8 @@ export default function LinkCheckResults({ links }: Props) {
       </div>
 
       {/* Links Table */}
-      <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden overflow-x-auto">
+        <table className="w-full text-sm min-w-[500px]">
           <thead>
             <tr className="bg-gray-50 dark:bg-gray-800">
               <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">URL</th>

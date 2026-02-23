@@ -88,7 +88,8 @@ export default function MultiBrowserResults({ results }: Props) {
               Differences vs Chrome
             </h4>
           </div>
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[400px]">
             <thead>
               <tr className="bg-gray-50 dark:bg-gray-800/50">
                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Viewport</th>
@@ -114,6 +115,7 @@ export default function MultiBrowserResults({ results }: Props) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
