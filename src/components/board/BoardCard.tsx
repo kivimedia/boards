@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import Image from 'next/image';
 import { Draggable } from '@hello-pangea/dnd';
 import { Card, Label, Profile } from '@/lib/types';
 import Avatar from '@/components/ui/Avatar';
@@ -34,34 +33,15 @@ interface BoardCardProps {
  */
 function CoverImage({ src }: { src: string }) {
   const [errored, setErrored] = useState(false);
-  const isOptimizable = src.includes('supabase.co') || src.startsWith('/');
 
   if (errored) return null;
 
-  if (isOptimizable) {
-    return (
-      <div className="relative w-full h-32 bg-cream dark:bg-slate-800">
-        <Image
-          src={src}
-          alt=""
-          fill
-          sizes="(max-width: 640px) 85vw, 288px"
-          className="object-cover"
-          quality={85}
-          onError={() => setErrored(true)}
-        />
-      </div>
-    );
-  }
-
-  // External URLs (Trello, etc.) - use <img> with rendering hints
   return (
     <div className="relative w-full h-32 bg-cream dark:bg-slate-800 overflow-hidden">
       <img
         src={src}
         alt=""
-        className="w-full h-full object-cover"
-        style={{ imageRendering: 'auto' }}
+        className="w-full h-full object-cover object-top"
         loading="lazy"
         decoding="async"
         onError={() => setErrored(true)}
