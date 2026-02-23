@@ -80,6 +80,7 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [showFullLinks, setShowFullLinks] = useState(false);
 
@@ -173,6 +174,7 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
   const handleEditComment = async (commentId: string) => {
     if (!editText.trim()) return;
     setEditLoading(true);
+    setEditError(null);
     try {
       const res = await fetch(`/api/cards/${cardId}/comments`, {
         method: 'PATCH',
@@ -182,12 +184,18 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
       if (res.ok) {
         setEditingCommentId(null);
         setEditText('');
+        setEditError(null);
         onRefresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setEditError(data?.error || `Save failed (${res.status}). Please try again.`);
       }
     } catch (err) {
       console.error('Failed to edit comment:', err);
+      setEditError('Network error — please check your connection and try again.');
+    } finally {
+      setEditLoading(false);
     }
-    setEditLoading(false);
   };
 
   const handleAddLinkAsAttachment = useCallback(async (comment: Comment) => {
@@ -301,9 +309,12 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
                     }
                   }}
                 />
+                {editError && (
+                  <p className="text-xs text-danger mt-1 font-body">{editError}</p>
+                )}
                 <div className="flex items-center gap-2 mt-1.5">
                   <Button size="sm" onClick={() => handleEditComment(comment.id)} loading={editLoading}>Save</Button>
-                  <button onClick={() => { setEditingCommentId(null); setEditText(''); }} className="text-xs text-navy/40 dark:text-slate-500 hover:text-navy/60 dark:hover:text-slate-300">Cancel</button>
+                  <button onClick={() => { setEditingCommentId(null); setEditText(''); setEditError(null); }} className="text-xs text-navy/40 dark:text-slate-500 hover:text-navy/60 dark:hover:text-slate-300">Cancel</button>
                 </div>
               </div>
             ) : (
