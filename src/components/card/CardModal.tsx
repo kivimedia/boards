@@ -562,11 +562,11 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
         </>
       )}
       {coverImageUrl && (
-        <div className="relative w-full h-40 bg-cream dark:bg-navy overflow-hidden rounded-t-2xl">
+        <div className="relative w-full h-48 bg-cream dark:bg-navy overflow-hidden rounded-t-2xl flex items-center justify-center">
           {coverImageUrl.includes('supabase.co') || coverImageUrl.startsWith('/') ? (
-            <Image src={coverImageUrl} alt="" fill sizes="(max-width: 1024px) 90vw, 896px" className="object-cover" quality={90} onError={() => setCoverImageUrl(null)} />
+            <Image src={coverImageUrl} alt="" fill sizes="(max-width: 1024px) 90vw, 896px" className="object-contain" quality={90} onError={() => setCoverImageUrl(null)} />
           ) : (
-            <img src={coverImageUrl} alt="" className="w-full h-full object-cover" loading="eager" onError={() => setCoverImageUrl(null)} />
+            <img src={coverImageUrl} alt="" className="w-full h-full object-contain" loading="eager" onError={() => setCoverImageUrl(null)} />
           )}
           <div className="absolute bottom-2 right-2 flex gap-1.5">
             <label className="cursor-pointer inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-white/90 dark:bg-dark-surface/90 text-navy dark:text-slate-200 hover:bg-white dark:hover:bg-dark-surface transition-colors shadow-sm backdrop-blur-sm">
