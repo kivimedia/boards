@@ -33,21 +33,23 @@ export default function MentionInput({ cardId, boardId, onSubmit }: MentionInput
   useEffect(() => {
     const fetchProfiles = async () => {
       if (boardId) {
-        // Fetch only board members' profiles to populate the mention list
-        const { data: members } = await supabase
-          .from('board_members')
-          .select('user_id')
-          .eq('board_id', boardId);
-
-        if (members && members.length > 0) {
-          const userIds = members.map((m: { user_id: string }) => m.user_id);
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('*')
-            .in('id', userIds)
-            .order('display_name');
-          setProfiles(profileData || []);
-          return;
+        // Use server-side API to bypass RLS restrictions on board_members/profiles
+        try {
+          const res = await fetch(`/api/boards/${boardId}/members`);
+          if (res.ok) {
+            const json = await res.json();
+            const members = json.data || json;
+            const profileList: Profile[] = members
+              .map((m: any) => m.profile)
+              .filter(Boolean)
+              .sort((a: Profile, b: Profile) =>
+                (a.display_name || '').localeCompare(b.display_name || '')
+              );
+            setProfiles(profileList);
+            return;
+          }
+        } catch {
+          // fall through to direct query
         }
       }
       // Fallback: fetch all profiles (e.g. when boardId is not provided)
