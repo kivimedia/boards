@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Comment } from '@/lib/types';
 import Avatar from '@/components/ui/Avatar';
 import Button from '@/components/ui/Button';
@@ -279,12 +281,23 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-navy/70 dark:text-slate-300 mt-0.5 font-body whitespace-pre-wrap">
-                {linkifyContent(comment.content, showFullLinks || editingCommentId !== null)}
+              <div className="text-sm text-navy/70 dark:text-slate-300 mt-0.5 font-body prose prose-sm dark:prose-invert max-w-full prose-p:my-0.5 prose-p:font-body prose-a:text-electric prose-a:no-underline hover:prose-a:underline prose-code:text-electric prose-code:bg-electric/10 prose-code:px-1 prose-code:rounded prose-ul:my-1 prose-ol:my-1 prose-li:my-0 [overflow-wrap:break-word] [word-break:break-word]">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    a: ({ href, children }) => (
+                      <a href={href} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                        {showFullLinks ? href : children}
+                      </a>
+                    ),
+                  }}
+                >
+                  {normalizeSmartLinks(comment.content)}
+                </ReactMarkdown>
                 {comment.updated_at && comment.updated_at !== comment.created_at && (
                   <span className="text-[10px] text-navy/25 dark:text-slate-600 ml-1.5">(edited)</span>
                 )}
-              </p>
+              </div>
             )}
             <div className="flex items-center gap-2 mt-1">
               <CommentReactions commentId={comment.id} cardId={cardId} />
