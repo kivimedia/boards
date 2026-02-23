@@ -29,27 +29,32 @@ export default function CardCustomFields({ cardId, boardId, onRefresh }: CardCus
 
   const fetchFields = async () => {
     setLoading(true);
+    try {
+      const [defsResult, valsResult] = await Promise.all([
+        supabase
+          .from('custom_field_definitions')
+          .select('*')
+          .eq('board_id', boardId)
+          .order('position', { ascending: true }),
+        supabase
+          .from('custom_field_values')
+          .select('*, definition:custom_field_definitions(*)')
+          .eq('card_id', cardId),
+      ]);
 
-    const [defsResult, valsResult] = await Promise.all([
-      supabase
-        .from('custom_field_definitions')
-        .select('*')
-        .eq('board_id', boardId)
-        .order('position', { ascending: true }),
-      supabase
-        .from('custom_field_values')
-        .select('*, definition:custom_field_definitions(*)')
-        .eq('card_id', cardId),
-    ]);
+      setDefinitions(defsResult.data || []);
 
-    setDefinitions(defsResult.data || []);
-
-    const valueMap: Record<string, unknown> = {};
-    (valsResult.data || []).forEach((v: CustomFieldValue) => {
-      valueMap[v.field_definition_id] = v.value;
-    });
-    setValues(valueMap);
-    setLoading(false);
+      const valueMap: Record<string, unknown> = {};
+      (valsResult.data || []).forEach((v: CustomFieldValue) => {
+        valueMap[v.field_definition_id] = v.value;
+      });
+      setValues(valueMap);
+    } catch (err) {
+      console.error('Failed to fetch custom fields:', err);
+      setDefinitions([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const saveFieldValue = useCallback(
