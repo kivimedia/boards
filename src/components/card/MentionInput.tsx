@@ -32,32 +32,28 @@ export default function MentionInput({ cardId, boardId, onSubmit }: MentionInput
 
   useEffect(() => {
     const fetchProfiles = async () => {
-      if (boardId) {
-        // Use server-side API to bypass RLS restrictions on board_members/profiles
-        try {
-          const res = await fetch(`/api/boards/${boardId}/members`);
-          if (res.ok) {
-            const json = await res.json();
-            const members = json.data || json;
-            const profileList: Profile[] = members
-              .map((m: any) => m.profile)
-              .filter(Boolean)
-              .sort((a: Profile, b: Profile) =>
-                (a.display_name || '').localeCompare(b.display_name || '')
-              );
-            setProfiles(profileList);
-            return;
-          }
-        } catch {
-          // fall through to direct query
+      // Always fetch all team members globally via server-side API (bypasses RLS)
+      try {
+        const res = await fetch('/api/team/profiles');
+        if (res.ok) {
+          const json = await res.json();
+          const members: Profile[] = (json.data || json)
+            .filter((p: any) => p.display_name)
+            .sort((a: Profile, b: Profile) =>
+              (a.display_name || '').localeCompare(b.display_name || '')
+            );
+          setProfiles(members);
+          return;
         }
+      } catch {
+        // fall through to direct query
       }
-      // Fallback: fetch all profiles (e.g. when boardId is not provided)
+      // Fallback: direct Supabase query
       const { data } = await supabase.from('profiles').select('*').order('display_name');
       setProfiles(data || []);
     };
     fetchProfiles();
-  }, [boardId]);
+  }, []);
 
   const filteredProfiles = profiles.filter((p) =>
     p.display_name.toLowerCase().includes(dropdownFilter.toLowerCase())
