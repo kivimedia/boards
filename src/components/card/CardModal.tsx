@@ -113,6 +113,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
   const [cardSize, setCardSize] = useState<CardSize>('medium');
   const [uploadingCover, setUploadingCover] = useState(false);
+  const [coverError, setCoverError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('details');
   const [boardType, setBoardType] = useState<BoardType | null>(null);
   const [latestReview, setLatestReview] = useState<AIReviewResult | null>(null);
@@ -408,41 +409,45 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
     const file = e.target.files?.[0];
     if (!file) return;
     const inputEl = e.target;
-    // Copy file into a new Blob so resetting the input doesn't abort the upload
     const fileCopy = new File([file], file.name, { type: file.type });
-    // Show local preview immediately so the cover appears right away
+    // Show local preview immediately
     const localPreview = URL.createObjectURL(fileCopy);
     setCoverImageUrl(localPreview);
+    setCoverError(null);
     setUploadingCover(true);
     try {
-      const ext = fileCopy.name.split('.').pop() || 'jpg';
-      const storagePath = `covers/${cardId}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage
-        .from('card-attachments')
-        .upload(storagePath, fileCopy);
-      if (uploadError) throw uploadError;
-      // Store the path in DB
-      await updateCard({ cover_image_url: storagePath } as any);
-      // Swap to a signed URL for persistence
-      const { data: signedData } = await supabase.storage
-        .from('card-attachments')
-        .createSignedUrl(storagePath, 3600);
+      const formData = new FormData();
+      formData.append('file', fileCopy);
+      const res = await fetch(`/api/cards/${cardId}/cover`, {
+        method: 'POST',
+        body: formData,
+      });
+      const json = await res.json();
       URL.revokeObjectURL(localPreview);
-      setCoverImageUrl(signedData?.signedUrl || localPreview);
+      if (!res.ok) {
+        setCoverImageUrl(null);
+        setCoverError(json?.error || 'Cover upload failed. Please try again.');
+        return;
+      }
+      // Use signed URL returned from server for immediate display
+      setCoverImageUrl(json.data?.signedUrl || null);
+      onRefresh();
     } catch (err) {
       console.error('Cover upload failed:', err);
       URL.revokeObjectURL(localPreview);
       setCoverImageUrl(null);
+      setCoverError('Cover upload failed. Please try again.');
     } finally {
       setUploadingCover(false);
-      // Reset after upload so the same file can be re-selected
       inputEl.value = '';
     }
   };
 
   const handleRemoveCover = async () => {
     setCoverImageUrl(null);
-    await updateCard({ cover_image_url: null } as any);
+    setCoverError(null);
+    await fetch(`/api/cards/${cardId}/cover`, { method: 'DELETE' });
+    onRefresh();
   };
 
   const handleCardSizeChange = (size: CardSize) => {
@@ -540,11 +545,16 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
     <Modal isOpen={true} onClose={onClose} size="xl" onKeyDown={handleModalKeyDown}>
       {/* Cover Image */}
       {!coverImageUrl && (
-        <label className="cursor-pointer group flex items-center justify-center gap-2 w-full h-12 rounded-t-2xl border-b border-dashed border-cream-dark dark:border-slate-700 hover:bg-cream dark:hover:bg-slate-800/50 transition-colors text-navy/30 dark:text-slate-600 hover:text-electric dark:hover:text-electric text-xs font-medium">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-          {uploadingCover ? 'Uploading...' : 'Add cover image'}
-          <input type="file" accept="image/*" className="hidden" onChange={handleCoverImageUpload} disabled={uploadingCover} />
-        </label>
+        <>
+          <label className="cursor-pointer group flex items-center justify-center gap-2 w-full h-12 rounded-t-2xl border-b border-dashed border-cream-dark dark:border-slate-700 hover:bg-cream dark:hover:bg-slate-800/50 transition-colors text-navy/30 dark:text-slate-600 hover:text-electric dark:hover:text-electric text-xs font-medium">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            {uploadingCover ? 'Uploading...' : 'Add cover image'}
+            <input type="file" accept="image/*" className="hidden" onChange={handleCoverImageUpload} disabled={uploadingCover} />
+          </label>
+          {coverError && (
+            <p className="text-xs text-danger text-center py-1 px-3 font-body">{coverError}</p>
+          )}
+        </>
       )}
       {coverImageUrl && (
         <div className="relative w-full h-40 bg-cream dark:bg-navy overflow-hidden rounded-t-2xl">
