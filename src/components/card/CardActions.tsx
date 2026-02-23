@@ -143,6 +143,16 @@ export default function CardActions({ cardId, boardId, onClose, onRefresh }: Car
     onRefresh();
   };
 
+  const handleArchive = async () => {
+    if (!confirm('Archive this ticket? It will be hidden from the board but can be restored later.')) return;
+    setLoading(true);
+    await supabase.from('cards').update({ is_archived: true }).eq('id', cardId);
+    await supabase.from('card_placements').delete().eq('card_id', cardId);
+    setLoading(false);
+    onClose();
+    onRefresh();
+  };
+
   const handleDelete = async () => {
     if (!confirm('Delete this card? This cannot be undone.')) return;
     await supabase.from('cards').delete().eq('id', cardId);
@@ -210,6 +220,14 @@ export default function CardActions({ cardId, boardId, onClose, onRefresh }: Car
         {showMove && <BoardListSelector onSubmit={handleMove} submitLabel="Move Card" />}
 
         <hr className="border-cream-dark dark:border-slate-700 my-2" />
+
+        <button
+          onClick={handleArchive}
+          disabled={loading}
+          className="w-full text-left px-3 py-2 rounded-lg text-sm text-navy/60 dark:text-slate-400 hover:bg-cream-dark dark:hover:bg-slate-800 hover:text-navy dark:hover:text-slate-100 transition-all font-body"
+        >
+          Archive this ticket
+        </button>
 
         <button
           onClick={handleDelete}
