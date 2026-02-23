@@ -233,7 +233,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     .from('comments')
     .update({
       content: body.body.content.trim(),
-      updated_at: new Date().toISOString(),
+      // updated_at is set by DB trigger (migration 059_comments_updated_at.sql)
     })
     .eq('id', body.body.commentId)
     .select('*')
