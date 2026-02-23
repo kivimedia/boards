@@ -33,7 +33,6 @@ import CardAgentTasksPanel from '@/components/agents/CardAgentTasksPanel';
 import CardApprovalPanel from './CardApprovalPanel';
 import VideoFrameComparison from './VideoFrameComparison';
 import CardAIChat from './CardAIChat';
-import CardDetailAttachments from './CardDetailAttachments';
 import type { FrameVerdict } from '@/lib/ai/design-review';
 import ReactMarkdown from 'react-markdown';
 
@@ -46,13 +45,12 @@ interface CardModalProps {
   onNavigate?: (cardId: string) => void;
 }
 
-type Tab = 'details' | 'brief' | 'checklists' | 'attachments' | 'dependencies' | 'activity' | 'approval' | 'ai-review' | 'ai-qa' | 'brain' | 'agents';
+type Tab = 'details' | 'brief' | 'checklists' | 'dependencies' | 'activity' | 'approval' | 'ai-review' | 'ai-qa' | 'brain' | 'agents';
 
 const BASE_TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'details', label: 'Details', icon: '📝' },
   { key: 'brief', label: 'Brief', icon: '📋' },
   { key: 'checklists', label: 'Checklists', icon: '☑️' },
-  { key: 'attachments', label: 'Attachments', icon: '📎' },
   { key: 'dependencies', label: 'Dependencies', icon: '🔗' },
   { key: 'activity', label: 'Activity', icon: '📊' },
 ];
@@ -81,7 +79,7 @@ const AGENTS_TAB: { key: Tab; label: string; icon: string } = {
   key: 'agents', label: 'Agents', icon: '🤖',
 };
 
-const PRIMARY_TAB_KEYS: Tab[] = ['details', 'brief', 'checklists', 'attachments', 'activity'];
+const PRIMARY_TAB_KEYS: Tab[] = ['details', 'brief', 'checklists', 'activity'];
 
 const PRIORITY_OPTIONS: { value: CardPriority; label: string; color: string }[] = [
   { value: 'urgent', label: 'Urgent', color: '#ef4444' },
@@ -826,8 +824,8 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                     onRefresh={onRefresh}
                   />
 
-                  {/* Attachments inline with cover controls */}
-                  <CardDetailAttachments
+                  {/* Attachments inline */}
+                  <CardAttachments
                     cardId={cardId}
                     coverImageUrl={coverImageUrl}
                     onCoverChange={(url) => setCoverImageUrl(url)}
@@ -861,15 +859,6 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
 
             {activeTab === 'checklists' && (
               <CardChecklists cardId={cardId} onRefresh={onRefresh} />
-            )}
-
-            {activeTab === 'attachments' && (
-              <CardAttachments
-                cardId={cardId}
-                coverImageUrl={coverImageUrl}
-                onCoverChange={(url) => setCoverImageUrl(url)}
-                onRefresh={onRefresh}
-              />
             )}
 
             {activeTab === 'dependencies' && (
