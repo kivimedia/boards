@@ -35,6 +35,7 @@ import VideoFrameComparison from './VideoFrameComparison';
 import CardAIChat from './CardAIChat';
 import type { FrameVerdict } from '@/lib/ai/design-review';
 import ReactMarkdown from 'react-markdown';
+import { MarkdownToolbarUI } from './MarkdownToolbar';
 
 interface CardModalProps {
   cardId: string;
@@ -128,6 +129,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const moreBtnRef = useRef<HTMLButtonElement>(null);
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const [moreMenuPos, setMoreMenuPos] = useState({ top: 0, left: 0 });
   const [linkCopied, setLinkCopied] = useState(false);
   const [archiving, setArchiving] = useState(false);
@@ -802,11 +804,38 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                     </div>
                     {isEditingDescription ? (
                       <div>
+                        <MarkdownToolbarUI
+                          textareaRef={descriptionRef}
+                          value={description}
+                          onChange={setDescription}
+                        />
                         <textarea
+                          ref={descriptionRef}
                           value={description}
                           onChange={(e) => setDescription(e.target.value)}
-                          className="w-full p-3 rounded-xl bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-y font-body min-h-[120px]"
-                          placeholder="Add a description..."
+                          onKeyDown={(e) => {
+                            if (e.key === 'b' && (e.metaKey || e.ctrlKey)) {
+                              e.preventDefault();
+                              const ta = descriptionRef.current;
+                              if (!ta) return;
+                              const s = ta.selectionStart, en = ta.selectionEnd;
+                              const sel = description.slice(s, en) || 'bold text';
+                              const text = description.slice(0, s) + '**' + sel + '**' + description.slice(en);
+                              setDescription(text);
+                              requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + 2 + sel.length + 2, s + 2 + sel.length + 2); });
+                            } else if (e.key === 'i' && (e.metaKey || e.ctrlKey)) {
+                              e.preventDefault();
+                              const ta = descriptionRef.current;
+                              if (!ta) return;
+                              const s = ta.selectionStart, en = ta.selectionEnd;
+                              const sel = description.slice(s, en) || 'italic text';
+                              const text = description.slice(0, s) + '*' + sel + '*' + description.slice(en);
+                              setDescription(text);
+                              requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + 1 + sel.length + 1, s + 1 + sel.length + 1); });
+                            }
+                          }}
+                          className="w-full p-3 rounded-b-xl rounded-t-none bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 border-t-0 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-y font-body min-h-[120px]"
+                          placeholder="Add a description... (supports **bold**, *italic*, # Heading, - bullet)"
                           autoFocus
                         />
                         <div className="flex gap-2 mt-2">
