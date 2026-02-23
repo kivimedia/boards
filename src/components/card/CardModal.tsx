@@ -406,18 +406,19 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
   const handleCoverImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    // Reset input so the same file can be re-selected later
-    e.target.value = '';
+    const inputEl = e.target;
+    // Copy file into a new Blob so resetting the input doesn't abort the upload
+    const fileCopy = new File([file], file.name, { type: file.type });
     // Show local preview immediately so the cover appears right away
-    const localPreview = URL.createObjectURL(file);
+    const localPreview = URL.createObjectURL(fileCopy);
     setCoverImageUrl(localPreview);
     setUploadingCover(true);
     try {
-      const ext = file.name.split('.').pop() || 'jpg';
+      const ext = fileCopy.name.split('.').pop() || 'jpg';
       const storagePath = `covers/${cardId}/${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage
         .from('card-attachments')
-        .upload(storagePath, file);
+        .upload(storagePath, fileCopy);
       if (uploadError) throw uploadError;
       // Store the path in DB
       await updateCard({ cover_image_url: storagePath } as any);
@@ -433,6 +434,8 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
       setCoverImageUrl(null);
     } finally {
       setUploadingCover(false);
+      // Reset after upload so the same file can be re-selected
+      inputEl.value = '';
     }
   };
 
