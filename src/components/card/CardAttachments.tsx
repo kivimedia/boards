@@ -108,7 +108,10 @@ export default function CardAttachments({ cardId, coverImageUrl, onCoverChange, 
   const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
 
   const uploadFile = async (file: File) => {
-    if (!user) return;
+    if (!user) {
+      alert('You must be logged in to upload files.');
+      return;
+    }
 
     if (file.size > MAX_FILE_SIZE) {
       alert(`File "${file.name}" exceeds the 500MB limit.`);
@@ -137,6 +140,7 @@ export default function CardAttachments({ cardId, coverImageUrl, onCoverChange, 
       }
     } catch (err) {
       console.error('Upload failed:', err);
+      alert('Upload failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
     } finally {
       setUploading(false);
       // Reset input so the same file can be re-selected (or a new pick triggers onChange reliably)
