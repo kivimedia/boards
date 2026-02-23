@@ -36,6 +36,8 @@ import CardAIChat from './CardAIChat';
 import type { FrameVerdict } from '@/lib/ai/design-review';
 import ReactMarkdown from 'react-markdown';
 import { MarkdownToolbarUI } from './MarkdownToolbar';
+import { useMentionDropdown } from './useMentionDropdown';
+import MentionDropdown from './MentionDropdown';
 
 interface CardModalProps {
   cardId: string;
@@ -129,7 +131,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const moreBtnRef = useRef<HTMLButtonElement>(null);
-  const descriptionRef = useRef<HTMLTextAreaElement>(null);
+  const descMention = useMentionDropdown({ value: description, onChange: setDescription });
   const [moreMenuPos, setMoreMenuPos] = useState({ top: 0, left: 0 });
   const [linkCopied, setLinkCopied] = useState(false);
   const [archiving, setArchiving] = useState(false);
@@ -805,39 +807,48 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                     {isEditingDescription ? (
                       <div>
                         <MarkdownToolbarUI
-                          textareaRef={descriptionRef}
+                          textareaRef={descMention.textareaRef}
                           value={description}
                           onChange={setDescription}
                         />
-                        <textarea
-                          ref={descriptionRef}
-                          value={description}
-                          onChange={(e) => setDescription(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'b' && (e.metaKey || e.ctrlKey)) {
-                              e.preventDefault();
-                              const ta = descriptionRef.current;
-                              if (!ta) return;
-                              const s = ta.selectionStart, en = ta.selectionEnd;
-                              const sel = description.slice(s, en) || 'bold text';
-                              const text = description.slice(0, s) + '**' + sel + '**' + description.slice(en);
-                              setDescription(text);
-                              requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + 2 + sel.length + 2, s + 2 + sel.length + 2); });
-                            } else if (e.key === 'i' && (e.metaKey || e.ctrlKey)) {
-                              e.preventDefault();
-                              const ta = descriptionRef.current;
-                              if (!ta) return;
-                              const s = ta.selectionStart, en = ta.selectionEnd;
-                              const sel = description.slice(s, en) || 'italic text';
-                              const text = description.slice(0, s) + '*' + sel + '*' + description.slice(en);
-                              setDescription(text);
-                              requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + 1 + sel.length + 1, s + 1 + sel.length + 1); });
-                            }
-                          }}
-                          className="w-full p-3 rounded-b-xl rounded-t-none bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 border-t-0 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-y font-body min-h-[120px]"
-                          placeholder="Add a description... (supports **bold**, *italic*, # Heading, - bullet)"
-                          autoFocus
-                        />
+                        <div className="relative">
+                          <textarea
+                            ref={descMention.textareaRef}
+                            value={description}
+                            onChange={descMention.handleInput}
+                            onKeyDown={(e) => {
+                              if (descMention.handleKeyDown(e)) return;
+                              const ta = descMention.textareaRef.current;
+                              if (ta && e.key === 'b' && (e.metaKey || e.ctrlKey)) {
+                                e.preventDefault();
+                                const s = ta.selectionStart, en = ta.selectionEnd;
+                                const sel = description.slice(s, en) || 'bold text';
+                                const text = description.slice(0, s) + '**' + sel + '**' + description.slice(en);
+                                setDescription(text);
+                                requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + 2, s + 2 + sel.length); });
+                              } else if (ta && e.key === 'i' && (e.metaKey || e.ctrlKey)) {
+                                e.preventDefault();
+                                const s = ta.selectionStart, en = ta.selectionEnd;
+                                const sel = description.slice(s, en) || 'italic text';
+                                const text = description.slice(0, s) + '*' + sel + '*' + description.slice(en);
+                                setDescription(text);
+                                requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + 1, s + 1 + sel.length); });
+                              }
+                            }}
+                            className="w-full p-3 rounded-b-xl rounded-t-none bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 border-t-0 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-y font-body min-h-[120px]"
+                            placeholder="Add a description... (supports **bold**, *italic*, # Heading, - bullet, @ to mention)"
+                            autoFocus
+                          />
+                          {descMention.showDropdown && (
+                            <MentionDropdown
+                              profiles={descMention.filteredProfiles}
+                              selectedIndex={descMention.selectedIndex}
+                              onSelect={descMention.selectProfile}
+                              onHover={descMention.setSelectedIndex}
+                              filter={descMention.dropdownFilter}
+                            />
+                          )}
+                        </div>
                         <div className="flex gap-2 mt-2">
                           <button
                             onClick={handleDescriptionSave}
