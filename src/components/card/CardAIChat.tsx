@@ -1,278 +1,519 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
+import type { ChatSession } from '@/lib/types';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const MODELS = [
+  { id: 'claude-haiku-4-5-20251001', label: 'Haiku (fast)' },
+  { id: 'claude-sonnet-4-5-20250929', label: 'Sonnet (balanced)' },
+  { id: 'claude-opus-4-6', label: 'Opus (best)' },
+] as const;
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface Attachment {
+  url: string;
+  name: string;
+  type: 'image' | 'file';
+}
+
+interface QueueItem {
+  id: string;
+  text: string;
+  attachments: Attachment[];
+}
+
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  attachments?: Attachment[];
+}
 
 interface CardAIChatProps {
   cardId: string;
   boardId: string;
 }
 
-interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-  suggestedQuestions?: string[];
-}
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function CardAIChat({ cardId, boardId }: CardAIChatProps) {
-  const [query, setQuery] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [model, setModel] = useState<string>(MODELS[1].id); // sonnet default
+  const [query, setQuery] = useState('');
+  const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
   const [streaming, setStreaming] = useState(false);
+  const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [editingQueueId, setEditingQueueId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  const [loadingSession, setLoadingSession] = useState(true);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
-  const handleSubmit = useCallback(
-    async (text?: string) => {
-      const q = (text || query).trim();
-      if (!q || streaming) return;
-      setQuery('');
-      setError(null);
-
-      const userMsg: ChatMessage = { role: 'user', content: q };
-      setMessages((prev) => [...prev, userMsg]);
-
-      // Add placeholder assistant message
-      const assistantMsg: ChatMessage = { role: 'assistant', content: '' };
-      setMessages((prev) => [...prev, assistantMsg]);
-      setStreaming(true);
-
-      const controller = new AbortController();
-      abortRef.current = controller;
-
-      try {
-        const res = await fetch(`/api/cards/${cardId}/assistant`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: q, boardId }),
-          signal: controller.signal,
-        });
-
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || `HTTP ${res.status}`);
+  // ── Session loading on mount ──────────────────────────────────────────────
+  useEffect(() => {
+    fetch(`/api/chat?scope=ticket&cardId=${cardId}`)
+      .then((r) => r.json())
+      .then((json) => {
+        const sessions: ChatSession[] = json.data ?? [];
+        const latest = sessions[0]; // most recent first
+        if (latest?.messages?.length) {
+          // Map ChatMessage (from types.ts) to local ChatMessage interface
+          setMessages(
+            latest.messages
+              .filter((m) => m.role === 'user' || m.role === 'assistant')
+              .map((m) => ({
+                role: m.role as 'user' | 'assistant',
+                content: m.content,
+              }))
+          );
+          setSessionId(latest.id);
+          if (latest.model_used) {
+            const found = MODELS.find((m) => m.id === latest.model_used);
+            if (found) setModel(latest.model_used);
+          }
         }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingSession(false));
+  }, [cardId]);
 
-        const reader = res.body?.getReader();
-        if (!reader) throw new Error('No response stream');
+  // ── File upload helper ────────────────────────────────────────────────────
+  const uploadFile = async (file: File): Promise<Attachment | null> => {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await fetch('/api/chat/upload', { method: 'POST', body: form });
+    if (!res.ok) return null;
+    return res.json();
+  };
 
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let fullResponse = '';
+  // ── Send message ──────────────────────────────────────────────────────────
+  const sendMessage = async (text: string, attachments: Attachment[]) => {
+    setStreaming(true);
+    setError(null);
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+    const userMsg: ChatMessage = { role: 'user', content: text, attachments };
+    setMessages((prev) => [...prev, userMsg, { role: 'assistant', content: '' }]);
 
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
+    const controller = new AbortController();
+    abortRef.current = controller;
 
-          for (const line of lines) {
-            if (line.startsWith('event: token')) continue;
-            if (line.startsWith('data: ')) {
-              const json = line.slice(6);
-              try {
-                const data = JSON.parse(json);
-                if (data.text) {
-                  fullResponse += data.text;
-                  // Update the last assistant message
-                  setMessages((prev) => {
-                    const updated = [...prev];
-                    const last = updated[updated.length - 1];
-                    if (last.role === 'assistant') {
-                      last.content = fullResponse;
-                    }
-                    return updated;
-                  });
+    try {
+      const res = await fetch('/api/chat/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scope: 'ticket',
+          cardId,
+          boardId,
+          message: text,
+          sessionId,
+          model_override: model,
+          attachments,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error || `HTTP ${res.status}`);
+      }
+
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buf = '',
+        event = '',
+        accumulated = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() ?? '';
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            event = line.slice(7).trim();
+          } else if (line.startsWith('data: ')) {
+            try {
+              const d = JSON.parse(line.slice(6)) as Record<string, unknown>;
+              if (event === 'token' && d.text) {
+                accumulated += d.text as string;
+                setMessages((prev) =>
+                  prev.map((m, i) =>
+                    i === prev.length - 1 ? { ...m, content: accumulated } : m
+                  )
+                );
+                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+              } else if (event === 'complete') {
+                if (d.session_id) setSessionId(d.session_id as string);
+              } else if (event === 'error') {
+                throw new Error((d.error as string) || 'Stream error');
+              }
+            } catch (parseErr) {
+              // Only rethrow if it's our own error (not JSON parse error)
+              if (parseErr instanceof Error && parseErr.message !== 'JSON parse') {
+                const errMsg = parseErr.message;
+                if (errMsg !== 'JSON parse' && errMsg !== 'Unexpected token') {
+                  throw parseErr;
                 }
-                if (data.response !== undefined) {
-                  // Final done event
-                  setMessages((prev) => {
-                    const updated = [...prev];
-                    const last = updated[updated.length - 1];
-                    if (last.role === 'assistant') {
-                      last.content = data.response;
-                      last.suggestedQuestions = data.suggested_questions || [];
-                    }
-                    return updated;
-                  });
-                }
-                if (data.error) {
-                  setError(data.error);
-                }
-              } catch {
-                // skip malformed
               }
             }
           }
         }
-      } catch (err: any) {
-        if (err.name !== 'AbortError') {
-          setError(err.message || 'Failed to get AI response');
-          // Remove the empty assistant message on error
-          setMessages((prev) => {
-            const last = prev[prev.length - 1];
-            if (last?.role === 'assistant' && !last.content) {
-              return prev.slice(0, -1);
-            }
-            return prev;
-          });
-        }
-      } finally {
-        setStreaming(false);
-        abortRef.current = null;
-        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
       }
-    },
-    [cardId, boardId, query, streaming]
-  );
-
-  const handleSuggestedQuestion = (q: string) => {
-    handleSubmit(q);
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name !== 'AbortError') {
+        setError(err.message);
+        setMessages((prev) => prev.slice(0, -1)); // remove empty assistant msg
+      }
+    } finally {
+      setStreaming(false);
+      abortRef.current = null;
+      // Auto-send next queue item
+      setQueue((prev) => {
+        if (prev.length === 0) return prev;
+        const [next, ...rest] = prev;
+        setTimeout(() => sendMessage(next.text, next.attachments), 0);
+        return rest;
+      });
+    }
   };
 
-  const hasChat = messages.length > 0;
+  // ── Handle submit ─────────────────────────────────────────────────────────
+  const handleSubmit = async () => {
+    const text = query.trim();
+    if (!text && pendingAttachments.length === 0) return;
+    setQuery('');
+    const attachments = [...pendingAttachments];
+    setPendingAttachments([]);
 
+    if (streaming) {
+      setQueue((prev) => [
+        ...prev,
+        { id: crypto.randomUUID(), text, attachments },
+      ]);
+      return;
+    }
+    await sendMessage(text, attachments);
+  };
+
+  // ── Paste handler ─────────────────────────────────────────────────────────
+  const handlePaste = async (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const items = Array.from(e.clipboardData.items);
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (!file) continue;
+        const att = await uploadFile(file);
+        if (att) setPendingAttachments((prev) => [...prev, att]);
+      }
+    }
+  };
+
+  // ── Queue drag & drop ─────────────────────────────────────────────────────
+  const onDragEnd = (result: DropResult) => {
+    if (!result.destination) return;
+    setQueue((prev) => {
+      const items = [...prev];
+      const [moved] = items.splice(result.source.index, 1);
+      items.splice(result.destination!.index, 0, moved);
+      return items;
+    });
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="border-b border-cream-dark dark:border-slate-700 mb-3">
 
-      {/* ── EMPTY STATE: show the prompt input bar ── */}
-      {!hasChat && (
-        <div className="flex items-center gap-2 pb-2">
-          <div className="relative flex-1">
-            <svg
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-navy/30 dark:text-slate-500"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
-              />
-            </svg>
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSubmit();
-                }
+      {/* ── Header bar ─────────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between pb-2">
+        <span className="text-[10px] font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide">
+          AI
+        </span>
+        <div className="flex items-center gap-2">
+          <select
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            className="text-[10px] rounded px-1.5 py-0.5 border border-cream-dark dark:border-slate-600 bg-white dark:bg-slate-800 text-navy dark:text-slate-200 focus:outline-none"
+          >
+            {MODELS.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+          {messages.length > 0 && (
+            <button
+              onClick={() => {
+                setMessages([]);
+                setSessionId(null);
+                setError(null);
               }}
-              placeholder="Ask AI about this card..."
-              className="w-full pl-8 pr-3 py-1.5 rounded-lg text-xs font-body bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric transition-colors"
-              disabled={streaming}
-            />
-          </div>
+              className="text-[10px] text-navy/30 dark:text-slate-500 hover:text-danger transition-colors"
+            >
+              New
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── Loading spinner ─────────────────────────────────────────────────── */}
+      {loadingSession && (
+        <div className="flex justify-center py-3">
+          <div className="w-4 h-4 border-2 border-electric/30 border-t-electric rounded-full animate-spin" />
         </div>
       )}
 
-      {/* ── ACTIVE CHAT: messages + bottom reply bar ── */}
-      {hasChat && (
-        <>
-          {/* Header row with clear button */}
-          <div className="flex items-center justify-between pb-1">
-            <span className="text-[10px] text-navy/40 dark:text-slate-500 font-body">AI Chat</span>
-            <button
-              onClick={() => { setMessages([]); setError(null); setQuery(''); }}
-              className="text-[10px] text-navy/30 dark:text-slate-500 hover:text-danger transition-colors"
-              title="Clear chat"
+      {/* ── Message history ─────────────────────────────────────────────────── */}
+      {!loadingSession && messages.length > 0 && (
+        <div className="max-h-[280px] overflow-y-auto space-y-2 pb-2 scrollbar-thin">
+          {messages.map((msg, i) => (
+            <div
+              key={i}
+              className={`text-xs rounded-lg px-3 py-2 ${
+                msg.role === 'user'
+                  ? 'bg-electric/10 dark:bg-electric/15 text-navy dark:text-slate-100 ml-8'
+                  : 'bg-cream dark:bg-navy text-navy/80 dark:text-slate-300 mr-4'
+              }`}
             >
-              Clear
-            </button>
-          </div>
-
-          {/* Message list */}
-          <div className="max-h-[280px] overflow-y-auto space-y-2 pb-2 scrollbar-thin">
-            {messages.map((msg, i) => (
-              <div
-                key={i}
-                className={`text-xs font-body rounded-lg px-3 py-2 ${
-                  msg.role === 'user'
-                    ? 'bg-electric/10 dark:bg-electric/15 text-navy dark:text-slate-100 ml-8'
-                    : 'bg-cream dark:bg-navy text-navy/80 dark:text-slate-300 mr-4'
-                }`}
-              >
-                {msg.role === 'assistant' && !msg.content && streaming && (
-                  <span className="inline-flex gap-1 text-navy/30 dark:text-slate-500">
-                    <span className="animate-bounce" style={{ animationDelay: '0ms' }}>.</span>
-                    <span className="animate-bounce" style={{ animationDelay: '150ms' }}>.</span>
-                    <span className="animate-bounce" style={{ animationDelay: '300ms' }}>.</span>
+              {/* Image attachments */}
+              {msg.attachments
+                ?.filter((a) => a.type === 'image')
+                .map((a, j) => (
+                  <img
+                    key={j}
+                    src={a.url}
+                    alt={a.name}
+                    className="max-w-full max-h-32 rounded mb-1 object-contain"
+                  />
+                ))}
+              {/* File attachments */}
+              {msg.attachments
+                ?.filter((a) => a.type === 'file')
+                .map((a, j) => (
+                  <a
+                    key={j}
+                    href={a.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-cream-dark dark:bg-slate-700 text-navy/70 dark:text-slate-300 mb-1 hover:underline"
+                  >
+                    📎 {a.name}
+                  </a>
+                ))}
+              {/* Streaming dots */}
+              {msg.role === 'assistant' && !msg.content && streaming && (
+                <span className="inline-flex gap-1 text-navy/30">
+                  <span className="animate-bounce" style={{ animationDelay: '0ms' }}>
+                    .
                   </span>
-                )}
-                <div className="whitespace-pre-wrap break-words">{msg.content}</div>
-
-                {msg.suggestedQuestions && msg.suggestedQuestions.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-cream-dark/50 dark:border-slate-700/50">
-                    {msg.suggestedQuestions.map((sq, j) => (
-                      <button
-                        key={j}
-                        onClick={() => handleSuggestedQuestion(sq)}
-                        className="text-[10px] px-2 py-0.5 rounded-full bg-electric/10 text-electric hover:bg-electric/20 transition-colors truncate max-w-[200px]"
-                      >
-                        {sq}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Error */}
-          {error && (
-            <p className="text-[10px] text-danger font-body pb-1 px-1">{error}</p>
-          )}
-
-          {/* Bottom reply input */}
-          <div className="flex items-center gap-2 pt-1 pb-2">
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSubmit();
-                }
-              }}
-              placeholder="Reply..."
-              className="flex-1 px-3 py-1.5 rounded-lg text-xs font-body bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric transition-colors"
-              disabled={streaming}
-              autoFocus
-            />
-            {streaming ? (
-              <button
-                onClick={() => abortRef.current?.abort()}
-                className="p-1.5 rounded-lg text-navy/40 dark:text-slate-500 hover:text-danger hover:bg-danger/10 transition-colors shrink-0"
-                title="Stop"
-              >
-                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-                  <rect x="6" y="6" width="12" height="12" rx="1" />
-                </svg>
-              </button>
-            ) : (
-              <button
-                onClick={() => handleSubmit()}
-                disabled={!query.trim()}
-                className="p-1.5 rounded-lg bg-electric text-white hover:bg-electric/90 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shrink-0"
-                title="Send"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                </svg>
-              </button>
-            )}
-          </div>
-        </>
+                  <span className="animate-bounce" style={{ animationDelay: '150ms' }}>
+                    .
+                  </span>
+                  <span className="animate-bounce" style={{ animationDelay: '300ms' }}>
+                    .
+                  </span>
+                </span>
+              )}
+              <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+            </div>
+          ))}
+          <div ref={messagesEndRef} />
+        </div>
       )}
 
-      {/* Error before any chat */}
-      {!hasChat && error && (
-        <p className="text-[10px] text-danger font-body pb-1 px-1">{error}</p>
+      {/* ── Error ───────────────────────────────────────────────────────────── */}
+      {error && (
+        <p className="text-[10px] text-danger pb-1 px-1">{error}</p>
+      )}
+
+      {/* ── Pending attachment previews ─────────────────────────────────────── */}
+      {pendingAttachments.length > 0 && (
+        <div className="flex flex-wrap gap-1 pb-1">
+          {pendingAttachments.map((a, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-cream-dark dark:bg-slate-700 text-navy/70 dark:text-slate-300"
+            >
+              {a.type === 'image' ? '🖼' : '📎'} {a.name.slice(0, 20)}
+              <button
+                onClick={() =>
+                  setPendingAttachments((prev) => prev.filter((_, j) => j !== i))
+                }
+                className="text-danger hover:text-danger/70 ml-0.5"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Reply input bar ─────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-1.5 pb-2">
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          accept="image/*,.pdf,.doc,.docx,.txt"
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            const att = await uploadFile(file);
+            if (att) setPendingAttachments((prev) => [...prev, att]);
+            e.target.value = '';
+          }}
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="p-1.5 rounded text-navy/30 hover:text-navy/60 dark:text-slate-500 dark:hover:text-slate-300 transition-colors shrink-0"
+          title="Attach file"
+        >
+          📎
+        </button>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSubmit();
+            }
+          }}
+          onPaste={handlePaste}
+          placeholder={
+            streaming
+              ? queue.length > 0
+                ? 'Adding to queue…'
+                : 'Waiting…'
+              : messages.length === 0
+              ? 'Ask AI about this card…'
+              : 'Reply…'
+          }
+          className="flex-1 px-3 py-1.5 rounded-lg text-xs bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-electric/40 transition-colors"
+        />
+        {streaming ? (
+          <button
+            onClick={() => {
+              abortRef.current?.abort();
+              setQueue([]);
+            }}
+            className="p-1.5 rounded text-danger hover:bg-danger/10 transition-colors shrink-0"
+            title="Stop + clear queue"
+          >
+            ⏹
+          </button>
+        ) : (
+          <button
+            onClick={handleSubmit}
+            disabled={!query.trim() && pendingAttachments.length === 0}
+            className="p-1.5 rounded bg-electric text-white hover:bg-electric/90 disabled:opacity-30 transition-colors shrink-0"
+          >
+            ▶
+          </button>
+        )}
+      </div>
+
+      {/* ── Message queue ───────────────────────────────────────────────────── */}
+      {queue.length > 0 && (
+        <DragDropContext onDragEnd={onDragEnd}>
+          <Droppable droppableId="chat-queue">
+            {(provided) => (
+              <div
+                {...provided.droppableProps}
+                ref={provided.innerRef}
+                className="border-t border-cream-dark dark:border-slate-700 pt-2 space-y-1"
+              >
+                <p className="text-[10px] text-navy/40 dark:text-slate-500 mb-1">
+                  {queue.length} message{queue.length > 1 ? 's' : ''} queued
+                </p>
+                {queue.map((item, index) => (
+                  <Draggable key={item.id} draggableId={item.id} index={index}>
+                    {(drag) => (
+                      <div
+                        ref={drag.innerRef}
+                        {...drag.draggableProps}
+                        className="flex items-start gap-1.5 p-1.5 rounded bg-cream dark:bg-slate-800/60 border border-cream-dark dark:border-slate-700 group text-xs"
+                      >
+                        <span
+                          {...drag.dragHandleProps}
+                          className="text-navy/20 hover:text-navy/50 cursor-grab active:cursor-grabbing select-none mt-0.5 shrink-0"
+                        >
+                          ⠿
+                        </span>
+                        {editingQueueId === item.id ? (
+                          <textarea
+                            value={editingText}
+                            onChange={(e) => setEditingText(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                setQueue((prev) =>
+                                  prev.map((q) =>
+                                    q.id === item.id
+                                      ? { ...q, text: editingText }
+                                      : q
+                                  )
+                                );
+                                setEditingQueueId(null);
+                              }
+                              if (e.key === 'Escape') setEditingQueueId(null);
+                            }}
+                            className="flex-1 text-xs bg-white dark:bg-slate-700 border border-cream-dark dark:border-slate-600 rounded px-1 py-0.5 resize-none"
+                            rows={2}
+                            autoFocus
+                          />
+                        ) : (
+                          <span className="flex-1 text-navy/70 dark:text-slate-300 truncate">
+                            {item.attachments.length > 0 && (
+                              <span className="mr-1">📎</span>
+                            )}
+                            {item.text || (
+                              <em className="opacity-50">(attachment only)</em>
+                            )}
+                          </span>
+                        )}
+                        <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => {
+                              setEditingQueueId(item.id);
+                              setEditingText(item.text);
+                            }}
+                            className="text-navy/40 hover:text-navy dark:text-slate-500 dark:hover:text-slate-200"
+                            title="Edit"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() =>
+                              setQueue((prev) =>
+                                prev.filter((q) => q.id !== item.id)
+                              )
+                            }
+                            className="text-navy/40 hover:text-danger dark:text-slate-500"
+                            title="Remove"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </Draggable>
+                ))}
+                {provided.placeholder}
+              </div>
+            )}
+          </Droppable>
+        </DragDropContext>
       )}
     </div>
   );
