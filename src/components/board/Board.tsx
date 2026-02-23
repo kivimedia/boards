@@ -283,7 +283,20 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
   const handleAddList = async () => {
     if (!newListName.trim()) return;
 
-    const maxPosition = Math.max(0, ...board.lists.map((l) => l.position));
+    // Compute safe next list position (guard against int4 overflow)
+    const INT4_SAFE_THRESHOLD = 2147483640;
+    const positions = board.lists.map((l) => l.position);
+    let maxPosition = positions.length > 0 ? Math.max(...positions) : -1;
+    if (maxPosition >= INT4_SAFE_THRESHOLD) {
+      // Renumber existing lists sequentially to reclaim position space
+      const sorted = [...board.lists].sort((a, b) => a.position - b.position);
+      await Promise.all(
+        sorted.map((l, i) =>
+          supabase.from('lists').update({ position: i }).eq('id', l.id)
+        )
+      );
+      maxPosition = sorted.length - 1;
+    }
     await supabase.from('lists').insert({
       board_id: board.id,
       name: newListName.trim(),
