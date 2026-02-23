@@ -67,7 +67,7 @@ interface CardCommentsProps {
   isAdmin?: boolean;
 }
 
-export default function CardComments({ cardId, comments, onRefresh, onCommentAdded, currentUserId, isAdmin }: CardCommentsProps) {
+export default function CardComments({ cardId, comments, onRefresh, onCommentAdded, boardId, currentUserId, isAdmin }: CardCommentsProps) {
   const [newComment, setNewComment] = useState('');
   const [replyText, setReplyText] = useState('');
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
