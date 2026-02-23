@@ -35,6 +35,8 @@ export async function POST(request: NextRequest) {
     execution_id?: string;
     confirmed_tool_call_id?: string;
     rejected_tool_call_id?: string;
+    planning_mode?: boolean;
+    conversation_history?: { role: 'user' | 'assistant'; content: string }[];
   };
 
   try {
@@ -105,11 +107,14 @@ export async function POST(request: NextRequest) {
             {
               skillId: body.skill_id,
               boardId: body.board_id,
+              cardId: body.card_id,
               userId,
               inputMessage: body.input_message,
               executionId: body.execution_id,
               confirmedToolCallId: body.confirmed_tool_call_id,
               rejectedToolCallId: body.rejected_tool_call_id,
+              planningMode: body.planning_mode,
+              conversationHistory: body.conversation_history,
             },
             {
               onToken: (text) => send('token', { text }),

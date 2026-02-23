@@ -58,6 +58,27 @@ function StarRating({
   );
 }
 
+// ─── Chat types ──────────────────────────────────────────────────────────────
+interface ChatMsg {
+  role: 'user' | 'assistant';
+  content: string;
+  isStreaming?: boolean;
+}
+
+interface ChatState {
+  taskId: string;
+  skillId: string;
+  messages: ChatMsg[];
+  // History passed to /api/agents/run for multi-turn (excludes current streaming msg)
+  history: { role: 'user' | 'assistant'; content: string }[];
+  phase: 'planning' | 'executing' | 'done';
+  streaming: boolean;
+  error: string | null;
+}
+
+// Keywords that trigger actual execution
+const RUN_TRIGGERS = /^\s*(go|run|start|yes|ok|okay|do it|proceed|confirm|execute|sure|כן|בצע|התחל|המשך)\s*[.!]?\s*$/i;
+
 export default function CardAgentTasksPanel({ cardId }: Props) {
   const [tasks, setTasks] = useState<CardAgentTask[]>([]);
   const [skills, setSkills] = useState<AgentSkill[]>([]);
@@ -67,9 +88,13 @@ export default function CardAgentTasksPanel({ cardId }: Props) {
   const [taskTitle, setTaskTitle] = useState('');
   const [taskPrompt, setTaskPrompt] = useState('');
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
+  // Legacy running state (kept for actual execution streaming)
   const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
-  const [streamingOutput, setStreamingOutput] = useState('');
   const [runError, setRunError] = useState<string | null>(null);
+  // Chat states per task
+  const [chatStates, setChatStates] = useState<Record<string, ChatState>>({});
+  const [chatInputs, setChatInputs] = useState<Record<string, string>>({});
+  const chatEndRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const outputRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -151,13 +176,133 @@ export default function CardAgentTasksPanel({ cardId }: Props) {
     }
   };
 
-  const runTask = async (taskId: string) => {
-    setRunningTaskId(taskId);
-    setStreamingOutput('');
-    setRunError(null);
-    setExpandedTask(taskId);
+  // ── Chat helpers ──────────────────────────────────────────────────────────
 
-    // Update local state to running
+  const scrollChatToBottom = (taskId: string) => {
+    setTimeout(() => {
+      const el = chatEndRefs.current[taskId];
+      el?.scrollIntoView({ behavior: 'smooth' });
+    }, 50);
+  };
+
+  const updateChat = (taskId: string, updater: (prev: ChatState) => ChatState) => {
+    setChatStates(prev => {
+      const current = prev[taskId];
+      if (!current) return prev;
+      return { ...prev, [taskId]: updater(current) };
+    });
+  };
+
+  /** Stream from /api/agents/run (planning or follow-up chat) */
+  const streamAgentMessage = async (
+    taskId: string,
+    skillId: string,
+    message: string,
+    history: { role: 'user' | 'assistant'; content: string }[],
+    isPlanningMode: boolean,
+  ) => {
+    // Add streaming placeholder for assistant
+    updateChat(taskId, s => ({
+      ...s,
+      messages: [...s.messages, { role: 'assistant', content: '', isStreaming: true }],
+      streaming: true,
+      error: null,
+    }));
+
+    try {
+      const res = await fetch('/api/agents/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          skill_id: skillId,
+          input_message: message,
+          card_id: cardId,
+          planning_mode: isPlanningMode,
+          conversation_history: history,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Request failed' }));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error('No response stream');
+
+      const decoder = new TextDecoder();
+      let buf = '';
+      let event = '';
+      let accumulated = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() ?? '';
+
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            event = line.slice(7).trim();
+          } else if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (event === 'token' && data.text) {
+                accumulated += data.text;
+                updateChat(taskId, s => ({
+                  ...s,
+                  messages: s.messages.map((m, i) =>
+                    i === s.messages.length - 1 ? { ...m, content: accumulated } : m
+                  ),
+                }));
+                scrollChatToBottom(taskId);
+              } else if (event === 'complete') {
+                updateChat(taskId, s => ({
+                  ...s,
+                  messages: s.messages.map((m, i) =>
+                    i === s.messages.length - 1 ? { ...m, content: accumulated, isStreaming: false } : m
+                  ),
+                  history: [
+                    ...s.history,
+                    { role: 'user', content: message },
+                    { role: 'assistant', content: accumulated },
+                  ],
+                  streaming: false,
+                }));
+              } else if (event === 'error') {
+                throw new Error(data.error || 'Agent error');
+              }
+            } catch (parseErr: any) {
+              if (parseErr?.message !== 'Agent error') return; // ignore JSON parse errors
+              throw parseErr;
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      updateChat(taskId, s => ({
+        ...s,
+        messages: s.messages.map((m, i) =>
+          i === s.messages.length - 1
+            ? { ...m, content: m.content || 'Error: ' + err.message, isStreaming: false }
+            : m
+        ),
+        streaming: false,
+        error: err.message,
+      }));
+    }
+  };
+
+  /** Stream actual task execution into the chat */
+  const executeActualTask = async (taskId: string) => {
+    updateChat(taskId, s => ({
+      ...s,
+      phase: 'executing',
+      messages: [...s.messages, { role: 'assistant', content: '⚙️ Running…', isStreaming: true }],
+      streaming: true,
+    }));
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'running' } : t));
 
     try {
@@ -176,68 +321,128 @@ export default function CardAgentTasksPanel({ cardId }: Props) {
       if (!reader) throw new Error('No response stream');
 
       const decoder = new TextDecoder();
-      let buffer = '';
-      let currentEvent = '';
+      let buf = '';
+      let event = '';
       let accumulated = '';
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() ?? '';
 
         for (const line of lines) {
           if (line.startsWith('event: ')) {
-            currentEvent = line.slice(7).trim();
+            event = line.slice(7).trim();
           } else if (line.startsWith('data: ')) {
-            const rawData = line.slice(6);
             try {
-              const data = JSON.parse(rawData);
-
-              if (currentEvent === 'token' && data.text) {
+              const data = JSON.parse(line.slice(6));
+              if (event === 'token' && data.text) {
                 accumulated += data.text;
-                setStreamingOutput(accumulated);
-                // Auto-scroll
-                if (outputRef.current) {
-                  outputRef.current.scrollTop = outputRef.current.scrollHeight;
-                }
-              } else if (currentEvent === 'tool_call') {
-                // Show tool call indicator in output
-                accumulated += `\n[Tool: ${data.name}] `;
-                setStreamingOutput(accumulated);
-              } else if (currentEvent === 'tool_result') {
-                accumulated += data.success ? 'done' : 'failed';
-                accumulated += '\n';
-                setStreamingOutput(accumulated);
-              } else if (currentEvent === 'thinking') {
-                // Brief indicator
-              } else if (currentEvent === 'confirm') {
-                accumulated += `\n[Confirmation needed: ${data.message}]\n`;
-                setStreamingOutput(accumulated);
-              } else if (currentEvent === 'complete') {
+                updateChat(taskId, s => ({
+                  ...s,
+                  messages: s.messages.map((m, i) =>
+                    i === s.messages.length - 1 ? { ...m, content: accumulated } : m
+                  ),
+                }));
+                scrollChatToBottom(taskId);
+              } else if (event === 'tool_call') {
+                accumulated += `\n\`[${data.name}]\``;
+                updateChat(taskId, s => ({
+                  ...s,
+                  messages: s.messages.map((m, i) =>
+                    i === s.messages.length - 1 ? { ...m, content: accumulated } : m
+                  ),
+                }));
+              } else if (event === 'complete') {
+                updateChat(taskId, s => ({
+                  ...s,
+                  phase: 'done',
+                  messages: s.messages.map((m, i) =>
+                    i === s.messages.length - 1 ? { ...m, content: accumulated, isStreaming: false } : m
+                  ),
+                  streaming: false,
+                }));
                 setTasks(prev => prev.map(t =>
-                  t.id === taskId
-                    ? { ...t, status: 'completed', output_preview: data.output_preview, output_full: accumulated }
-                    : t
+                  t.id === taskId ? { ...t, status: 'completed', output_preview: data.output_preview } : t
                 ));
-              } else if (currentEvent === 'error' && data.error) {
-                setRunError(data.error);
-                setTasks(prev => prev.map(t =>
-                  t.id === taskId ? { ...t, status: 'failed' } : t
-                ));
+              } else if (event === 'error') {
+                throw new Error(data.error || 'Execution failed');
               }
             } catch {}
           }
         }
       }
     } catch (err: any) {
-      setRunError(err.message);
+      updateChat(taskId, s => ({
+        ...s,
+        phase: 'done',
+        messages: s.messages.map((m, i) =>
+          i === s.messages.length - 1
+            ? { ...m, content: 'Error: ' + err.message, isStreaming: false }
+            : m
+        ),
+        streaming: false,
+        error: err.message,
+      }));
       setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'failed' } : t));
-    } finally {
-      setRunningTaskId(null);
     }
+  };
+
+  /** Open planning chat for a task */
+  const startChat = (task: CardAgentTask) => {
+    const skillId = task.skill_id;
+    const planningMsg = task.input_prompt
+      ? `Task: "${task.title}"\nInstructions: ${task.input_prompt}`
+      : `Task: "${task.title}"`;
+
+    const initialState: ChatState = {
+      taskId: task.id,
+      skillId,
+      messages: [{ role: 'user', content: planningMsg }],
+      history: [],
+      phase: 'planning',
+      streaming: true,
+      error: null,
+    };
+
+    setChatStates(prev => ({ ...prev, [task.id]: initialState }));
+    setExpandedTask(task.id);
+
+    streamAgentMessage(task.id, skillId, planningMsg, [], true);
+  };
+
+  /** Handle user typing in the chat input and sending */
+  const sendChatMessage = async (taskId: string) => {
+    const cs = chatStates[taskId];
+    const input = (chatInputs[taskId] ?? '').trim();
+    if (!cs || !input || cs.streaming) return;
+
+    // Clear input
+    setChatInputs(prev => ({ ...prev, [taskId]: '' }));
+
+    // Add user message to chat
+    updateChat(taskId, s => ({
+      ...s,
+      messages: [...s.messages, { role: 'user', content: input }],
+    }));
+    scrollChatToBottom(taskId);
+
+    // Check if user is triggering execution
+    if (RUN_TRIGGERS.test(input)) {
+      await executeActualTask(taskId);
+    } else {
+      // Continue planning conversation
+      await streamAgentMessage(taskId, cs.skillId, input, cs.history, true);
+    }
+  };
+
+  // Keep runTask for legacy fallback (unused now but preserved)
+  const runTask = (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (task) startChat(task);
   };
 
   if (isLoading) {
@@ -335,6 +540,7 @@ export default function CardAgentTasksPanel({ cardId }: Props) {
               key={task.id}
               className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
             >
+              {/* Task header */}
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="text-base shrink-0">{task.skill?.icon ?? '🤖'}</span>
@@ -344,24 +550,31 @@ export default function CardAgentTasksPanel({ cardId }: Props) {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0 ml-2">
-                  <StatusBadge status={task.status} />
-                  {/* Run button */}
-                  {(task.status === 'pending' || task.status === 'failed') && (
+                  <StatusBadge status={chatStates[task.id] ? (chatStates[task.id].phase === 'executing' ? 'running' : task.status) : task.status} />
+                  {/* Run / Chat button — opens planning chat */}
+                  {!chatStates[task.id] && (task.status === 'pending' || task.status === 'failed' || task.status === 'completed') && (
                     <button
-                      onClick={() => runTask(task.id)}
-                      disabled={runningTaskId !== null}
-                      className="text-indigo-500 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                      title="Run agent"
+                      onClick={() => startChat(task)}
+                      className="text-indigo-500 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors"
+                      title="Run with planning chat"
                     >
                       <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M8 5v14l11-7z" />
                       </svg>
                     </button>
                   )}
+                  {/* Close chat */}
+                  {chatStates[task.id] && chatStates[task.id].phase !== 'executing' && (
+                    <button
+                      onClick={() => setChatStates(prev => { const n = { ...prev }; delete n[task.id]; return n; })}
+                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors text-xs"
+                      title="Close chat"
+                    >✕</button>
+                  )}
                   {/* Delete button */}
                   <button
                     onClick={() => deleteTask(task.id)}
-                    disabled={task.status === 'running'}
+                    disabled={chatStates[task.id]?.streaming}
                     className="text-gray-400 hover:text-red-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     title="Delete task"
                   >
@@ -372,48 +585,68 @@ export default function CardAgentTasksPanel({ cardId }: Props) {
                 </div>
               </div>
 
-              {/* Streaming output (while running) */}
-              {task.id === runningTaskId && streamingOutput && (
-                <div className="mt-2">
-                  <p className="text-xs text-blue-600 dark:text-blue-400 mb-1 flex items-center gap-1">
-                    <span className="animate-pulse">●</span> Streaming output...
-                  </p>
-                  <div
-                    ref={outputRef}
-                    className="p-2 rounded bg-gray-50 dark:bg-gray-900/50 text-xs text-gray-700 dark:text-gray-300 max-h-60 overflow-y-auto whitespace-pre-wrap font-mono"
-                  >
-                    {streamingOutput}
-                    <span className="animate-pulse">|</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Error message */}
-              {task.id === expandedTask && runError && task.status === 'failed' && (
-                <div className="mt-2 p-2 rounded bg-red-50 dark:bg-red-900/20 text-xs text-red-600 dark:text-red-400">
-                  {runError}
-                </div>
-              )}
-
-              {/* Output preview (after completion) */}
-              {task.output_preview && task.id !== runningTaskId && (
-                <div className="mt-2">
-                  <button
-                    onClick={() => setExpandedTask(expandedTask === task.id ? null : task.id)}
-                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
-                  >
-                    {expandedTask === task.id ? 'Collapse output' : 'View output'}
-                  </button>
-                  {expandedTask === task.id && (
-                    <div className="mt-1 p-2 rounded bg-gray-50 dark:bg-gray-900/50 text-xs text-gray-700 dark:text-gray-300 max-h-60 overflow-y-auto whitespace-pre-wrap font-mono">
-                      {task.output_full || task.output_preview}
+              {/* ── CHAT INTERFACE ─────────────────────────────────────── */}
+              {chatStates[task.id] && (() => {
+                const cs = chatStates[task.id];
+                return (
+                  <div className="mt-3 flex flex-col gap-2">
+                    {/* Phase banner */}
+                    <div className={`text-xs px-2 py-1 rounded font-medium ${
+                      cs.phase === 'planning'
+                        ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
+                        : cs.phase === 'executing'
+                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                        : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'
+                    }`}>
+                      {cs.phase === 'planning' && '💬 Planning — reply to answer questions, or type "go" to start'}
+                      {cs.phase === 'executing' && '⚙️ Running the task…'}
+                      {cs.phase === 'done' && '✅ Done'}
                     </div>
-                  )}
-                </div>
-              )}
 
-              {/* Rating */}
-              {task.status === 'completed' && (
+                    {/* Messages */}
+                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 max-h-72 overflow-y-auto p-2 space-y-2 text-sm">
+                      {cs.messages.map((msg, i) => (
+                        <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[85%] px-3 py-2 rounded-xl text-xs whitespace-pre-wrap ${
+                            msg.role === 'user'
+                              ? 'bg-indigo-600 text-white rounded-br-sm'
+                              : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-sm'
+                          }`}>
+                            {msg.content}
+                            {msg.isStreaming && <span className="animate-pulse ml-1">▌</span>}
+                          </div>
+                        </div>
+                      ))}
+                      <div ref={el => { chatEndRefs.current[task.id] = el; }} />
+                    </div>
+
+                    {/* Input — only during planning phase */}
+                    {cs.phase === 'planning' && (
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={chatInputs[task.id] ?? ''}
+                          onChange={e => setChatInputs(prev => ({ ...prev, [task.id]: e.target.value }))}
+                          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(task.id); } }}
+                          placeholder={cs.streaming ? 'Waiting for agent…' : 'Reply, or type "go" to start…'}
+                          disabled={cs.streaming}
+                          className="flex-1 px-3 py-2 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                        <button
+                          onClick={() => sendChatMessage(task.id)}
+                          disabled={cs.streaming || !(chatInputs[task.id] ?? '').trim()}
+                          className="px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                          Send
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Rating (completed tasks without active chat) */}
+              {task.status === 'completed' && !chatStates[task.id] && (
                 <div className="mt-2 flex items-center gap-2">
                   <span className="text-xs text-gray-500 dark:text-gray-400">Rate output:</span>
                   <StarRating

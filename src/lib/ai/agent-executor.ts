@@ -716,11 +716,32 @@ export async function executeAgentConversation(
 // STANDALONE MULTI-TURN EXECUTION (no card context, used by /api/agents/run)
 // ============================================================================
 
+// ============================================================================
+// PLANNING PROTOCOL — injected into ALL agents when planningMode = true.
+// Teaches agents to clarify before acting, regardless of their skill prompt.
+// ============================================================================
+const PLANNING_PROTOCOL = `
+## Planning Phase Protocol
+You are currently in PLANNING MODE. Before executing anything:
+
+1. **Briefly explain** what you will do (2-4 sentences, plain English — no jargon).
+2. **List any information you need** from the user to do a great job (be specific).
+3. **Ask your clarification questions** clearly and concisely.
+4. End with: "Ready to start — reply 'go' to begin, or answer my questions first."
+
+Do NOT use any action tools (create, update, delete, post) during this phase.
+Read-only tools (search, fetch, think) are OK to use if you need context.
+Wait for the user to confirm before doing anything.
+`.trim();
+
 export interface StandaloneAgentParams {
   skillId: string;
   boardId?: string;
+  cardId?: string;
   userId: string;
   inputMessage: string;
+  conversationHistory?: { role: 'user' | 'assistant'; content: string }[];
+  planningMode?: boolean;
   maxIterations?: number;
   executionId?: string;
   confirmedToolCallId?: string;
@@ -756,6 +777,9 @@ export async function executeStandaloneAgent(
     let systemPrompt = skill.system_prompt;
     if (hasTools) {
       systemPrompt += '\n\nYou have tools available. Use them to gather information and take actions. Use the think tool to reason through complex problems before acting.';
+    }
+    if (params.planningMode) {
+      systemPrompt += `\n\n${PLANNING_PROTOCOL}`;
     }
 
     // 5. Build user message
@@ -831,6 +855,12 @@ export async function executeStandaloneAgent(
       } else {
         currentMessages = [{ role: 'user', content: userMessage }];
       }
+    } else if (params.conversationHistory && params.conversationHistory.length > 0) {
+      // Multi-turn conversation (e.g. planning phase → execute)
+      currentMessages = [
+        ...params.conversationHistory.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+        { role: 'user' as const, content: userMessage },
+      ];
     } else {
       currentMessages = [{ role: 'user', content: userMessage }];
     }
