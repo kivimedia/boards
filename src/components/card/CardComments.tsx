@@ -94,6 +94,10 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
         top.push(c);
       }
     }
+    // Most recent comments at the top
+    top.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    // Replies stay oldest-first within each thread
+    replies.forEach((arr) => arr.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()));
     return { topLevel: top, repliesByParent: replies };
   }, [comments]);
 
