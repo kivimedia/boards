@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Board, List } from '@/lib/types';
+import { safeNextPosition } from '@/lib/safeNextPosition';
 import Button from '@/components/ui/Button';
 
 interface CardActionsProps {
@@ -51,14 +52,8 @@ export default function CardActions({ cardId, boardId, onClose, onRefresh }: Car
     if (!targetListId) return;
     setLoading(true);
 
-    const { data: maxPos } = await supabase
-      .from('card_placements')
-      .select('position')
-      .eq('list_id', targetListId)
-      .order('position', { ascending: false })
-      .limit(1);
-
-    const position = maxPos && maxPos.length > 0 ? maxPos[0].position + 1 : 0;
+    // Safe overflow-proof position
+    const position = await safeNextPosition(supabase, targetListId);
 
     await supabase.from('card_placements').insert({
       card_id: cardId,
@@ -105,15 +100,8 @@ export default function CardActions({ cardId, boardId, onClose, onRefresh }: Car
         return;
       }
 
-      // Get the highest position in the target list
-      const { data: maxPos } = await supabase
-        .from('card_placements')
-        .select('position')
-        .eq('list_id', targetListId)
-        .order('position', { ascending: false })
-        .limit(1);
-
-      const position = maxPos && maxPos.length > 0 ? maxPos[0].position + 1 : 0;
+      // Get the highest position in the target list (safe overflow-proof)
+      const position = await safeNextPosition(supabase, targetListId);
 
       // Move the primary placement to the target list
       const { error } = await supabase

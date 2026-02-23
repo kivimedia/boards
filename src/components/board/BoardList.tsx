@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import { Droppable, Draggable } from '@hello-pangea/dnd';
 import { createClient } from '@/lib/supabase/client';
 import { ListWithCards, BoardFilter } from '@/lib/types';
+import { safeNextPosition } from '@/lib/safeNextPosition';
 import BoardCard from './BoardCard';
 import Button from '@/components/ui/Button';
 import ListMenu from './ListMenu';
@@ -97,12 +98,12 @@ export default function BoardList({ list, index, boardId, allLists, onCardClick,
       .single();
 
     if (card) {
-      // Create placement
-      const maxPosition = Math.max(0, ...list.cards.map((c) => c.position));
+      // Create placement (safe overflow-proof position)
+      const position = await safeNextPosition(supabase, list.id);
       await supabase.from('card_placements').insert({
         card_id: card.id,
         list_id: list.id,
-        position: maxPosition + 1,
+        position,
         is_mirror: false,
       });
     }

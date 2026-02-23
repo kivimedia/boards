@@ -3,6 +3,7 @@ import { getAuthContext, successResponse, errorResponse, parseBody } from '@/lib
 import { evaluateRules, TriggerEvent } from '@/lib/automation-engine';
 import { getBriefedListName } from '@/lib/briefing';
 import { notifyCardAssignees } from '@/lib/notification-service';
+import { safeNextPosition } from '@/lib/safeNextPosition';
 import { SupabaseClient } from '@supabase/supabase-js';
 
 interface Params {
@@ -201,16 +202,8 @@ async function evaluateHandoffRules(
       continue;
     }
 
-    // Create card_placement on the target list
-    const { data: maxPlacement } = await supabase
-      .from('card_placements')
-      .select('position')
-      .eq('list_id', targetList.id)
-      .order('position', { ascending: false })
-      .limit(1)
-      .single();
-
-    const position = (maxPlacement?.position ?? -1) + 1;
+    // Create card_placement on the target list (safe overflow-proof position)
+    const position = await safeNextPosition(supabase, targetList.id);
 
     await supabase
       .from('card_placements')
