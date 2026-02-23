@@ -4,7 +4,6 @@ import { useState, useMemo } from 'react';
 import { Droppable, Draggable } from '@hello-pangea/dnd';
 import { createClient } from '@/lib/supabase/client';
 import { ListWithCards, BoardFilter } from '@/lib/types';
-import { safeNextPosition } from '@/lib/safeNextPosition';
 import BoardCard from './BoardCard';
 import Button from '@/components/ui/Button';
 import ListMenu from './ListMenu';
@@ -87,33 +86,17 @@ export default function BoardList({ list, index, boardId, allLists, onCardClick,
     if (!newCardTitle.trim()) return;
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      // Use server API — bypasses client-side RLS on card_placements
+      const res = await fetch(`/api/lists/${list.id}/cards`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newCardTitle.trim() }),
+      });
 
-      // Create card
-      const { data: card, error: cardError } = await supabase
-        .from('cards')
-        .insert({ title: newCardTitle.trim(), created_by: user.id })
-        .select()
-        .single();
-
-      if (cardError) {
-        console.error('[AddCard] Failed to create card:', cardError.message);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        console.error('[AddCard] Server error:', data?.error || res.status);
         return;
-      }
-
-      if (card) {
-        // Create placement (safe overflow-proof position)
-        const position = await safeNextPosition(supabase, list.id);
-        const { error: placementError } = await supabase.from('card_placements').insert({
-          card_id: card.id,
-          list_id: list.id,
-          position,
-          is_mirror: false,
-        });
-        if (placementError) {
-          console.error('[AddCard] Failed to place card:', placementError.message);
-        }
       }
 
       setNewCardTitle('');
@@ -122,7 +105,6 @@ export default function BoardList({ list, index, boardId, allLists, onCardClick,
     } catch (err) {
       console.error('[AddCard] Unexpected error:', err);
     } finally {
-      // Always clear loading — prevents infinite spinner
       setLoading(false);
     }
   };
