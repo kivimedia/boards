@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
     rejected_tool_call_id?: string;
     planning_mode?: boolean;
     conversation_history?: { role: 'user' | 'assistant'; content: string }[];
+    model_override?: string;
   };
 
   try {
@@ -115,6 +116,7 @@ export async function POST(request: NextRequest) {
               rejectedToolCallId: body.rejected_tool_call_id,
               planningMode: body.planning_mode,
               conversationHistory: body.conversation_history,
+              modelOverride: body.model_override,
             },
             {
               onToken: (text) => send('token', { text }),
