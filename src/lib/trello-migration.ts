@@ -1533,6 +1533,7 @@ async function importComments(
             card_id: targetCardId,
             user_id: commentUserId,
             content: trelloComment.data.text,
+            created_at: trelloComment.date, // preserve original Trello timestamp
           })))
           .select();
 
@@ -1542,7 +1543,7 @@ async function importComments(
           for (const { trelloComment, targetCardId, commentUserId } of batch) {
             const { data: comment, error } = await supabase
               .from('comments')
-              .insert({ card_id: targetCardId, user_id: commentUserId, content: trelloComment.data.text })
+              .insert({ card_id: targetCardId, user_id: commentUserId, content: trelloComment.data.text, created_at: trelloComment.date })
               .select().single();
             if (comment) {
               await recordMapping(supabase, jobId, 'comment', trelloComment.id, comment.id);
