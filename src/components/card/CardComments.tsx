@@ -383,6 +383,7 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
       <div className="mb-4">
         <MentionInput
           cardId={cardId}
+          boardId={boardId}
           onSubmit={(content, mentionedUserIds) => {
             handleAddComment(undefined, mentionedUserIds, content);
           }}

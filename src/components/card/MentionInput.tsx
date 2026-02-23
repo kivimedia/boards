@@ -8,6 +8,7 @@ import Button from '@/components/ui/Button';
 
 interface MentionInputProps {
   cardId: string;
+  boardId?: string;
   onSubmit: (content: string, mentionedUserIds: string[]) => void;
 }
 
@@ -16,7 +17,7 @@ interface MentionData {
   displayName: string;
 }
 
-export default function MentionInput({ cardId, onSubmit }: MentionInputProps) {
+export default function MentionInput({ cardId, boardId, onSubmit }: MentionInputProps) {
   const [content, setContent] = useState('');
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [mentions, setMentions] = useState<MentionData[]>([]);
@@ -31,11 +32,30 @@ export default function MentionInput({ cardId, onSubmit }: MentionInputProps) {
 
   useEffect(() => {
     const fetchProfiles = async () => {
+      if (boardId) {
+        // Fetch only board members' profiles to populate the mention list
+        const { data: members } = await supabase
+          .from('board_members')
+          .select('user_id')
+          .eq('board_id', boardId);
+
+        if (members && members.length > 0) {
+          const userIds = members.map((m: { user_id: string }) => m.user_id);
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('*')
+            .in('id', userIds)
+            .order('display_name');
+          setProfiles(profileData || []);
+          return;
+        }
+      }
+      // Fallback: fetch all profiles (e.g. when boardId is not provided)
       const { data } = await supabase.from('profiles').select('*').order('display_name');
       setProfiles(data || []);
     };
     fetchProfiles();
-  }, []);
+  }, [boardId]);
 
   const filteredProfiles = profiles.filter((p) =>
     p.display_name.toLowerCase().includes(dropdownFilter.toLowerCase())
