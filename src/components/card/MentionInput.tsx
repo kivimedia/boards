@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Profile } from '@/lib/types';
 import Avatar from '@/components/ui/Avatar';
 import Button from '@/components/ui/Button';
+import { MarkdownToolbarUI } from './MarkdownToolbar';
 
 interface MentionInputProps {
   cardId: string;
@@ -153,6 +154,28 @@ export default function MentionInput({ cardId, boardId, onSubmit }: MentionInput
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       handleSubmit();
+      return;
+    }
+
+    // Markdown shortcuts
+    const ta = textareaRef.current;
+    if (ta && e.key === 'b' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      const s = ta.selectionStart, en = ta.selectionEnd;
+      const sel = content.slice(s, en) || 'bold text';
+      const text = content.slice(0, s) + '**' + sel + '**' + content.slice(en);
+      setContent(text);
+      requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + 2 + sel.length + 2, s + 2 + sel.length + 2); });
+      return;
+    }
+    if (ta && e.key === 'i' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      const s = ta.selectionStart, en = ta.selectionEnd;
+      const sel = content.slice(s, en) || 'italic text';
+      const text = content.slice(0, s) + '*' + sel + '*' + content.slice(en);
+      setContent(text);
+      requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + 1 + sel.length + 1, s + 1 + sel.length + 1); });
+      return;
     }
   };
 
@@ -174,13 +197,18 @@ export default function MentionInput({ cardId, boardId, onSubmit }: MentionInput
   return (
     <div className="relative">
       <div className="relative">
+        <MarkdownToolbarUI
+          textareaRef={textareaRef}
+          value={content}
+          onChange={setContent}
+        />
         <textarea
           ref={textareaRef}
           value={content}
           onChange={handleInput}
           onKeyDown={handleKeyDown}
           placeholder="Write a comment... Use @ to mention someone"
-          className="w-full p-3 rounded-xl bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-y font-body"
+          className="w-full p-3 rounded-b-xl rounded-t-none bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 border-t-0 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-y font-body"
           rows={3}
         />
 
