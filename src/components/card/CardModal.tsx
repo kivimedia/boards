@@ -758,7 +758,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                         <textarea
                           value={description}
                           onChange={(e) => setDescription(e.target.value)}
-                          className="w-full p-3 rounded-xl bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-none font-body min-h-[120px]"
+                          className="w-full p-3 rounded-xl bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-y font-body min-h-[120px]"
                           placeholder="Add a description..."
                           autoFocus
                         />
