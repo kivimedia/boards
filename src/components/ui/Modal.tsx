@@ -43,7 +43,7 @@ export default function Modal({ isOpen, onClose, children, size = 'md', hideClos
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-start justify-center pt-[5vh] sm:pt-[10vh] px-3 sm:px-4"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-[2vh] sm:pt-[5vh] md:pt-[10vh] px-2 sm:px-4"
       onClick={(e) => {
         if (e.target === overlayRef.current) onClose();
       }}
@@ -58,7 +58,7 @@ export default function Modal({ isOpen, onClose, children, size = 'md', hideClos
           relative w-full ${sizeStyles[size]}
           bg-white dark:bg-dark-surface rounded-2xl shadow-modal dark:shadow-none dark:border dark:border-slate-700
           animate-in fade-in slide-in-from-bottom-4 duration-200
-          max-h-[80vh] overflow-y-auto
+          max-h-[92vh] sm:max-h-[88vh] md:max-h-[80vh] overflow-y-auto
         `}
       >
         {/* Close button */}

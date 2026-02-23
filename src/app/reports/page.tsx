@@ -18,10 +18,10 @@ export default function ReportsPage() {
     <div className="min-h-screen bg-cream">
       {/* Header */}
       <div className="border-b border-cream-dark bg-white">
-        <div className="max-w-7xl mx-auto px-6 py-5">
-          <div className="flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-5">
+          <div className="flex items-center justify-between flex-wrap gap-3">
             <div>
-              <h1 className="text-xl font-bold text-navy font-heading">Reports Dashboard</h1>
+              <h1 className="text-lg sm:text-xl font-bold text-navy font-heading">Reports Dashboard</h1>
               <p className="text-sm text-navy/50 font-body mt-0.5">
                 Configure, generate, and download productivity reports
               </p>
@@ -37,14 +37,14 @@ export default function ReportsPage() {
 
       {/* Tabs */}
       <div className="border-b border-cream-dark bg-white">
-        <div className="max-w-7xl mx-auto px-6">
-          <nav className="flex gap-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <nav className="flex gap-4 sm:gap-6 overflow-x-auto scrollbar-thin">
             {TABS.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
                 className={`
-                  py-3 text-sm font-medium font-body border-b-2 transition-colors
+                  py-3 text-sm font-medium font-body border-b-2 transition-colors whitespace-nowrap
                   ${activeTab === tab.key
                     ? 'border-electric text-electric'
                     : 'border-transparent text-navy/50 hover:text-navy/70'
@@ -59,7 +59,7 @@ export default function ReportsPage() {
       </div>
 
       {/* Content */}
-      <div className="max-w-7xl mx-auto px-6 py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
         {activeTab === 'configs' && <ReportConfigManager />}
         {activeTab === 'files' && <ReportFileList />}
       </div>

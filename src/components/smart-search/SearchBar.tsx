@@ -162,8 +162,8 @@ export default function SearchBar({ boardId, onCardClick, onOpenShareModal, onCr
         <div className={`
           flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all
           ${focused
-            ? 'w-[320px] sm:w-[420px] bg-white dark:bg-dark-surface border-electric/40 shadow-sm ring-2 ring-electric/10'
-            : 'w-[200px] sm:w-[280px] bg-white/80 dark:bg-dark-surface/80 border-cream-dark dark:border-slate-700 hover:border-electric/30'
+            ? 'w-[260px] sm:w-[320px] lg:w-[420px] bg-white dark:bg-dark-surface border-electric/40 shadow-sm ring-2 ring-electric/10'
+            : 'w-[160px] sm:w-[200px] lg:w-[280px] bg-white/80 dark:bg-dark-surface/80 border-cream-dark dark:border-slate-700 hover:border-electric/30'
           }
         `}>
           {/* Search icon */}

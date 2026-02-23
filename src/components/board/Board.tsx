@@ -333,7 +333,7 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
                 panRef.current = el;
               }}
               {...provided.droppableProps}
-              className="flex-1 flex gap-3 overflow-x-auto p-6 pb-4 scrollbar-thin items-start"
+              className="flex-1 flex gap-3 overflow-x-auto p-3 sm:p-6 pb-20 sm:pb-24 scrollbar-thin items-start"
             >
               {sortedLists.map((list, index) => (
                 <BoardList

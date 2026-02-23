@@ -54,7 +54,7 @@ export default function TeamContent() {
   }, [showApprovalTab]);
 
   return (
-    <div className="flex-1 overflow-y-auto bg-cream dark:bg-navy p-6">
+    <div className="flex-1 overflow-y-auto bg-cream dark:bg-navy p-4 sm:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Tabs */}
         {showApprovalTab && (

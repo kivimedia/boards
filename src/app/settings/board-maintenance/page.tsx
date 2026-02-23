@@ -23,7 +23,7 @@ export default async function BoardMaintenancePage() {
       <SidebarWithBoards />
       <main className="flex-1 flex flex-col overflow-hidden">
         <Header title="Board Maintenance" backHref="/settings" />
-        <div className="flex-1 overflow-y-auto bg-cream dark:bg-dark-bg p-6">
+        <div className="flex-1 overflow-y-auto bg-cream dark:bg-dark-bg p-4 sm:p-6">
           <div className="max-w-5xl mx-auto">
             <p className="text-navy/60 dark:text-slate-400 font-body text-sm mb-8">
               Scan boards for duplicate cards and clean them up. Select specific boards or run across all boards at once.

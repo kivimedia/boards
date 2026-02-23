@@ -10,6 +10,7 @@ import { BOARD_TYPE_CONFIG } from '@/lib/constants';
 import { useAuth } from '@/hooks/useAuth';
 import { usePresence } from '@/hooks/usePresence';
 import Avatar from '@/components/ui/Avatar';
+import { useAppStore } from '@/stores/app-store';
 
 interface SidebarProps {
   initialBoards?: Board[];
@@ -24,6 +25,12 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
   const supabase = createClient();
   const { presentUsers } = usePresence({ channelName: 'app:global' });
   const onlineOthers = presentUsers.filter(u => u.userId !== user?.id);
+  const { mobileSidebarOpen, setMobileSidebarOpen } = useAppStore();
+
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    setMobileSidebarOpen(false);
+  }, [pathname, setMobileSidebarOpen]);
 
   const toggleStar = useCallback(async (e: React.MouseEvent, boardId: string, currentStarred: boolean) => {
     e.preventDefault();
@@ -72,14 +79,26 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
   }, [user]);
 
   return (
+    <>
+      {/* Mobile overlay backdrop */}
+      {mobileSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setMobileSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
     <aside
       className={`
-        ${collapsed ? 'w-16' : 'w-64'}
+        ${collapsed ? 'md:w-16' : 'md:w-64'}
+        w-72
         h-screen bg-navy/95 backdrop-blur-xl
         border-r border-white/5
         flex flex-col
         transition-all duration-300 ease-out
         shrink-0
+        fixed md:relative z-50 md:z-auto
+        ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}
     >
       {/* Header */}
@@ -359,5 +378,6 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
         </div>
       </div>
     </aside>
+    </>
   );
 }

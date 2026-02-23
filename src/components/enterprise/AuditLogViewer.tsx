@@ -133,8 +133,8 @@ export default function AuditLogViewer() {
           No audit log entries found matching the selected filters.
         </div>
       ) : (
-        <div className="bg-white dark:bg-dark-surface rounded-xl border border-cream-dark dark:border-slate-700 overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white dark:bg-dark-surface rounded-xl border border-cream-dark dark:border-slate-700 overflow-hidden overflow-x-auto">
+          <table className="w-full text-sm min-w-[600px]">
             <thead>
               <tr className="border-b border-cream-dark dark:border-slate-700 bg-cream dark:bg-navy">
                 <th className="text-left px-4 py-3 font-heading text-navy dark:text-slate-100 text-xs uppercase tracking-wider">Action</th>

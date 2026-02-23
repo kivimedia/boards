@@ -212,7 +212,7 @@ export default function HandoffRulesManager() {
 
   if (loading) {
     return (
-      <div className="flex-1 overflow-y-auto bg-cream dark:bg-dark-bg p-6">
+      <div className="flex-1 overflow-y-auto bg-cream dark:bg-dark-bg p-4 sm:p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-center py-16">
             <div className="w-6 h-6 border-2 border-electric/30 border-t-electric rounded-full animate-spin" />
@@ -223,7 +223,7 @@ export default function HandoffRulesManager() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-cream dark:bg-dark-bg p-6">
+    <div className="flex-1 overflow-y-auto bg-cream dark:bg-dark-bg p-4 sm:p-6">
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <p className="text-navy/60 dark:text-slate-400 font-body text-sm">

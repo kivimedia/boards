@@ -114,8 +114,8 @@ export default function WCAGReportView({ report }: Props) {
               </button>
 
               {isExpanded && criteria.length > 0 && (
-                <div className="border-t border-gray-200 dark:border-gray-700">
-                  <table className="w-full text-sm">
+                <div className="border-t border-gray-200 dark:border-gray-700 overflow-x-auto">
+                  <table className="w-full text-sm min-w-[300px]">
                     <thead>
                       <tr className="bg-gray-50 dark:bg-gray-800">
                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Criterion</th>

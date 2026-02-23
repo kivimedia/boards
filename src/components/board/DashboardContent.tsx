@@ -133,7 +133,7 @@ export default function DashboardContent({ initialBoards, stats }: DashboardCont
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-6">
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6">
       <div className="max-w-6xl mx-auto">
         {/* Stats Row */}
         {stats && (
@@ -224,10 +224,10 @@ export default function DashboardContent({ initialBoards, stats }: DashboardCont
           </div>
         )}
 
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-navy dark:text-white font-heading">Your Boards</h2>
-            <p className="text-navy/70 dark:text-slate-300 mt-1 font-body">Manage your projects</p>
+            <h2 className="text-xl sm:text-2xl font-bold text-navy dark:text-white font-heading">Your Boards</h2>
+            <p className="text-navy/70 dark:text-slate-300 mt-1 font-body text-sm sm:text-base">Manage your projects</p>
           </div>
           <Button onClick={() => setShowCreateModal(true)}>
             + New Board

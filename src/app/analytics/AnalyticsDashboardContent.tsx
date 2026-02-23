@@ -32,10 +32,10 @@ export default function AnalyticsDashboardContent({ boards }: AnalyticsDashboard
   ];
 
   return (
-    <div className="flex-1 overflow-auto p-6">
+    <div className="flex-1 overflow-auto p-4 sm:p-6">
       <div className="max-w-5xl mx-auto space-y-6">
         {/* Tab navigation */}
-        <div className="flex items-center gap-1 p-1 rounded-xl bg-cream-dark/40">
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-cream-dark/40 overflow-x-auto scrollbar-thin">
           {tabs.map((tab) => (
             <button
               key={tab.id}

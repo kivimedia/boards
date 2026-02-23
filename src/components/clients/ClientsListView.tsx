@@ -75,7 +75,7 @@ export default function ClientsListView() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-cream dark:bg-dark-bg p-6">
+    <div className="flex-1 overflow-y-auto bg-cream dark:bg-dark-bg p-4 sm:p-6">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
