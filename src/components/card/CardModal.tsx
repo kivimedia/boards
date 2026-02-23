@@ -408,6 +408,9 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
     if (!file) return;
     // Reset input so the same file can be re-selected later
     e.target.value = '';
+    // Show local preview immediately so the cover appears right away
+    const localPreview = URL.createObjectURL(file);
+    setCoverImageUrl(localPreview);
     setUploadingCover(true);
     try {
       const ext = file.name.split('.').pop() || 'jpg';
@@ -416,15 +419,18 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
         .from('card-attachments')
         .upload(storagePath, file);
       if (uploadError) throw uploadError;
-      // Store the path in DB (consistent with how other covers are stored + works for private buckets)
+      // Store the path in DB
       await updateCard({ cover_image_url: storagePath } as any);
-      // Use a signed URL for immediate display
+      // Swap to a signed URL for persistence
       const { data: signedData } = await supabase.storage
         .from('card-attachments')
         .createSignedUrl(storagePath, 3600);
-      setCoverImageUrl(signedData?.signedUrl || storagePath);
+      URL.revokeObjectURL(localPreview);
+      setCoverImageUrl(signedData?.signedUrl || localPreview);
     } catch (err) {
       console.error('Cover upload failed:', err);
+      URL.revokeObjectURL(localPreview);
+      setCoverImageUrl(null);
     } finally {
       setUploadingCover(false);
     }
