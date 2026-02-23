@@ -860,6 +860,17 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                                     const text = description.slice(0, s) + '*' + sel + '*' + description.slice(en);
                                     setDescription(text);
                                     requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + 1, s + 1 + sel.length); });
+                                  } else if (ta && e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+                                    e.preventDefault();
+                                    const s = ta.selectionStart, en = ta.selectionEnd;
+                                    const sel = description.slice(s, en) || '';
+                                    const url = window.prompt('Enter URL:', 'https://');
+                                    if (url && url !== 'https://') {
+                                      const linkText = sel || 'link text';
+                                      const md = `[${linkText}](${url})`;
+                                      setDescription(description.slice(0, s) + md + description.slice(en));
+                                      requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + md.length, s + md.length); });
+                                    }
                                   }
                                 }}
                                 className="w-full p-3 rounded-b-xl rounded-t-none bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 border-t-0 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-y font-body min-h-[120px]"
