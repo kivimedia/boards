@@ -8,6 +8,8 @@ import CommentReactions from './CommentReactions';
 import MentionInput from './MentionInput';
 
 const URL_PATTERN = /(https?:\/\/[^\s<]+)/;
+// Matches Trello/ClickUp smart-link format: [https://url.com "smartCard-inline"] or [https://url.com ""]
+const SMART_LINK_PATTERN = /\[(https?:\/\/[^\s\]]+)\s+"[^"]*"\]/g;
 
 function extractUrls(text: string): string[] {
   return text.match(new RegExp(URL_PATTERN.source, 'g')) || [];
@@ -28,8 +30,14 @@ function shortenUrl(url: string): string {
   }
 }
 
+/** Strip Trello/ClickUp smart-link wrappers before linkifying: [url "type"] → url */
+function normalizeSmartLinks(text: string): string {
+  return text.replace(SMART_LINK_PATTERN, '$1');
+}
+
 function linkifyContent(text: string, showFullLinks = false) {
-  const parts = text.split(URL_PATTERN);
+  const normalized = normalizeSmartLinks(text);
+  const parts = normalized.split(URL_PATTERN);
   return parts.map((part, i) =>
     URL_PATTERN.test(part) ? (
       <a
