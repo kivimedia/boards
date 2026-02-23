@@ -86,32 +86,45 @@ export default function BoardList({ list, index, boardId, allLists, onCardClick,
   const handleAddCard = async () => {
     if (!newCardTitle.trim()) return;
     setLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+      // Create card
+      const { data: card, error: cardError } = await supabase
+        .from('cards')
+        .insert({ title: newCardTitle.trim(), created_by: user.id })
+        .select()
+        .single();
 
-    // Create card
-    const { data: card } = await supabase
-      .from('cards')
-      .insert({ title: newCardTitle.trim(), created_by: user.id })
-      .select()
-      .single();
+      if (cardError) {
+        console.error('[AddCard] Failed to create card:', cardError.message);
+        return;
+      }
 
-    if (card) {
-      // Create placement (safe overflow-proof position)
-      const position = await safeNextPosition(supabase, list.id);
-      await supabase.from('card_placements').insert({
-        card_id: card.id,
-        list_id: list.id,
-        position,
-        is_mirror: false,
-      });
+      if (card) {
+        // Create placement (safe overflow-proof position)
+        const position = await safeNextPosition(supabase, list.id);
+        const { error: placementError } = await supabase.from('card_placements').insert({
+          card_id: card.id,
+          list_id: list.id,
+          position,
+          is_mirror: false,
+        });
+        if (placementError) {
+          console.error('[AddCard] Failed to place card:', placementError.message);
+        }
+      }
+
+      setNewCardTitle('');
+      setIsAddingCard(false);
+      onRefresh();
+    } catch (err) {
+      console.error('[AddCard] Unexpected error:', err);
+    } finally {
+      // Always clear loading — prevents infinite spinner
+      setLoading(false);
     }
-
-    setNewCardTitle('');
-    setIsAddingCard(false);
-    setLoading(false);
-    onRefresh();
   };
 
   const handleUpdateName = async () => {
