@@ -18,7 +18,6 @@ export default function CardAIChat({ cardId, boardId }: CardAIChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isExpanded, setIsExpanded] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -28,7 +27,6 @@ export default function CardAIChat({ cardId, boardId }: CardAIChatProps) {
       if (!q || streaming) return;
       setQuery('');
       setError(null);
-      setIsExpanded(true);
 
       const userMsg: ChatMessage = { role: 'user', content: q };
       setMessages((prev) => [...prev, userMsg]);
@@ -133,111 +131,147 @@ export default function CardAIChat({ cardId, boardId }: CardAIChatProps) {
     handleSubmit(q);
   };
 
+  const hasChat = messages.length > 0;
+
   return (
     <div className="border-b border-cream-dark dark:border-slate-700 mb-3">
-      {/* Input bar */}
-      <div className="flex items-center gap-2 px-0 pb-2">
-        <div className="relative flex-1">
-          <svg
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-navy/30 dark:text-slate-500"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
-            />
-          </svg>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmit();
-              }
-            }}
-            onFocus={() => messages.length > 0 && setIsExpanded(true)}
-            placeholder="Ask AI about this card..."
-            className="w-full pl-8 pr-3 py-1.5 rounded-lg text-xs font-body bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric transition-colors"
-            disabled={streaming}
-          />
-        </div>
-        {streaming && (
-          <button
-            onClick={() => abortRef.current?.abort()}
-            className="p-1.5 rounded-lg text-navy/40 dark:text-slate-500 hover:text-danger hover:bg-danger/10 transition-colors"
-            title="Stop"
-          >
-            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-              <rect x="6" y="6" width="12" height="12" rx="1" />
-            </svg>
-          </button>
-        )}
-        {messages.length > 0 && !streaming && (
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="p-1.5 rounded-lg text-navy/30 dark:text-slate-500 hover:text-navy dark:hover:text-slate-300 hover:bg-cream-dark dark:hover:bg-slate-800 transition-colors"
-            title={isExpanded ? 'Collapse' : 'Expand'}
-          >
+
+      {/* ── EMPTY STATE: show the prompt input bar ── */}
+      {!hasChat && (
+        <div className="flex items-center gap-2 pb-2">
+          <div className="relative flex-1">
             <svg
-              className={`w-3.5 h-3.5 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-navy/30 dark:text-slate-500"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+              />
             </svg>
-          </button>
-        )}
-      </div>
-
-      {/* Chat history (collapsible) */}
-      {isExpanded && messages.length > 0 && (
-        <div className="max-h-[300px] overflow-y-auto space-y-2 pb-2 scrollbar-thin">
-          {messages.map((msg, i) => (
-            <div
-              key={i}
-              className={`text-xs font-body rounded-lg px-3 py-2 ${
-                msg.role === 'user'
-                  ? 'bg-electric/10 dark:bg-electric/15 text-navy dark:text-slate-100 ml-8'
-                  : 'bg-cream dark:bg-navy text-navy/80 dark:text-slate-300 mr-4'
-              }`}
-            >
-              {msg.role === 'assistant' && !msg.content && streaming && (
-                <span className="inline-flex gap-1 text-navy/30 dark:text-slate-500">
-                  <span className="animate-bounce" style={{ animationDelay: '0ms' }}>.</span>
-                  <span className="animate-bounce" style={{ animationDelay: '150ms' }}>.</span>
-                  <span className="animate-bounce" style={{ animationDelay: '300ms' }}>.</span>
-                </span>
-              )}
-              <div className="whitespace-pre-wrap break-words">{msg.content}</div>
-
-              {/* Suggested questions */}
-              {msg.suggestedQuestions && msg.suggestedQuestions.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-cream-dark/50 dark:border-slate-700/50">
-                  {msg.suggestedQuestions.map((sq, j) => (
-                    <button
-                      key={j}
-                      onClick={() => handleSuggestedQuestion(sq)}
-                      className="text-[10px] px-2 py-0.5 rounded-full bg-electric/10 text-electric hover:bg-electric/20 transition-colors truncate max-w-[200px]"
-                    >
-                      {sq}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-          <div ref={messagesEndRef} />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmit();
+                }
+              }}
+              placeholder="Ask AI about this card..."
+              className="w-full pl-8 pr-3 py-1.5 rounded-lg text-xs font-body bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric transition-colors"
+              disabled={streaming}
+            />
+          </div>
         </div>
       )}
 
-      {/* Error */}
-      {error && (
+      {/* ── ACTIVE CHAT: messages + bottom reply bar ── */}
+      {hasChat && (
+        <>
+          {/* Header row with clear button */}
+          <div className="flex items-center justify-between pb-1">
+            <span className="text-[10px] text-navy/40 dark:text-slate-500 font-body">AI Chat</span>
+            <button
+              onClick={() => { setMessages([]); setError(null); setQuery(''); }}
+              className="text-[10px] text-navy/30 dark:text-slate-500 hover:text-danger transition-colors"
+              title="Clear chat"
+            >
+              Clear
+            </button>
+          </div>
+
+          {/* Message list */}
+          <div className="max-h-[280px] overflow-y-auto space-y-2 pb-2 scrollbar-thin">
+            {messages.map((msg, i) => (
+              <div
+                key={i}
+                className={`text-xs font-body rounded-lg px-3 py-2 ${
+                  msg.role === 'user'
+                    ? 'bg-electric/10 dark:bg-electric/15 text-navy dark:text-slate-100 ml-8'
+                    : 'bg-cream dark:bg-navy text-navy/80 dark:text-slate-300 mr-4'
+                }`}
+              >
+                {msg.role === 'assistant' && !msg.content && streaming && (
+                  <span className="inline-flex gap-1 text-navy/30 dark:text-slate-500">
+                    <span className="animate-bounce" style={{ animationDelay: '0ms' }}>.</span>
+                    <span className="animate-bounce" style={{ animationDelay: '150ms' }}>.</span>
+                    <span className="animate-bounce" style={{ animationDelay: '300ms' }}>.</span>
+                  </span>
+                )}
+                <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+
+                {msg.suggestedQuestions && msg.suggestedQuestions.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-cream-dark/50 dark:border-slate-700/50">
+                    {msg.suggestedQuestions.map((sq, j) => (
+                      <button
+                        key={j}
+                        onClick={() => handleSuggestedQuestion(sq)}
+                        className="text-[10px] px-2 py-0.5 rounded-full bg-electric/10 text-electric hover:bg-electric/20 transition-colors truncate max-w-[200px]"
+                      >
+                        {sq}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Error */}
+          {error && (
+            <p className="text-[10px] text-danger font-body pb-1 px-1">{error}</p>
+          )}
+
+          {/* Bottom reply input */}
+          <div className="flex items-center gap-2 pt-1 pb-2">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmit();
+                }
+              }}
+              placeholder="Reply..."
+              className="flex-1 px-3 py-1.5 rounded-lg text-xs font-body bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric transition-colors"
+              disabled={streaming}
+              autoFocus
+            />
+            {streaming ? (
+              <button
+                onClick={() => abortRef.current?.abort()}
+                className="p-1.5 rounded-lg text-navy/40 dark:text-slate-500 hover:text-danger hover:bg-danger/10 transition-colors shrink-0"
+                title="Stop"
+              >
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                  <rect x="6" y="6" width="12" height="12" rx="1" />
+                </svg>
+              </button>
+            ) : (
+              <button
+                onClick={() => handleSubmit()}
+                disabled={!query.trim()}
+                className="p-1.5 rounded-lg bg-electric text-white hover:bg-electric/90 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shrink-0"
+                title="Send"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Error before any chat */}
+      {!hasChat && error && (
         <p className="text-[10px] text-danger font-body pb-1 px-1">{error}</p>
       )}
     </div>
