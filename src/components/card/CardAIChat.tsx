@@ -8,15 +8,19 @@ import type { ChatSession } from '@/lib/types';
 
 const MODELS = [
   // Anthropic
-  { id: 'claude-haiku-4-5-20251001',  label: 'Haiku (fast)',      provider: 'anthropic' as const },
-  { id: 'claude-sonnet-4-5-20250929', label: 'Sonnet',            provider: 'anthropic' as const },
-  { id: 'claude-opus-4-6',            label: 'Opus (best)',        provider: 'anthropic' as const },
+  { id: 'claude-haiku-4-5-20251001',  label: 'Haiku (fast)',       provider: 'anthropic' as const },
+  { id: 'claude-sonnet-4-5-20250929', label: 'Sonnet',             provider: 'anthropic' as const },
+  { id: 'claude-opus-4-6',            label: 'Opus (best)',         provider: 'anthropic' as const },
   // OpenAI
-  { id: 'gpt-4o-mini',                label: 'GPT-4o mini',       provider: 'openai' as const },
-  { id: 'gpt-4o',                     label: 'GPT-4o',            provider: 'openai' as const },
+  { id: 'gpt-4o-mini',                label: 'GPT-4o mini',        provider: 'openai' as const },
+  { id: 'gpt-4o',                     label: 'GPT-4o',             provider: 'openai' as const },
+  { id: 'o3-mini',                    label: 'o3 mini (5.2)',      provider: 'openai' as const },
+  { id: 'o3',                         label: 'o3 (5.3)',           provider: 'openai' as const },
   // Google
-  { id: 'gemini-2.0-flash',           label: 'Gemini 2.0 Flash',  provider: 'google' as const },
-  { id: 'gemini-1.5-pro',             label: 'Gemini 1.5 Pro',    provider: 'google' as const },
+  { id: 'gemini-2.0-flash',           label: 'Gemini 2.0 Flash',   provider: 'google' as const },
+  { id: 'gemini-2.0-pro-exp',         label: 'Gemini 2.0 Pro',     provider: 'google' as const },
+  { id: 'gemini-2.5-flash-preview-04-17', label: 'Gemini 3 Flash', provider: 'google' as const },
+  { id: 'gemini-2.5-pro-preview-03-25',   label: 'Gemini 3.1 Pro', provider: 'google' as const },
 ] as const;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
