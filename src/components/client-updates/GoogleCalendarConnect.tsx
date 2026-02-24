@@ -11,6 +11,7 @@ export default function GoogleCalendarConnect() {
     syncError: string | null;
   } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchStatus();
@@ -29,14 +30,17 @@ export default function GoogleCalendarConnect() {
   }
 
   async function handleConnect() {
+    setError(null);
     try {
       const res = await fetch('/api/google-calendar/auth');
-      if (res.ok) {
-        const data = await res.json();
+      const data = await res.json();
+      if (res.ok && data.url) {
         window.location.href = data.url;
+      } else {
+        setError(data.error || 'Failed to start Google Calendar auth');
       }
     } catch (err) {
-      console.error('Failed to initiate Google Calendar auth:', err);
+      setError('Failed to connect to server');
     }
   }
 
@@ -80,9 +84,9 @@ export default function GoogleCalendarConnect() {
               Last synced: {new Date(status.lastSyncAt).toLocaleString()}
             </p>
           )}
-          {status?.syncError && (
+          {(status?.syncError || error) && (
             <p className="text-xs text-red-500 mt-1 font-body">
-              Sync error: {status.syncError}
+              {error || `Sync error: ${status?.syncError}`}
             </p>
           )}
         </div>
