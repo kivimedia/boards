@@ -2,7 +2,6 @@ import { NextRequest } from 'next/server';
 import { getAuthContext, errorResponse } from '@/lib/api-helpers';
 import { streamChatMessage, getChatSession } from '@/lib/ai/chatbot-stream';
 import { detectClientPrefix } from '@/lib/ai/chatbot';
-import { queryClientBrain } from '@/lib/ai/client-brain';
 import type { ChatScope, ChatMessage } from '@/lib/types';
 
 export const maxDuration = 120;
@@ -51,72 +50,6 @@ export async function POST(request: NextRequest) {
   if (!message) return errorResponse('message is required');
   if (scope === 'ticket' && !cardId) return errorResponse('cardId is required for ticket scope');
   if (scope === 'board' && !boardId) return errorResponse('boardId is required for board scope');
-
-  // Check for "For [Client]: ..." prefix in all_boards scope → delegate to brain
-  if (scope === 'all_boards' && !confirmedAction) {
-    const prefix = detectClientPrefix(message);
-    if (prefix) {
-      // Look up client by name
-      const { data: clientMatch } = await supabase
-        .from('clients')
-        .select('id, name')
-        .ilike('name', `%${prefix.clientName}%`)
-        .limit(1)
-        .single();
-
-      if (clientMatch) {
-        // Route to client brain
-        const encoder = new TextEncoder();
-        const brainStream = new ReadableStream({
-          async start(controller) {
-            const emit = (data: Record<string, unknown>) => {
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
-            };
-
-            try {
-              const brainResult = await queryClientBrain(supabase, {
-                clientId: clientMatch.id,
-                userId,
-                query: prefix.query,
-              });
-
-              // Stream the brain response as tokens (simulate streaming)
-              const responseText = brainResult.response;
-              // Emit full response as a single token for simplicity
-              emit({ type: 'token', content: `🧠 **Client Brain — ${clientMatch.name}**\n\n${responseText}` });
-
-              // Add sources if available
-              if (brainResult.sources?.length) {
-                const sourcesText = `\n\n---\n**Sources** (${brainResult.sources.length}):\n${brainResult.sources.map((s: { title: string; similarity: number }) => `• ${s.title} (${Math.round(s.similarity * 100)}%)`).join('\n')}`;
-                emit({ type: 'token', content: sourcesText });
-              }
-
-              emit({
-                type: 'done',
-                sessionId: null,
-                inputTokens: brainResult.inputTokens || 0,
-                outputTokens: brainResult.outputTokens || 0,
-                modelUsed: brainResult.modelUsed || 'unknown',
-              });
-            } catch (err) {
-              const errMsg = err instanceof Error ? err.message : String(err);
-              emit({ type: 'error', message: `Brain query failed: ${errMsg}` });
-            } finally {
-              controller.close();
-            }
-          },
-        });
-
-        return new Response(brainStream, {
-          headers: {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            Connection: 'keep-alive',
-          },
-        });
-      }
-    }
-  }
 
   // If continuing an existing session, fetch previous messages
   let previousMessages: ChatMessage[] | undefined;

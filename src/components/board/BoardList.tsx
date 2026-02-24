@@ -5,6 +5,7 @@ import { Droppable, Draggable } from '@hello-pangea/dnd';
 import { createClient } from '@/lib/supabase/client';
 import { ListWithCards, BoardFilter } from '@/lib/types';
 import BoardCard from './BoardCard';
+import SeparatorCard from '@/components/card/SeparatorCard';
 import Button from '@/components/ui/Button';
 import ListMenu from './ListMenu';
 
@@ -194,28 +195,37 @@ export default function BoardList({ list, index, boardId, allLists, onCardClick,
                     ))}
                   </>
                 ) : (
-                  visibleCards.map((placement, cardIndex) => (
-                    <BoardCard
-                      key={placement.id}
-                      card={placement.card}
-                      placement_id={placement.id}
-                      index={cardIndex}
-                      labels={placement.labels || []}
-                      assignees={placement.assignees || []}
-                      is_mirror={placement.is_mirror}
-                      onClick={() => onCardClick(placement.card.id)}
-                      selected={selectedCards?.has(placement.card.id)}
-                      onToggleSelect={toggleCardSelection}
-                      comment_count={placement.comment_count || 0}
-                      attachment_count={placement.attachment_count || 0}
-                      checklist_total={placement.checklist_total || 0}
-                      checklist_done={placement.checklist_done || 0}
-                      cover_image_url={placement.cover_image_url || null}
-                      boardId={boardId}
-                      onRefresh={onRefresh}
-                    />
+                  visibleCards.map((placement, cardIndex) =>
+                    placement.card.is_separator ? (
+                      <SeparatorCard
+                        key={placement.id}
+                        placementId={placement.id}
+                        index={cardIndex}
+                        title={placement.card.title !== '---' ? placement.card.title : undefined}
+                      />
+                    ) : (
+                      <BoardCard
+                        key={placement.id}
+                        card={placement.card}
+                        placement_id={placement.id}
+                        index={cardIndex}
+                        labels={placement.labels || []}
+                        assignees={placement.assignees || []}
+                        is_mirror={placement.is_mirror}
+                        onClick={() => onCardClick(placement.card.id)}
+                        selected={selectedCards?.has(placement.card.id)}
+                        onToggleSelect={toggleCardSelection}
+                        comment_count={placement.comment_count || 0}
+                        attachment_count={placement.attachment_count || 0}
+                        checklist_total={placement.checklist_total || 0}
+                        checklist_done={placement.checklist_done || 0}
+                        cover_image_url={placement.cover_image_url || null}
+                        boardId={boardId}
+                        onRefresh={onRefresh}
+                      />
+                    )
                   ))
-                )}
+                }
                 {provided.placeholder}
 
                 {/* Show more button for large lists */}

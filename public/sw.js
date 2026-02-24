@@ -1,6 +1,6 @@
 self.addEventListener('push', function(event) {
   const data = event.data ? event.data.json() : {};
-  const title = data.title || 'Kivi Media Boards';
+  const title = data.title || 'Carolina Balloons HQ';
   const options = {
     body: data.body || 'You have a new notification',
     icon: data.icon || '/icon-192x192.png',

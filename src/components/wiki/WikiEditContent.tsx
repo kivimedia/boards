@@ -17,14 +17,12 @@ interface WikiEditContentProps {
 const DEPARTMENTS: { value: string; label: string }[] = [
   { value: '', label: 'No Department' },
   { value: 'general', label: 'General' },
-  { value: 'dev', label: 'Dev' },
-  { value: 'training', label: 'Training' },
-  { value: 'account_manager', label: 'Account Manager' },
-  { value: 'graphic_designer', label: 'Graphic Designer' },
-  { value: 'executive_assistant', label: 'Executive Assistant' },
-  { value: 'video_editor', label: 'Video Editor' },
-  { value: 'copy', label: 'Copy' },
-  { value: 'client_strategy_map', label: 'Client Strategy Map' },
+  { value: 'boutique_decor', label: 'Boutique Decor' },
+  { value: 'marquee_letters', label: 'Marquee Letters' },
+  { value: 'private_clients', label: 'Private Clients' },
+  { value: 'owner_dashboard', label: 'Owner Dashboard' },
+  { value: 'va_workspace', label: 'VA Workspace' },
+  { value: 'general_tasks', label: 'General Tasks' },
 ];
 
 export default function WikiEditContent({ page }: WikiEditContentProps) {

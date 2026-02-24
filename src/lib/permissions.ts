@@ -1,4 +1,4 @@
-import { UserRole, BoardMember, ColumnMoveRule, AgencyRole, BoardType } from './types';
+import { UserRole, BoardMember, ColumnMoveRule, BusinessRole, BoardType } from './types';
 
 // Role hierarchy: higher index = more permissions
 const ROLE_HIERARCHY: UserRole[] = ['observer', 'client', 'guest', 'member', 'department_lead', 'admin'];
@@ -44,8 +44,6 @@ export function getUserBoardRole(
 
 /**
  * Check if a user can view a board.
- * Everyone except 'observer' without board membership can view boards they're members of.
- * Admins can view all boards.
  */
 export function canViewBoard(role: UserRole): boolean {
   return hasMinRole(role, 'observer');
@@ -74,7 +72,6 @@ export function canEditCard(role: UserRole): boolean {
 
 /**
  * Check if a user can move cards on a board.
- * Observers and clients cannot move cards.
  */
 export function canMoveCard(role: UserRole): boolean {
   return hasMinRole(role, 'guest');
@@ -103,7 +100,6 @@ export function isAdmin(role: UserRole): boolean {
 
 /**
  * Check if a card move between columns is allowed for the user's role.
- * If no rules are defined for this transition, it's allowed for anyone who can move cards.
  */
 export function canMoveCardBetweenColumns(
   role: UserRole,
@@ -111,21 +107,14 @@ export function canMoveCardBetweenColumns(
   toListId: string,
   moveRules: ColumnMoveRule[]
 ): boolean {
-  // Must at least have basic move permission
   if (!canMoveCard(role)) return false;
-
-  // Admins bypass all rules
   if (isAdmin(role)) return true;
 
-  // Find a rule for this specific transition
   const rule = moveRules.find(
     (r) => r.from_list_id === fromListId && r.to_list_id === toListId
   );
 
-  // No rule defined = allowed for anyone who can move
   if (!rule) return true;
-
-  // Check if user's role is in the allowed list
   return rule.allowed_roles.includes(role);
 }
 
@@ -179,60 +168,80 @@ export function getRoleDescription(role: UserRole): string {
 export const ALL_ROLES: UserRole[] = ['admin', 'department_lead', 'member', 'guest', 'client', 'observer'];
 
 // ============================================================================
-// Agency Role Helpers
+// Business Role Helpers (Carolina Balloons HQ)
 // ============================================================================
 
-export const AGENCY_ROLES: AgencyRole[] = [
-  'agency_owner',
-  'dev',
-  'designer',
-  'account_manager',
-  'executive_assistant',
-  'video_editor',
-];
+export const BUSINESS_ROLES: BusinessRole[] = ['owner', 'va'];
 
-export function getAgencyRoleLabel(role: AgencyRole): string {
-  const labels: Record<AgencyRole, string> = {
-    agency_owner: 'Agency Owner',
-    dev: 'Developer',
-    designer: 'Designer',
-    account_manager: 'Account Manager',
-    executive_assistant: 'Executive Assistant',
-    video_editor: 'Video Editor',
+export function getBusinessRoleLabel(role: BusinessRole): string {
+  const labels: Record<BusinessRole, string> = {
+    owner: 'Owner',
+    va: 'Virtual Assistant',
   };
   return labels[role];
 }
 
-/** Default board-role access map (used client-side when we can't query the DB table) */
-const DEFAULT_BOARD_ROLE_ACCESS: Record<string, AgencyRole[]> = {
-  dev: ['agency_owner', 'dev'],
-  training: ['agency_owner', 'dev', 'designer', 'account_manager', 'executive_assistant', 'video_editor'],
-  account_manager: ['agency_owner', 'account_manager', 'executive_assistant'],
-  graphic_designer: ['agency_owner', 'designer'],
-  executive_assistant: ['agency_owner', 'executive_assistant'],
-  video_editor: ['agency_owner', 'video_editor'],
-  client_strategy_map: ['agency_owner', 'account_manager', 'executive_assistant'],
-  copy: ['agency_owner', 'designer', 'account_manager'],
+/** Board access by business role. Owner can access all boards. */
+const BOARD_ROLE_ACCESS: Record<BoardType, BusinessRole[]> = {
+  boutique_decor: ['owner', 'va'],
+  marquee_letters: ['owner', 'va'],
+  private_clients: ['owner', 'va'],
+  owner_dashboard: ['owner'],
+  va_workspace: ['owner', 'va'],
+  general_tasks: ['owner', 'va'],
 };
 
 /**
- * Check if a user with the given agency role can access a board of the given type.
- * Agency owners can access everything.
+ * Check if a user with the given business role can access a board of the given type.
+ * Owner can access everything. VA cannot access owner_dashboard.
  */
 export function canAccessBoardByRole(
-  agencyRole: AgencyRole | null,
+  businessRole: BusinessRole | null,
   boardType: BoardType | string
 ): boolean {
-  if (!agencyRole) return false;
-  if (agencyRole === 'agency_owner') return true;
-  const allowed = DEFAULT_BOARD_ROLE_ACCESS[boardType];
-  if (!allowed) return true; // Unknown board type — allow by default
-  return allowed.includes(agencyRole);
+  if (!businessRole) return false;
+  if (businessRole === 'owner') return true;
+  const allowed = BOARD_ROLE_ACCESS[boardType as BoardType];
+  if (!allowed) return true;
+  return allowed.includes(businessRole);
 }
 
 /**
- * Check if a user is an agency owner.
+ * Check if a user is the business owner.
  */
-export function isAgencyOwner(agencyRole: AgencyRole | null): boolean {
-  return agencyRole === 'agency_owner';
+export function isBusinessOwner(businessRole: BusinessRole | null): boolean {
+  return businessRole === 'owner';
 }
+
+/**
+ * Owner-only permission checks for business features.
+ */
+export function canEditPricing(businessRole: BusinessRole | null): boolean {
+  return businessRole === 'owner';
+}
+
+export function canEditProducts(businessRole: BusinessRole | null): boolean {
+  return businessRole === 'owner';
+}
+
+export function canApproveProposals(businessRole: BusinessRole | null): boolean {
+  return businessRole === 'owner';
+}
+
+export function canManageMirrorRules(businessRole: BusinessRole | null): boolean {
+  return businessRole === 'owner';
+}
+
+export function canManageGoogleIntegration(businessRole: BusinessRole | null): boolean {
+  return businessRole === 'owner';
+}
+
+// Backward compatibility aliases
+/** @deprecated Use BusinessRole instead */
+export type AgencyRole = BusinessRole;
+/** @deprecated Use BUSINESS_ROLES instead */
+export const AGENCY_ROLES = BUSINESS_ROLES;
+/** @deprecated Use getBusinessRoleLabel instead */
+export const getAgencyRoleLabel = getBusinessRoleLabel;
+/** @deprecated Use isBusinessOwner instead */
+export const isAgencyOwner = isBusinessOwner;

@@ -7,25 +7,19 @@ import {
 import type { AIActivity, AIProvider } from '@/lib/types';
 
 const ALL_ACTIVITIES: AIActivity[] = [
-  'design_review',
-  'dev_qa',
   'chatbot_ticket',
   'chatbot_board',
   'chatbot_global',
-  'client_brain',
-  'nano_banana_edit',
-  'nano_banana_generate',
   'email_draft',
-  'video_generation',
   'brief_assist',
-  'agent_execution',
-  'agent_standalone_execution',
-  'web_research',
-  'replicate_generate',
   'image_prompt_enhance',
+  'proposal_generation',
+  'lead_triage',
+  'follow_up_draft',
+  'friendor_email',
 ];
 
-const VALID_PROVIDERS: AIProvider[] = ['anthropic', 'openai', 'google', 'browserless', 'replicate'];
+const VALID_PROVIDERS: AIProvider[] = ['anthropic', 'openai', 'google'];
 
 describe('AI Model Resolver (P2.0)', () => {
   // ===========================================================================
@@ -33,9 +27,9 @@ describe('AI Model Resolver (P2.0)', () => {
   // ===========================================================================
 
   describe('getAllActivities', () => {
-    it('returns all 16 activities', () => {
+    it('returns all 10 activities', () => {
       const activities = getAllActivities();
-      expect(activities).toHaveLength(16);
+      expect(activities).toHaveLength(10);
     });
 
     it('includes every known activity', () => {
@@ -60,8 +54,8 @@ describe('AI Model Resolver (P2.0)', () => {
       }
     });
 
-    it('has exactly 16 labels', () => {
-      expect(Object.keys(ACTIVITY_LABELS)).toHaveLength(16);
+    it('has exactly 10 labels', () => {
+      expect(Object.keys(ACTIVITY_LABELS)).toHaveLength(10);
     });
 
     it('all label values are non-empty strings', () => {
@@ -71,16 +65,36 @@ describe('AI Model Resolver (P2.0)', () => {
       }
     });
 
-    it('has expected label for design_review', () => {
-      expect(ACTIVITY_LABELS.design_review).toBe('Design Review');
+    it('has expected label for chatbot_ticket', () => {
+      expect(ACTIVITY_LABELS.chatbot_ticket).toBe('Chatbot (Ticket)');
     });
 
-    it('has expected label for dev_qa', () => {
-      expect(ACTIVITY_LABELS.dev_qa).toBe('Dev QA');
+    it('has expected label for chatbot_board', () => {
+      expect(ACTIVITY_LABELS.chatbot_board).toBe('Chatbot (Board)');
     });
 
-    it('has expected label for video_generation', () => {
-      expect(ACTIVITY_LABELS.video_generation).toBe('Video Generation');
+    it('has expected label for chatbot_global', () => {
+      expect(ACTIVITY_LABELS.chatbot_global).toBe('Chatbot (Global)');
+    });
+
+    it('has expected label for email_draft', () => {
+      expect(ACTIVITY_LABELS.email_draft).toBe('Email Draft');
+    });
+
+    it('has expected label for proposal_generation', () => {
+      expect(ACTIVITY_LABELS.proposal_generation).toBe('Proposal Generation');
+    });
+
+    it('has expected label for lead_triage', () => {
+      expect(ACTIVITY_LABELS.lead_triage).toBe('Lead Triage');
+    });
+
+    it('has expected label for follow_up_draft', () => {
+      expect(ACTIVITY_LABELS.follow_up_draft).toBe('Follow-Up Draft');
+    });
+
+    it('has expected label for friendor_email', () => {
+      expect(ACTIVITY_LABELS.friendor_email).toBe('Friendor Email');
     });
   });
 
@@ -138,24 +152,28 @@ describe('AI Model Resolver (P2.0)', () => {
       }
     });
 
-    it('design_review defaults to anthropic/claude-sonnet-4-5-20250929', () => {
-      const config = getDefaultConfig('design_review');
+    it('chatbot_ticket defaults to anthropic/claude-sonnet-4-5-20250929', () => {
+      const config = getDefaultConfig('chatbot_ticket');
       expect(config.provider).toBe('anthropic');
       expect(config.model_id).toBe('claude-sonnet-4-5-20250929');
-      expect(config.temperature).toBe(0.3);
+      expect(config.temperature).toBe(0.7);
+      expect(config.max_tokens).toBe(2048);
+    });
+
+    it('proposal_generation defaults to anthropic/claude-sonnet-4-5-20250929', () => {
+      const config = getDefaultConfig('proposal_generation');
+      expect(config.provider).toBe('anthropic');
+      expect(config.model_id).toBe('claude-sonnet-4-5-20250929');
+      expect(config.temperature).toBe(0.5);
       expect(config.max_tokens).toBe(4096);
     });
 
-    it('nano_banana_edit defaults to google/gemini-2.0-flash-exp', () => {
-      const config = getDefaultConfig('nano_banana_edit');
-      expect(config.provider).toBe('google');
-      expect(config.model_id).toBe('gemini-2.0-flash-exp');
-    });
-
-    it('video_generation defaults to openai/sora-2', () => {
-      const config = getDefaultConfig('video_generation');
-      expect(config.provider).toBe('openai');
-      expect(config.model_id).toBe('sora-2');
+    it('lead_triage defaults to anthropic/claude-haiku-4-5-20251001', () => {
+      const config = getDefaultConfig('lead_triage');
+      expect(config.provider).toBe('anthropic');
+      expect(config.model_id).toBe('claude-haiku-4-5-20251001');
+      expect(config.temperature).toBe(0.3);
+      expect(config.max_tokens).toBe(2048);
     });
 
     it('brief_assist defaults to anthropic/claude-haiku-4-5-20251001', () => {

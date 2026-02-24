@@ -499,152 +499,133 @@ export function getDefaultAutomationRules(
   action_config: Record<string, unknown>;
 }[] {
   switch (boardType) {
-    case 'graphic_designer':
+    case 'boutique_decor':
+    case 'marquee_letters':
       return [
         {
-          name: 'Increment revision count on Revisions',
-          trigger_type: 'card_moved',
-          trigger_config: { to_list_name: 'Revisions' },
-          action_type: 'increment_field',
-          action_config: { field_name: 'Revision Count', increment_by: 1 },
+          name: 'Log when proposal sent',
+          trigger_type: 'card_moved' as AutomationTriggerType,
+          trigger_config: { to_list_name: 'Proposal/Pricing Sent' },
+          action_type: 'create_activity_log' as AutomationActionType,
+          action_config: {
+            event_type: 'proposal_sent',
+            metadata: { message: 'Proposal/pricing sent to client' },
+          },
         },
         {
-          name: 'Increment revision count on Client Revisions',
-          trigger_type: 'card_moved',
-          trigger_config: { to_list_name: 'Client Revisions' },
-          action_type: 'increment_field',
-          action_config: { field_name: 'Revision Count', increment_by: 1 },
+          name: 'Log when invoice sent',
+          trigger_type: 'card_moved' as AutomationTriggerType,
+          trigger_config: { to_list_name: 'Invoice Sent' },
+          action_type: 'create_activity_log' as AutomationActionType,
+          action_config: {
+            event_type: 'invoice_sent',
+            metadata: { message: 'Invoice sent to client' },
+          },
         },
         {
-          name: 'Log activity when approved',
-          trigger_type: 'card_moved',
+          name: 'Log when paid in full',
+          trigger_type: 'card_moved' as AutomationTriggerType,
+          trigger_config: { to_list_name: 'Paid in Full' },
+          action_type: 'create_activity_log' as AutomationActionType,
+          action_config: {
+            event_type: 'payment_received',
+            metadata: { message: 'Payment received in full' },
+          },
+        },
+        {
+          name: 'Log completion',
+          trigger_type: 'card_moved' as AutomationTriggerType,
+          trigger_config: { to_list_name: 'Thank You Sent / Complete' },
+          action_type: 'create_activity_log' as AutomationActionType,
+          action_config: {
+            event_type: 'booking_completed',
+            metadata: { message: 'Booking completed — thank you sent' },
+          },
+        },
+      ];
+
+    case 'private_clients':
+      return [
+        {
+          name: 'Log when invoice sent',
+          trigger_type: 'card_moved' as AutomationTriggerType,
+          trigger_config: { to_list_name: 'Invoice Sent' },
+          action_type: 'create_activity_log' as AutomationActionType,
+          action_config: {
+            event_type: 'invoice_sent',
+            metadata: { message: 'Invoice sent to private client' },
+          },
+        },
+        {
+          name: 'Log when paid in full',
+          trigger_type: 'card_moved' as AutomationTriggerType,
+          trigger_config: { to_list_name: 'Paid in Full' },
+          action_type: 'create_activity_log' as AutomationActionType,
+          action_config: {
+            event_type: 'payment_received',
+            metadata: { message: 'Payment received from private client' },
+          },
+        },
+        {
+          name: 'Log completion',
+          trigger_type: 'card_moved' as AutomationTriggerType,
+          trigger_config: { to_list_name: 'Thank You Sent / Complete' },
+          action_type: 'create_activity_log' as AutomationActionType,
+          action_config: {
+            event_type: 'booking_completed',
+            metadata: { message: 'Private client booking completed' },
+          },
+        },
+      ];
+
+    case 'owner_dashboard':
+      return [
+        {
+          name: 'Log when approved',
+          trigger_type: 'card_moved' as AutomationTriggerType,
           trigger_config: { to_list_name: 'Approved' },
-          action_type: 'create_activity_log',
+          action_type: 'create_activity_log' as AutomationActionType,
           action_config: {
             event_type: 'card_approved',
-            metadata: { message: 'Design approved by client' },
+            metadata: { message: 'Approved by owner' },
           },
         },
       ];
 
-    case 'dev':
+    case 'va_workspace':
       return [
         {
-          name: 'Increment revision count on Revisions',
-          trigger_type: 'card_moved',
-          trigger_config: { to_list_name: 'Revisions' },
-          action_type: 'increment_field',
-          action_config: { field_name: 'Revision Count', increment_by: 1 },
+          name: 'Log when ready to send',
+          trigger_type: 'card_moved' as AutomationTriggerType,
+          trigger_config: { to_list_name: 'Ready to Send' },
+          action_type: 'create_activity_log' as AutomationActionType,
+          action_config: {
+            event_type: 'ready_to_send',
+            metadata: { message: 'Card ready for VA to send' },
+          },
         },
         {
-          name: 'Log activity when deployed',
-          trigger_type: 'card_moved',
-          trigger_config: { to_list_name: 'Deployed' },
-          action_type: 'create_activity_log',
+          name: 'Log when sent',
+          trigger_type: 'card_moved' as AutomationTriggerType,
+          trigger_config: { to_list_name: 'Sent' },
+          action_type: 'create_activity_log' as AutomationActionType,
           action_config: {
-            event_type: 'card_deployed',
-            metadata: { message: 'Card deployed to production' },
+            event_type: 'item_sent',
+            metadata: { message: 'Sent by VA' },
           },
         },
       ];
 
-    case 'video_editor':
+    case 'general_tasks':
       return [
         {
-          name: 'Increment revision count on Revisions',
-          trigger_type: 'card_moved',
-          trigger_config: { to_list_name: 'Revisions' },
-          action_type: 'increment_field',
-          action_config: { field_name: 'Revision Count', increment_by: 1 },
-        },
-        {
-          name: 'Log activity when approved',
-          trigger_type: 'card_moved',
-          trigger_config: { to_list_name: 'Approved' },
-          action_type: 'create_activity_log',
-          action_config: {
-            event_type: 'card_approved',
-            metadata: { message: 'Video approved by client' },
-          },
-        },
-      ];
-
-    case 'copy':
-      return [
-        {
-          name: 'Log activity when approved',
-          trigger_type: 'card_moved',
-          trigger_config: { to_list_name: 'Approved' },
-          action_type: 'create_activity_log',
-          action_config: {
-            event_type: 'card_approved',
-            metadata: { message: 'Copy approved' },
-          },
-        },
-        {
-          name: 'Log activity when published',
-          trigger_type: 'card_moved',
-          trigger_config: { to_list_name: 'Published' },
-          action_type: 'create_activity_log',
-          action_config: {
-            event_type: 'card_published',
-            metadata: { message: 'Copy published' },
-          },
-        },
-      ];
-
-    case 'account_manager':
-      return [
-        {
-          name: 'Log activity when client marked at risk',
-          trigger_type: 'card_moved',
-          trigger_config: { to_list_name: 'At Risk' },
-          action_type: 'create_activity_log',
-          action_config: {
-            event_type: 'client_at_risk',
-            metadata: { message: 'Client moved to At Risk status' },
-          },
-        },
-      ];
-
-    case 'executive_assistant':
-      return [
-        {
-          name: 'Log activity when task completed',
-          trigger_type: 'card_moved',
+          name: 'Log task completion',
+          trigger_type: 'card_moved' as AutomationTriggerType,
           trigger_config: { to_list_name: 'Done' },
-          action_type: 'create_activity_log',
+          action_type: 'create_activity_log' as AutomationActionType,
           action_config: {
             event_type: 'task_completed',
             metadata: { message: 'Task marked as done' },
-          },
-        },
-      ];
-
-    case 'training':
-      return [
-        {
-          name: 'Log activity when training published',
-          trigger_type: 'card_moved',
-          trigger_config: { to_list_name: 'Published' },
-          action_type: 'create_activity_log',
-          action_config: {
-            event_type: 'training_published',
-            metadata: { message: 'Training material published' },
-          },
-        },
-      ];
-
-    case 'client_strategy_map':
-      return [
-        {
-          name: 'Log activity when entering Execution',
-          trigger_type: 'card_moved',
-          trigger_config: { to_list_name: 'Execution' },
-          action_type: 'create_activity_log',
-          action_config: {
-            event_type: 'strategy_executing',
-            metadata: { message: 'Strategy moved to Execution phase' },
           },
         },
       ];

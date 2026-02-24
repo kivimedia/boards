@@ -3,8 +3,10 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
-import { isAdmin, isAgencyOwner } from '@/lib/permissions';
+import { isAdmin } from '@/lib/permissions';
 import { UserRole } from '@/lib/types';
+import GoogleIntegrationPanel from '@/components/settings/GoogleIntegrationPanel';
+import MirrorRulesPanel from '@/components/settings/MirrorRulesPanel';
 
 export default async function SettingsPage() {
   const supabase = createServerSupabaseClient();
@@ -21,7 +23,7 @@ export default async function SettingsPage() {
     .single();
 
   const userRole = (profile?.user_role || profile?.role || 'member') as UserRole;
-  const userIsAdmin = isAdmin(userRole) || isAgencyOwner(profile?.agency_role ?? null);
+  const userIsAdmin = isAdmin(userRole);
 
   // Pre-fetch boards for sidebar (avoids client-side refetch flash)
   const { data: boards } = await supabase
@@ -37,10 +39,18 @@ export default async function SettingsPage() {
         <div className="flex-1 overflow-y-auto bg-cream dark:bg-dark-bg p-6">
           <div className="max-w-4xl mx-auto">
             <p className="text-navy/60 dark:text-slate-400 font-body text-sm mb-8">
-              Manage your workspace settings, users, and permissions.
+              Manage your workspace settings, integrations, and permissions.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Google Workspace Integration - Full Width */}
+              <GoogleIntegrationPanel />
+
+              {/* Mirror Rules - Full Width */}
+              <div className="col-span-1 md:col-span-2 bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-6">
+                <MirrorRulesPanel />
+              </div>
+
               {/* User Management Card - Admin Only */}
               {userIsAdmin && (
                 <Link
@@ -86,7 +96,7 @@ export default async function SettingsPage() {
                     </svg>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-navy font-heading font-semibold text-base mb-1">
+                    <h3 className="text-navy dark:text-slate-100 font-heading font-semibold text-base mb-1">
                       Handoff Rules
                     </h3>
                     <p className="text-navy/50 font-body text-sm leading-relaxed">
@@ -113,7 +123,7 @@ export default async function SettingsPage() {
                     </svg>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-navy font-heading font-semibold text-base mb-1">
+                    <h3 className="text-navy dark:text-slate-100 font-heading font-semibold text-base mb-1">
                       Trello Migration
                     </h3>
                     <p className="text-navy/50 font-body text-sm leading-relaxed">
@@ -140,7 +150,7 @@ export default async function SettingsPage() {
                     </svg>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-navy font-heading font-semibold text-base mb-1">
+                    <h3 className="text-navy dark:text-slate-100 font-heading font-semibold text-base mb-1">
                       Backups
                     </h3>
                     <p className="text-navy/50 font-body text-sm leading-relaxed">
@@ -184,31 +194,6 @@ export default async function SettingsPage() {
                 </Link>
               )}
 
-              {/* Agent Skills Card */}
-              {userIsAdmin && (
-                <Link
-                  href="/settings/agents"
-                  className="group block bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 hover:border-electric/30 p-6 transition-all duration-200 hover:shadow-lg"
-                >
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-electric/10 flex items-center justify-center shrink-0 group-hover:bg-electric/20 transition-colors">
-                      <span className="text-2xl">🤖</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-navy dark:text-slate-100 font-heading font-semibold text-base mb-1">
-                        Agent Skills
-                      </h3>
-                      <p className="text-navy/50 font-body text-sm leading-relaxed">
-                        Manage AI agent skills, view quality scores, and optimize skill prompts over time.
-                      </p>
-                    </div>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-navy/20 group-hover:text-electric transition-colors mt-1 shrink-0">
-                      <polyline points="9 18 15 12 9 6" />
-                    </svg>
-                  </div>
-                </Link>
-              )}
-
               {/* Board Maintenance Card */}
               <Link
                 href="/settings/board-maintenance"
@@ -239,34 +224,6 @@ export default async function SettingsPage() {
                 </div>
               </Link>
 
-              {/* QA Monitoring Card */}
-              <Link
-                href="/settings/qa"
-                className="group block bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 hover:border-electric/30 p-6 transition-all duration-200 hover:shadow-lg"
-              >
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-electric/10 flex items-center justify-center shrink-0 group-hover:bg-electric/20 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-electric">
-                      <path d="M9 11a3 3 0 1 0 6 0a3 3 0 0 0-6 0z" />
-                      <path d="M12 3c7.2 0 9 1.8 9 9s-1.8 9-9 9-9-1.8-9-9 1.8-9 9-9z" />
-                      <path d="M12 14v4" />
-                      <path d="M12 6V8" />
-                    </svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-navy dark:text-slate-100 font-heading font-semibold text-base mb-1">
-                      QA Monitoring
-                    </h3>
-                    <p className="text-navy/50 font-body text-sm leading-relaxed">
-                      Track Lighthouse scores, link health, and WCAG compliance. View trends and regressions.
-                    </p>
-                  </div>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-navy/20 group-hover:text-electric transition-colors mt-1 shrink-0">
-                    <polyline points="9 18 15 12 9 6" />
-                  </svg>
-                </div>
-              </Link>
-
               {/* Board Permissions Card - Informational */}
               <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-6">
                 <div className="flex items-start gap-4">
@@ -277,7 +234,7 @@ export default async function SettingsPage() {
                     </svg>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-navy font-heading font-semibold text-base mb-1">
+                    <h3 className="text-navy dark:text-slate-100 font-heading font-semibold text-base mb-1">
                       Board Permissions
                     </h3>
                     <p className="text-navy/50 font-body text-sm leading-relaxed">
@@ -286,6 +243,154 @@ export default async function SettingsPage() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Balloon Business Section */}
+            <h2 className="text-navy dark:text-slate-100 font-heading font-semibold text-lg mt-10 mb-4">
+              Business Tools
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Proposal Learning */}
+              {userIsAdmin && (
+                <Link
+                  href="/settings/proposal-learning"
+                  className="group block bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 hover:border-pink-300 p-6 transition-all duration-200 hover:shadow-lg"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-pink-50 dark:bg-pink-900/20 flex items-center justify-center shrink-0 group-hover:bg-pink-100 dark:group-hover:bg-pink-900/30 transition-colors">
+                      <span className="text-xl">🤖</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-navy dark:text-slate-100 font-heading font-semibold text-base mb-1">
+                        AI Proposal Learning
+                      </h3>
+                      <p className="text-navy/50 font-body text-sm leading-relaxed">
+                        Train the AI on past proposals to generate accurate quotes automatically.
+                      </p>
+                    </div>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-navy/20 group-hover:text-pink-500 transition-colors mt-1 shrink-0">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </div>
+                </Link>
+              )}
+
+              {/* Product Catalog */}
+              <Link
+                href="/products"
+                className="group block bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 hover:border-pink-300 p-6 transition-all duration-200 hover:shadow-lg"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-pink-50 dark:bg-pink-900/20 flex items-center justify-center shrink-0 group-hover:bg-pink-100 dark:group-hover:bg-pink-900/30 transition-colors">
+                    <span className="text-xl">🎈</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-navy dark:text-slate-100 font-heading font-semibold text-base mb-1">
+                      Product Catalog
+                    </h3>
+                    <p className="text-navy/50 font-body text-sm leading-relaxed">
+                      Manage your balloon products, services, and base pricing.
+                    </p>
+                  </div>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-navy/20 group-hover:text-pink-500 transition-colors mt-1 shrink-0">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </div>
+              </Link>
+
+              {/* Pricing Rules */}
+              {userIsAdmin && (
+                <Link
+                  href="/pricing"
+                  className="group block bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 hover:border-pink-300 p-6 transition-all duration-200 hover:shadow-lg"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-pink-50 dark:bg-pink-900/20 flex items-center justify-center shrink-0 group-hover:bg-pink-100 dark:group-hover:bg-pink-900/30 transition-colors">
+                      <span className="text-xl">💰</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-navy dark:text-slate-100 font-heading font-semibold text-base mb-1">
+                        Pricing Rules
+                      </h3>
+                      <p className="text-navy/50 font-body text-sm leading-relaxed">
+                        Set mileage surcharges, minimums, location premiums, and other pricing rules.
+                      </p>
+                    </div>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-navy/20 group-hover:text-pink-500 transition-colors mt-1 shrink-0">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </div>
+                </Link>
+              )}
+
+              {/* Venue Database */}
+              <Link
+                href="/venues"
+                className="group block bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 hover:border-pink-300 p-6 transition-all duration-200 hover:shadow-lg"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-pink-50 dark:bg-pink-900/20 flex items-center justify-center shrink-0 group-hover:bg-pink-100 dark:group-hover:bg-pink-900/30 transition-colors">
+                    <span className="text-xl">🏛️</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-navy dark:text-slate-100 font-heading font-semibold text-base mb-1">
+                      Venue Database
+                    </h3>
+                    <p className="text-navy/50 font-body text-sm leading-relaxed">
+                      Track venue partnerships, contacts, and friendor outreach status.
+                    </p>
+                  </div>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-navy/20 group-hover:text-pink-500 transition-colors mt-1 shrink-0">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </div>
+              </Link>
+
+              {/* Didn't Book Analytics */}
+              <Link
+                href="/analytics/didnt-book"
+                className="group block bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 hover:border-pink-300 p-6 transition-all duration-200 hover:shadow-lg"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-pink-50 dark:bg-pink-900/20 flex items-center justify-center shrink-0 group-hover:bg-pink-100 dark:group-hover:bg-pink-900/30 transition-colors">
+                    <span className="text-xl">📊</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-navy dark:text-slate-100 font-heading font-semibold text-base mb-1">
+                      Didn&apos;t Book Analytics
+                    </h3>
+                    <p className="text-navy/50 font-body text-sm leading-relaxed">
+                      Analyze why leads didn&apos;t convert. Track revenue lost by reason, source, and event type.
+                    </p>
+                  </div>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-navy/20 group-hover:text-pink-500 transition-colors mt-1 shrink-0">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </div>
+              </Link>
+
+              {/* Proposal Queue */}
+              <Link
+                href="/proposals"
+                className="group block bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 hover:border-pink-300 p-6 transition-all duration-200 hover:shadow-lg"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-pink-50 dark:bg-pink-900/20 flex items-center justify-center shrink-0 group-hover:bg-pink-100 dark:group-hover:bg-pink-900/30 transition-colors">
+                    <span className="text-xl">📝</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-navy dark:text-slate-100 font-heading font-semibold text-base mb-1">
+                      Proposal Queue
+                    </h3>
+                    <p className="text-navy/50 font-body text-sm leading-relaxed">
+                      Review, approve, and manage AI-generated proposal drafts.
+                    </p>
+                  </div>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-navy/20 group-hover:text-pink-500 transition-colors mt-1 shrink-0">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </div>
+              </Link>
             </div>
           </div>
         </div>

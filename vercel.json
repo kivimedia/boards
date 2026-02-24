@@ -1,17 +1,12 @@
 {
   "functions": {
-    "src/app/api/agents/run/route.ts": { "maxDuration": 300 },
-    "src/app/api/agents/run/resume/route.ts": { "maxDuration": 300 },
-    "src/app/api/web-research/route.ts": { "maxDuration": 300 },
     "src/app/api/cards/*/attachments/upload/route.ts": { "maxDuration": 300 },
     "src/app/api/chat/stream/route.ts": { "maxDuration": 120 },
-    "src/app/api/cron/qa-monitor/route.ts": { "maxDuration": 300 },
-    "src/app/api/cron/qa-monitoring/route.ts": { "maxDuration": 300 },
-    "src/app/api/cron/productivity-snapshot/route.ts": { "maxDuration": 300 },
-    "src/app/api/cron/whatsapp-digest/route.ts": { "maxDuration": 300 },
-    "src/app/api/podcast/scout/*/step/route.ts": { "maxDuration": 300 },
-    "src/app/api/podcast/candidates/*/dossier/route.ts": { "maxDuration": 300 },
-    "src/app/api/podcast/runs/*/execute/route.ts": { "maxDuration": 300 },
+    "src/app/api/proposals/generate/route.ts": { "maxDuration": 120 },
+    "src/app/api/proposals/learn/route.ts": { "maxDuration": 300 },
+    "src/app/api/leads/intake/route.ts": { "maxDuration": 60 },
+    "src/app/api/cron/follow-ups/route.ts": { "maxDuration": 120 },
+    "src/app/api/cron/payment-reminders/route.ts": { "maxDuration": 120 },
     "src/app/api/migration/jobs/*/run/route.ts": { "maxDuration": 300 },
     "src/app/api/migration/jobs/*/backfill-attachments/route.ts": { "maxDuration": 300 },
     "src/app/api/migration/jobs/*/fix-positions/route.ts": { "maxDuration": 300 }
@@ -22,8 +17,12 @@
       "schedule": "0 8 * * *"
     },
     {
-      "path": "/api/cron/qa-monitor",
-      "schedule": "0 */6 * * *"
+      "path": "/api/cron/follow-ups",
+      "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/payment-reminders",
+      "schedule": "0 13 * * *"
     }
   ]
 }

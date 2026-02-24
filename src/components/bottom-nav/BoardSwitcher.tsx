@@ -5,14 +5,12 @@ import { useRouter } from 'next/navigation';
 import type { Board, BoardType } from '@/lib/types';
 
 const BOARD_TYPE_OPTIONS: { value: BoardType; label: string }[] = [
-  { value: 'dev', label: 'Development' },
-  { value: 'training', label: 'Training' },
-  { value: 'account_manager', label: 'Account Manager' },
-  { value: 'graphic_designer', label: 'Graphic Designer' },
-  { value: 'executive_assistant', label: 'Executive Assistant' },
-  { value: 'video_editor', label: 'Video Editor' },
-  { value: 'copy', label: 'Copy' },
-  { value: 'client_strategy_map', label: 'Client Strategy Map' },
+  { value: 'boutique_decor', label: 'Boutique Decor' },
+  { value: 'marquee_letters', label: 'Marquee Letters' },
+  { value: 'private_clients', label: 'Private Clients' },
+  { value: 'owner_dashboard', label: 'Owner Dashboard' },
+  { value: 'va_workspace', label: 'VA Workspace' },
+  { value: 'general_tasks', label: 'General Tasks' },
 ];
 
 interface BoardSwitcherProps {
@@ -22,14 +20,12 @@ interface BoardSwitcherProps {
 
 function getBoardIcon(type: string) {
   switch (type) {
-    case 'dev': return 'D';
-    case 'training': return 'T';
-    case 'account_manager': return 'A';
-    case 'graphic_designer': return 'G';
-    case 'executive_assistant': return 'E';
-    case 'video_editor': return 'V';
-    case 'copy': return 'C';
-    case 'client_strategy_map': return 'S';
+    case 'boutique_decor': return '🎈';
+    case 'marquee_letters': return '💡';
+    case 'private_clients': return '🎉';
+    case 'owner_dashboard': return '👑';
+    case 'va_workspace': return '📋';
+    case 'general_tasks': return '✅';
     default: return 'B';
   }
 }
@@ -47,7 +43,7 @@ export default function BoardSwitcher({ currentBoardId, onClose }: BoardSwitcher
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
-  const [newType, setNewType] = useState<BoardType>('dev');
+  const [newType, setNewType] = useState<BoardType>('boutique_decor');
   const [creating, setCreating] = useState(false);
   const router = useRouter();
   const panelRef = useRef<HTMLDivElement>(null);

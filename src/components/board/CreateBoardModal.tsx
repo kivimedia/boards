@@ -17,7 +17,7 @@ interface CreateBoardModalProps {
 
 export default function CreateBoardModal({ isOpen, onClose }: CreateBoardModalProps) {
   const [name, setName] = useState('');
-  const [type, setType] = useState<BoardType>('dev');
+  const [type, setType] = useState<BoardType>('boutique_decor');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
@@ -103,7 +103,7 @@ export default function CreateBoardModal({ isOpen, onClose }: CreateBoardModalPr
     }
 
     setName('');
-    setType('dev');
+    setType('boutique_decor');
     setLoading(false);
     onClose();
     router.push(`/board/${board.id}`);

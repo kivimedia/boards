@@ -1,12 +1,10 @@
 export type BoardType =
-  | 'dev'
-  | 'training'
-  | 'account_manager'
-  | 'graphic_designer'
-  | 'executive_assistant'
-  | 'video_editor'
-  | 'copy'
-  | 'client_strategy_map';
+  | 'boutique_decor'
+  | 'marquee_letters'
+  | 'private_clients'
+  | 'owner_dashboard'
+  | 'va_workspace'
+  | 'general_tasks';
 
 export type AutomationTriggerType =
   | 'card_moved'
@@ -81,7 +79,10 @@ export type CardPriority = 'urgent' | 'high' | 'medium' | 'low' | 'none';
 
 export type UserRole = 'admin' | 'department_lead' | 'member' | 'guest' | 'client' | 'observer';
 
-export type AgencyRole = 'agency_owner' | 'dev' | 'designer' | 'account_manager' | 'executive_assistant' | 'video_editor';
+export type BusinessRole = 'owner' | 'va';
+
+/** @deprecated Use BusinessRole instead */
+export type AgencyRole = BusinessRole;
 
 export type AccountStatus = 'pending' | 'active' | 'suspended';
 
@@ -113,7 +114,7 @@ export interface Profile {
   display_name: string;
   avatar_url: string | null;
   role: string;
-  agency_role?: AgencyRole | null;
+  business_role?: BusinessRole | null;
   account_status?: AccountStatus;
   user_role?: UserRole;
   email?: string;
@@ -163,6 +164,7 @@ export interface Card {
   client_status: ClientCardStatus | null;
   client_ticket_type: ClientTicketType | null;
   approval_status: ApprovalStatus | null;
+  is_separator: boolean;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -443,7 +445,11 @@ export type NotificationType =
   | 'approval_needed'
   | 'onboarding_started'
   | 'automation_triggered'
-  | 'card_watched';
+  | 'card_watched'
+  | 'proposal_ready'
+  | 'follow_up_due'
+  | 'lead_received'
+  | 'payment_reminder';
 
 export interface Notification {
   id: string;
@@ -583,218 +589,7 @@ export interface MigrationEntityMap {
   created_at: string;
 }
 
-// ============================================================================
-// Podcast Guest Acquisition (PGA)
-// ============================================================================
 
-export type PGACandidateStatus = 'scouted' | 'approved' | 'outreach_active' | 'replied' | 'scheduled' | 'interviewed' | 'rejected';
-export type PGAConfidence = 'high' | 'medium' | 'low';
-export type PGAAgentType = 'scout' | 'outreach';
-export type PGARunStatus = 'running' | 'completed' | 'failed' | 'awaiting_input';
-export type PGASequenceStatus = 'draft' | 'active' | 'paused' | 'completed' | 'stopped';
-export type PGAService = 'instantly' | 'hunter' | 'snov' | 'calendly' | 'scout_config' | 'trello';
-
-export type PGAQualityTier = 'hot' | 'warm' | 'cold';
-export type PGAOutreachSendStatus = 'draft' | 'approved' | 'sent' | 'bounced' | 'replied' | 'unsubscribed';
-export type PGAResponseType = 'interested' | 'maybe_later' | 'declined' | 'question';
-
-export interface PGACandidate {
-  id: string;
-  name: string;
-  one_liner: string | null;
-  email: string | null;
-  email_verified: boolean;
-  location: string | null;
-  platform_presence: Record<string, string>;
-  evidence_of_paid_work: Array<{ project: string; description: string; url?: string }>;
-  estimated_reach: Record<string, number>;
-  tools_used: string[];
-  contact_method: string;
-  scout_confidence: PGAConfidence | null;
-  source: Record<string, string>;
-  status: PGACandidateStatus;
-  rejection_reason: string | null;
-  reviewed_by: string | null;
-  reviewed_at: string | null;
-  notes: string | null;
-  quality_score: number;
-  tier: PGAQualityTier;
-  next_followup_date: string | null;
-  last_contacted_at: string | null;
-  touch_count: number;
-  unsubscribed: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface PGAResearchDossier {
-  id: string;
-  candidate_id: string;
-  run_id: string | null;
-  personalization_elements: Array<{
-    fact: string;
-    source_url: string;
-    source_type: string;
-    screenshot_or_quote: string;
-    date_found: string;
-    confidence: PGAConfidence;
-    verification_status: 'verified' | 'unverified' | 'stale' | 'risky';
-  }>;
-  tone_profile: {
-    communication_style: string;
-    favorite_topics: string[];
-    pet_peeves: string[];
-    humor_level: string;
-    formality: string;
-    preferred_platforms: string[];
-  };
-  story_angle: string | null;
-  potential_hooks: string[];
-  red_flags: string[];
-  validation_summary: Record<string, unknown>;
-  sources_checked: number;
-  sources_found: number;
-  research_duration_ms: number;
-  tokens_used: number;
-  cost_usd: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface PGAOutreachRun {
-  id: string;
-  candidate_id: string;
-  dossier_id: string | null;
-  run_id: string | null;
-  touch_number: number;
-  subject: string | null;
-  body: string | null;
-  generation_prompt: string | null;
-  copy_validation: Record<string, unknown>;
-  send_status: PGAOutreachSendStatus;
-  sent_at: string | null;
-  resend_id: string | null;
-  response_type: PGAResponseType | null;
-  response_at: string | null;
-  tokens_used: number;
-  cost_usd: number;
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface PGAScoutCost {
-  id: string;
-  run_id: string | null;
-  service: 'hunter' | 'snov' | 'anthropic' | 'resend';
-  operation: string;
-  credits_used: number;
-  cost_usd: number;
-  api_calls: number;
-  candidate_name: string | null;
-  candidate_id: string | null;
-  created_at: string;
-}
-
-export interface PGAEmailSequence {
-  id: string;
-  candidate_id: string;
-  instantly_campaign_id: string | null;
-  status: PGASequenceStatus;
-  emails: Array<{
-    step: number;
-    day: number;
-    subject: string;
-    body: string;
-    sent_at: string | null;
-    opened_at: string | null;
-    clicked_at: string | null;
-  }>;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface PGAAgentRun {
-  id: string;
-  agent_type: PGAAgentType;
-  status: PGARunStatus;
-  current_step: number;
-  started_at: string;
-  ended_at: string | null;
-  started_by: string | null;
-  candidates_found: number;
-  emails_created: number;
-  tokens_used: number;
-  output_json: Record<string, unknown>;
-  error_message: string | null;
-}
-
-// ============================================================================
-// Scout Pipeline Types (LinkedIn-first 4-step wizard)
-// ============================================================================
-
-/** Step 1 output: LinkedIn profile found via web search */
-export interface LinkedInSuggestion {
-  index: number;
-  name: string;
-  title: string;
-  location: string;
-  linkedin_url: string;
-  summary: string;
-  source_query: string;
-}
-
-/** Step 2 output: Snov.io enrichment + email discovery result */
-export interface EnrichedProfile {
-  index: number;
-  name: string;
-  title: string;
-  location: string;
-  company: string;
-  domain: string;
-  industry: string;
-  linkedin_url: string;
-  email: string | null;
-  email_source: 'hunter' | 'snov' | 'none';
-  email_confidence: number;
-  email_verified: boolean;
-}
-
-/** Step 3 output: Full candidate profile after AI deep research */
-export interface FullCandidateProfile {
-  index: number;
-  name: string;
-  one_liner: string;
-  email: string | null;
-  email_verified: boolean;
-  location: string;
-  platform_presence: Record<string, string>;
-  evidence_of_paid_work: Array<{ project: string; description: string; url?: string }>;
-  estimated_reach: Record<string, number>;
-  tools_used: string[];
-  contact_method: string;
-  scout_confidence: PGAConfidence;
-  source: Record<string, string>;
-}
-
-/** Saved scout agent configuration */
-export interface ScoutConfig {
-  default_query: string;
-  default_location: string;
-  custom_location: string;
-  tool_focus: string;
-  max_results: number;
-}
-
-export interface PGAIntegrationConfig {
-  id: string;
-  service: PGAService;
-  api_key_encrypted: string | null;
-  config: Record<string, unknown>;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
 
 // Trello API types (for migration)
 export interface TrelloBoard {
@@ -909,22 +704,16 @@ export interface Backup {
 export type AIProvider = 'anthropic' | 'openai' | 'google' | 'browserless' | 'replicate';
 
 export type AIActivity =
-  | 'design_review'
-  | 'dev_qa'
   | 'chatbot_ticket'
   | 'chatbot_board'
   | 'chatbot_global'
-  | 'client_brain'
-  | 'nano_banana_edit'
-  | 'nano_banana_generate'
   | 'email_draft'
-  | 'video_generation'
   | 'brief_assist'
-  | 'agent_execution'
-  | 'agent_standalone_execution'
-  | 'web_research'
-  | 'replicate_generate'
-  | 'image_prompt_enhance';
+  | 'image_prompt_enhance'
+  | 'proposal_generation'
+  | 'lead_triage'
+  | 'follow_up_draft'
+  | 'friendor_email';
 
 export type AIUsageStatus = 'success' | 'error' | 'budget_blocked' | 'rate_limited';
 
@@ -1004,203 +793,6 @@ export interface AIBudgetStatus {
   is_alert_triggered: boolean;
 }
 
-// P2.2: AI Dev QA
-
-export type QAStatus = 'pending' | 'running' | 'passed' | 'failed' | 'error';
-export type QAFindingSeverity = 'critical' | 'major' | 'minor' | 'info';
-
-export interface QAChecklistItem {
-  category: string;
-  text: string;
-}
-
-export interface QAChecklistTemplate {
-  id: string;
-  name: string;
-  description: string | null;
-  items: QAChecklistItem[];
-  is_default: boolean;
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface QAScreenshot {
-  viewport: string;
-  width: number;
-  height: number;
-  storage_path: string;
-}
-
-export interface QAFinding {
-  severity: QAFindingSeverity;
-  category: string;
-  description: string;
-  location: string;
-}
-
-export interface QAChecklistResult {
-  index: number;
-  passed: boolean;
-  notes: string;
-}
-
-export interface QAConsoleError {
-  type: string;
-  text: string;
-  url: string;
-  line: number;
-}
-
-export interface QAPerformanceMetrics {
-  load_time_ms: number;
-  first_paint_ms: number;
-  dom_content_loaded_ms: number;
-}
-
-export interface QAFindingsCount {
-  critical: number;
-  major: number;
-  minor: number;
-  info: number;
-}
-
-export interface AIQAResult {
-  id: string;
-  card_id: string;
-  url: string;
-  screenshots: QAScreenshot[];
-  results: {
-    findings: QAFinding[];
-    checklist_results: QAChecklistResult[];
-    overall_score: number;
-    summary: string;
-  };
-  console_errors: QAConsoleError[];
-  performance_metrics: QAPerformanceMetrics;
-  checklist_template_id: string | null;
-  checklist_results: QAChecklistResult[];
-  overall_score: number;
-  overall_status: QAStatus;
-  findings_count: QAFindingsCount;
-  model_used: string | null;
-  usage_log_id: string | null;
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-// P9.4: QA Monitoring
-
-export type QAMonitoringFrequency = '12h' | '24h' | '48h' | '7d';
-
-export interface QAMonitoringConfig {
-  id: string;
-  card_id: string | null;
-  board_id: string;
-  url: string;
-  frequency: QAMonitoringFrequency;
-  browsers: string[];
-  alert_threshold: number;
-  is_active: boolean;
-  last_run_at: string | null;
-  last_scores: Record<string, number>;
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface QALinkCheck {
-  id: string;
-  qa_result_id: string;
-  url: string;
-  status_code: number | null;
-  response_time_ms: number | null;
-  link_type: 'internal' | 'external' | 'anchor' | 'mailto' | 'tel';
-  is_broken: boolean;
-  error_message: string | null;
-  created_at: string;
-}
-
-export interface WCAGCriterion {
-  id: string;
-  name: string;
-  level: 'A' | 'AA' | 'AAA';
-  principle: 'perceivable' | 'operable' | 'understandable' | 'robust';
-  passed: boolean;
-  violations: number;
-  description: string;
-}
-
-export interface WCAGReport {
-  compliancePercentage: number;
-  principles: {
-    perceivable: { passed: number; failed: number; total: number };
-    operable: { passed: number; failed: number; total: number };
-    understandable: { passed: number; failed: number; total: number };
-    robust: { passed: number; failed: number; total: number };
-  };
-  criteria: WCAGCriterion[];
-  totalViolations: number;
-}
-
-export interface MultiBrowserResult {
-  browser: string;
-  screenshots: QAScreenshot[];
-  lighthouseScores: Record<string, number> | null;
-  differences: BrowserDifference[];
-}
-
-export interface BrowserDifference {
-  viewport: string;
-  diffPercentage: number;
-  diffImagePath: string | null;
-  description: string;
-}
-
-// P2.1: AI Design Review
-
-export type AIReviewVerdict = 'pending' | 'approved' | 'revisions_needed' | 'overridden_approved' | 'overridden_rejected';
-export type AIChangeVerdict = 'PASS' | 'FAIL' | 'PARTIAL';
-
-export interface AIChangeRequest {
-  index: number;
-  text: string;
-}
-
-export interface AIChangeVerdictResult {
-  index: number;
-  verdict: AIChangeVerdict;
-  reasoning: string;
-  suggestions: string;
-}
-
-export interface AIReviewResult {
-  id: string;
-  card_id: string;
-  attachment_id: string | null;
-  previous_attachment_id: string | null;
-  change_requests: AIChangeRequest[];
-  verdicts: AIChangeVerdictResult[];
-  overall_verdict: AIReviewVerdict;
-  summary: string | null;
-  confidence_score: number | null;
-  model_used: string | null;
-  usage_log_id: string | null;
-  override_verdict: string | null;
-  override_reason: string | null;
-  overridden_by: string | null;
-  overridden_at: string | null;
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
-  // Video review fields (P9.3)
-  review_type?: 'image' | 'video';
-  frame_count?: number | null;
-  frame_verdicts?: unknown[] | null;
-  thumbnail_suggestion?: string | null;
-  video_duration_seconds?: number | null;
-}
 
 // ============================================================================
 // AI CHATBOT TYPES
@@ -1664,44 +1256,6 @@ export interface RecurringCard {
   updated_at: string;
 }
 
-// ============================================================================
-// AI VIDEO GENERATION TYPES (P3.3)
-// ============================================================================
-
-export type VideoProvider = 'sora' | 'veo';
-export type VideoMode = 'text_to_video' | 'image_to_video' | 'start_end_frame';
-export type VideoGenerationStatus = 'pending' | 'processing' | 'completed' | 'failed';
-
-export interface VideoGenerationSettings {
-  duration?: number;
-  aspect_ratio?: string;
-  resolution?: string;
-  fps?: number;
-  style?: string;
-}
-
-export interface AIVideoGeneration {
-  id: string;
-  card_id: string;
-  user_id: string;
-  provider: VideoProvider;
-  mode: VideoMode;
-  prompt: string;
-  negative_prompt: string | null;
-  settings: VideoGenerationSettings;
-  source_image_url: string | null;
-  end_image_url: string | null;
-  status: VideoGenerationStatus;
-  output_urls: string[];
-  thumbnail_url: string | null;
-  storage_path: string | null;
-  error_message: string | null;
-  generation_time_ms: number | null;
-  estimated_cost: number | null;
-  metadata: Record<string, unknown>;
-  created_at: string;
-  updated_at: string;
-}
 
 // ============================================================================
 // AI COST PROFILING TYPES (P3.4)
@@ -1760,77 +1314,6 @@ export interface AICostSummary {
   trend: { date: string; cost: number }[];
 }
 
-// ============================================================================
-// INTEGRATION TYPES (P3.5)
-// ============================================================================
-
-export type IntegrationProvider = 'slack' | 'github' | 'figma';
-
-export interface Integration {
-  id: string;
-  provider: IntegrationProvider;
-  name: string;
-  workspace_id: string | null;
-  metadata: Record<string, unknown>;
-  is_active: boolean;
-  connected_by: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface SlackBoardMapping {
-  id: string;
-  integration_id: string;
-  board_id: string;
-  channel_id: string;
-  channel_name: string;
-  notify_card_created: boolean;
-  notify_card_moved: boolean;
-  notify_card_completed: boolean;
-  notify_comments: boolean;
-  created_at: string;
-}
-
-export interface GitHubCardLink {
-  id: string;
-  integration_id: string;
-  card_id: string;
-  repo_owner: string;
-  repo_name: string;
-  link_type: 'issue' | 'pull_request' | 'branch';
-  github_id: number | null;
-  github_url: string;
-  state: string | null;
-  title: string | null;
-  last_synced_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface FigmaCardEmbed {
-  id: string;
-  integration_id: string;
-  card_id: string;
-  figma_file_key: string;
-  figma_node_id: string | null;
-  figma_url: string;
-  embed_type: 'file' | 'frame' | 'component' | 'prototype';
-  title: string | null;
-  thumbnail_url: string | null;
-  last_synced_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface IntegrationWebhookEvent {
-  id: string;
-  provider: string;
-  event_type: string;
-  payload: Record<string, unknown>;
-  processed: boolean;
-  error_message: string | null;
-  created_at: string;
-}
 
 // ============================================================================
 // ANALYTICS / WHITE-LABEL / GANTT TYPES (P3.6)
@@ -1895,95 +1378,6 @@ export interface GanttTask {
   priority: string | null;
 }
 
-// ============================================================================
-// WHATSAPP INTEGRATION TYPES (P4.0-4.1)
-// ============================================================================
-
-export interface WhatsAppUser {
-  id: string;
-  user_id: string;
-  phone_number: string;
-  phone_verified: boolean;
-  verification_code: string | null;
-  verification_expires_at: string | null;
-  display_name: string | null;
-  is_active: boolean;
-  dnd_start: string | null;
-  dnd_end: string | null;
-  opt_out: boolean;
-  frequency_cap_per_hour: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface WhatsAppGroup {
-  id: string;
-  board_id: string | null;
-  department: string | null;
-  group_name: string;
-  whatsapp_group_id: string | null;
-  is_active: boolean;
-  member_count: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export type WhatsAppMessageDirection = 'outbound' | 'inbound';
-export type WhatsAppMessageType = 'notification' | 'quick_action' | 'digest' | 'verification' | 'reply';
-export type WhatsAppMessageStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
-
-export interface WhatsAppMessage {
-  id: string;
-  whatsapp_user_id: string | null;
-  group_id: string | null;
-  direction: WhatsAppMessageDirection;
-  message_type: WhatsAppMessageType;
-  content: string;
-  whatsapp_message_id: string | null;
-  card_id: string | null;
-  board_id: string | null;
-  status: WhatsAppMessageStatus;
-  error_message: string | null;
-  metadata: Record<string, unknown>;
-  created_at: string;
-}
-
-export type QuickActionType = 'mark_done' | 'approve' | 'reject' | 'assign' | 'comment' | 'snooze';
-
-export interface WhatsAppQuickAction {
-  id: string;
-  keyword: string;
-  action_type: QuickActionType;
-  action_config: Record<string, unknown>;
-  description: string | null;
-  is_active: boolean;
-  created_at: string;
-}
-
-export interface WhatsAppDigestConfig {
-  id: string;
-  user_id: string;
-  is_enabled: boolean;
-  send_time: string;
-  include_overdue: boolean;
-  include_assigned: boolean;
-  include_mentions: boolean;
-  include_board_summary: boolean;
-  board_ids: string[];
-  created_at: string;
-  updated_at: string;
-}
-
-export interface WhatsAppNotificationLog {
-  id: string;
-  notification_id: string | null;
-  whatsapp_user_id: string;
-  message_id: string | null;
-  event_type: string;
-  throttled: boolean;
-  throttle_reason: string | null;
-  created_at: string;
-}
 
 // ============================================================================
 // PRODUCTIVITY ANALYTICS TYPES (P4.2)
@@ -2074,51 +1468,6 @@ export interface DepartmentRollup {
   previousMetrics?: ProductivityMetrics;
 }
 
-// ============================================================================
-// REVISION ANALYSIS TYPES (P4.3)
-// ============================================================================
-
-export interface RevisionMetrics {
-  id: string;
-  card_id: string;
-  board_id: string;
-  ping_pong_count: number;
-  total_revision_time_minutes: number;
-  first_revision_at: string | null;
-  last_revision_at: string | null;
-  is_outlier: boolean;
-  outlier_reason: string | null;
-  avg_board_ping_pong: number | null;
-  computed_at: string;
-}
-
-export type RevisionExportFormat = 'pdf' | 'csv' | 'json';
-export type RevisionExportStatus = 'pending' | 'generating' | 'completed' | 'failed';
-
-export interface RevisionReportExport {
-  id: string;
-  board_id: string | null;
-  department: string | null;
-  date_range_start: string;
-  date_range_end: string;
-  format: RevisionExportFormat;
-  storage_path: string | null;
-  file_size_bytes: number | null;
-  generated_by: string | null;
-  status: RevisionExportStatus;
-  error_message: string | null;
-  metadata: Record<string, unknown>;
-  created_at: string;
-}
-
-export interface RevisionAnalysis {
-  boardId: string;
-  avgPingPongCount: number;
-  outlierThreshold: number;
-  totalCards: number;
-  outlierCount: number;
-  cards: RevisionMetrics[];
-}
 
 // ============================================================================
 // CARD WATCHERS & REACTIONS (P6 v5.2.0)
@@ -2217,151 +1566,7 @@ export interface BoardWithLists extends Board {
   custom_field_definitions?: CustomFieldDefinition[];
 }
 
-// ============================================================================
-// P5.0: Public API & Webhooks
-// ============================================================================
 
-export type ApiKeyPermission =
-  | 'boards:read'
-  | 'boards:write'
-  | 'cards:read'
-  | 'cards:write'
-  | 'comments:read'
-  | 'comments:write'
-  | 'labels:read'
-  | 'labels:write'
-  | 'webhooks:manage'
-  | 'users:read';
-
-export interface ApiKey {
-  id: string;
-  name: string;
-  key_hash: string;
-  key_prefix: string;
-  user_id: string;
-  permissions: ApiKeyPermission[];
-  rate_limit_per_minute: number;
-  rate_limit_per_day: number;
-  is_active: boolean;
-  last_used_at: string | null;
-  expires_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ApiUsageLogEntry {
-  id: string;
-  api_key_id: string;
-  endpoint: string;
-  method: string;
-  status_code: number;
-  response_time_ms: number | null;
-  ip_address: string | null;
-  user_agent: string | null;
-  created_at: string;
-}
-
-export type WebhookEvent =
-  | 'card.created'
-  | 'card.updated'
-  | 'card.moved'
-  | 'card.deleted'
-  | 'comment.added'
-  | 'comment.deleted'
-  | 'label.added'
-  | 'label.removed'
-  | 'board.created'
-  | 'board.updated'
-  | 'member.added'
-  | 'member.removed';
-
-export interface Webhook {
-  id: string;
-  user_id: string;
-  url: string;
-  secret: string;
-  events: WebhookEvent[];
-  is_active: boolean;
-  description: string | null;
-  failure_count: number;
-  last_triggered_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface WebhookDelivery {
-  id: string;
-  webhook_id: string;
-  event_type: string;
-  payload: Record<string, unknown>;
-  response_status: number | null;
-  response_body: string | null;
-  response_time_ms: number | null;
-  attempt_number: number;
-  success: boolean;
-  error_message: string | null;
-  delivered_at: string;
-}
-
-export interface RateLimitInfo {
-  limit: number;
-  remaining: number;
-  reset_at: string;
-}
-
-// ============================================================================
-// P5.1-5.2: Enterprise SSO, IP Whitelist, Advanced Audit
-// ============================================================================
-
-export type SSOProviderType = 'saml' | 'oidc';
-
-export interface SSOConfig {
-  id: string;
-  provider_type: SSOProviderType;
-  name: string;
-  issuer_url: string | null;
-  metadata_url: string | null;
-  client_id: string | null;
-  client_secret_encrypted: string | null;
-  certificate: string | null;
-  attribute_mapping: Record<string, string>;
-  is_active: boolean;
-  auto_provision_users: boolean;
-  default_role: string;
-  allowed_domains: string[];
-  created_at: string;
-  updated_at: string;
-}
-
-export interface IPWhitelistEntry {
-  id: string;
-  cidr: string;
-  description: string | null;
-  is_active: boolean;
-  created_by: string | null;
-  created_at: string;
-}
-
-export interface AuditLogEntry {
-  id: string;
-  user_id: string | null;
-  action: string;
-  resource_type: string;
-  resource_id: string | null;
-  old_values: Record<string, unknown> | null;
-  new_values: Record<string, unknown> | null;
-  ip_address: string | null;
-  user_agent: string | null;
-  metadata: Record<string, unknown>;
-  created_at: string;
-}
-
-export interface AIReviewConfidence {
-  confidence_score: number | null;
-  accuracy_verified: boolean | null;
-  accuracy_verified_by: string | null;
-  accuracy_verified_at: string | null;
-}
 
 // ============================================================================
 // P5.3: Performance Optimization
@@ -2387,307 +1592,7 @@ export interface PerformanceBaseline {
   measured_at: string;
 }
 
-// ============================================================================
-// P5.4: WhatsApp Advanced + Productivity Polish
-// ============================================================================
 
-export interface WhatsAppCustomAction {
-  id: string;
-  user_id: string;
-  keyword: string;
-  label: string;
-  action_type: string;
-  action_config: Record<string, unknown>;
-  response_template: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface WhatsAppDigestTemplate {
-  id: string;
-  user_id: string;
-  name: string;
-  sections: DigestSection[];
-  is_default: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface DigestSection {
-  type: 'overdue' | 'assigned' | 'mentions' | 'board_summary' | 'custom';
-  title: string;
-  enabled: boolean;
-  config?: Record<string, unknown>;
-}
-
-// P9.2: WhatsApp Business API
-
-export interface WhatsAppConfig {
-  id: string;
-  phone_number_id: string;
-  access_token: string;
-  webhook_verify_token: string;
-  business_account_id: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export type WhatsAppMediaType = 'image' | 'video' | 'document' | 'audio';
-
-export interface WhatsAppWebhookMessage {
-  from: string;
-  id: string;
-  timestamp: string;
-  type: 'text' | 'image' | 'video' | 'document' | 'audio' | 'interactive' | 'button' | 'reaction';
-  text?: { body: string };
-  image?: { id: string; mime_type: string; caption?: string };
-  video?: { id: string; mime_type: string; caption?: string };
-  document?: { id: string; mime_type: string; filename?: string; caption?: string };
-  interactive?: { type: string; button_reply?: { id: string; title: string }; list_reply?: { id: string; title: string } };
-}
-
-export interface WhatsAppStatusUpdate {
-  id: string;
-  status: 'sent' | 'delivered' | 'read' | 'failed';
-  timestamp: string;
-  recipient_id: string;
-  errors?: Array<{ code: number; title: string }>;
-}
-
-export type ProductivityReportType = 'individual' | 'team' | 'department' | 'executive';
-export type ProductivityReportFormat = 'pdf' | 'csv' | 'xlsx';
-export type ProductivityReportFileStatus = 'pending' | 'generating' | 'completed' | 'failed';
-
-export interface ProductivityReportConfig {
-  id: string;
-  name: string;
-  report_type: ProductivityReportType;
-  schedule: string | null;
-  recipients: string[];
-  include_sections: string[];
-  filters: Record<string, unknown>;
-  format: ProductivityReportFormat;
-  is_active: boolean;
-  last_generated_at: string | null;
-  created_by: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ProductivityReportFile {
-  id: string;
-  config_id: string | null;
-  report_type: string;
-  format: string;
-  storage_path: string | null;
-  file_size_bytes: number | null;
-  date_range_start: string;
-  date_range_end: string;
-  generated_by: string;
-  status: ProductivityReportFileStatus;
-  error_message: string | null;
-  created_at: string;
-}
-
-// ============================================================================
-// AGENT SKILLS SYSTEM (Migration 039)
-// ============================================================================
-
-export type AgentSkillCategory = 'content' | 'creative' | 'strategy' | 'seo' | 'meta';
-export type AgentSkillPack = 'skills' | 'creative' | 'custom';
-export type AgentQualityTier = 'genuinely_smart' | 'solid' | 'has_potential' | 'placeholder' | 'tool_dependent';
-export type AgentTriggerType = 'manual' | 'automation_rule' | 'card_event' | 'schedule' | 'chained';
-export type AgentExecutionStatus = 'running' | 'success' | 'failed' | 'cancelled' | 'pending_confirmation';
-export type AgentToolCallStatus = 'pending' | 'success' | 'failed' | 'pending_confirmation' | 'confirmed' | 'rejected';
-export type CardAgentTaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
-export type SkillImprovementType = 'prompt_update' | 'quality_review' | 'reference_added' | 'bug_fix' | 'feature_add' | 'rewrite';
-
-export interface AgentSkill {
-  id: string;
-  slug: string;
-  name: string;
-  description: string;
-  category: AgentSkillCategory;
-  pack: AgentSkillPack;
-  system_prompt: string;
-
-  // Quality dashboard
-  quality_tier: AgentQualityTier;
-  quality_score: number;
-  quality_notes: string | null;
-  strengths: string[];
-  weaknesses: string[];
-  improvement_suggestions: string[];
-  last_quality_review_at: string | null;
-
-  // Capabilities
-  supported_tools: string[];
-  required_context: string[];
-  output_format: string;
-  estimated_tokens: number;
-
-  // Dependency graph
-  depends_on: string[];
-  feeds_into: string[];
-
-  // External tool dependencies
-  requires_mcp_tools: string[];
-  fallback_behavior: string | null;
-
-  // Reference material
-  reference_docs: { name: string; content_summary: string; quality: string }[];
-
-  // Metadata
-  version: string;
-  is_active: boolean;
-  icon: string | null;
-  color: string | null;
-  sort_order: number;
-
-  created_at: string;
-  updated_at: string;
-}
-
-export interface BoardAgent {
-  id: string;
-  board_id: string;
-  skill_id: string;
-  custom_prompt_additions: string | null;
-  custom_tools: string[] | null;
-  model_preference: string | null;
-  is_active: boolean;
-  auto_trigger_on: string[];
-  max_iterations: number;
-  requires_confirmation: boolean;
-
-  // Stats
-  total_executions: number;
-  successful_executions: number;
-  total_tokens_used: number;
-  total_cost_usd: number;
-  avg_quality_rating: number | null;
-  last_executed_at: string | null;
-
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
-
-  // Joined
-  skill?: AgentSkill;
-}
-
-export interface AgentExecution {
-  id: string;
-  board_agent_id: string;
-  skill_id: string;
-  board_id: string | null;
-  card_id: string | null;
-  user_id: string;
-
-  trigger_type: AgentTriggerType;
-  trigger_data: Record<string, unknown>;
-  input_message: string;
-  input_context: Record<string, unknown>;
-  output_response: string | null;
-  output_artifacts: { type: string; content: string; filename?: string }[];
-
-  model_used: string | null;
-  iterations_used: number;
-  input_tokens: number;
-  output_tokens: number;
-  cost_usd: number;
-  duration_ms: number | null;
-
-  status: AgentExecutionStatus;
-  error_message: string | null;
-
-  quality_rating: number | null;
-  quality_feedback: string | null;
-  was_useful: boolean | null;
-
-  created_at: string;
-  completed_at: string | null;
-
-  // Joined
-  skill?: AgentSkill;
-  tool_calls?: AgentToolCall[];
-}
-
-export interface AgentToolCall {
-  id: string;
-  execution_id: string;
-  tool_name: string;
-  tool_input: Record<string, unknown>;
-  tool_result: Record<string, unknown> | null;
-  status: AgentToolCallStatus;
-  error_message: string | null;
-  confirmed_by: string | null;
-  confirmed_at: string | null;
-  call_order: number;
-  duration_ms: number | null;
-  created_at: string;
-}
-
-export interface CardAgentTask {
-  id: string;
-  card_id: string;
-  skill_id: string;
-  execution_id: string | null;
-  title: string;
-  input_prompt: string | null;
-  status: CardAgentTaskStatus;
-  output_preview: string | null;
-  output_full: string | null;
-  output_artifacts: { type: string; content: string; filename?: string }[];
-  quality_rating: number | null;
-  was_applied: boolean;
-  sort_order: number;
-  created_by: string | null;
-  created_at: string;
-  completed_at: string | null;
-
-  // Joined
-  skill?: AgentSkill;
-  execution?: AgentExecution;
-}
-
-export interface SkillImprovementLog {
-  id: string;
-  skill_id: string;
-  change_type: SkillImprovementType;
-  change_description: string;
-  quality_score_before: number | null;
-  quality_score_after: number | null;
-  quality_tier_before: string | null;
-  quality_tier_after: string | null;
-  changed_by: string | null;
-  created_at: string;
-}
-
-// Dashboard aggregation types
-export interface SkillQualityDashboard {
-  total_skills: number;
-  by_tier: Record<AgentQualityTier, number>;
-  by_category: Record<AgentSkillCategory, number>;
-  by_pack: Record<AgentSkillPack, number>;
-  avg_quality_score: number;
-  skills_needing_improvement: AgentSkill[];
-  recent_improvements: SkillImprovementLog[];
-  top_performers: (AgentSkill & { exec_count: number; avg_rating: number })[];
-}
-
-export interface AgentExecutionStats {
-  total_executions: number;
-  success_rate: number;
-  total_cost_usd: number;
-  total_tokens: number;
-  avg_duration_ms: number;
-  avg_quality_rating: number | null;
-  by_skill: { skill_id: string; skill_name: string; count: number; avg_rating: number | null }[];
-  by_day: { date: string; count: number; cost: number }[];
-}
 
 // ============================================================================
 // BOARD COMMAND MODE TYPES (P8.7)
@@ -2730,152 +1635,208 @@ export interface SavedCommand {
 }
 
 // ============================================================================
-// WEB RESEARCH AGENT TYPES (Migration 049)
+// CAROLINA BALLOONS HQ - BALLOON BUSINESS TYPES
 // ============================================================================
 
-export type WebResearchTaskType =
-  | 'url_import'
-  | 'competitor_research'
-  | 'link_health'
-  | 'content_extraction'
-  | 'social_proof'
-  | 'general';
-
-export type WebResearchStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
-
-export type WebResearchExtractedItemType =
-  | 'page_content'
-  | 'testimonial'
-  | 'pricing'
-  | 'feature'
-  | 'review'
-  | 'contact'
-  | 'link_status'
-  | 'social_proof';
-
-export interface WebResearchExtractedItem {
-  type: WebResearchExtractedItemType;
-  title: string;
-  content: string;
-  url?: string;
-  metadata?: Record<string, unknown>;
+// Lead & Inquiry fields added to cards via migration 055
+export interface BalloonCard extends Card {
+  event_date: string | null;
+  event_type: string | null;
+  venue_name: string | null;
+  venue_city: string | null;
+  estimated_value: number | null;
+  lead_source: string | null;
+  client_email: string | null;
+  client_phone: string | null;
+  follow_up_date: string | null;
+  didnt_book_reason: string | null;
+  didnt_book_sub_reason: string | null;
+  last_touched_at: string | null;
+  last_touched_by: string | null;
 }
 
-export interface WebResearchToolCall {
+// Venue tracking (migration 056)
+export interface Venue {
   id: string;
-  session_id: string;
-  tool_name: string;
-  tool_input: Record<string, unknown>;
-  tool_result: Record<string, unknown>;
-  status: 'pending' | 'running' | 'success' | 'failed';
-  error_message: string | null;
-  duration_ms: number | null;
-  call_order: number;
+  name: string;
+  address: string | null;
+  city: string | null;
+  state: string;
+  contact_name: string | null;
+  contact_email: string | null;
+  venue_type: string | null;
+  friendor_email_sent: boolean;
+  friendor_email_sent_at: string | null;
+  relationship_status: 'new' | 'contacted' | 'active_partner' | 'inactive';
+  source: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Pricing engine (migration 057)
+export interface PricingRule {
+  id: string;
+  name: string;
+  rule_type: 'minimum_charge' | 'mileage_surcharge' | 'location_premium' | 'product_price' | 'package_discount';
+  conditions: Record<string, unknown>;
+  value: number | null;
+  formula: string | null;
+  is_active: boolean;
+  priority: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProductCatalogItem {
+  id: string;
+  name: string;
+  category: 'arch' | 'bouquet' | 'wall' | 'banner' | 'garland' | 'centerpiece' | 'marquee_letter';
+  base_price: number | null;
+  size_variants: { size: string; price: number }[];
+  color_options: string[];
+  is_active: boolean;
+  frequency_count: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Proposal intelligence (migration 058)
+export interface ProposalLineItem {
+  product_name: string;
+  category: string;
+  quantity: number;
+  unit_price: number;
+  total: number;
+  notes?: string;
+}
+
+export interface ProposalPattern {
+  id: string;
+  name: string;
+  event_types: string[];
+  products: ProposalLineItem[];
+  typical_price_min: number | null;
+  typical_price_max: number | null;
+  match_keywords: string[];
+  confidence_threshold: number;
+  historical_acceptance_rate: number | null;
+  sample_proposal_ids: string[];
+  is_no_brainer: boolean;
+  created_from_count: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ProposalConfidenceTier = 'no_brainer' | 'suggested' | 'needs_human';
+export type ProposalDraftStatus = 'draft' | 'approved' | 'rejected' | 'sent' | 'modified';
+
+export interface ProposalDraft {
+  id: string;
+  card_id: string;
+  pattern_id: string | null;
+  confidence_tier: ProposalConfidenceTier;
+  line_items: ProposalLineItem[];
+  total_amount: number | null;
+  email_subject: string | null;
+  email_body: string | null;
+  status: ProposalDraftStatus;
+  approved_by: string | null;
+  approved_at: string | null;
+  modifications: Record<string, unknown> | null;
+  sent_via: 'gmail' | 'manual' | null;
+  sent_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Cross-board mirroring (migration 059)
+export type MirrorDirection = 'one_way' | 'bidirectional';
+
+export interface MirrorRule {
+  id: string;
+  source_board_id: string;
+  source_list_name: string;
+  target_board_id: string;
+  target_list_name: string;
+  direction: MirrorDirection;
+  condition_field: string | null;
+  condition_value: string | null;
+  remove_from_source: boolean;
+  is_active: boolean;
   created_at: string;
 }
 
-export interface WebResearchSession {
+// Google Workspace integration (migration 060)
+export interface GoogleIntegration {
   id: string;
-  board_id: string | null;
-  card_id: string | null;
   user_id: string;
-  task_type: WebResearchTaskType;
-  input_prompt: string;
-  input_urls: string[];
-  domain_allowlist: string[];
-  status: WebResearchStatus;
-  current_iteration: number;
-  max_iterations: number;
-  output_summary: string | null;
-  output_structured: Record<string, unknown>;
-  extracted_items: WebResearchExtractedItem[];
-  screenshots_taken: number;
-  pages_visited: number;
-  ai_tokens_used: number;
-  ai_cost_usd: number;
-  browser_seconds_used: number;
-  browser_cost_usd: number;
-  total_cost_usd: number;
-  duration_ms: number | null;
-  model_used: string | null;
-  tool_calls_count: number;
-  error_message: string | null;
+  access_token_encrypted: string;
+  refresh_token_encrypted: string;
+  token_expiry: string | null;
+  scopes: string[];
+  connected_email: string | null;
+  selected_calendars: string[];
+  is_active: boolean;
   created_at: string;
-  completed_at: string | null;
-  tool_calls?: WebResearchToolCall[];
+  updated_at: string;
 }
 
-// ============================================================================
-// ENHANCED AGENT FRAMEWORK TYPES (Migration 049)
-// ============================================================================
+// Didn't Book reasons
+export type DidntBookReason =
+  | 'too_expensive'
+  | 'went_with_competitor'
+  | 'event_cancelled'
+  | 'no_response'
+  | 'timing_issue'
+  | 'out_of_service_area'
+  | 'other';
 
-export type AgentToolCategory = 'read' | 'write' | 'internal' | 'external';
+export type DidntBookSubReason =
+  | 'budget_under_200'
+  | 'budget_200_500'
+  | 'wanted_discount'
+  | 'found_cheaper'
+  | 'preferred_style'
+  | 'ghosted_after_quote'
+  | 'ghosted_before_quote'
+  | 'too_last_minute'
+  | 'date_unavailable'
+  | 'other';
 
-export interface AgentToolDefinition {
-  name: string;
-  description: string;
-  input_schema: Record<string, unknown>;
-  category: AgentToolCategory;
-  needs_confirmation: boolean;
-}
+// Lead source tracking
+export type LeadSource =
+  | 'google_ads'
+  | 'organic_search'
+  | 'instagram'
+  | 'facebook'
+  | 'referral'
+  | 'repeat_client'
+  | 'venue_referral'
+  | 'word_of_mouth'
+  | 'website_form'
+  | 'phone'
+  | 'email'
+  | 'other';
 
-export type AgentSSEEventType =
-  | 'token'
-  | 'tool_call'
-  | 'tool_result'
-  | 'thinking'
-  | 'confirm'
-  | 'chain_step'
-  | 'complete'
-  | 'error';
+// Event type for balloon business
+export type BalloonEventType =
+  | 'birthday'
+  | 'baby_shower'
+  | 'bridal_shower'
+  | 'wedding'
+  | 'corporate'
+  | 'grand_opening'
+  | 'graduation'
+  | 'anniversary'
+  | 'holiday'
+  | 'school_event'
+  | 'church_event'
+  | 'gender_reveal'
+  | 'prom'
+  | 'nonprofit'
+  | 'other';
 
-export interface AgentToolCallEvent {
-  id: string;
-  name: string;
-  input: Record<string, unknown>;
-  status: 'pending' | 'running' | 'success' | 'failed' | 'pending_confirmation' | 'confirmed' | 'rejected';
-  result?: string;
-  error?: string;
-  duration_ms?: number;
-}
-
-export interface SkillChainStep {
-  skill_slug: string;
-  skill_name: string;
-  order: number;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
-  output_summary?: string;
-}
-
-export interface SkillChainPlan {
-  chain_id: string;
-  target_skill: string;
-  steps: SkillChainStep[];
-  total_steps: number;
-}
-
-export interface MultiTurnExecutionParams {
-  taskId?: string;
-  skillId: string;
-  boardAgentId?: string;
-  cardId?: string;
-  boardId?: string;
-  userId: string;
-  inputPrompt?: string;
-  maxIterations?: number;
-  enableTools?: boolean;
-  executionId?: string;
-  confirmedToolCallId?: string;
-  rejectedToolCallId?: string;
-}
-
-export interface MultiTurnExecutionCallbacks {
-  onToken: (text: string) => void;
-  onToolCall?: (name: string, input: Record<string, unknown>) => void;
-  onToolResult?: (name: string, result: string, success: boolean) => void;
-  onThinking?: (summary: string) => void;
-  onConfirmationNeeded?: (toolCallId: string, name: string, input: Record<string, unknown>, message: string) => void;
-  onChainStep?: (step: number, skillName: string, status: string) => void;
-  onComplete: (output: string) => void;
-  onError: (error: string) => void;
-}

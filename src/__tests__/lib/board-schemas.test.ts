@@ -3,14 +3,12 @@ import { BOARD_TYPE_CONFIG } from '@/lib/constants';
 import type { BoardType, CustomFieldType } from '@/lib/types';
 
 const ALL_BOARD_TYPES: BoardType[] = [
-  'dev',
-  'training',
-  'account_manager',
-  'graphic_designer',
-  'executive_assistant',
-  'video_editor',
-  'copy',
-  'client_strategy_map',
+  'boutique_decor',
+  'marquee_letters',
+  'private_clients',
+  'owner_dashboard',
+  'va_workspace',
+  'general_tasks',
 ];
 
 const VALID_FIELD_TYPES: CustomFieldType[] = [
@@ -24,9 +22,9 @@ const VALID_FIELD_TYPES: CustomFieldType[] = [
 
 describe('Board Schemas - BOARD_TYPE_CONFIG', () => {
   describe('completeness', () => {
-    it('has all 8 board types', () => {
+    it('has all 6 board types', () => {
       const types = Object.keys(BOARD_TYPE_CONFIG);
-      expect(types).toHaveLength(8);
+      expect(types).toHaveLength(6);
       for (const boardType of ALL_BOARD_TYPES) {
         expect(types).toContain(boardType);
       }
@@ -47,111 +45,75 @@ describe('Board Schemas - BOARD_TYPE_CONFIG', () => {
     });
   });
 
-  describe('graphic_designer board', () => {
-    const config = BOARD_TYPE_CONFIG.graphic_designer;
+  describe('boutique_decor board', () => {
+    const config = BOARD_TYPE_CONFIG.boutique_decor;
 
-    it('has 8 columns', () => {
-      expect(config.defaultLists).toHaveLength(8);
+    it('has 15 lists', () => {
+      expect(config.defaultLists).toHaveLength(15);
     });
 
-    it('starts with Briefed and ends with Delivered', () => {
-      expect(config.defaultLists[0]).toBe('Briefed');
-      expect(config.defaultLists[config.defaultLists.length - 1]).toBe('Delivered');
+    it('starts with Website Inquiry and ends with Template Cards', () => {
+      expect(config.defaultLists[0]).toBe('Website Inquiry');
+      expect(config.defaultLists[config.defaultLists.length - 1]).toBe('Template Cards');
     });
 
-    it('has Design Type dropdown field with is_required=true', () => {
-      const designTypeField = config.defaultCustomFields.find(
-        (f) => f.name === 'Design Type'
+    it('has Event Date field with is_required=true', () => {
+      const eventDateField = config.defaultCustomFields.find(
+        (f) => f.name === 'Event Date'
       );
-      expect(designTypeField).toBeDefined();
-      expect(designTypeField!.field_type).toBe('dropdown');
-      expect(designTypeField!.is_required).toBe(true);
+      expect(eventDateField).toBeDefined();
+      expect(eventDateField!.field_type).toBe('date');
+      expect(eventDateField!.is_required).toBe(true);
     });
   });
 
-  describe('dev board', () => {
-    const config = BOARD_TYPE_CONFIG.dev;
+  describe('marquee_letters board', () => {
+    const config = BOARD_TYPE_CONFIG.marquee_letters;
 
-    it('has 9 columns', () => {
-      expect(config.defaultLists).toHaveLength(9);
+    it('has 15 lists', () => {
+      expect(config.defaultLists).toHaveLength(15);
     });
 
-    it('starts with Backlog and ends with Deployed', () => {
-      expect(config.defaultLists[0]).toBe('Backlog');
-      expect(config.defaultLists[config.defaultLists.length - 1]).toBe('Deployed');
-    });
-
-    it('has Ticket Type dropdown field with is_required=true', () => {
-      const ticketTypeField = config.defaultCustomFields.find(
-        (f) => f.name === 'Ticket Type'
+    it('has Letter Configuration field', () => {
+      const letterField = config.defaultCustomFields.find(
+        (f) => f.name === 'Letter Configuration'
       );
-      expect(ticketTypeField).toBeDefined();
-      expect(ticketTypeField!.field_type).toBe('dropdown');
-      expect(ticketTypeField!.is_required).toBe(true);
+      expect(letterField).toBeDefined();
+      expect(letterField!.field_type).toBe('text');
+    });
+  });
+
+  describe('private_clients board', () => {
+    const config = BOARD_TYPE_CONFIG.private_clients;
+
+    it('has 17 lists', () => {
+      expect(config.defaultLists).toHaveLength(17);
     });
 
-    it('has Story Points number field', () => {
-      const storyPointsField = config.defaultCustomFields.find(
-        (f) => f.name === 'Story Points'
+    it('has Payment Status dropdown field', () => {
+      const paymentField = config.defaultCustomFields.find(
+        (f) => f.name === 'Payment Status'
       );
-      expect(storyPointsField).toBeDefined();
-      expect(storyPointsField!.field_type).toBe('number');
+      expect(paymentField).toBeDefined();
+      expect(paymentField!.field_type).toBe('dropdown');
     });
   });
 
-  describe('video_editor board', () => {
-    const config = BOARD_TYPE_CONFIG.video_editor;
-
-    it('has 8 columns', () => {
-      expect(config.defaultLists).toHaveLength(8);
-    });
-
-    it('has Revision Count number field', () => {
-      const revisionCountField = config.defaultCustomFields.find(
-        (f) => f.name === 'Revision Count'
-      );
-      expect(revisionCountField).toBeDefined();
-      expect(revisionCountField!.field_type).toBe('number');
+  describe('owner_dashboard board', () => {
+    it('has 15 lists', () => {
+      expect(BOARD_TYPE_CONFIG.owner_dashboard.defaultLists).toHaveLength(15);
     });
   });
 
-  describe('copy board', () => {
-    const config = BOARD_TYPE_CONFIG.copy;
-
-    it('has 8 columns', () => {
-      expect(config.defaultLists).toHaveLength(8);
-    });
-
-    it('has Content Type dropdown field', () => {
-      const contentTypeField = config.defaultCustomFields.find(
-        (f) => f.name === 'Content Type'
-      );
-      expect(contentTypeField).toBeDefined();
-      expect(contentTypeField!.field_type).toBe('dropdown');
+  describe('va_workspace board', () => {
+    it('has 21 lists', () => {
+      expect(BOARD_TYPE_CONFIG.va_workspace.defaultLists).toHaveLength(21);
     });
   });
 
-  describe('account_manager board', () => {
-    it('has 8 columns', () => {
-      expect(BOARD_TYPE_CONFIG.account_manager.defaultLists).toHaveLength(8);
-    });
-  });
-
-  describe('executive_assistant board', () => {
-    it('has 6 columns', () => {
-      expect(BOARD_TYPE_CONFIG.executive_assistant.defaultLists).toHaveLength(6);
-    });
-  });
-
-  describe('training board', () => {
-    it('has 6 columns', () => {
-      expect(BOARD_TYPE_CONFIG.training.defaultLists).toHaveLength(6);
-    });
-  });
-
-  describe('client_strategy_map board', () => {
-    it('has 5 columns', () => {
-      expect(BOARD_TYPE_CONFIG.client_strategy_map.defaultLists).toHaveLength(5);
+  describe('general_tasks board', () => {
+    it('has 4 lists', () => {
+      expect(BOARD_TYPE_CONFIG.general_tasks.defaultLists).toHaveLength(4);
     });
   });
 

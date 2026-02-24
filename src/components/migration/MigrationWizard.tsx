@@ -254,11 +254,11 @@ export default function MigrationWizard() {
       const boards = json.data as TrelloBoard[];
       setTrelloBoards(boards);
 
-      // Initialize board type mapping with 'dev' as default, then apply saved selections
+      // Initialize board type mapping with 'general_tasks' as default, then apply saved selections
       const mapping: Record<string, BoardType> = {};
       const preSelectedIds = new Set<string>();
       boards.forEach((b) => {
-        mapping[b.id] = 'dev';
+        mapping[b.id] = 'general_tasks';
       });
 
       // Apply saved board selections - match by board name (stable across sessions) or ID
@@ -522,7 +522,7 @@ export default function MigrationWizard() {
         return {
           board_name: board?.name || '',
           board_id: boardId,
-          board_type: boardTypeMapping[boardId] || 'dev',
+          board_type: boardTypeMapping[boardId] || 'general_tasks',
         };
       }).filter((s) => s.board_name);
 
@@ -562,7 +562,7 @@ export default function MigrationWizard() {
         return {
           board_name: board?.name || '',
           board_id: boardId,
-          board_type: boardTypeMapping[boardId] || 'dev',
+          board_type: boardTypeMapping[boardId] || 'general_tasks',
         };
       }).filter((s) => s.board_name);
 
@@ -988,7 +988,7 @@ export default function MigrationWizard() {
                       {/* Board type dropdown */}
                       {isSelected && (
                         <select
-                          value={boardTypeMapping[board.id] || 'dev'}
+                          value={boardTypeMapping[board.id] || 'general_tasks'}
                           onChange={(e) => {
                             e.stopPropagation();
                             updateBoardType(board.id, e.target.value as BoardType);
@@ -1402,7 +1402,7 @@ export default function MigrationWizard() {
                 <div className="space-y-2">
                   {Array.from(selectedBoardIds).map((id) => {
                     const board = trelloBoards.find((b) => b.id === id);
-                    const boardType = boardTypeMapping[id] || 'dev';
+                    const boardType = boardTypeMapping[id] || 'general_tasks';
                     const typeConfig = BOARD_TYPE_CONFIG[boardType];
                     const match = boardMatches[id];
                     const listsForBoard = trelloLists[id] || [];
