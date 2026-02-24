@@ -124,3 +124,17 @@
   color: #818cf8;
   background: rgba(99, 102, 241, 0.18);
 }
+
+/* Print styles for Weekly Gantt */
+@media print {
+  nav, aside, .print\\:hidden {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .print\\:overflow-visible {
+    overflow: visible !important;
+  }
+}

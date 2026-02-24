@@ -450,7 +450,11 @@ export type NotificationType =
   | 'pk_red_flag'
   | 'pk_overdue'
   | 'pk_sync_error'
-  | 'pk_reminder';
+  | 'weekly_task_reminder'
+  | 'pk_reminder'
+  | 'meeting_prep'
+  | 'client_update_pending'
+  | 'client_update_sent';
 
 export interface Notification {
   id: string;
@@ -1917,6 +1921,66 @@ export interface GanttTask {
 }
 
 // ============================================================================
+// CLIENT WEEKLY GANTT TYPES
+// ============================================================================
+
+export type WeeklyPlanStatus = 'draft' | 'active' | 'archived';
+export type WeeklyTaskPriority = 'low' | 'medium' | 'high';
+export type SnapshotReason = 'manual' | 'auto_weekly' | 'before_copy' | 'before_email';
+
+export interface WeeklyPlan {
+  id: string;
+  client_id: string;
+  week_start: string;
+  status: WeeklyPlanStatus;
+  created_from: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WeeklyTask {
+  id: string;
+  plan_id: string;
+  title: string;
+  description: string | null;
+  owner_id: string | null;
+  owner?: Profile;
+  day_start: number;
+  day_end: number;
+  completed: boolean;
+  completed_at: string | null;
+  sort_order: number;
+  priority: WeeklyTaskPriority;
+  reminder_at: string | null;
+  reminder_sent: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WeeklyPlanWithTasks extends WeeklyPlan {
+  tasks: WeeklyTask[];
+}
+
+export interface WeeklyPlanSnapshot {
+  id: string;
+  plan_id: string;
+  snapshot_data: WeeklyTask[];
+  snapshot_reason: SnapshotReason;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface WeeklyPlanEmailLog {
+  id: string;
+  plan_id: string;
+  sent_to: string[];
+  subject: string;
+  resend_message_id: string | null;
+  created_at: string;
+}
+
+// ============================================================================
 // WHATSAPP INTEGRATION TYPES (P4.0-4.1)
 // ============================================================================
 
@@ -2997,5 +3061,116 @@ export interface PKAMScorecard {
   client_updates_total: number;
   sanity_checks_done: number;
   sanity_checks_total: number;
+}
+
+// ============================================================================
+// Client Meetings & Weekly Updates (Migration 061)
+// ============================================================================
+
+export type UpdateTiming = '1_hour_before' | '1_day_before';
+export type UpdateSendMode = 'auto_send' | 'approve';
+export type WeeklyUpdateStatus = 'draft' | 'pending_approval' | 'approved' | 'scheduled' | 'sent' | 'failed' | 'cancelled';
+
+export interface GoogleCalendarConnection {
+  id: string;
+  user_id: string;
+  google_email: string;
+  calendar_id: string;
+  is_active: boolean;
+  last_sync_at: string | null;
+  sync_error: string | null;
+  connected_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CalendarEvent {
+  id: string;
+  google_event_id: string;
+  title: string;
+  description: string | null;
+  start_time: string;
+  end_time: string;
+  location: string | null;
+  attendees: { email: string; name?: string; responseStatus?: string }[];
+  recurrence_rule: string | null;
+  recurring_event_id: string | null;
+  is_recurring: boolean;
+  event_link: string | null;
+  fetched_at: string;
+}
+
+export interface ClientMeetingConfig {
+  id: string;
+  client_id: string;
+  calendar_event_keyword: string;
+  calendar_event_id: string | null;
+  update_timing: UpdateTiming;
+  send_mode: UpdateSendMode;
+  is_active: boolean;
+  send_to_contacts: string[];
+  last_matched_event_time: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ClientWeeklyUpdate {
+  id: string;
+  client_id: string;
+  config_id: string;
+  meeting_event_id: string | null;
+  meeting_time: string | null;
+  period_start: string;
+  period_end: string;
+  raw_activity: Record<string, unknown>[];
+  ai_summary: string | null;
+  ai_detailed_html: string | null;
+  ai_model_used: string | null;
+  ai_tokens_used: number;
+  status: WeeklyUpdateStatus;
+  scheduled_send_at: string | null;
+  sent_at: string | null;
+  resend_message_ids: string[];
+  sent_to_emails: string[];
+  error_message: string | null;
+  retry_count: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MeetingPrepSession {
+  id: string;
+  client_id: string;
+  calendar_event_id: string | null;
+  meeting_time: string;
+  meeting_title: string | null;
+  executive_summary: string | null;
+  tickets_snapshot: MeetingPrepTicket[];
+  last_update_id: string | null;
+  prep_shown_at: string | null;
+  meeting_started_at: string | null;
+  meeting_ended_at: string | null;
+  chat_messages: MeetingChatMessage[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MeetingPrepTicket {
+  card_id: string;
+  title: string;
+  list_name: string;
+  priority: string;
+  due_date: string | null;
+  status_label: string;
+  recent_comments: { author: string; content: string; date: string }[];
+}
+
+export interface MeetingChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+  user_id?: string;
 }
 
