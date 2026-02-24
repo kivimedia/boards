@@ -130,7 +130,7 @@ export default function HomeDashboard({ initialBoards }: { initialBoards: Board[
           {boards.map((board) => (
             <Link
               key={board.id}
-              href={`/boards/${board.id}`}
+              href={`/board/${board.id}`}
               className="group flex items-center gap-3 p-4 rounded-lg border dark:border-gray-700 bg-white dark:bg-gray-800/50 hover:border-pink-300 dark:hover:border-pink-600 transition-colors"
             >
               <div className={`w-10 h-10 rounded-lg ${BOARD_TYPE_COLORS[board.board_type] || 'bg-gray-400'} flex items-center justify-center text-lg`}>

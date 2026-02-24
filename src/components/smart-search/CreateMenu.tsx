@@ -45,7 +45,8 @@ export default function CreateMenu({ boardId, onCreateCard }: CreateMenuProps) {
         </svg>
       ),
       onClick: () => {
-        router.push('/boards/new');
+        // Fire a global event — DashboardContent listens and opens CreateBoardModal
+        window.dispatchEvent(new Event('open-create-board-modal'));
         setOpen(false);
       },
     },
