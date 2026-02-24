@@ -151,147 +151,84 @@ describe('Automation Engine', () => {
   });
 
   describe('getDefaultAutomationRules', () => {
-    describe('boutique_decor', () => {
-      it('returns 4 rules (proposal sent, invoice sent, paid in full, completion log)', () => {
-        const rules = getDefaultAutomationRules('boutique_decor');
-        expect(rules).toHaveLength(4);
-      });
-
-      it('includes proposal sent logging rule', () => {
-        const rules = getDefaultAutomationRules('boutique_decor');
-        const proposalRule = rules.find(
-          (r) => r.action_config.event_type === 'proposal_sent'
+    describe('graphic_designer', () => {
+      it('returns rules including revision counter increment', () => {
+        const rules = getDefaultAutomationRules('graphic_designer');
+        expect(rules.length).toBeGreaterThan(0);
+        const revisionRule = rules.find(
+          (r) =>
+            r.action_type === 'increment_field' &&
+            r.action_config.field_name === 'Revision Count'
         );
-        expect(proposalRule).toBeDefined();
-        expect(proposalRule!.trigger_type).toBe('card_moved');
-        expect(proposalRule!.action_type).toBe('create_activity_log');
-      });
-
-      it('includes invoice sent logging rule', () => {
-        const rules = getDefaultAutomationRules('boutique_decor');
-        const invoiceRule = rules.find(
-          (r) => r.action_config.event_type === 'invoice_sent'
-        );
-        expect(invoiceRule).toBeDefined();
-      });
-
-      it('includes payment received logging rule', () => {
-        const rules = getDefaultAutomationRules('boutique_decor');
-        const paymentRule = rules.find(
-          (r) => r.action_config.event_type === 'payment_received'
-        );
-        expect(paymentRule).toBeDefined();
-      });
-
-      it('includes booking completed logging rule', () => {
-        const rules = getDefaultAutomationRules('boutique_decor');
-        const completionRule = rules.find(
-          (r) => r.action_config.event_type === 'booking_completed'
-        );
-        expect(completionRule).toBeDefined();
+        expect(revisionRule).toBeDefined();
+        expect(revisionRule!.trigger_type).toBe('card_moved');
       });
     });
 
-    describe('marquee_letters', () => {
-      it('returns 4 rules (proposal sent, invoice sent, paid in full, completion log)', () => {
-        const rules = getDefaultAutomationRules('marquee_letters');
-        expect(rules).toHaveLength(4);
-      });
-
-      it('includes proposal sent logging rule', () => {
-        const rules = getDefaultAutomationRules('marquee_letters');
-        const proposalRule = rules.find(
-          (r) => r.action_config.event_type === 'proposal_sent'
+    describe('dev', () => {
+      it('returns rules including revision counter increment', () => {
+        const rules = getDefaultAutomationRules('dev');
+        expect(rules.length).toBeGreaterThan(0);
+        const revisionRule = rules.find(
+          (r) =>
+            r.action_type === 'increment_field' &&
+            r.action_config.field_name === 'Revision Count'
         );
-        expect(proposalRule).toBeDefined();
+        expect(revisionRule).toBeDefined();
       });
     });
 
-    describe('private_clients', () => {
-      it('returns 3 rules (invoice sent, paid, completion)', () => {
-        const rules = getDefaultAutomationRules('private_clients');
-        expect(rules).toHaveLength(3);
-      });
-
-      it('includes invoice sent logging rule', () => {
-        const rules = getDefaultAutomationRules('private_clients');
-        const invoiceRule = rules.find(
-          (r) => r.action_config.event_type === 'invoice_sent'
+    describe('video_editor', () => {
+      it('returns rules including revision counter increment', () => {
+        const rules = getDefaultAutomationRules('video_editor');
+        expect(rules.length).toBeGreaterThan(0);
+        const revisionRule = rules.find(
+          (r) =>
+            r.action_type === 'increment_field' &&
+            r.action_config.field_name === 'Revision Count'
         );
-        expect(invoiceRule).toBeDefined();
-      });
-
-      it('includes payment received logging rule', () => {
-        const rules = getDefaultAutomationRules('private_clients');
-        const paymentRule = rules.find(
-          (r) => r.action_config.event_type === 'payment_received'
-        );
-        expect(paymentRule).toBeDefined();
-      });
-
-      it('includes booking completed logging rule', () => {
-        const rules = getDefaultAutomationRules('private_clients');
-        const completionRule = rules.find(
-          (r) => r.action_config.event_type === 'booking_completed'
-        );
-        expect(completionRule).toBeDefined();
+        expect(revisionRule).toBeDefined();
       });
     });
 
-    describe('owner_dashboard', () => {
-      it('returns at least 1 rule', () => {
-        const rules = getDefaultAutomationRules('owner_dashboard');
-        expect(rules.length).toBeGreaterThanOrEqual(1);
+    describe('all board types return rules', () => {
+      it('account_manager returns rules', () => {
+        const rules = getDefaultAutomationRules('account_manager');
+        expect(rules.length).toBeGreaterThan(0);
       });
 
-      it('includes approved logging rule', () => {
-        const rules = getDefaultAutomationRules('owner_dashboard');
-        const approvedRule = rules.find(
-          (r) => r.action_config.event_type === 'card_approved'
-        );
-        expect(approvedRule).toBeDefined();
-      });
-    });
-
-    describe('va_workspace', () => {
-      it('returns at least 1 rule', () => {
-        const rules = getDefaultAutomationRules('va_workspace');
-        expect(rules.length).toBeGreaterThanOrEqual(1);
+      it('executive_assistant returns rules', () => {
+        const rules = getDefaultAutomationRules('executive_assistant');
+        expect(rules.length).toBeGreaterThan(0);
       });
 
-      it('includes ready to send logging rule', () => {
-        const rules = getDefaultAutomationRules('va_workspace');
-        const readyRule = rules.find(
-          (r) => r.action_config.event_type === 'ready_to_send'
-        );
-        expect(readyRule).toBeDefined();
-      });
-    });
-
-    describe('general_tasks', () => {
-      it('returns at least 1 rule (general completion log)', () => {
-        const rules = getDefaultAutomationRules('general_tasks');
-        expect(rules.length).toBeGreaterThanOrEqual(1);
+      it('training returns rules', () => {
+        const rules = getDefaultAutomationRules('training');
+        expect(rules.length).toBeGreaterThan(0);
       });
 
-      it('includes task completed logging rule', () => {
-        const rules = getDefaultAutomationRules('general_tasks');
-        const completionRule = rules.find(
-          (r) => r.action_config.event_type === 'task_completed'
-        );
-        expect(completionRule).toBeDefined();
+      it('client_strategy_map returns rules', () => {
+        const rules = getDefaultAutomationRules('client_strategy_map');
+        expect(rules.length).toBeGreaterThan(0);
+      });
+
+      it('copy returns rules', () => {
+        const rules = getDefaultAutomationRules('copy');
+        expect(rules.length).toBeGreaterThan(0);
       });
     });
 
     describe('rule structure', () => {
       it('all returned rules have required properties', () => {
         const boardTypes = [
-          'boutique_decor',
-          'marquee_letters',
-          'private_clients',
-          'owner_dashboard',
-          'va_workspace',
-          'general_tasks',
+          'graphic_designer',
+          'dev',
+          'video_editor',
+          'copy',
+          'account_manager',
+          'executive_assistant',
+          'training',
+          'client_strategy_map',
         ] as const;
         for (const boardType of boardTypes) {
           const rules = getDefaultAutomationRules(boardType);

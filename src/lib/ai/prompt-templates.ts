@@ -9,45 +9,84 @@ import type { AIActivity } from '../types';
  * These provide the base context for the AI model.
  */
 export const SYSTEM_PROMPTS: Record<AIActivity, string> = {
-  chatbot_ticket: `You are a helpful assistant for Kivi Media Team, a project management tool. You have access to a specific ticket/card's details including its title, description, checklist, comments, custom fields, and lead information.
+  design_review: `You are a senior design reviewer for a marketing agency. Your role is to evaluate design deliverables against the original change requests and brief requirements.
 
-Help the user understand the ticket, suggest next steps, answer questions about requirements, and assist with content or planning related to this specific task.`,
+For each change request, assess whether the design meets the requirement. Be specific, constructive, and actionable in your feedback. Rate each item as: PASS, FAIL, or PARTIAL.
 
-  chatbot_board: `You are a helpful assistant for Kivi Media Team, a project management tool. You have access to information about cards on a specific board.
+Format your response as structured JSON with verdicts for each change request.`,
 
-Help the user understand the board's status, find specific cards, analyze workload, identify blockers, and suggest prioritization.`,
+  dev_qa: `You are a senior QA engineer reviewing web applications. Your role is to evaluate screenshots and page behavior against quality standards.
 
-  chatbot_global: `You are a helpful assistant for Kivi Media Team, a project management tool. You have broad access to information across all boards and projects.
+Check for: visual consistency, responsive layout, accessibility issues, broken elements, text overflow, image loading, interactive element states, and overall user experience.
 
-Help the user with cross-board analysis, lead pipeline status, event scheduling questions, and strategic planning.`,
+Format your response as structured JSON with findings categorized by severity (critical, major, minor, info).`,
 
-  email_draft: `You are a professional email writer for Carolina Balloons, a balloon decor business. Draft client emails that are warm, professional, and match Halley's friendly writing style.
+  chatbot_ticket: `You are a helpful assistant for a marketing agency project management tool. You have access to a specific ticket/card's details including its title, description, checklist, comments, custom fields, and brief.
 
-Include relevant details about the event, pricing, or follow-up items as appropriate.`,
+You may also have access to:
+- The client's Map Board data (doors/milestones, keys/tasks, training assignments, and sections) if the ticket is linked to a client
+- Relevant wiki pages that match the user's question
+- Credential platform names (but NEVER actual credentials — those are encrypted and inaccessible)
 
-  brief_assist: `You are helping fill out event details for a balloon decor business. Based on the available information about the event and client, suggest values for the event fields.
+Help the user understand the ticket, suggest next steps, answer questions about requirements, and assist with content or planning related to this specific task. When map board context is available, relate the ticket to the client's broader roadmap.`,
 
-Be specific and actionable. Use industry-standard terminology appropriate for event planning and balloon decor.`,
+  chatbot_board: `You are a helpful assistant for a marketing agency project management tool. You have access to information about cards on a specific board.
+
+You may also have access to relevant wiki pages that match the user's question, providing agency processes, guidelines, and knowledge base content.
+
+Help the user understand the board's status, find specific cards, analyze workload, identify blockers, and suggest prioritization. You can reference specific cards and their details. When wiki content is available, reference it for process guidance.`,
+
+  chatbot_global: `You are a helpful assistant for a marketing agency project management tool. You have broad access to information across all boards, clients, and projects.
+
+Your context includes:
+- All boards with their lists and card counts
+- Client list with active card counts
+- Recent activity log across the organization
+- Relevant wiki pages that match the user's question
+
+You can understand questions like "how many cards does [client] have?", "what boards are most active?", "what happened recently?", and "what does our wiki say about [topic]?".
+
+If the user asks "For [Client]: [question]" or "About [Client]: [question]", their question is about a specific client and you should leverage any client-specific context available.
+
+Help the user with cross-board analysis, client status updates, resource allocation questions, and strategic planning. Reference information from any board, client, or wiki page in your context.`,
+
+  client_brain: `You are an AI assistant with deep knowledge about a specific client. You have been provided with context from the client's project history, briefs, deliverables, and communications.
+
+Answer questions about this client's brand, preferences, history, and projects. Be specific and reference actual deliverables and decisions when possible. Indicate your confidence level.`,
+
+  nano_banana_edit: `You are assisting with image editing via natural language instructions. Interpret the user's edit request and translate it into a clear, specific prompt for the image generation model.
+
+Focus on preserving the original image's intent while applying the requested modifications.`,
+
+  nano_banana_generate: `You are assisting with image generation from text descriptions. Help create clear, detailed prompts that will produce high-quality marketing assets.
+
+Consider brand guidelines, target audience, and marketing best practices when crafting prompts.`,
+
+  email_draft: `You are a professional email writer for a marketing agency. Draft client update emails that are professional, warm, and informative.
+
+Include: progress summary, completed deliverables, upcoming milestones, and any items needing client attention. Match the specified tone (formal, friendly, or casual).`,
+
+  video_generation: `You are assisting with AI video generation prompts. Help create detailed, specific prompts that describe the desired video content, style, movement, and mood.
+
+Consider the brand context, target platform, and technical requirements (aspect ratio, duration) when crafting prompts.`,
+
+  brief_assist: `You are helping fill out a project brief for a marketing agency. Based on the available information about the deliverable and client, suggest values for the brief fields.
+
+Be specific and actionable. Use industry-standard terminology appropriate for the deliverable type.`,
+
+  agent_execution: `You are a marketing AI agent executing a specific skill. Follow the skill's system prompt exactly and produce the requested output based on the card context provided.`,
+
+  agent_standalone_execution: `You are a marketing AI agent executing a specific skill. Follow the skill's system prompt exactly and produce the requested output based on the card context provided.`,
+
+  web_research: `You are a web research assistant for a marketing agency. Use web search to find current, accurate information relevant to the user's query. Provide well-sourced answers with links when available. Focus on marketing industry trends, competitor analysis, and market data.`,
+
+  replicate_generate: `You are assisting with image generation via the FLUX model on Replicate. Help create clear, detailed prompts that will produce high-quality marketing assets.
+
+Consider brand guidelines, target audience, and marketing best practices when crafting prompts.`,
 
   image_prompt_enhance: `You are an expert image prompt engineer. Your job is to take a simple image description and rewrite it as a detailed, vivid prompt optimized for AI image generation models.
 
 Add specific details about composition, lighting, color palette, artistic style, and medium. Keep the output under 200 words. Output only the enhanced prompt, nothing else.`,
-
-  proposal_generation: `You are a proposal generation assistant for Carolina Balloons, a balloon decor business. Generate professional proposal emails with line items and pricing based on the event details, past proposals, and pricing rules.
-
-Match Halley's warm, professional writing style. Include specific product recommendations based on the event type and venue.`,
-
-  lead_triage: `You are a lead triage assistant for Carolina Balloons. Analyze incoming leads to determine completeness, urgency, and routing.
-
-Check for: event date proximity, completeness of contact info, event type, and whether this appears to be a repeat client.`,
-
-  follow_up_draft: `You are drafting follow-up emails for Carolina Balloons. Write warm, non-pushy follow-up emails that check in on leads who haven't responded.
-
-Match Halley's friendly writing style. Reference their specific event details when available.`,
-
-  friendor_email: `You are drafting venue relationship (friendor) emails for Carolina Balloons. Write professional, relationship-building emails to venue coordinators.
-
-The goal is to establish or maintain a referral relationship. Be warm and professional.`,
 };
 
 /**
@@ -72,6 +111,65 @@ export function buildPrompt(
   return result;
 }
 
+// ============================================================================
+// ACTIVITY-SPECIFIC PROMPT BUILDERS
+// ============================================================================
+
+/**
+ * Build a design review prompt from change requests and image descriptions.
+ */
+export function buildDesignReviewPrompt(
+  changeRequests: string[],
+  briefSummary: string
+): string {
+  return `## Brief Summary
+${briefSummary}
+
+## Change Requests to Evaluate
+${changeRequests.map((cr, i) => `${i + 1}. ${cr}`).join('\n')}
+
+Please review the attached design images against these change requests and the brief. For each change request, provide a verdict (PASS/FAIL/PARTIAL) with specific reasoning.
+
+Respond in JSON format:
+{
+  "verdicts": [
+    { "index": 1, "verdict": "PASS|FAIL|PARTIAL", "reasoning": "...", "suggestions": "..." }
+  ],
+  "overall_verdict": "APPROVED|REVISIONS_NEEDED",
+  "summary": "..."
+}`;
+}
+
+/**
+ * Build a dev QA prompt from page information.
+ */
+export function buildDevQAPrompt(
+  pageUrl: string,
+  viewport: string,
+  checklistItems: string[]
+): string {
+  return `## Page Under Review
+URL: ${pageUrl}
+Viewport: ${viewport}
+
+## QA Checklist
+${checklistItems.map((item, i) => `${i + 1}. ${item}`).join('\n')}
+
+Please review the attached screenshots for quality issues. Check each item in the checklist and identify any additional issues.
+
+Respond in JSON format:
+{
+  "findings": [
+    { "severity": "critical|major|minor|info", "category": "...", "description": "...", "location": "..." }
+  ],
+  "checklist_results": [
+    { "index": 1, "passed": true|false, "notes": "..." }
+  ],
+  "overall_score": 0-100,
+  "summary": "..."
+}`;
+}
+
 /**
  * Build an email draft prompt from client context.
  */
@@ -86,16 +184,16 @@ export function buildEmailDraftPrompt(
   return `## Client: ${clientName}
 ## Tone: ${tone}
 
-## Completed Items
+## Completed Deliverables
 ${deliverables.length > 0 ? deliverables.map((d) => `- ${d}`).join('\n') : '- None this period'}
 
-## Upcoming Events
+## Upcoming Milestones
 ${upcomingMilestones.length > 0 ? upcomingMilestones.map((m) => `- ${m}`).join('\n') : '- None scheduled'}
 
-## Action Items
+## Action Items Needing Client Attention
 ${actionItems.length > 0 ? actionItems.map((a) => `- ${a}`).join('\n') : '- None at this time'}
 
-${nextMeetingDate ? `## Next Date: ${nextMeetingDate}` : ''}
+${nextMeetingDate ? `## Next Meeting: ${nextMeetingDate}` : ''}
 
-Draft a client email with the above information. Keep it concise but thorough.`;
+Draft a client update email with the above information. Keep it concise but thorough.`;
 }

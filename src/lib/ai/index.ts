@@ -40,8 +40,36 @@ export {
   SYSTEM_PROMPTS,
   getSystemPrompt,
   buildPrompt,
+  buildDesignReviewPrompt,
+  buildDevQAPrompt,
   buildEmailDraftPrompt,
 } from './prompt-templates';
+
+export {
+  extractChangeRequests,
+  getAttachmentUrl,
+  downloadImageAsBase64,
+  isImageAttachment,
+  runDesignReview,
+  parseReviewResponse,
+  storeReviewResult,
+  overrideReviewVerdict,
+  getCardReviewHistory,
+} from './design-review';
+export type { ReviewInput, ReviewOutput } from './design-review';
+
+export {
+  QA_VIEWPORTS,
+  captureScreenshots,
+  uploadScreenshots,
+  runDevQA,
+  parseQAResponse,
+  countFindings,
+  scoreToStatus,
+  storeQAResult,
+  getCardQAHistory,
+} from './dev-qa';
+export type { QAInput, QAOutput } from './dev-qa';
 
 export {
   buildTicketContext,
@@ -55,6 +83,36 @@ export {
   deleteChatSession,
 } from './chatbot';
 export type { ChatSendInput, ChatSendOutput } from './chatbot';
+
+export {
+  chunkText,
+  generateEmbedding,
+  generateEmbeddings,
+  indexDocument,
+  autoIndexCard,
+  searchBrain,
+  queryClientBrain,
+  getClientDocuments,
+  getClientQueryHistory,
+  deactivateDocument,
+  getClientBrainStats,
+} from './client-brain';
+export type { IndexDocumentInput, BrainQueryInput, BrainQueryOutput } from './client-brain';
+
+export {
+  editImage,
+  generateImage,
+  saveNanoBananaResult,
+} from './nano-banana';
+export type { NanoBananaEditInput, NanoBananaGenerateInput, NanoBananaOutput } from './nano-banana';
+
+export {
+  generateVideo,
+  getCardVideoGenerations,
+  getVideoGeneration,
+  getUserVideoGenerations,
+  deleteVideoGeneration,
+} from './video-generation';
 
 export {
   getModelPricing as getModelPricingRows,

@@ -14,7 +14,7 @@ import {
 // SCRAPLING FALLBACK (Feb 2026):
 // When Browserless returns 403/blocked/Cloudflare challenge, methods
 // automatically fall back to the local Scrapling microservice which has
-// 3 tiers: HTTP+TLS spoofing → Chromium → Camoufox (stealth Firefox).
+// 3 tiers: HTTP+TLS spoofing -> Chromium -> Camoufox (stealth Firefox).
 // Scrapling bypasses Cloudflare Turnstile, TLS fingerprinting, and canvas
 // fingerprinting. See scripts/scrapling-service/ for setup.
 // ============================================================================
@@ -295,7 +295,7 @@ export class BrowserlessClient {
 
   /**
    * Scrapling fallback for getContent when Browserless is blocked.
-   * Tries tiered fetch (HTTP→Chromium→Camoufox stealth).
+   * Tries tiered fetch (HTTP->Chromium->Camoufox stealth).
    */
   private async scraplingFallbackGetContent(url: string): Promise<BrowserlessContentResult> {
     const available = await isScraplingAvailable();

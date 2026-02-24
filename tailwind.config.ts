@@ -28,23 +28,6 @@ const config: Config = {
         success: '#10b981',
         warning: '#f59e0b',
         danger: '#ef4444',
-        // Carolina Balloons brand colors
-        'cb-pink': {
-          DEFAULT: '#ec4899',
-          light: '#f472b6',
-          dark: '#db2777',
-          50: '#fdf2f8',
-          100: '#fce7f3',
-        },
-        'cb-gold': {
-          DEFAULT: '#d4a853',
-          light: '#e2c07e',
-          dark: '#b8922f',
-        },
-        'cb-navy': {
-          DEFAULT: '#1a1a3e',
-          light: '#2d2d5e',
-        },
       },
       fontFamily: {
         heading: ['var(--font-inter)', 'sans-serif'],

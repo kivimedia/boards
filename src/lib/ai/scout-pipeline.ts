@@ -470,13 +470,13 @@ export async function runStep3DeepResearch(
     };
 
     // NOTE: LinkedIn blocks all scrapling fetcher tiers (auth-wall, status 999).
-    // Do NOT attempt to pre-fetch linkedin.com URLs — it wastes time and always fails.
+    // Do NOT attempt to pre-fetch linkedin.com URLs -- it wastes time and always fails.
     // Instead, scrapling is used below for non-LinkedIn URLs (personal sites, portfolios, etc.)
     const scraplingReady = await isScraplingAvailable();
     const websiteContentCache: Record<number, string> = {};
 
     if (scraplingReady) {
-      // Pre-fetch candidates' personal websites/portfolios (NOT LinkedIn — that's auth-walled)
+      // Pre-fetch candidates' personal websites/portfolios (NOT LinkedIn -- that's auth-walled)
       const profilesWithWebsites = selected.filter((p) => {
         const website = p.enriched?.website || '';
         return website && !website.includes('linkedin.com') && !website.includes('facebook.com');
@@ -492,7 +492,7 @@ export async function runStep3DeepResearch(
               callbacks.onProgress(`  Fetched website for ${profile.name} (${result.content_length} chars)`);
             }
           } catch {
-            // Silent fail — web_search will still work
+            // Silent fail -- web_search will still work
           }
           await new Promise((r) => setTimeout(r, 2000));
         }
@@ -502,11 +502,10 @@ export async function runStep3DeepResearch(
     for (const profile of selected) {
       callbacks.onProgress(`Researching ${profile.name}...`);
 
-      // Inject scrapling-fetched website content if available (NOT LinkedIn — that's auth-walled)
+      // Inject scrapling-fetched website content if available (NOT LinkedIn -- that's auth-walled)
       const websiteExtra = websiteContentCache[profile.index]
         ? `\n\nPRE-FETCHED website content for this candidate (use as supplementary source):\n${websiteContentCache[profile.index]}`
         : '';
-
       const researchPrompt = `Deep research this person for a podcast guest interview about making money with AI coding tools:
 
 Name: ${profile.name}

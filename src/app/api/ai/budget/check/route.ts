@@ -6,9 +6,9 @@ import type { AIProvider, AIActivity } from '@/lib/types';
 const VALID_PROVIDERS: AIProvider[] = ['anthropic', 'openai', 'google', 'browserless'];
 
 const VALID_ACTIVITIES: AIActivity[] = [
-  'chatbot_ticket', 'chatbot_board', 'chatbot_global',
-  'email_draft', 'brief_assist', 'image_prompt_enhance',
-  'proposal_generation', 'lead_triage', 'follow_up_draft', 'friendor_email',
+  'design_review', 'dev_qa', 'chatbot_ticket', 'chatbot_board',
+  'chatbot_global', 'client_brain', 'nano_banana_edit', 'nano_banana_generate',
+  'email_draft', 'video_generation', 'brief_assist',
 ];
 
 interface CheckBudgetBody {

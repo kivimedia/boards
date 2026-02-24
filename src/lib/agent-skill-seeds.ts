@@ -750,8 +750,8 @@ export const SKILL_SEEDS: SkillSeed[] = [
       'Best targets: company sites, portfolios, blogs, news, directories, Cloudflare-protected pages',
     ],
     weaknesses: [
-      'CANNOT scrape LinkedIn — auth-walled, returns login page (status 999). Use Snov.io API or Claude web_search instead.',
-      'CANNOT scrape Facebook, Instagram, or any login-required site — no session/cookie support',
+      'CANNOT scrape LinkedIn -- auth-walled, returns login page (status 999). Use Snov.io API or Claude web_search instead.',
+      'CANNOT scrape Facebook, Instagram, or any login-required site -- no session/cookie support',
       'Scrapling service runs on VPS (157.180.37.69:8099), not on Vercel',
       'StealthyFetcher (Camoufox) is slower than Browserless (~2-5s per page)',
       'No form submission or multi-page authenticated flows',
@@ -771,7 +771,7 @@ export const SKILL_SEEDS: SkillSeed[] = [
     requires_mcp_tools: [],
     fallback_behavior: 'Falls back to web_search only if neither Browserless nor Scrapling are configured. Browserless auto-escalates to Scrapling on 403/Cloudflare blocks. Claude can directly invoke stealth tools when it detects anti-bot resistance. For auth-walled sites (LinkedIn, Facebook, Instagram): skip scrapling entirely, use dedicated APIs (Snov.io, Hunter.io) or Claude web_search which reads Google-cached content.',
     reference_docs: [
-      { name: 'scrapling-integration', content_summary: 'Scrapling Python microservice on VPS (157.180.37.69:8099) provides 3 fetcher tiers: Fetcher (curl_cffi HTTP), DynamicFetcher (Playwright/Chromium), StealthyFetcher (Camoufox modified Firefox). TypeScript client at src/lib/integrations/scrapling.ts. Auto-fallback in browserless.ts on 403/Cloudflare detection. KNOWN LIMITATION: LinkedIn blocks all 3 tiers (auth-wall, status 999). Scrapling is effective for: company websites, personal portfolios, blogs, news sites, directories, and any Cloudflare-protected public page. For LinkedIn: use Snov.io enrichment API or Claude web_search (Google cache).', quality: 'high — complete integration with fallback chain, honest about LinkedIn limitation' }
+      { name: 'scrapling-integration', content_summary: 'Scrapling Python microservice on VPS (157.180.37.69:8099) provides 3 fetcher tiers: Fetcher (curl_cffi HTTP), DynamicFetcher (Playwright/Chromium), StealthyFetcher (Camoufox modified Firefox). TypeScript client at src/lib/integrations/scrapling.ts. Auto-fallback in browserless.ts on 403/Cloudflare detection. KNOWN LIMITATION: LinkedIn blocks all 3 tiers (auth-wall, status 999). Scrapling is effective for: company websites, personal portfolios, blogs, news sites, directories, and any Cloudflare-protected public page. For LinkedIn: use Snov.io enrichment API or Claude web_search (Google cache).', quality: 'high -- complete integration with fallback chain, honest about LinkedIn limitation' }
     ],
     icon: '🔍',
     color: '#0EA5E9',
@@ -836,7 +836,7 @@ export const IMPROVEMENT_LOG: ImprovementEntry[] = [
   {
     slug: 'web-research',
     change_type: 'major_rewrite',
-    change_description: 'Integrated Scrapling Python microservice (VPS-hosted) as stealth fallback for anti-bot bypass. Added 2 new Claude tools (stealth_navigate, stealth_extract) powered by Camoufox modified Firefox. Browserless.getContent() now auto-detects Cloudflare/403 blocks and escalates to Scrapling tiered fetch (HTTP+TLS → Chromium → Camoufox). Scout Pipeline Step 3 pre-fetches candidate personal websites/portfolios (NOT LinkedIn — auth-walled, always blocked). Scrapling effective for: company sites, portfolios, blogs, directories, Cloudflare-protected pages. For LinkedIn data: Snov.io API or Claude web_search (Google cache).',
+    change_description: 'Integrated Scrapling Python microservice (VPS-hosted) as stealth fallback for anti-bot bypass. Added 2 new Claude tools (stealth_navigate, stealth_extract) powered by Camoufox modified Firefox. Browserless.getContent() now auto-detects Cloudflare/403 blocks and escalates to Scrapling tiered fetch (HTTP+TLS -> Chromium -> Camoufox). Scout Pipeline Step 3 pre-fetches candidate personal websites/portfolios (NOT LinkedIn -- auth-walled, always blocked). Scrapling effective for: company sites, portfolios, blogs, directories, Cloudflare-protected pages. For LinkedIn data: Snov.io API or Claude web_search (Google cache).',
     quality_score_before: 70,
     quality_score_after: 82,
     quality_tier_before: 'solid',

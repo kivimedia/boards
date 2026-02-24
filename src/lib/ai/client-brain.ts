@@ -1,7 +1,8 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 
+
 /**
- * Stub — client brain was removed during the Carolina Balloons HQ pivot.
+ * Stub -- client brain was removed during the Carolina Balloons HQ pivot.
  * This export satisfies the import in api/chat/stream/route.ts.
  */
 
