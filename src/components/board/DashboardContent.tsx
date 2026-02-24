@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Board } from '@/lib/types';
@@ -49,6 +49,13 @@ function getRelativeTime(dateStr: string): string {
 
 export default function DashboardContent({ initialBoards, stats }: DashboardContentProps) {
   const [showCreateModal, setShowCreateModal] = useState(false);
+
+  // Listen for global event from CreateMenu (top-bar "New Board" shortcut)
+  useEffect(() => {
+    const handler = () => setShowCreateModal(true);
+    window.addEventListener('open-create-board-modal', handler);
+    return () => window.removeEventListener('open-create-board-modal', handler);
+  }, []);
   const [boards, setBoards] = useState<Board[]>(initialBoards);
   const [showArchived, setShowArchived] = useState(false);
   const supabase = createClient();
