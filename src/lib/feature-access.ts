@@ -11,6 +11,7 @@ export const ADMIN_FEATURES = [
   'ai_config',
   'agent_skills',
   'whatsapp_config',
+  'google_calendar',
 ] as const;
 
 export type AdminFeatureKey = (typeof ADMIN_FEATURES)[number];
@@ -20,6 +21,7 @@ export const FEATURE_LABELS: Record<AdminFeatureKey, string> = {
   ai_config: 'AI Configuration',
   agent_skills: 'Agent Skills',
   whatsapp_config: 'WhatsApp Config',
+  google_calendar: 'Google Calendar',
 };
 
 export const FEATURE_DESCRIPTIONS: Record<AdminFeatureKey, string> = {
@@ -27,6 +29,7 @@ export const FEATURE_DESCRIPTIONS: Record<AdminFeatureKey, string> = {
   ai_config: 'Manage API keys, models, budgets, and usage.',
   agent_skills: 'Manage AI agent skills, quality scores, and prompts.',
   whatsapp_config: 'Configure WhatsApp Business API credentials and settings.',
+  google_calendar: 'Connect Google Calendar for meeting sync, client updates, and meeting prep.',
 };
 
 /** Roles that can be delegated to (admins/agency_owners always have access) */
@@ -104,6 +107,7 @@ export async function getFeatureAccessMap(
     ai_config: false,
     agent_skills: false,
     whatsapp_config: false,
+    google_calendar: false,
   };
 
   // 1. Fetch profile

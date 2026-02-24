@@ -12,12 +12,13 @@ import {
 // ---------------------------------------------------------------------------
 
 describe('feature-access constants', () => {
-  it('ADMIN_FEATURES has 4 feature keys', () => {
-    expect(ADMIN_FEATURES).toHaveLength(4);
+  it('ADMIN_FEATURES has 5 feature keys', () => {
+    expect(ADMIN_FEATURES).toHaveLength(5);
     expect(ADMIN_FEATURES).toContain('user_management');
     expect(ADMIN_FEATURES).toContain('ai_config');
     expect(ADMIN_FEATURES).toContain('agent_skills');
     expect(ADMIN_FEATURES).toContain('whatsapp_config');
+    expect(ADMIN_FEATURES).toContain('google_calendar');
   });
 
   it('FEATURE_LABELS has labels for all features', () => {

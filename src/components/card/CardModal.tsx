@@ -33,6 +33,8 @@ import ClientBrainPanel from '@/components/client/ClientBrainPanel';
 import CardAgentTasksPanel from '@/components/agents/CardAgentTasksPanel';
 import CardApprovalPanel from './CardApprovalPanel';
 import CardAIChat from './CardAIChat';
+import MeetingConfigPanel from '@/components/client-updates/MeetingConfigPanel';
+import UpdateHistoryList from '@/components/client-updates/UpdateHistoryList';
 import VideoFrameComparison from './VideoFrameComparison';
 import type { FrameVerdict } from '@/lib/ai/design-review';
 import ReactMarkdown from 'react-markdown';
@@ -50,7 +52,7 @@ interface CardModalProps {
   onNavigate?: (cardId: string) => void;
 }
 
-type Tab = 'details' | 'brief' | 'checklists' | 'attachments' | 'dependencies' | 'activity' | 'approval' | 'ai-review' | 'ai-qa' | 'brain' | 'agents';
+type Tab = 'details' | 'brief' | 'checklists' | 'attachments' | 'dependencies' | 'activity' | 'approval' | 'ai-review' | 'ai-qa' | 'brain' | 'agents' | 'meetings';
 
 const BASE_TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'details', label: 'Details', icon: '📝' },
@@ -82,6 +84,10 @@ const APPROVAL_TAB: { key: Tab; label: string; icon: string } = {
 
 const AGENTS_TAB: { key: Tab; label: string; icon: string } = {
   key: 'agents', label: 'Agents', icon: '🤖',
+};
+
+const MEETINGS_TAB: { key: Tab; label: string; icon: string } = {
+  key: 'meetings', label: 'Meetings', icon: '📅',
 };
 
 const PRIMARY_TAB_KEYS: Tab[] = ['details', 'brief', 'checklists', 'attachments', 'activity'];
@@ -158,6 +164,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
     ...(showAIReviewTab ? [AI_REVIEW_TAB] : []),
     ...(showAIQATab ? [AI_QA_TAB] : []),
     ...(showBrainTab ? [BRAIN_TAB] : []),
+    ...(showBrainTab ? [MEETINGS_TAB] : []),
     AGENTS_TAB,
   ];
 
@@ -1138,6 +1145,13 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
 
             {activeTab === 'brain' && card?.client_id && (
               <ClientBrainPanel clientId={card.client_id} />
+            )}
+
+            {activeTab === 'meetings' && card?.client_id && (
+              <div className="space-y-6">
+                <MeetingConfigPanel clientId={card.client_id} />
+                <UpdateHistoryList clientId={card.client_id} />
+              </div>
             )}
 
             {activeTab === 'approval' && (
