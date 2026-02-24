@@ -220,20 +220,6 @@ export default function CardAIChat({ cardId, boardId }: CardAIChatProps) {
     await sendMessage(text, attachments);
   };
 
-  // ── Paste handler ─────────────────────────────────────────────────────────
-  const handlePaste = async (e: React.ClipboardEvent<HTMLInputElement>) => {
-    const items = Array.from(e.clipboardData.items);
-    for (const item of items) {
-      if (item.type.startsWith('image/')) {
-        e.preventDefault();
-        const file = item.getAsFile();
-        if (!file) continue;
-        const att = await uploadFile(file);
-        if (att) setPendingAttachments((prev) => [...prev, att]);
-      }
-    }
-  };
-
   // ── Queue drag & drop ─────────────────────────────────────────────────────
   const onDragEnd = (result: DropResult) => {
     if (!result.destination) return;
@@ -280,47 +266,105 @@ export default function CardAIChat({ cardId, boardId }: CardAIChatProps) {
       onPaste={handleContainerPaste}
     >
 
-      {/* ── Header bar ─────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between pb-2">
-        <span className="text-[10px] font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide">
-          AI
-        </span>
+      {/* ── Accordion header ──────────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between pb-1">
         <div className="flex items-center gap-2">
-          <select
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            className="text-[10px] rounded px-1.5 py-0.5 border border-cream-dark dark:border-slate-600 bg-white dark:bg-slate-800 text-navy dark:text-slate-200 focus:outline-none"
+          <button
+            onClick={() => setIsOpen(o => !o)}
+            className="flex items-center gap-1 text-[10px] font-semibold text-navy/50 dark:text-slate-400 hover:text-navy dark:hover:text-slate-200 uppercase tracking-wide transition-colors"
           >
-            <optgroup label="Anthropic">
-              {MODELS.filter(m => m.provider === 'anthropic').map(m => (
-                <option key={m.id} value={m.id}>{m.label}</option>
-              ))}
-            </optgroup>
-            <optgroup label="OpenAI">
-              {MODELS.filter(m => m.provider === 'openai').map(m => (
-                <option key={m.id} value={m.id}>{m.label}</option>
-              ))}
-            </optgroup>
-            <optgroup label="Google">
-              {MODELS.filter(m => m.provider === 'google').map(m => (
-                <option key={m.id} value={m.id}>{m.label}</option>
-              ))}
-            </optgroup>
-          </select>
-          {messages.length > 0 && (
-            <button
-              onClick={() => {
-                setMessages([]);
-                setSessionId(null);
-                setError(null);
-              }}
-              className="text-[10px] text-navy/30 dark:text-slate-500 hover:text-danger transition-colors"
+            <svg
+              className={`w-3 h-3 transition-transform ${isOpen ? '' : '-rotate-90'}`}
+              fill="none" stroke="currentColor" viewBox="0 0 24 24"
             >
-              New
-            </button>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+            AI
+          </button>
+          {isOpen && (
+            <div className="flex gap-1">
+              <button
+                onClick={() => setActiveTab('chat')}
+                className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${activeTab === 'chat' ? 'bg-electric/10 text-electric font-medium' : 'text-navy/40 dark:text-slate-500 hover:text-navy/70'}`}
+              >Chat</button>
+              <button
+                onClick={() => { setActiveTab('history'); loadHistory(); }}
+                className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${activeTab === 'history' ? 'bg-electric/10 text-electric font-medium' : 'text-navy/40 dark:text-slate-500 hover:text-navy/70'}`}
+              >History</button>
+            </div>
           )}
         </div>
+        {isOpen && activeTab === 'chat' && (
+          <div className="flex items-center gap-2">
+            <select
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              className="text-[10px] rounded px-1.5 py-0.5 border border-cream-dark dark:border-slate-600 bg-white dark:bg-slate-800 text-navy dark:text-slate-200 focus:outline-none"
+            >
+              <optgroup label="Anthropic">
+                {MODELS.filter(m => m.provider === 'anthropic').map(m => (
+                  <option key={m.id} value={m.id}>{m.label}</option>
+                ))}
+              </optgroup>
+              <optgroup label="OpenAI">
+                {MODELS.filter(m => m.provider === 'openai').map(m => (
+                  <option key={m.id} value={m.id}>{m.label}</option>
+                ))}
+              </optgroup>
+              <optgroup label="Google">
+                {MODELS.filter(m => m.provider === 'google').map(m => (
+                  <option key={m.id} value={m.id}>{m.label}</option>
+                ))}
+              </optgroup>
+            </select>
+            {messages.length > 0 && (
+              <button
+                onClick={() => { setMessages([]); setSessionId(null); setError(null); }}
+                className="text-[10px] text-navy/30 dark:text-slate-500 hover:text-danger transition-colors"
+              >New</button>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* ── Collapsed: show nothing ─────────────────────────────────────────── */}
+      {!isOpen && <div className="pb-1" />}
+
+      {/* ── History tab ────────────────────────────────────────────────────── */}
+      {isOpen && activeTab === 'history' && (
+        <div className="mb-2">
+          {loadingHistory ? (
+            <div className="flex justify-center py-3">
+              <div className="w-4 h-4 border-2 border-electric/30 border-t-electric rounded-full animate-spin" />
+            </div>
+          ) : allSessions.length === 0 ? (
+            <p className="text-[10px] text-navy/40 dark:text-slate-500 py-2 text-center">No past conversations for this ticket.</p>
+          ) : (
+            <div className="space-y-1 max-h-[260px] overflow-y-auto">
+              {allSessions.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => {
+                    const msgs = (s.messages as { role: string; content: string }[] | null) ?? [];
+                    setMessages(msgs.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })));
+                    setSessionId(s.id);
+                    setActiveTab('chat');
+                  }}
+                  className="w-full text-left px-2 py-1.5 rounded hover:bg-cream-dark dark:hover:bg-slate-800 transition-colors"
+                >
+                  <p className="text-[11px] font-medium text-navy dark:text-slate-200 truncate">{s.title || 'Untitled chat'}</p>
+                  <p className="text-[10px] text-navy/40 dark:text-slate-500">
+                    {s.message_count ?? 0} messages · {new Date(s.updated_at ?? s.created_at).toLocaleDateString()}
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Chat tab (visible when isOpen && activeTab === 'chat') ─────────── */}
+      {isOpen && activeTab === 'chat' && <>
 
       {/* ── Loading spinner ─────────────────────────────────────────────────── */}
       {loadingSession && (
@@ -331,7 +375,16 @@ export default function CardAIChat({ cardId, boardId }: CardAIChatProps) {
 
       {/* ── Message history ─────────────────────────────────────────────────── */}
       {!loadingSession && messages.length > 0 && (
-        <div className="max-h-[280px] overflow-y-auto space-y-2 pb-2 scrollbar-thin">
+        <div
+          ref={messagesContainerRef}
+          onScroll={() => {
+            const el = messagesContainerRef.current;
+            if (el) {
+              isAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+            }
+          }}
+          className="max-h-[280px] overflow-y-auto space-y-2 pb-2 scrollbar-thin"
+        >
           {messages.map((msg, i) => (
             <div
               key={i}
@@ -446,7 +499,6 @@ export default function CardAIChat({ cardId, boardId }: CardAIChatProps) {
               handleSubmit();
             }
           }}
-          onPaste={handlePaste}
           placeholder={
             streaming
               ? queue.length > 0
@@ -572,6 +624,8 @@ export default function CardAIChat({ cardId, boardId }: CardAIChatProps) {
           </Droppable>
         </DragDropContext>
       )}
+
+      </> /* end chat tab */}
     </div>
   );
 }
