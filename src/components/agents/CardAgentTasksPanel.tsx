@@ -69,11 +69,15 @@ const AGENT_MODELS = [
   { id: 'gpt-4o',                     label: 'GPT-4o',            provider: 'openai' as const },
   { id: 'o3-mini',                    label: 'o3 mini (5.2)',     provider: 'openai' as const },
   { id: 'o3',                         label: 'o3 (5.3)',          provider: 'openai' as const },
-  // Google
-  { id: 'gemini-2.0-flash',           label: 'Gemini 2.0 Flash',  provider: 'google' as const },
-  { id: 'gemini-2.0-pro-exp',         label: 'Gemini 2.0 Pro',    provider: 'google' as const },
-  { id: 'gemini-2.5-flash-preview-04-17', label: 'Gemini 3 Flash', provider: 'google' as const },
-  { id: 'gemini-2.5-pro-preview-03-25',   label: 'Gemini 3.1 Pro', provider: 'google' as const },
+  // Google — Gemini 3 family
+  { id: 'gemini-3.1-pro-preview',             label: 'Gemini 3.1 Pro (reasoning/coding)', provider: 'google' as const },
+  { id: 'gemini-3.1-pro-preview-customtools', label: 'Gemini 3.1 Pro (custom tools)',     provider: 'google' as const },
+  { id: 'gemini-3-pro-preview',               label: 'Gemini 3 Pro (multimodal)',          provider: 'google' as const },
+  { id: 'gemini-3-flash-preview',             label: 'Gemini 3 Flash (fast)',              provider: 'google' as const },
+  // Google — Gemini 2.5 family
+  { id: 'gemini-2.5-pro',                     label: 'Gemini 2.5 Pro',                     provider: 'google' as const },
+  { id: 'gemini-2.5-flash',                   label: 'Gemini 2.5 Flash',                   provider: 'google' as const },
+  { id: 'gemini-2.5-flash-lite',              label: 'Gemini 2.5 Flash Lite (fastest)',    provider: 'google' as const },
 ] as const;
 
 // ─── Chat types ──────────────────────────────────────────────────────────────
