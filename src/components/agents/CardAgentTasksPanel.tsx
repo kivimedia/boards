@@ -60,13 +60,20 @@ function StarRating({
 
 // ─── Models ──────────────────────────────────────────────────────────────────
 const AGENT_MODELS = [
-  { id: 'claude-haiku-4-5-20251001',  label: 'Haiku (fast)',            provider: 'anthropic' as const },
-  { id: 'claude-sonnet-4-5-20250929', label: 'Sonnet',                  provider: 'anthropic' as const },
-  { id: 'claude-opus-4-6',            label: 'Opus (best)',              provider: 'anthropic' as const },
-  { id: 'gpt-4o-mini',                label: 'GPT-4o mini (chat)',       provider: 'openai' as const },
-  { id: 'gpt-4o',                     label: 'GPT-4o (chat)',            provider: 'openai' as const },
-  { id: 'gemini-2.0-flash',           label: 'Gemini 2.0 Flash (chat)',  provider: 'google' as const },
-  { id: 'gemini-1.5-pro',             label: 'Gemini 1.5 Pro (chat)',    provider: 'google' as const },
+  // Anthropic
+  { id: 'claude-haiku-4-5-20251001',  label: 'Haiku (fast)',      provider: 'anthropic' as const },
+  { id: 'claude-sonnet-4-5-20250929', label: 'Sonnet',            provider: 'anthropic' as const },
+  { id: 'claude-opus-4-6',            label: 'Opus (best)',       provider: 'anthropic' as const },
+  // OpenAI
+  { id: 'gpt-4o-mini',                label: 'GPT-4o mini',       provider: 'openai' as const },
+  { id: 'gpt-4o',                     label: 'GPT-4o',            provider: 'openai' as const },
+  { id: 'o3-mini',                    label: 'o3 mini (5.2)',     provider: 'openai' as const },
+  { id: 'o3',                         label: 'o3 (5.3)',          provider: 'openai' as const },
+  // Google
+  { id: 'gemini-2.0-flash',           label: 'Gemini 2.0 Flash',  provider: 'google' as const },
+  { id: 'gemini-2.0-pro-exp',         label: 'Gemini 2.0 Pro',    provider: 'google' as const },
+  { id: 'gemini-2.5-flash-preview-04-17', label: 'Gemini 3 Flash', provider: 'google' as const },
+  { id: 'gemini-2.5-pro-preview-03-25',   label: 'Gemini 3.1 Pro', provider: 'google' as const },
 ] as const;
 
 // ─── Chat types ──────────────────────────────────────────────────────────────
@@ -156,6 +163,8 @@ export default function CardAgentTasksPanel({ cardId }: Props) {
         setSelectedSkillId('');
         setTaskTitle('');
         setTaskPrompt('');
+        // Auto-open planning chat immediately after creating the task
+        startChat(json.data);
       }
     } catch (err) {
       console.error('Failed to add task:', err);
@@ -306,6 +315,18 @@ export default function CardAgentTasksPanel({ cardId }: Props) {
         streaming: false,
         error: err.message,
       }));
+    } finally {
+      // Always clear streaming state — guards against stream ending without a 'complete' event
+      updateChat(taskId, s => {
+        if (!s.streaming) return s; // already cleared
+        return {
+          ...s,
+          streaming: false,
+          messages: s.messages.map((m, i) =>
+            i === s.messages.length - 1 ? { ...m, isStreaming: false } : m
+          ),
+        };
+      });
     }
   };
 
