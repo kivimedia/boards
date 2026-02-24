@@ -64,11 +64,19 @@ const AGENT_MODELS = [
   { id: 'claude-haiku-4-5-20251001',  label: 'Haiku (fast)',      provider: 'anthropic' as const },
   { id: 'claude-sonnet-4-5-20250929', label: 'Sonnet',            provider: 'anthropic' as const },
   { id: 'claude-opus-4-6',            label: 'Opus (best)',       provider: 'anthropic' as const },
-  // OpenAI
-  { id: 'gpt-4o-mini',                label: 'GPT-4o mini',       provider: 'openai' as const },
-  { id: 'gpt-4o',                     label: 'GPT-4o',            provider: 'openai' as const },
-  { id: 'o3-mini',                    label: 'o3 mini (5.2)',     provider: 'openai' as const },
-  { id: 'o3',                         label: 'o3 (5.3)',          provider: 'openai' as const },
+  // OpenAI — GPT-5 family
+  { id: 'gpt-5.2',           label: 'GPT-5.2 (flagship)',           provider: 'openai' as const },
+  { id: 'gpt-5.2-pro',       label: 'GPT-5.2 Pro',                  provider: 'openai' as const },
+  { id: 'gpt-5.1',           label: 'GPT-5.1',                      provider: 'openai' as const },
+  { id: 'gpt-5.1-codex',     label: 'GPT-5.1 Codex',                provider: 'openai' as const },
+  { id: 'gpt-5.3-codex',     label: 'GPT-5.3 Codex (agentic)',      provider: 'openai' as const },
+  { id: 'gpt-5.3-codex-spark', label: 'GPT-5.3 Codex Spark',        provider: 'openai' as const },
+  { id: 'gpt-5',             label: 'GPT-5',                         provider: 'openai' as const },
+  { id: 'gpt-5-mini',        label: 'GPT-5 Mini',                    provider: 'openai' as const },
+  { id: 'gpt-5-nano',        label: 'GPT-5 Nano (fastest)',          provider: 'openai' as const },
+  // OpenAI — Previous gen
+  { id: 'gpt-4o',            label: 'GPT-4o',                        provider: 'openai' as const },
+  { id: 'gpt-4o-mini',       label: 'GPT-4o mini',                   provider: 'openai' as const },
   // Google — Gemini 3 family
   { id: 'gemini-3.1-pro-preview',             label: 'Gemini 3.1 Pro (reasoning/coding)', provider: 'google' as const },
   { id: 'gemini-3.1-pro-preview-customtools', label: 'Gemini 3.1 Pro (custom tools)',     provider: 'google' as const },
