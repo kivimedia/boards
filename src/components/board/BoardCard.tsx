@@ -141,19 +141,19 @@ export default function BoardCard({
             }
           `}
         >
-          {/* Drag handle - left-side grip, clearly visible on hover */}
+          {/* Drag handle - top strip, always slightly visible, clearly grabbable */}
           <div
             {...provided.dragHandleProps}
-            className="absolute left-0 top-0 bottom-0 w-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing z-10 rounded-l-xl"
+            className="absolute top-0 left-0 right-0 h-4 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing z-20"
             title="Drag to reorder"
           >
-            <svg className="w-3 h-3 text-navy/30 dark:text-slate-500" viewBox="0 0 10 16" fill="currentColor">
-              <circle cx="2" cy="2" r="1.5" />
-              <circle cx="8" cy="2" r="1.5" />
-              <circle cx="2" cy="8" r="1.5" />
-              <circle cx="8" cy="8" r="1.5" />
-              <circle cx="2" cy="14" r="1.5" />
-              <circle cx="8" cy="14" r="1.5" />
+            <svg className="w-8 h-2 text-navy/25 dark:text-slate-500" viewBox="0 0 32 8" fill="currentColor">
+              <circle cx="10" cy="2" r="1.5" />
+              <circle cx="16" cy="2" r="1.5" />
+              <circle cx="22" cy="2" r="1.5" />
+              <circle cx="10" cy="6" r="1.5" />
+              <circle cx="16" cy="6" r="1.5" />
+              <circle cx="22" cy="6" r="1.5" />
             </svg>
           </div>
 
@@ -245,8 +245,8 @@ export default function BoardCard({
               <CoverImage src={cover_image_url!} />
             )}
 
-            {/* Card content — pl-5 reserves space for the drag handle */}
-            <div className="pl-5 pr-3 py-3">
+            {/* Card content — pt-4 clears top drag handle strip */}
+            <div className="pl-3 pr-3 pt-4 pb-3">
               {/* Labels */}
               {labels.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mb-2">
