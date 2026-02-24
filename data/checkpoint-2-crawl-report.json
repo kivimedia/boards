@@ -1,0 +1,4534 @@
+{
+  "totalSheets": 19,
+  "totalTabs": 99,
+  "totalColumns": 291,
+  "totalLinks": 18,
+  "totalRows": 10361,
+  "accessDenied": [],
+  "depth1Count": 16,
+  "depth2Count": 2,
+  "sheets": [
+    {
+      "title": "KM & DC | MASTERLIST OF TRACKERS",
+      "spreadsheetId": "1XPr4nraaXWOv4ubZCwyPLSvbr2LvawU0HT2AvPj8Bjk",
+      "depth": 0,
+      "error": null,
+      "tabCount": 2,
+      "tabs": [
+        {
+          "name": "Tracking Dashboard",
+          "headers": [],
+          "rowCount": 1023,
+          "linksFound": 7,
+          "sampleRows": [
+            {
+              "col_0": "",
+              "col_1": "Fathom Videos Watched"
+            },
+            {
+              "col_0": "",
+              "col_1": "For the Month February 2026"
+            },
+            {
+              "col_0": "",
+              "col_1": "Account Manager",
+              "col_2": "No. of Fathoms Watched",
+              "col_3": "No. of Fathoms NOT yet watched",
+              "col_4": "Notes"
+            },
+            {
+              "col_0": "",
+              "col_1": "Angel",
+              "col_2": "9",
+              "col_3": "4"
+            },
+            {
+              "col_0": "",
+              "col_1": "Devi",
+              "col_2": "5",
+              "col_3": "0"
+            }
+          ]
+        },
+        {
+          "name": "Links",
+          "headers": [
+            "Frequency",
+            "Title",
+            "Links"
+          ],
+          "rowCount": 1000,
+          "linksFound": 16,
+          "sampleRows": [
+            {
+              "Frequency": "",
+              "Title": "Update Schedule",
+              "Links": "Update Schedule"
+            },
+            {
+              "Frequency": "Daily",
+              "Title": "Fathom Videos",
+              "Links": "2025 Fathom Video Tracker"
+            },
+            {
+              "Frequency": "Daily",
+              "Title": "Client Updates",
+              "Links": "2025 Client Updates Tracker"
+            },
+            {
+              "Frequency": "Daily",
+              "Title": "Account Managers’ Ticket Update Tracker",
+              "Links": "Account Managers’ Ticket Update Tracker"
+            },
+            {
+              "Frequency": "Twice a Week",
+              "Title": "Operations Team Daily Progress Tracker",
+              "Links": "Operations Team Daily Progress Tracker"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "KM Fathom Video Tracker",
+      "spreadsheetId": "1m1_oQGk3RYd7s9ETTsoCRTvfZPLs-NsiOKCVIiN8BPA",
+      "depth": 1,
+      "error": null,
+      "tabCount": 9,
+      "tabs": [
+        {
+          "name": "Summary",
+          "headers": [],
+          "rowCount": 985,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "",
+              "col_1": "Fathom Videos Watched",
+              "col_2": "",
+              "col_3": "",
+              "col_4": "",
+              "col_5": "No. of Summary/Action Items Sent"
+            },
+            {
+              "col_0": "",
+              "col_1": "For the Month February 2026",
+              "col_2": "",
+              "col_3": "",
+              "col_4": "",
+              "col_5": "For the Month February 2026"
+            },
+            {
+              "col_0": "",
+              "col_1": "Account Manager",
+              "col_2": "No. of Fathoms Watched",
+              "col_3": "No. of Fathoms NOT yet watched",
+              "col_4": "",
+              "col_5": "Account Manager",
+              "col_6": "Sent",
+              "col_7": "Not Yet Sent"
+            },
+            {
+              "col_0": "",
+              "col_1": "Angel",
+              "col_2": "9",
+              "col_3": "4",
+              "col_4": "",
+              "col_5": "Angel",
+              "col_6": "5",
+              "col_7": "6"
+            },
+            {
+              "col_0": "",
+              "col_1": "Devi",
+              "col_2": "5",
+              "col_3": "0",
+              "col_4": "",
+              "col_5": "Devi",
+              "col_6": "4",
+              "col_7": "0"
+            }
+          ]
+        },
+        {
+          "name": "ANGEL",
+          "headers": [
+            "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ "
+          ],
+          "rowCount": 1002,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "MEETING DATE",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "DATE WATCHED",
+              "col_2": "FATHOM VIDEO LINK",
+              "col_3": "CLIENT",
+              "col_4": "WATCHED FATHOM VIDEO?",
+              "col_5": "SENT ACTION ITEMS / SUMMARY OF MEETING TO ZIV?",
+              "col_6": "ATTACHMENTS",
+              "col_7": "NOTES"
+            },
+            {
+              "col_0": "7/1/2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "7/2/2025",
+              "col_2": "",
+              "col_3": "David Meister",
+              "col_4": "Yes",
+              "col_5": "Yes",
+              "col_6": "July 1 meetings action items.JPG"
+            },
+            {
+              "col_0": "7/1/2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "7/2/2025",
+              "col_2": "",
+              "col_3": "Laurie Ellington",
+              "col_4": "Yes",
+              "col_5": "Yes",
+              "col_6": "July 1 meetings action items.JPG"
+            },
+            {
+              "col_0": "7/2/2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "7/3/2025",
+              "col_2": "",
+              "col_3": "Josh Staley",
+              "col_4": "Yes",
+              "col_5": "No",
+              "col_6": "",
+              "col_7": "No actions needed for my accounts: TUC, CDJC"
+            },
+            {
+              "col_0": "7/3/2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "7/4/2025",
+              "col_2": "",
+              "col_3": "David Meister",
+              "col_4": "Yes",
+              "col_5": "Yes",
+              "col_6": "action items for July 3 meetings.JPG"
+            }
+          ]
+        },
+        {
+          "name": "KATH",
+          "headers": [
+            "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ "
+          ],
+          "rowCount": 1001,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "MEETING DATE",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "DATE WATCHED",
+              "col_2": "FATHOM VIDEO LINK",
+              "col_3": "CLIENT",
+              "col_4": "WATCHED FATHOM VIDEO?",
+              "col_5": "SENT ACTION ITEMS / SUMMARY OF MEETING TO ZIV?",
+              "col_6": "ATTACHMENTS",
+              "col_7": "NOTES"
+            },
+            {
+              "col_0": "6/30/2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "7/1/2025",
+              "col_2": "",
+              "col_3": "Jorge Lopez",
+              "col_4": "Yes",
+              "col_5": "Yes",
+              "col_6": "https://prnt.sc/JQVe1A-nKo2A"
+            },
+            {
+              "col_0": "7/2/2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "7/3/2025",
+              "col_2": "",
+              "col_3": "Geoff Carlisle",
+              "col_4": "Yes",
+              "col_5": "Yes",
+              "col_6": "https://prnt.sc/HgnjpaUD4JiE"
+            },
+            {
+              "col_0": "7/2/2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "7/4/2025",
+              "col_2": "",
+              "col_3": "Barnes Lam",
+              "col_4": "Yes",
+              "col_5": "Yes",
+              "col_6": "https://prnt.sc/eS19EgnxW2TI"
+            },
+            {
+              "col_0": "7/3/2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "7/4/2025",
+              "col_2": "",
+              "col_3": "Jorge Lopez",
+              "col_4": "Yes",
+              "col_5": "Yes",
+              "col_6": "https://prnt.sc/dy2rXg9_ppa-"
+            }
+          ]
+        },
+        {
+          "name": "DEVI",
+          "headers": [
+            "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ "
+          ],
+          "rowCount": 999,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "MEETING DATE",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "DATE WATCHED",
+              "col_2": "FATHOM VIDEO LINK",
+              "col_3": "CLIENT",
+              "col_4": "WATCHED FATHOM VIDEO?",
+              "col_5": "SENT ACTION ITEMS / SUMMARY OF MEETING TO ZIV?",
+              "col_6": "NOTES",
+              "col_7": "ATTACHMENTS"
+            },
+            {
+              "col_0": "Aug 6, 2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "Aug 7, 2025",
+              "col_2": "https://fathom.video/share/VKGKQaDzdiyEsUED4sU-z8qSrtbAwrSx",
+              "col_3": "Caroline Ravn",
+              "col_4": "Yes",
+              "col_5": "Yes"
+            },
+            {
+              "col_0": "Aug 6, 2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "Aug 8, 2025",
+              "col_2": "https://fathom.video/share/wRN5aiXDzs7YcszJ-vSfYmiwopWy2MNy",
+              "col_3": "Caroline Ravn (w/ Matan)",
+              "col_4": "Yes",
+              "col_5": "Yes"
+            },
+            {
+              "col_0": "Aug 19, 2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "Aug 20, 2025",
+              "col_2": "https://fathom.video/share/7v8h3UT8kMg7xxAy-8ZDMm9r_w5QJhtS",
+              "col_3": "Caroline Ravn (w/ Lior)",
+              "col_4": "Yes",
+              "col_5": "Yes",
+              "col_6": "This is contains the process of creating  a workflow for a webinar within GHL; time stamp 32:00"
+            },
+            {
+              "col_0": "Aug 20, 2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "Jun 21, 2025",
+              "col_2": "https://fathom.video/share/5h9Rm2xYxuzj_Lvy5vV1WcDr6svU8orv",
+              "col_3": "Caroline Ravn",
+              "col_4": "Yes",
+              "col_5": "Yes"
+            }
+          ]
+        },
+        {
+          "name": "HILDA",
+          "headers": [
+            "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ "
+          ],
+          "rowCount": 1000,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "MEETING DATE",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "DATE WATCHED",
+              "col_2": "FATHOM VIDEO LINK",
+              "col_3": "CLIENT",
+              "col_4": "WATCHED FATHOM VIDEO?",
+              "col_5": "SENT ACTION ITEMS / SUMMARY OF MEETING TO ZIV?",
+              "col_6": "ATTACHMENTS",
+              "col_7": "NOTES"
+            },
+            {
+              "col_0": "6/30/2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "7/1/2025",
+              "col_2": "",
+              "col_3": "Matt Radicelli ",
+              "col_4": "Yes",
+              "col_5": "Yes",
+              "col_6": "https://prnt.sc/xldsvqPmqxR4"
+            },
+            {
+              "col_0": "7/1/2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "7/1/2025",
+              "col_2": "",
+              "col_3": "Matt Radicelli ",
+              "col_4": "Yes",
+              "col_5": "Yes",
+              "col_6": "https://prnt.sc/xldsvqPmqxR4"
+            },
+            {
+              "col_0": "7/2/2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "7/3/2025",
+              "col_2": "",
+              "col_3": "Tyler Hacker",
+              "col_4": "Yes",
+              "col_5": "Yes",
+              "col_6": "https://prnt.sc/1fJQQy2F4A1B"
+            },
+            {
+              "col_0": "7/3/2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "7/3/2025",
+              "col_2": "",
+              "col_3": "Julie Cylla",
+              "col_4": "Yes",
+              "col_5": "Yes",
+              "col_6": "https://prnt.sc/4ol42P1w-a0W"
+            }
+          ]
+        },
+        {
+          "name": "RIZA",
+          "headers": [
+            "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ "
+          ],
+          "rowCount": 999,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "MEETING DATE",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "DATE WATCHED",
+              "col_2": "FATHOM VIDEO LINK",
+              "col_3": "CLIENT",
+              "col_4": "WATCHED FATHOM VIDEO?",
+              "col_5": "SENT ACTION ITEMS / SUMMARY OF MEETING TO ZIV?",
+              "col_6": "ATTACHMENTS",
+              "col_7": "NOTES"
+            },
+            {
+              "col_0": "6/29/2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "7/1/2025",
+              "col_2": "",
+              "col_3": "David Meister",
+              "col_4": "Yes",
+              "col_5": "Yes",
+              "col_6": "https://prnt.sc/cRNIo2uw7guQ",
+              "col_7": "Sunday video 1 hr"
+            },
+            {
+              "col_0": "6/30/2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "7/2/2025",
+              "col_2": "",
+              "col_3": "Matt Radicelli ",
+              "col_4": "Yes",
+              "col_5": "Yes",
+              "col_6": "https://prnt.sc/z1Mr6GAjt107",
+              "col_7": "Monday video 1 hr and 30 mins"
+            },
+            {
+              "col_0": "7/1/2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "",
+              "col_2": "",
+              "col_3": "Matt Radicelli ",
+              "col_4": "Yes",
+              "col_5": "Yes",
+              "col_6": "https://prnt.sc/VZDGqNxpN_gA",
+              "col_7": "Tuesday video 1 hr"
+            },
+            {
+              "col_0": "7/1/2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "",
+              "col_2": "",
+              "col_3": "David Meister",
+              "col_4": "Yes",
+              "col_5": "No",
+              "col_6": "All tasks are for Angel",
+              "col_7": "Tuesday video 1 hr - stuff are for Angel"
+            }
+          ]
+        },
+        {
+          "name": "SARAH",
+          "headers": [
+            "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ "
+          ],
+          "rowCount": 999,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "MEETING DATE",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "DATE WATCHED",
+              "col_2": "FATHOM VIDEO LINK",
+              "col_3": "CLIENT",
+              "col_4": "WATCHED FATHOM VIDEO?",
+              "col_5": "SENT ACTION ITEMS / SUMMARY OF MEETING TO ZIV?",
+              "col_6": "ATTACHMENTS",
+              "col_7": "NOTES"
+            },
+            {
+              "col_0": "7/1/2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "7/3/2025",
+              "col_2": "",
+              "col_3": "Aaron & Priya Nair",
+              "col_4": "Yes",
+              "col_5": "Yes",
+              "col_6": "https://prnt.sc/OXIBqcpd0swk"
+            },
+            {
+              "col_0": "7/2/2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "7/3/2025",
+              "col_2": "",
+              "col_3": "Jeffrey Greene",
+              "col_4": "Yes",
+              "col_5": "Yes",
+              "col_6": "https://prnt.sc/TgAsILXW2GJt"
+            },
+            {
+              "col_0": "7/6/2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "7/7/2025",
+              "col_2": "",
+              "col_3": "Rachel Porter",
+              "col_4": "Yes",
+              "col_5": "Yes",
+              "col_6": "https://prnt.sc/_XsFvJmRC9-O"
+            },
+            {
+              "col_0": "7/4/2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "7/7/2025",
+              "col_2": "",
+              "col_3": "Brant Matthews",
+              "col_4": "Yes",
+              "col_5": "Yes",
+              "col_6": "https://prnt.sc/L4H6uWwww0hc"
+            }
+          ]
+        },
+        {
+          "name": "ELA",
+          "headers": [
+            "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ "
+          ],
+          "rowCount": 1001,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "MEETING DATE",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "DATE WATCHED",
+              "col_2": "FATHOM VIDEO LINK",
+              "col_3": "CLIENT",
+              "col_4": "WATCHED FATHOM VIDEO?",
+              "col_5": "SENT ACTION ITEMS / SUMMARY OF MEETING TO ZIV?",
+              "col_6": "ATTACHMENTS",
+              "col_7": "NOTES"
+            },
+            {
+              "col_0": "8/18/2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "8/20/2025",
+              "col_2": "https://fathom.video/share/CdEVZcwxdQbx9PtN4i4KYyzXdWzBexbx",
+              "col_3": "Dustin Thibeault",
+              "col_4": "Yes",
+              "col_5": "Yes"
+            },
+            {
+              "col_0": "8/26/2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "8/27/2025",
+              "col_2": "https://fathom.video/share/v79y1sTCARnktDU35HXkZb_9aN1Fz2n8",
+              "col_3": "Dustin Thibeault",
+              "col_4": "Yes",
+              "col_5": "Yes"
+            },
+            {
+              "col_0": "9/3/2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "9/3/2025",
+              "col_2": "https://fathom.video/share/Bsyx8inGq9AZaxJX7cqnyJ8Wpy_c8sRb",
+              "col_3": "Dustin Thibeault",
+              "col_4": "Yes",
+              "col_5": "Yes",
+              "col_6": "",
+              "col_7": "Joined the meeting but will watch still"
+            },
+            {
+              "col_0": "9/9/2025",
+              "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ": "9/10/2025",
+              "col_2": "https://fathom.video/share/u8oGMzyDqrUARUsy24jyo8iJoCbbxTxe",
+              "col_3": "Dustin Thibeault",
+              "col_4": "Yes",
+              "col_5": "Yes"
+            }
+          ]
+        },
+        {
+          "name": "IVY",
+          "headers": [
+            "MEETING DATE",
+            "DATE WATCHED",
+            "FATHOM VIDEO LINK",
+            "CLIENT",
+            "WATCHED FATHOM VIDEO?",
+            "SENT ACTION ITEMS TO ZIV?",
+            "ATTACHMENTS",
+            "NOTES"
+          ],
+          "rowCount": 1000,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "MEETING DATE": "",
+              "DATE WATCHED": "7/1/2025",
+              "FATHOM VIDEO LINK": "",
+              "CLIENT": "Beau Kramer",
+              "WATCHED FATHOM VIDEO?": "Yes",
+              "SENT ACTION ITEMS TO ZIV?": "Yes"
+            },
+            {
+              "MEETING DATE": "",
+              "DATE WATCHED": "7/3/2025",
+              "FATHOM VIDEO LINK": "",
+              "CLIENT": "Beau Kramer",
+              "WATCHED FATHOM VIDEO?": "Yes",
+              "SENT ACTION ITEMS TO ZIV?": "Yes"
+            },
+            {
+              "MEETING DATE": "",
+              "DATE WATCHED": "7/3/2025",
+              "FATHOM VIDEO LINK": "",
+              "CLIENT": "Tim Huckabee",
+              "WATCHED FATHOM VIDEO?": "Yes",
+              "SENT ACTION ITEMS TO ZIV?": "Yes",
+              "ATTACHMENTS": "https://prnt.sc/qpc59MiHMvc0",
+              "NOTES": "sent Ziv the meeting notes"
+            },
+            {
+              "MEETING DATE": "7/5/2025",
+              "DATE WATCHED": "7/8/2025",
+              "FATHOM VIDEO LINK": "",
+              "CLIENT": "Karen Sawyer",
+              "WATCHED FATHOM VIDEO?": "Yes",
+              "SENT ACTION ITEMS TO ZIV?": "Yes",
+              "ATTACHMENTS": "https://prnt.sc/IbIAj5pUReCJ",
+              "NOTES": "The meeting happened on Saturday; I only got to watch it today, Tue, because I was pre-occupied with the Kramer event launch and fixes since Monday; Ziv is aware of this"
+            },
+            {
+              "MEETING DATE": "07/08/2025",
+              "DATE WATCHED": "7/9/2025",
+              "FATHOM VIDEO LINK": "",
+              "CLIENT": "Beau Kramer",
+              "WATCHED FATHOM VIDEO?": "Yes",
+              "SENT ACTION ITEMS TO ZIV?": "Yes",
+              "ATTACHMENTS": "https://prnt.sc/l_FScUZ4NASs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "KM Client Updates Tracker",
+      "spreadsheetId": "1xSLGI3yJiedq9B7yihz37XZHrnPkouyhaH8FqBe7ROI",
+      "depth": 1,
+      "error": null,
+      "tabCount": 9,
+      "tabs": [
+        {
+          "name": "Summary",
+          "headers": [],
+          "rowCount": 988,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "",
+              "col_1": "Client Updates Sent On Time"
+            },
+            {
+              "col_0": "",
+              "col_1": "For the Month of February 2026"
+            },
+            {
+              "col_0": "",
+              "col_1": "Account Manager",
+              "col_2": "Updates Sent",
+              "col_3": "Updates NOT Sent"
+            },
+            {
+              "col_0": "",
+              "col_1": "Angel",
+              "col_2": "9",
+              "col_3": "0"
+            },
+            {
+              "col_0": "",
+              "col_1": "Devi",
+              "col_2": "7",
+              "col_3": "0"
+            }
+          ]
+        },
+        {
+          "name": "ELA",
+          "headers": [
+            "DATE SENT",
+            "CLIENT",
+            "UPDATE SENT ON TIME",
+            "METHOD",
+            "NOTES"
+          ],
+          "rowCount": 1000,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "DATE SENT": "Jul 2, 2025",
+              "CLIENT": "Dustin Thibeault",
+              "UPDATE SENT ON TIME": "Yes",
+              "METHOD": "Email"
+            },
+            {
+              "DATE SENT": "Sep 2, 2025",
+              "CLIENT": "Dustin Thibeault",
+              "UPDATE SENT ON TIME": "Yes",
+              "METHOD": "Email"
+            },
+            {
+              "DATE SENT": "Sep 9, 2025",
+              "CLIENT": "Dustin Thibeault",
+              "UPDATE SENT ON TIME": "Yes",
+              "METHOD": "Email"
+            },
+            {
+              "DATE SENT": "Sep 16, 2025",
+              "CLIENT": "Dustin Thibeault",
+              "UPDATE SENT ON TIME": "Yes",
+              "METHOD": "Email"
+            },
+            {
+              "DATE SENT": "Sep 23, 2025",
+              "CLIENT": "Dustin Thibeault",
+              "UPDATE SENT ON TIME": "Yes",
+              "METHOD": "Email"
+            }
+          ]
+        },
+        {
+          "name": "ANGEL",
+          "headers": [
+            "DATE SENT",
+            "CLIENT",
+            "UPDATE SENT ON TIME?",
+            "METHOD(Email,Whatsapp,etc.)",
+            "NOTES"
+          ],
+          "rowCount": 1007,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "DATE SENT": "Jun 30, 2025",
+              "CLIENT": "Laurie Ellington",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Email"
+            },
+            {
+              "DATE SENT": "Jul 1, 2025",
+              "CLIENT": "David Meister",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Email"
+            },
+            {
+              "DATE SENT": "Jul 3, 2025",
+              "CLIENT": "Josh Staley",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Email"
+            },
+            {
+              "DATE SENT": "Jul 3, 2025",
+              "CLIENT": "David Meister",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Email"
+            },
+            {
+              "DATE SENT": "Jul 3, 2025",
+              "CLIENT": "Laurie Ellington",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Email",
+              "NOTES": "sent on July 4 PHT, July 3 client's time"
+            }
+          ]
+        },
+        {
+          "name": "DEVI",
+          "headers": [
+            "DATE SENT",
+            "CLIENT",
+            "UPDATE SENT ON TIME",
+            "METHOD",
+            "NOTES"
+          ],
+          "rowCount": 1001,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "DATE SENT": "Aug 5, 2025",
+              "CLIENT": "Caroline Ravn",
+              "UPDATE SENT ON TIME": "Yes",
+              "METHOD": "Email",
+              "NOTES": "https://prnt.sc/r-TYzeMalzR2"
+            },
+            {
+              "DATE SENT": "Aug 13, 2025",
+              "CLIENT": "Caroline Ravn",
+              "UPDATE SENT ON TIME": "Yes",
+              "METHOD": "Email"
+            },
+            {
+              "DATE SENT": "Aug 25, 2025",
+              "CLIENT": "Caroline Ravn",
+              "UPDATE SENT ON TIME": "Yes",
+              "METHOD": "Email"
+            },
+            {
+              "DATE SENT": "Aug 26, 2025",
+              "CLIENT": "Caroline Ravn",
+              "UPDATE SENT ON TIME": "Yes",
+              "METHOD": "Email"
+            },
+            {
+              "DATE SENT": "Sep 2, 2025",
+              "CLIENT": "Caroline Ravn",
+              "UPDATE SENT ON TIME": "Yes",
+              "METHOD": "Email"
+            }
+          ]
+        },
+        {
+          "name": "HILDA",
+          "headers": [
+            "DATE SENT",
+            "CLIENT",
+            "UPDATE SENT ON TIME?",
+            "METHOD(Email,Whatsapp,etc.)",
+            "NOTES"
+          ],
+          "rowCount": 1001,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "DATE SENT": "Jul 2, 2025",
+              "CLIENT": "Tyler Hacker",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Email"
+            },
+            {
+              "DATE SENT": "Jul 3, 2025",
+              "CLIENT": "Matt Radicelli ",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Email"
+            },
+            {
+              "DATE SENT": "Jul 4, 2025",
+              "CLIENT": "Julie Cylla",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Email"
+            },
+            {
+              "DATE SENT": "7/1-3",
+              "CLIENT": "Lior Littman",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "WhatsApp/Trello"
+            },
+            {
+              "DATE SENT": "Jul 7, 2025",
+              "CLIENT": "Matt Radicelli ",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Email/Trello"
+            }
+          ]
+        },
+        {
+          "name": "KATH",
+          "headers": [
+            "DATE SENT",
+            "CLIENT",
+            "UPDATE SENT ON TIME?",
+            "METHOD(Email,Whatsapp,etc.)",
+            "NOTES"
+          ],
+          "rowCount": 1001,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "DATE SENT": "Jul 2, 2025",
+              "CLIENT": "Barnes Lam",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Email/Whatsapp"
+            },
+            {
+              "DATE SENT": "Jul 2, 2025",
+              "CLIENT": "Geoff Carlisle",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Email"
+            },
+            {
+              "DATE SENT": "Jul 3, 2025",
+              "CLIENT": "Jorge Lopez",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Email"
+            },
+            {
+              "DATE SENT": "Jul 8, 2025",
+              "CLIENT": "Barnes Lam",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Email/Whatsapp"
+            },
+            {
+              "DATE SENT": "Jul 9, 2025",
+              "CLIENT": "Geoff Carlisle",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Email"
+            }
+          ]
+        },
+        {
+          "name": "IVY",
+          "headers": [
+            "DATE",
+            "CLIENT",
+            "UPDATE SENT ON TIME?",
+            "METHOD(Email,Whatsapp,etc.)",
+            "NOTES"
+          ],
+          "rowCount": 1009,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "DATE": "06/30/2025",
+              "CLIENT": "Beau Kramer",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Email"
+            },
+            {
+              "DATE": "07/01/2025",
+              "CLIENT": "Karen Sawyer",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Email"
+            },
+            {
+              "DATE": "07/01/2025",
+              "CLIENT": "Beau Kramer",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Email"
+            },
+            {
+              "DATE": "07.03.2025",
+              "CLIENT": "Tim Huckabee",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Trello"
+            },
+            {
+              "DATE": "07.04.2025",
+              "CLIENT": "Karen Sawyer",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Email"
+            }
+          ]
+        },
+        {
+          "name": "RIZA",
+          "headers": [
+            "DATE SENT",
+            "CLIENT",
+            "UPDATE SENT ON TIME?",
+            "METHOD(Email,Whatsapp,etc.)",
+            "NOTES"
+          ],
+          "rowCount": 998,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "DATE SENT": "Jun 30, 2025",
+              "CLIENT": "Matt Radicelli ",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Email"
+            },
+            {
+              "DATE SENT": "Jul 2, 2025",
+              "CLIENT": "David Meister",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Email"
+            },
+            {
+              "DATE SENT": "Jul 3, 2025",
+              "CLIENT": "Josh Staley",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Email"
+            },
+            {
+              "DATE SENT": "Jul 4, 2025",
+              "CLIENT": "Josh Staley",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Email"
+            },
+            {
+              "DATE SENT": "Jul 6, 2025",
+              "CLIENT": "Sara Chana Silverstein",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "WhatsApp"
+            }
+          ]
+        },
+        {
+          "name": "SARAH",
+          "headers": [
+            "DATE SENT",
+            "CLIENT",
+            "UPDATE SENT ON TIME?",
+            "METHOD(Email,Whatsapp,etc.)",
+            "NOTES"
+          ],
+          "rowCount": 1000,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "DATE SENT": "Jul 1, 2025",
+              "CLIENT": "Jacqueline Smith",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Email"
+            },
+            {
+              "DATE SENT": "Jul 1, 2025",
+              "CLIENT": "Aaron & Priya Nair",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Email"
+            },
+            {
+              "DATE SENT": "Jul 2, 2025",
+              "CLIENT": "Jeffrey Greene",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Email"
+            },
+            {
+              "DATE SENT": "Jul 4, 2025",
+              "CLIENT": "Brant Matthews",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Email"
+            },
+            {
+              "DATE SENT": "Jul 5, 2025",
+              "CLIENT": "Rachel Porter",
+              "UPDATE SENT ON TIME?": "Yes",
+              "METHOD(Email,Whatsapp,etc.)": "Email"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "KM Sanity Checks",
+      "spreadsheetId": "169j-0iUPBRUKDfhHfS_yvoGhKPhXdI31kfKDjLCJIRM",
+      "depth": 1,
+      "error": null,
+      "tabCount": 11,
+      "tabs": [
+        {
+          "name": "Dashboard",
+          "headers": [],
+          "rowCount": 1002,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "AM",
+              "col_1": "Done",
+              "col_2": "Not Yet "
+            },
+            {
+              "col_0": "Angel",
+              "col_1": "6",
+              "col_2": "18"
+            },
+            {
+              "col_0": "Devi",
+              "col_1": "1",
+              "col_2": "3"
+            },
+            {
+              "col_0": "Ela",
+              "col_1": "0",
+              "col_2": "0"
+            },
+            {
+              "col_0": "Hilda",
+              "col_1": "5",
+              "col_2": "5"
+            }
+          ]
+        },
+        {
+          "name": "Summary",
+          "headers": [],
+          "rowCount": 1011,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "",
+              "col_1": "Sanity Checks"
+            },
+            {
+              "col_0": "",
+              "col_1": "For the Month of February 2026"
+            },
+            {
+              "col_0": "",
+              "col_1": "Account Manager",
+              "col_2": "Client",
+              "col_3": "Business Name",
+              "col_4": "2/6/2026",
+              "col_5": "2/13/2026",
+              "col_6": "2/20/2026",
+              "col_7": "2/27/2026"
+            },
+            {
+              "col_0": "",
+              "col_1": "Angel",
+              "col_2": "David Meister",
+              "col_3": "Stages Plus",
+              "col_4": "DONE",
+              "col_5": "Not Yet",
+              "col_6": "Not Yet",
+              "col_7": "Not Yet"
+            },
+            {
+              "col_0": "",
+              "col_1": "",
+              "col_2": "David Meister",
+              "col_3": "Face Painters Plus",
+              "col_4": "DONE",
+              "col_5": "Not Yet",
+              "col_6": "Not Yet",
+              "col_7": "Not Yet"
+            }
+          ]
+        },
+        {
+          "name": "RIZA",
+          "headers": [
+            "DATE",
+            "CLIENT",
+            "BUSINESS NAME",
+            "SANITY CHECK DONE",
+            "NOTES",
+            "Column 1"
+          ],
+          "rowCount": 641,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "DATE": "7/1/2025",
+              "CLIENT": "David Meister",
+              "BUSINESS NAME": "CFBD Homepage",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "https://prnt.sc/YR946mxM1ykD"
+            },
+            {
+              "DATE": "7/1/2025",
+              "CLIENT": "David Meister",
+              "BUSINESS NAME": "CFBD Go Arches",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "https://prnt.sc/m3v5gZigbSeS"
+            },
+            {
+              "DATE": "7/1/2025",
+              "CLIENT": "David Meister",
+              "BUSINESS NAME": "CFBD Go Corporate",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "https://prnt.sc/Th1ynHh1lTDx"
+            },
+            {
+              "DATE": "7/1/2025",
+              "CLIENT": "David Meister",
+              "BUSINESS NAME": "CFBD Go Holiday",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "https://prnt.sc/ZsggLOKQRQyk"
+            },
+            {
+              "DATE": "7/1/2025",
+              "CLIENT": "David Meister",
+              "BUSINESS NAME": "CFBD Lawn letter",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "https://prnt.sc/YR946mxM1ykD"
+            }
+          ]
+        },
+        {
+          "name": "ANGEL",
+          "headers": [
+            "DATE",
+            "CLIENT",
+            "BUSINESS NAME",
+            "SANITY CHECK DONE",
+            "NOTES"
+          ],
+          "rowCount": 1000,
+          "linksFound": 84,
+          "sampleRows": [
+            {
+              "DATE": "7/4/2025",
+              "CLIENT": "David Meister",
+              "BUSINESS NAME": "Stages Plus",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "KM - Sanity test"
+            },
+            {
+              "DATE": "7/4/2025",
+              "CLIENT": "David Meister",
+              "BUSINESS NAME": "Face Painters Plus",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "KM - Sanity test"
+            },
+            {
+              "DATE": "7/4/2025",
+              "CLIENT": "Laurie Ellington",
+              "BUSINESS NAME": "Poly-coach",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "KM - Sanity test"
+            },
+            {
+              "DATE": "7/11/2025",
+              "CLIENT": "David Meister",
+              "BUSINESS NAME": "Stages Plus",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "KM - Sanity test"
+            },
+            {
+              "DATE": "7/11/2025",
+              "CLIENT": "David Meister",
+              "BUSINESS NAME": "Face Painters Plus",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "KM - Sanity test"
+            }
+          ]
+        },
+        {
+          "name": "HILDA",
+          "headers": [
+            "DATE",
+            "CLIENT",
+            "BUSINESS NAME",
+            "SANITY CHECK DONE",
+            "NOTES"
+          ],
+          "rowCount": 999,
+          "linksFound": 47,
+          "sampleRows": [
+            {
+              "DATE": "7/4/2025",
+              "CLIENT": "Julie Cylla",
+              "BUSINESS NAME": "Top Notch Balloon Creations",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "KM - Sanity test"
+            },
+            {
+              "DATE": "7/25/2025",
+              "CLIENT": "Julie Cylla",
+              "BUSINESS NAME": "Top Notch Balloon Creations",
+              "SANITY CHECK DONE": "No",
+              "NOTES": "Prioritizing website revamp for now"
+            },
+            {
+              "DATE": "9/20/2025",
+              "CLIENT": "Sara Chana",
+              "BUSINESS NAME": "Sara Chana",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "KM - Sanity test"
+            },
+            {
+              "DATE": "9/20/2025",
+              "CLIENT": "Julie Cylla",
+              "BUSINESS NAME": "Top Notch Balloon Creations",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "KM - Sanity test"
+            },
+            {
+              "DATE": "9/26/2025",
+              "CLIENT": "Sara Chana",
+              "BUSINESS NAME": "Sara Chana",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "KM - Sanity test"
+            }
+          ]
+        },
+        {
+          "name": "KATH",
+          "headers": [
+            "DATE",
+            "CLIENT",
+            "BUSINESS NAME",
+            "SANITY CHECK DONE",
+            "NOTES"
+          ],
+          "rowCount": 1000,
+          "linksFound": 7,
+          "sampleRows": [
+            {
+              "DATE": "7/4/2025",
+              "CLIENT": "Jorge Lopez",
+              "BUSINESS NAME": "J&M Events",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "KM - Sanity test"
+            },
+            {
+              "DATE": "7/4/2025",
+              "CLIENT": "Geoff Carlisle",
+              "BUSINESS NAME": "JAMM Entertainment Services",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "KM - Sanity test"
+            },
+            {
+              "DATE": "7/4/2025",
+              "CLIENT": "Barnes Lam",
+              "BUSINESS NAME": "Biz Dev Titans, IT Intelligence, Growth Gurus",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "KM - Sanity test"
+            },
+            {
+              "DATE": "7/11/2025",
+              "CLIENT": "Jorge Lopez",
+              "BUSINESS NAME": "J&M Events",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "KM - Sanity test"
+            },
+            {
+              "DATE": "7/11/2025",
+              "CLIENT": "Geoff Carlisle",
+              "BUSINESS NAME": "JAMM Entertainment Services",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "KM - Sanity test"
+            }
+          ]
+        },
+        {
+          "name": "MARIZ",
+          "headers": [
+            "DATE",
+            "CLIENT",
+            "BUSINESS NAME",
+            "SANITY CHECK DONE",
+            "NOTES"
+          ],
+          "rowCount": 1000,
+          "linksFound": 32,
+          "sampleRows": [
+            {
+              "DATE": "7/4/2025",
+              "CLIENT": "Halley Foye",
+              "BUSINESS NAME": "Carolina Balloons",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "KM - Sanity test"
+            },
+            {
+              "DATE": "7/11/2025",
+              "CLIENT": "Halley Foye",
+              "BUSINESS NAME": "Carolina Balloons",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "KM - Sanity test"
+            },
+            {
+              "DATE": "7/18/2025",
+              "CLIENT": "Halley Foye",
+              "BUSINESS NAME": "Carolina Balloons",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "KM - Sanity test"
+            },
+            {
+              "DATE": "7/25/2025",
+              "CLIENT": "Halley Foye",
+              "BUSINESS NAME": "Carolina Balloons",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "KM - Sanity test"
+            },
+            {
+              "DATE": "8/1/2025",
+              "CLIENT": "Halley Foye",
+              "BUSINESS NAME": "Carolina Balloons",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "KM - Sanity test"
+            }
+          ]
+        },
+        {
+          "name": "SARAH",
+          "headers": [
+            "DATE",
+            "CLIENT",
+            "BUSINESS NAME",
+            "SANITY CHECK DONE",
+            "NOTES"
+          ],
+          "rowCount": 1012,
+          "linksFound": 109,
+          "sampleRows": [
+            {
+              "DATE": "7/4/2025",
+              "CLIENT": "Aaron & Priya Nair",
+              "BUSINESS NAME": "Xlent Events and Bounce Beasts",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "KM - Sanity test"
+            },
+            {
+              "DATE": "7/4/2025",
+              "CLIENT": "Brant Matthews",
+              "BUSINESS NAME": "Fireguy, Brant Matthews, Dispatch Talent and Foamtario ",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "KM - Sanity test"
+            },
+            {
+              "DATE": "7/4/2025",
+              "CLIENT": "Jacqueline Smith",
+              "BUSINESS NAME": "Dazzling Balloon and Beyond",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "KM - Sanity test"
+            },
+            {
+              "DATE": "7/4/2025",
+              "CLIENT": "Jeffrey Greene",
+              "BUSINESS NAME": "",
+              "SANITY CHECK DONE": "",
+              "NOTES": "websites are still for building"
+            },
+            {
+              "DATE": "7/4/2025",
+              "CLIENT": "Rachel Porter",
+              "BUSINESS NAME": "",
+              "SANITY CHECK DONE": "",
+              "NOTES": "website is still for building"
+            }
+          ]
+        },
+        {
+          "name": "DEVI",
+          "headers": [
+            "DATE",
+            "CLIENT",
+            "BUSINESS NAME",
+            "SANITY CHECK DONE",
+            "NOTES"
+          ],
+          "rowCount": 1000,
+          "linksFound": 22,
+          "sampleRows": [
+            {
+              "DATE": "9/5/2025",
+              "CLIENT": "Caroline Ravn",
+              "BUSINESS NAME": "Caroline Ravn Magician",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "SANITY CHECKS | CAROLINE RAVN"
+            },
+            {
+              "DATE": "9/12/2025",
+              "CLIENT": "Caroline Ravn",
+              "BUSINESS NAME": "Caroline Ravn Magician",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "SANITY CHECKS | CAROLINE RAVN"
+            },
+            {
+              "DATE": "9/19/2025",
+              "CLIENT": "Caroline Ravn",
+              "BUSINESS NAME": "Caroline Ravn Magician",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "SANITY CHECKS | CAROLINE RAVN"
+            },
+            {
+              "DATE": "9/26/2025",
+              "CLIENT": "Caroline Ravn",
+              "BUSINESS NAME": "Caroline Ravn Magician",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "SANITY CHECKS | CAROLINE RAVN"
+            },
+            {
+              "DATE": "10/3/2025",
+              "CLIENT": "Caroline Ravn",
+              "BUSINESS NAME": "Caroline Ravn Magician",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "SANITY CHECKS | CAROLINE RAVN"
+            }
+          ]
+        },
+        {
+          "name": "ELA",
+          "headers": [
+            "DATE",
+            "CLIENT",
+            "BUSINESS NAME",
+            "SANITY CHECK DONE",
+            "NOTES"
+          ],
+          "rowCount": 1000,
+          "linksFound": 27,
+          "sampleRows": [
+            {
+              "DATE": "10/13/2025",
+              "CLIENT": "Dustin Thibeault",
+              "BUSINESS NAME": "Home On Your Own",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "KM - Sanity test"
+            },
+            {
+              "DATE": "10/14/2025",
+              "CLIENT": "Dustin Thibeault",
+              "BUSINESS NAME": "Home On Your Own",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "KM - Sanity test"
+            },
+            {
+              "DATE": "10/21/2025",
+              "CLIENT": "Dustin Thibeault",
+              "BUSINESS NAME": "Home On Your Own",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "KM - Sanity test"
+            },
+            {
+              "DATE": "10/24/2025",
+              "CLIENT": "Dustin Thibeault",
+              "BUSINESS NAME": "Home On Your Own",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "KM - Sanity test"
+            },
+            {
+              "DATE": "10/27/2025",
+              "CLIENT": "Dustin Thibeault",
+              "BUSINESS NAME": "Home On Your Own",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "KM - Sanity test"
+            }
+          ]
+        },
+        {
+          "name": "IVY",
+          "headers": [
+            "DATE",
+            "CLIENT",
+            "BUSINESS NAME",
+            "SANITY CHECK DONE",
+            "NOTES"
+          ],
+          "rowCount": 1001,
+          "linksFound": 9,
+          "sampleRows": [
+            {
+              "DATE": "7/4/2025",
+              "CLIENT": "Beau Kramer",
+              "BUSINESS NAME": "Kramer Events",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "full details are here - https://docs.google.com/spreadsheets/d/1BZvQN_mwc_mqedHLzzl3CzhqWhZ6CfYcUFUsKv9HNko/edit?gid=787836742#gid=787836742"
+            },
+            {
+              "DATE": "7/4/2025",
+              "CLIENT": "Karen Sawyer",
+              "BUSINESS NAME": "The Balloon Boutique",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "full details are here - https://docs.google.com/spreadsheets/d/1BZvQN_mwc_mqedHLzzl3CzhqWhZ6CfYcUFUsKv9HNko/edit?gid=787836742#gid=787836743 "
+            },
+            {
+              "DATE": "7/4/2025",
+              "CLIENT": "Tim Huckabee",
+              "BUSINESS NAME": "The Profitable Florists",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "full details are here - https://docs.google.com/spreadsheets/d/1BZvQN_mwc_mqedHLzzl3CzhqWhZ6CfYcUFUsKv9HNko/edit?gid=787836742#gid=787836744 "
+            },
+            {
+              "DATE": "7/4/2025",
+              "CLIENT": "Caroline Ravn",
+              "BUSINESS NAME": "Caroline Ravn",
+              "SANITY CHECK DONE": "No",
+              "NOTES": "We're still waiting for client's approval to launch the site"
+            },
+            {
+              "DATE": "7/11/2025",
+              "CLIENT": "Beau Kramer",
+              "BUSINESS NAME": "Kramer Events",
+              "SANITY CHECK DONE": "Yes",
+              "NOTES": "still ongoing - in relation to the QA cycle done for the launch"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Operations Team Daily GoalsTracker",
+      "spreadsheetId": "1hx0oJJ9ulISBj1vlBX8-rQEIqlaERgyh4lg7-mx_B-0",
+      "depth": 1,
+      "error": null,
+      "tabCount": 6,
+      "tabs": [
+        {
+          "name": "Daily Summary",
+          "headers": [],
+          "rowCount": 998,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "",
+              "col_1": "Designer/Devs",
+              "col_2": "Monday, February 2, 2026"
+            },
+            {
+              "col_0": "",
+              "col_1": "",
+              "col_2": "Total",
+              "col_3": "Updated",
+              "col_4": "Completed",
+              "col_5": "Ongoing",
+              "col_6": "Notes"
+            },
+            {
+              "col_0": "",
+              "col_1": "Abs"
+            },
+            {
+              "col_0": "",
+              "col_1": "Ela"
+            },
+            {
+              "col_0": "",
+              "col_1": "Glenn"
+            }
+          ]
+        },
+        {
+          "name": "FEB'26",
+          "headers": [
+            "Date",
+            "Designer/Dev",
+            "Commitments",
+            "Links",
+            "Updated",
+            "Completed",
+            "%",
+            "Remarks"
+          ],
+          "rowCount": 337,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Date": "2/3/2026",
+              "Designer/Dev": "Mayvi",
+              "Commitments": "Twisty art website refresh continuation",
+              "Links": "https://trello.com/c/D9QudrDa",
+              "Updated": "YES",
+              "Completed": "YES"
+            },
+            {
+              "Date": "",
+              "Designer/Dev": "",
+              "Commitments": "Turn Up Columbus I Packages minor fix",
+              "Links": "https://trello.com/c/eAfxOiog",
+              "Updated": "YES",
+              "Completed": "YES"
+            },
+            {
+              "Date": "",
+              "Designer/Dev": "",
+              "Commitments": "Julie newsletter - Minor fix",
+              "Links": "https://trello.com/c/pskr5490",
+              "Updated": "YES",
+              "Completed": "YES"
+            },
+            {
+              "Date": "",
+              "Designer/Dev": "",
+              "Commitments": "JSP section redesign - slice and mobile version",
+              "Links": "https://trello.com/c/thWNy8tK/3786-redesign-this-section-for-jsp-enhancement-page",
+              "Updated": "YES",
+              "Completed": "YES"
+            },
+            {
+              "Date": "",
+              "Designer/Dev": "",
+              "Commitments": "JSP enhancement page reimagined sections redesign - slice-mobile version-animation",
+              "Links": "https://trello.com/c/T7IsWO5P",
+              "Updated": "YES",
+              "Completed": "YES"
+            }
+          ]
+        },
+        {
+          "name": "Consolidated Summary",
+          "headers": [],
+          "rowCount": 919,
+          "linksFound": 0,
+          "sampleRows": []
+        },
+        {
+          "name": "2026 Records",
+          "headers": [],
+          "rowCount": 571,
+          "linksFound": 0,
+          "sampleRows": []
+        },
+        {
+          "name": "2025 Records",
+          "headers": [],
+          "rowCount": 2336,
+          "linksFound": 0,
+          "sampleRows": []
+        },
+        {
+          "name": "Weekly",
+          "headers": [],
+          "rowCount": 999,
+          "linksFound": 0,
+          "sampleRows": []
+        }
+      ]
+    },
+    {
+      "title": "QUARTERLY - Pingdom Speed Test",
+      "spreadsheetId": "1zBWgluXaDAT8HvmXToH2-juAImd4geVZv2GWFi96HDE",
+      "depth": 1,
+      "error": null,
+      "tabCount": 7,
+      "tabs": [
+        {
+          "name": "Dashboard",
+          "headers": [],
+          "rowCount": 1002,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "AM",
+              "col_1": "Done",
+              "col_2": "Not Yet "
+            },
+            {
+              "col_0": "Angel",
+              "col_1": "0",
+              "col_2": "0"
+            },
+            {
+              "col_0": "Devi",
+              "col_1": "0",
+              "col_2": "0"
+            },
+            {
+              "col_0": "Ela",
+              "col_1": "1",
+              "col_2": "0"
+            },
+            {
+              "col_0": "Hilda",
+              "col_1": "0",
+              "col_2": "0"
+            }
+          ]
+        },
+        {
+          "name": "Summary",
+          "headers": [],
+          "rowCount": 1019,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "",
+              "col_1": "QUARTERLY - Pingdom Speed Test"
+            },
+            {
+              "col_0": "",
+              "col_1": "For the First Quarter of 2026"
+            },
+            {
+              "col_0": "",
+              "col_1": "Account Manager",
+              "col_2": "Client",
+              "col_3": "Business Name",
+              "col_4": "Conducted the Test"
+            },
+            {
+              "col_0": "",
+              "col_1": "Angel",
+              "col_2": "David Meister",
+              "col_3": "ProGobo"
+            },
+            {
+              "col_0": "",
+              "col_1": "",
+              "col_2": "David Meister",
+              "col_3": "Stages Plus"
+            }
+          ]
+        },
+        {
+          "name": "2026 | QUARTER 1",
+          "headers": [
+            "For the First Quarter of 2026\nJanuary to March",
+            "For Reference:\nReasonable load time: 3-4 seconds or lower\nReasonable page size: 5MB or less"
+          ],
+          "rowCount": 1011,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "For the First Quarter of 2026\nJanuary to March": "Test Date",
+              "col_1": "Account Manager",
+              "col_2": "Client",
+              "col_3": "Business Name",
+              "col_4": "Attachments / Report",
+              "col_5": "Notes"
+            },
+            {
+              "For the First Quarter of 2026\nJanuary to March": "1/6/2026",
+              "col_1": "Devi",
+              "col_2": "Caroline Ravn",
+              "col_3": "Caroline Ravn Magician",
+              "col_4": "Pingdom Website Speed Test Report | Caroline Ravn",
+              "col_5": "Page size is too big. Added a ticket for dev: "
+            },
+            {
+              "For the First Quarter of 2026\nJanuary to March": "1/7/2026",
+              "col_1": "Mariz",
+              "col_2": "Halley Foye",
+              "col_3": "Carolina Balloons",
+              "col_4": "2026 Pingdom Test Report - Carolina Balloons",
+              "col_5": "Page size is too big. Added a ticket for dev: https://trello.com/c/wmhESpPl/3355-optimize-page-size-for-carolina-balloons "
+            },
+            {
+              "For the First Quarter of 2026\nJanuary to March": "1/7/2026",
+              "col_1": "Mariz",
+              "col_2": "Halley Foye",
+              "col_3": "Carolina Marquees",
+              "col_4": "2026 Pingdom Test Report - Carolina Marquees",
+              "col_5": "Page size is too big. Added a ticket for dev:\nhttps://trello.com/c/a6c0Oryq/3356-optimize-page-size-for-carolina-marquees "
+            },
+            {
+              "For the First Quarter of 2026\nJanuary to March": "1/7/2026",
+              "col_1": "Kath",
+              "col_2": "Tim Huckabee",
+              "col_3": "The Profitable Florist",
+              "col_4": "The Profitable Florist - January 2026 - Pingdom Report",
+              "col_5": "Load Time: 4.84s\r\nPage Size: 6.6 MB\r"
+            }
+          ]
+        },
+        {
+          "name": "2025 | QUARTER 3",
+          "headers": [
+            "Quarter 3 (1st week of September)",
+            "For Reference:\nReasonable load time: 3-4 seconds or lower\nReasonable page size: 5MB or less"
+          ],
+          "rowCount": 1005,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Quarter 3 (1st week of September)": "Test Date",
+              "col_1": "Account Manager",
+              "col_2": "Client",
+              "col_3": "Attachments / Report",
+              "col_4": "Notes"
+            },
+            {
+              "Quarter 3 (1st week of September)": "9/3/2025",
+              "col_1": "Devi",
+              "col_2": "Caroline Ravn",
+              "col_3": "September 2025 - Pingdom Website Speed Test Report | Caroline Ravn",
+              "col_4": "Load time and Page size is too big; sent a ticket to the dev: https://trello.com/c/jliKqr6e/3353-reduce-the-page-size-of-caroline-ravns-homepage "
+            },
+            {
+              "Quarter 3 (1st week of September)": "9/4/2025",
+              "col_1": "Mariz",
+              "col_2": "Halley Foye",
+              "col_3": "September 2025 Pingdom Test Report - Carolina Balloons",
+              "col_4": "Page size is too big. Added a ticket for dev:\nhttps://trello.com/c/wmhESpPl/3355-optimize-page-size-for-carolina-balloons "
+            },
+            {
+              "Quarter 3 (1st week of September)": "9/4/2025",
+              "col_1": "Mariz",
+              "col_2": "Halley Foye",
+              "col_3": "September 2025 Pingdom Test Report - Carolina Marquees",
+              "col_4": "Page size is too big. Added a ticket for dev:\nhttps://trello.com/c/a6c0Oryq/3356-optimize-page-size-for-carolina-marquees "
+            },
+            {
+              "Quarter 3 (1st week of September)": "9/4/2025",
+              "col_1": "Kath",
+              "col_2": "Tim Huckabee",
+              "col_3": "The Profitable Florist - September 2025 - Pingdom Report",
+              "col_4": "Load Time: 7.82s\r\nPage Size: 5.9 MB\r"
+            }
+          ]
+        },
+        {
+          "name": "2025 | QUARTER 4",
+          "headers": [
+            "For the Fourth Quarter of 2025\nOctober to December",
+            "For Reference:\nReasonable load time: 3-4 seconds or lower\nReasonable page size: 5MB or less"
+          ],
+          "rowCount": 1008,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "For the Fourth Quarter of 2025\nOctober to December": "Test Date",
+              "col_1": "Account Manager",
+              "col_2": "Client",
+              "col_3": "Business Name",
+              "col_4": "Notes",
+              "col_5": "Attachments / Report"
+            },
+            {
+              "For the Fourth Quarter of 2025\nOctober to December": "10/1/2025",
+              "col_1": "Devi",
+              "col_2": "Caroline Ravn",
+              "col_3": "Caroline Ravn Magician",
+              "col_4": "Devs are still trying ways to optimize and reduce the size and load time | https://trello.com/c/jliKqr6e/3353-reduce-the-page-size-of-caroline-ravns-homepage ",
+              "col_5": "Pingdom Website Speed Test Report | Caroline Ravn"
+            },
+            {
+              "For the Fourth Quarter of 2025\nOctober to December": "11/3/2025",
+              "col_1": "Mariz",
+              "col_2": "Halley Foye",
+              "col_3": "Carolina Balloons",
+              "col_4": "",
+              "col_5": "2025 Pingdom Test Report - Carolina Balloons"
+            },
+            {
+              "For the Fourth Quarter of 2025\nOctober to December": "11/3/2025",
+              "col_1": "Mariz",
+              "col_2": "Halley Foye",
+              "col_3": "Carolina Marquees",
+              "col_4": "",
+              "col_5": "2025 Pingdom Test Report - Carolina Marquees"
+            },
+            {
+              "For the Fourth Quarter of 2025\nOctober to December": "10/4/2025",
+              "col_1": "Kath",
+              "col_2": "Tim Huckabee",
+              "col_3": "The Profitable Florist",
+              "col_4": "",
+              "col_5": "The Profitable Florist - OCTOBER 2025 - Pingdom Report ",
+              "For Reference:\nReasonable load time: 3-4 seconds or lower\nReasonable page size: 5MB or less": "https://trello.com/c/KFurU5lU/3452-jm-and-the-profitable-florist-website-speed-optimization"
+            }
+          ]
+        },
+        {
+          "name": "2025",
+          "headers": [
+            "Test Date",
+            "Account Manager",
+            "Client",
+            "Client Website",
+            "Attachments / Report",
+            "Notes"
+          ],
+          "rowCount": 1000,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "Quarter 3 (1st week of September)"
+            }
+          ]
+        },
+        {
+          "name": "2026",
+          "headers": [
+            "Test Date",
+            "Account Manager",
+            "Client",
+            "Client Website",
+            "Attachments / Report",
+            "Notes"
+          ],
+          "rowCount": 1000,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "Quarter 1 (1st week of January)"
+            },
+            {
+              "col_0": "Quarter 2 (1st week of April)"
+            },
+            {
+              "col_0": "Quarter 3 (1st week of July)"
+            },
+            {
+              "col_0": "Quarter 4 (1st week of October)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Google Ads Monthly Report Tracker",
+      "spreadsheetId": "12tO954LRVsT5edcOl4NohdWIU0akZvqTEi4nPHmgBes",
+      "depth": 1,
+      "error": null,
+      "tabCount": 10,
+      "tabs": [
+        {
+          "name": "Summary",
+          "headers": [],
+          "rowCount": 1001,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "",
+              "col_1": "Sent Google Ads Report to Clients"
+            },
+            {
+              "col_0": "",
+              "col_1": "For the Month of January 2026"
+            },
+            {
+              "col_0": "",
+              "col_1": "Account Manager",
+              "col_2": "Sent",
+              "col_3": "NOT Yet Sent"
+            },
+            {
+              "col_0": "",
+              "col_1": "Angel",
+              "col_2": "2",
+              "col_3": "0"
+            },
+            {
+              "col_0": "",
+              "col_1": "Devi",
+              "col_2": "1",
+              "col_3": "0"
+            }
+          ]
+        },
+        {
+          "name": "JAN'26",
+          "headers": [
+            "Monthly Google Ads Report"
+          ],
+          "rowCount": 1006,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Monthly Google Ads Report": "For the Month of January 2026"
+            },
+            {
+              "Monthly Google Ads Report": "Acount Manager",
+              "col_1": "Client",
+              "col_2": "Business Name",
+              "col_3": "Sent to Client",
+              "col_4": "Attachments",
+              "col_5": "Notes"
+            },
+            {
+              "Monthly Google Ads Report": "Angel",
+              "col_1": "David Meister",
+              "col_2": "Stages Plus",
+              "col_3": "Ads paused for now"
+            },
+            {
+              "Monthly Google Ads Report": "Angel",
+              "col_1": "David Meister",
+              "col_2": "Stages Plus AV",
+              "col_3": "Ads paused for now"
+            },
+            {
+              "Monthly Google Ads Report": "Angel",
+              "col_1": "David Meister",
+              "col_2": "Face Painters Plus",
+              "col_3": "Yes",
+              "col_4": "David - FPP - Feb report - Google Ads Monthly Report"
+            }
+          ]
+        },
+        {
+          "name": "DEC'25",
+          "headers": [
+            "Monthly Google Ads Report"
+          ],
+          "rowCount": 1006,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Monthly Google Ads Report": "For the Month of December 2025"
+            },
+            {
+              "Monthly Google Ads Report": "Acount Manager",
+              "col_1": "Client",
+              "col_2": "Business Name",
+              "col_3": "Sent to Client",
+              "col_4": "Attachments",
+              "col_5": "Notes"
+            },
+            {
+              "Monthly Google Ads Report": "Angel",
+              "col_1": "David Meister",
+              "col_2": "Stages Plus",
+              "col_3": "Ads paused for now"
+            },
+            {
+              "Monthly Google Ads Report": "Angel",
+              "col_1": "David Meister",
+              "col_2": "Stages Plus AV",
+              "col_3": "Ads paused for now"
+            },
+            {
+              "Monthly Google Ads Report": "Angel",
+              "col_1": "David Meister",
+              "col_2": "Face Painters Plus",
+              "col_3": "Yes",
+              "col_4": "David - FPP - DEC - Google Ads Monthly Report"
+            }
+          ]
+        },
+        {
+          "name": "NOV'25",
+          "headers": [
+            "Monthly Google Ads Report"
+          ],
+          "rowCount": 1005,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Monthly Google Ads Report": "For the Month of November 2025"
+            },
+            {
+              "Monthly Google Ads Report": "Acount Manager",
+              "col_1": "Client",
+              "col_2": "Business Name",
+              "col_3": "Sent to Client",
+              "col_4": "Notes",
+              "col_5": "Attachments"
+            },
+            {
+              "Monthly Google Ads Report": "Angel",
+              "col_1": "David Meister",
+              "col_2": "Stages Plus",
+              "col_3": "Yes",
+              "col_4": "",
+              "col_5": "David - Stages Plus - NOV - Google Ads Monthly Report"
+            },
+            {
+              "Monthly Google Ads Report": "Angel",
+              "col_1": "David Meister",
+              "col_2": "Face Painters Plus",
+              "col_3": "Yes",
+              "col_4": "",
+              "col_5": "David - FPP - NOV - Google Ads Monthly Report"
+            },
+            {
+              "Monthly Google Ads Report": "Angel",
+              "col_1": "David Meister",
+              "col_2": "Progobo - Google ads",
+              "col_3": "Ads paused for now"
+            }
+          ]
+        },
+        {
+          "name": "OCT'25",
+          "headers": [
+            "Monthly Google Ads Report"
+          ],
+          "rowCount": 1004,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Monthly Google Ads Report": "For the Month of October 2025"
+            },
+            {
+              "Monthly Google Ads Report": "Acount Manager",
+              "col_1": "Client",
+              "col_2": "",
+              "col_3": "Sent to Client",
+              "col_4": "Notes",
+              "col_5": "Attachments"
+            },
+            {
+              "Monthly Google Ads Report": "Angel",
+              "col_1": "David Meister",
+              "col_2": "Stages Plus",
+              "col_3": "Yes",
+              "col_4": "",
+              "col_5": "David - Stages Plus - OCT - Google Ads Monthly Report"
+            },
+            {
+              "Monthly Google Ads Report": "Angel",
+              "col_1": "David Meister",
+              "col_2": "Face Painters Plus",
+              "col_3": "Yes",
+              "col_4": "",
+              "col_5": "David - FPP - OCT - Google Ads Monthly Report"
+            },
+            {
+              "Monthly Google Ads Report": "Angel",
+              "col_1": "David Meister",
+              "col_2": "Progobo - Google ads",
+              "col_3": "Ads paused for now"
+            }
+          ]
+        },
+        {
+          "name": "SEP'25",
+          "headers": [
+            "Monthly Google Ads Report"
+          ],
+          "rowCount": 1002,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Monthly Google Ads Report": "For the Month of September 2025"
+            },
+            {
+              "Monthly Google Ads Report": "Acount Manager",
+              "col_1": "Client",
+              "col_2": "",
+              "col_3": "Sent to Client",
+              "col_4": "Notes",
+              "col_5": "Attachments"
+            },
+            {
+              "Monthly Google Ads Report": "Angel",
+              "col_1": "David Meister",
+              "col_2": "Stages Plus",
+              "col_3": "Yes",
+              "col_4": "",
+              "col_5": "David - Stages Plus - SEPT - Google Ads Monthly Report"
+            },
+            {
+              "Monthly Google Ads Report": "Angel",
+              "col_1": "David Meister",
+              "col_2": "Face Painters Plus",
+              "col_3": "Yes",
+              "col_4": "",
+              "col_5": "David - FPP - SEPT - Google Ads Monthly Report"
+            },
+            {
+              "Monthly Google Ads Report": "Angel",
+              "col_1": "David Meister",
+              "col_2": "Progobo - Google ads",
+              "col_3": "Ads paused for now"
+            }
+          ]
+        },
+        {
+          "name": "AUG'25",
+          "headers": [
+            "Monthly Google Ads Report"
+          ],
+          "rowCount": 1001,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Monthly Google Ads Report": "For the Month of August 2025"
+            },
+            {
+              "Monthly Google Ads Report": "Acount Manager",
+              "col_1": "Client",
+              "col_2": "Approved by Ziv",
+              "col_3": "Sent to Client",
+              "col_4": "Notes",
+              "col_5": "Attachments"
+            },
+            {
+              "Monthly Google Ads Report": "Angel",
+              "col_1": "David Meister",
+              "col_2": "Yes",
+              "col_3": "Yes",
+              "col_4": "",
+              "col_5": "Stages Plus"
+            },
+            {
+              "Monthly Google Ads Report": "Angel",
+              "col_1": "David Meister",
+              "col_2": "Yes",
+              "col_3": "Yes",
+              "col_4": "",
+              "col_5": "Face Painters Plus"
+            },
+            {
+              "Monthly Google Ads Report": "Angel",
+              "col_1": "David Meister",
+              "col_2": "Yes",
+              "col_3": "Yes",
+              "col_4": "",
+              "col_5": "Progobo - Google ads"
+            }
+          ]
+        },
+        {
+          "name": "JULY'25",
+          "headers": [
+            "Monthly Google Ads Report"
+          ],
+          "rowCount": 1001,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Monthly Google Ads Report": "For the Month of July 2025"
+            },
+            {
+              "Monthly Google Ads Report": "Acount Manager",
+              "col_1": "Client",
+              "col_2": "Approved by Ziv",
+              "col_3": "Sent to Client",
+              "col_4": "Notes",
+              "col_5": "Attachments"
+            },
+            {
+              "Monthly Google Ads Report": "Angel",
+              "col_1": "David Meister",
+              "col_2": "",
+              "col_3": "",
+              "col_4": "",
+              "col_5": "Stages Plus"
+            },
+            {
+              "Monthly Google Ads Report": "Angel",
+              "col_1": "David Meister",
+              "col_2": "",
+              "col_3": "",
+              "col_4": "",
+              "col_5": "ProGobo"
+            },
+            {
+              "Monthly Google Ads Report": "Angel",
+              "col_1": "David Meister",
+              "col_2": "",
+              "col_3": "",
+              "col_4": "",
+              "col_5": "Face Painter Plus "
+            }
+          ]
+        },
+        {
+          "name": "JUNE'25",
+          "headers": [
+            "Monthly Google Ads Report"
+          ],
+          "rowCount": 991,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Monthly Google Ads Report": "For the Month of June 2025"
+            },
+            {
+              "Monthly Google Ads Report": "Acount Manager",
+              "col_1": "Client",
+              "col_2": "Approved by Ziv",
+              "col_3": "Sent to Client",
+              "col_4": "Notes",
+              "col_5": "Attachments"
+            },
+            {
+              "Monthly Google Ads Report": "Angel",
+              "col_1": "David Meister",
+              "col_2": "Yes",
+              "col_3": "Yes",
+              "col_4": "done",
+              "col_5": "Stages Plus - David - Stages Plus - Google Ads Monthly Report template \nProgobo - David - ProGobo - Google Ads Monthly Report \nFace Painters Plus - David - FPP - Google Ads Monthly Report ",
+              "col_6": "from David - FPP - Thank you, please keep it all the same. "
+            },
+            {
+              "Monthly Google Ads Report": "Angel",
+              "col_1": "Josh Staley",
+              "col_2": "",
+              "col_3": "",
+              "col_4": "Paused campaigns. Ongoing website redesign for TUC and CDJC"
+            },
+            {
+              "Monthly Google Ads Report": "Hilda",
+              "col_1": "Julie Cylla",
+              "col_2": "Yes",
+              "col_3": "Yes",
+              "col_4": "done",
+              "col_5": "Julie| TNBC Google Ads Monthly Report\nJULIE | TNBC - Google Ads Budget Email Sequence"
+            }
+          ]
+        },
+        {
+          "name": "Copy of SEP",
+          "headers": [
+            "Monthly Google Ads Report"
+          ],
+          "rowCount": 1002,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Monthly Google Ads Report": "For the Month of t 2025"
+            },
+            {
+              "Monthly Google Ads Report": "Acount Manager",
+              "col_1": "Client",
+              "col_2": "",
+              "col_3": "Sent to Client",
+              "col_4": "Notes",
+              "col_5": "Attachments"
+            },
+            {
+              "Monthly Google Ads Report": "Angel",
+              "col_1": "David Meister",
+              "col_2": "Stages Plus"
+            },
+            {
+              "Monthly Google Ads Report": "Angel",
+              "col_1": "David Meister",
+              "col_2": "Face Painters Plus"
+            },
+            {
+              "Monthly Google Ads Report": "Angel",
+              "col_1": "David Meister",
+              "col_2": "Progobo - Google ads"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Update Schedule",
+      "spreadsheetId": "1ciRMFrWF8oaRRvc9mIn3wYv9Txchp3YM5cI6MPifXY4",
+      "depth": 1,
+      "error": null,
+      "tabCount": 1,
+      "tabs": [
+        {
+          "name": "Update Schedule",
+          "headers": [
+            "Account Manager",
+            "Client",
+            "Preferred Time",
+            "Notes"
+          ],
+          "rowCount": 1010,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Account Manager": "Angel",
+              "Client": "David Meister",
+              "Preferred Time": "1 hr before the meeting",
+              "Notes": "assigned: every thursday meeting; will send her update on wednesday"
+            },
+            {
+              "Account Manager": "Angel",
+              "Client": "Laurie Ellington",
+              "Preferred Time": "1-2 days before the meeting"
+            },
+            {
+              "Account Manager": "Angel",
+              "Client": "Josh Staley",
+              "Preferred Time": "1 hr before the meeting"
+            },
+            {
+              "Account Manager": "Angel",
+              "Client": "Beau Kramer",
+              "Preferred Time": "1 hr before the meeting"
+            },
+            {
+              "Account Manager": "Devi",
+              "Client": "Caroline Ravn",
+              "Preferred Time": "1 day before the meeting"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Account Managers’ Ticket Update Tracker",
+      "spreadsheetId": "1Os4IP5t615n5aVkhfYHTD6aCqfcyjGvlfWrTklc_DzQ",
+      "depth": 1,
+      "error": null,
+      "tabCount": 8,
+      "tabs": [
+        {
+          "name": "Report",
+          "headers": [
+            "TIMEFRAME",
+            "ATTACHMENTS"
+          ],
+          "rowCount": 1000,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "TIMEFRAME": "October 20 - 24, 2025 ",
+              "ATTACHMENTS": "Report on Account Managers’ Ticket Update Delays"
+            },
+            {
+              "TIMEFRAME": "October 27 - 31, 2025 ",
+              "ATTACHMENTS": "Report on Account Managers’ Ticket Update Delays"
+            },
+            {
+              "TIMEFRAME": "November 3 - 7, 2025 ",
+              "ATTACHMENTS": "Report on Account Managers’ Ticket Update Delays"
+            },
+            {
+              "TIMEFRAME": "November 10 - 14, 2025 ",
+              "ATTACHMENTS": "Report on Account Managers’ Ticket Update Delays"
+            },
+            {
+              "TIMEFRAME": "November 17 - 21, 2025 ",
+              "ATTACHMENTS": "Report on Account Managers’ Ticket Update Delays"
+            }
+          ]
+        },
+        {
+          "name": "FEB'26",
+          "headers": [
+            "SPARK CLIENTS | UPDATED DAILY ",
+            "SPARK LITE CLIENTS | UPDATED 3X A WEEK"
+          ],
+          "rowCount": 87,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "",
+              "SPARK CLIENTS | UPDATED DAILY ": "Account Managers’ Spark Ticket Update Tracker"
+            },
+            {
+              "col_0": "",
+              "SPARK CLIENTS | UPDATED DAILY ": "Account Manager",
+              "col_2": "Client",
+              "col_3": "Timeframe",
+              "col_4": "",
+              "col_5": "",
+              "col_6": "",
+              "col_7": "",
+              "col_8": "Notes"
+            },
+            {
+              "col_0": "",
+              "SPARK CLIENTS | UPDATED DAILY ": "",
+              "col_2": "",
+              "col_3": "Feb-2",
+              "col_4": "Feb-3",
+              "col_5": "Feb-4",
+              "col_6": "Feb-5",
+              "col_7": "Feb-6"
+            },
+            {
+              "col_0": "",
+              "SPARK CLIENTS | UPDATED DAILY ": "Riza",
+              "col_2": "David",
+              "col_3": "TRUE",
+              "col_4": "TRUE",
+              "col_5": "TRUE",
+              "col_6": "TRUE",
+              "col_7": "TRUE"
+            },
+            {
+              "col_0": "",
+              "SPARK CLIENTS | UPDATED DAILY ": "",
+              "col_2": "Josh",
+              "col_3": "TRUE",
+              "col_4": "TRUE",
+              "col_5": "TRUE",
+              "col_6": "TRUE",
+              "col_7": "FALSE"
+            }
+          ]
+        },
+        {
+          "name": "JAN'26",
+          "headers": [
+            "SPARK CLIENTS | UPDATED DAILY ",
+            "SPARK LITE CLIENTS | UPDATED 3X A WEEK"
+          ],
+          "rowCount": 87,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "",
+              "SPARK CLIENTS | UPDATED DAILY ": "Account Managers’ Spark Ticket Update Tracker"
+            },
+            {
+              "col_0": "",
+              "SPARK CLIENTS | UPDATED DAILY ": "Account Manager",
+              "col_2": "Client",
+              "col_3": "Timeframe",
+              "col_4": "",
+              "col_5": "",
+              "col_6": "",
+              "col_7": "",
+              "col_8": "Notes"
+            },
+            {
+              "col_0": "",
+              "SPARK CLIENTS | UPDATED DAILY ": "",
+              "col_2": "",
+              "col_3": "Jan-5",
+              "col_4": "Jan-6",
+              "col_5": "Jan-7",
+              "col_6": "Jan-8",
+              "col_7": "Jan-9"
+            },
+            {
+              "col_0": "",
+              "SPARK CLIENTS | UPDATED DAILY ": "Riza",
+              "col_2": "David",
+              "col_3": "TRUE",
+              "col_4": "TRUE",
+              "col_5": "TRUE",
+              "col_6": "TRUE",
+              "col_7": "TRUE"
+            },
+            {
+              "col_0": "",
+              "SPARK CLIENTS | UPDATED DAILY ": "",
+              "col_2": "Josh",
+              "col_3": "TRUE",
+              "col_4": "TRUE",
+              "col_5": "TRUE",
+              "col_6": "TRUE",
+              "col_7": "TRUE"
+            }
+          ]
+        },
+        {
+          "name": "DEC'25",
+          "headers": [
+            "SPARK CLIENTS | UPDATED DAILY ",
+            "SPARK LITE CLIENTS | UPDATED 3X A WEEK"
+          ],
+          "rowCount": 104,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "",
+              "SPARK CLIENTS | UPDATED DAILY ": "Account Managers’ Spark Ticket Update Tracker"
+            },
+            {
+              "col_0": "",
+              "SPARK CLIENTS | UPDATED DAILY ": "Account Manager",
+              "col_2": "Client",
+              "col_3": "Timeframe",
+              "col_4": "",
+              "col_5": "",
+              "col_6": "",
+              "col_7": "",
+              "col_8": "Notes"
+            },
+            {
+              "col_0": "",
+              "SPARK CLIENTS | UPDATED DAILY ": "",
+              "col_2": "",
+              "col_3": "Dec-1",
+              "col_4": "Dec-2",
+              "col_5": "Dec-3",
+              "col_6": "Dec-4",
+              "col_7": "Dec-5"
+            },
+            {
+              "col_0": "",
+              "SPARK CLIENTS | UPDATED DAILY ": "Riza",
+              "col_2": "David",
+              "col_3": "TRUE",
+              "col_4": "TRUE",
+              "col_5": "TRUE",
+              "col_6": "TRUE",
+              "col_7": "TRUE"
+            },
+            {
+              "col_0": "",
+              "SPARK CLIENTS | UPDATED DAILY ": "",
+              "col_2": "Josh",
+              "col_3": "TRUE",
+              "col_4": "TRUE",
+              "col_5": "TRUE",
+              "col_6": "TRUE",
+              "col_7": "TRUE"
+            }
+          ]
+        },
+        {
+          "name": "NOV'25",
+          "headers": [
+            "SPARK CLIENTS | UPDATED DAILY ",
+            "SPARK LITE CLIENTS | UPDATED 3X A WEEK"
+          ],
+          "rowCount": 80,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "",
+              "SPARK CLIENTS | UPDATED DAILY ": "Account Managers’ Spark Ticket Update Tracker",
+              "col_2": "",
+              "col_3": "",
+              "col_4": "",
+              "col_5": "",
+              "col_6": "",
+              "col_7": "",
+              "col_8": "",
+              "col_9": "",
+              "SPARK LITE CLIENTS | UPDATED 3X A WEEK": "Account Managers’ Spark Ticket Update Tracker"
+            },
+            {
+              "col_0": "",
+              "SPARK CLIENTS | UPDATED DAILY ": "Account Manager",
+              "col_2": "Client",
+              "col_3": "Timeframe",
+              "col_4": "",
+              "col_5": "",
+              "col_6": "",
+              "col_7": "",
+              "col_8": "Notes",
+              "col_9": "",
+              "SPARK LITE CLIENTS | UPDATED 3X A WEEK": "Account Manager",
+              "col_11": "Client",
+              "col_12": "Timeframe",
+              "col_13": "",
+              "col_14": "",
+              "col_15": "",
+              "col_16": "",
+              "col_17": "Notes"
+            },
+            {
+              "col_0": "",
+              "SPARK CLIENTS | UPDATED DAILY ": "",
+              "col_2": "",
+              "col_3": "Nov-3",
+              "col_4": "Nov-4",
+              "col_5": "Nov-5",
+              "col_6": "Nov-6",
+              "col_7": "Nov-7",
+              "col_8": "",
+              "col_9": "",
+              "SPARK LITE CLIENTS | UPDATED 3X A WEEK": "",
+              "col_11": "",
+              "col_12": "Nov-3",
+              "col_13": "Nov-4",
+              "col_14": "Nov-5",
+              "col_15": "Nov-6",
+              "col_16": "Nov-7"
+            },
+            {
+              "col_0": "",
+              "SPARK CLIENTS | UPDATED DAILY ": "Riza",
+              "col_2": "David",
+              "col_3": "TRUE",
+              "col_4": "TRUE",
+              "col_5": "TRUE",
+              "col_6": "TRUE",
+              "col_7": "TRUE",
+              "col_8": "",
+              "col_9": "",
+              "SPARK LITE CLIENTS | UPDATED 3X A WEEK": "Angel",
+              "col_11": "Laurie",
+              "col_12": "FALSE",
+              "col_13": "TRUE",
+              "col_14": "TRUE",
+              "col_15": "TRUE",
+              "col_16": "TRUE"
+            },
+            {
+              "col_0": "",
+              "SPARK CLIENTS | UPDATED DAILY ": "",
+              "col_2": "Josh",
+              "col_3": "TRUE",
+              "col_4": "TRUE",
+              "col_5": "TRUE",
+              "col_6": "TRUE",
+              "col_7": "TRUE",
+              "col_8": "",
+              "col_9": "",
+              "SPARK LITE CLIENTS | UPDATED 3X A WEEK": "Sarah",
+              "col_11": "Brantt",
+              "col_12": "TRUE",
+              "col_13": "TRUE",
+              "col_14": "TRUE",
+              "col_15": "TRUE",
+              "col_16": "TRUE"
+            }
+          ]
+        },
+        {
+          "name": "OCT'25",
+          "headers": [
+            "SPARK CLIENTS",
+            "SPARK LITE CLIENTS"
+          ],
+          "rowCount": 99,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "",
+              "SPARK CLIENTS": "Account Managers’ Spark Ticket Update Tracker",
+              "col_2": "",
+              "col_3": "",
+              "col_4": "",
+              "col_5": "",
+              "col_6": "",
+              "col_7": "",
+              "col_8": "",
+              "col_9": "",
+              "SPARK LITE CLIENTS": "Account Managers’ Spark Ticket Update Tracker"
+            },
+            {
+              "col_0": "",
+              "SPARK CLIENTS": "Account Manager",
+              "col_2": "Client",
+              "col_3": "Timeframe",
+              "col_4": "",
+              "col_5": "",
+              "col_6": "",
+              "col_7": "",
+              "col_8": "Notes",
+              "col_9": "",
+              "SPARK LITE CLIENTS": "Account Manager",
+              "col_11": "Client",
+              "col_12": "Timeframe",
+              "col_13": "",
+              "col_14": "",
+              "col_15": "",
+              "col_16": "",
+              "col_17": "Notes"
+            },
+            {
+              "col_0": "",
+              "SPARK CLIENTS": "",
+              "col_2": "",
+              "col_3": "Sep-29",
+              "col_4": "Sep-30",
+              "col_5": "Oct-1",
+              "col_6": "Oct-2",
+              "col_7": "Oct-3",
+              "col_8": "",
+              "col_9": "",
+              "SPARK LITE CLIENTS": "",
+              "col_11": "",
+              "col_12": "Sep-29",
+              "col_13": "Sep-30",
+              "col_14": "Oct-1",
+              "col_15": "Oct-2",
+              "col_16": "Oct-3"
+            },
+            {
+              "col_0": "",
+              "SPARK CLIENTS": "Riza",
+              "col_2": "David",
+              "col_3": "TRUE",
+              "col_4": "TRUE",
+              "col_5": "TRUE",
+              "col_6": "TRUE",
+              "col_7": "TRUE",
+              "col_8": "",
+              "col_9": "",
+              "SPARK LITE CLIENTS": "Angel",
+              "col_11": "Laurie",
+              "col_12": "FALSE",
+              "col_13": "FALSE",
+              "col_14": "FALSE",
+              "col_15": "FALSE",
+              "col_16": "FALSE"
+            },
+            {
+              "col_0": "",
+              "SPARK CLIENTS": "",
+              "col_2": "Josh",
+              "col_3": "TRUE",
+              "col_4": "TRUE",
+              "col_5": "TRUE",
+              "col_6": "TRUE",
+              "col_7": "FALSE",
+              "col_8": "",
+              "col_9": "",
+              "SPARK LITE CLIENTS": "Sarah",
+              "col_11": "Brantt",
+              "col_12": "FALSE",
+              "col_13": "FALSE",
+              "col_14": "FALSE",
+              "col_15": "FALSE",
+              "col_16": "FALSE"
+            }
+          ]
+        },
+        {
+          "name": "TEMP",
+          "headers": [
+            "SPARK CLIENTS | UPDATED DAILY ",
+            "SPARK LITE CLIENTS | UPDATED 3X A WEEK"
+          ],
+          "rowCount": 87,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "",
+              "SPARK CLIENTS | UPDATED DAILY ": "Account Managers’ Spark Ticket Update Tracker"
+            },
+            {
+              "col_0": "",
+              "SPARK CLIENTS | UPDATED DAILY ": "Account Manager",
+              "col_2": "Client",
+              "col_3": "Timeframe",
+              "col_4": "",
+              "col_5": "",
+              "col_6": "",
+              "col_7": "",
+              "col_8": "Notes"
+            },
+            {
+              "col_0": "",
+              "SPARK CLIENTS | UPDATED DAILY ": "Riza",
+              "col_2": "David",
+              "col_3": "FALSE",
+              "col_4": "FALSE",
+              "col_5": "FALSE",
+              "col_6": "FALSE",
+              "col_7": "FALSE"
+            },
+            {
+              "col_0": "",
+              "SPARK CLIENTS | UPDATED DAILY ": "",
+              "col_2": "Josh",
+              "col_3": "FALSE",
+              "col_4": "FALSE",
+              "col_5": "FALSE",
+              "col_6": "FALSE",
+              "col_7": "FALSE"
+            },
+            {
+              "col_0": "",
+              "SPARK CLIENTS | UPDATED DAILY ": "",
+              "col_2": "Matt",
+              "col_3": "FALSE",
+              "col_4": "FALSE",
+              "col_5": "FALSE",
+              "col_6": "FALSE",
+              "col_7": "FALSE"
+            }
+          ]
+        },
+        {
+          "name": "sample",
+          "headers": [],
+          "rowCount": 1000,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "",
+              "col_1": "Account Managers’ Spark Ticket Update Tracker"
+            },
+            {
+              "col_0": "",
+              "col_1": "Account Manager",
+              "col_2": "Client",
+              "col_3": "Timeframe",
+              "col_4": "",
+              "col_5": "",
+              "col_6": "",
+              "col_7": "",
+              "col_8": "Notes"
+            },
+            {
+              "col_0": "",
+              "col_1": "",
+              "col_2": "",
+              "col_3": "Oct-6",
+              "col_4": "Oct-7",
+              "col_5": "Oct-8",
+              "col_6": "Oct-9",
+              "col_7": "Oct-10"
+            },
+            {
+              "col_0": "",
+              "col_1": "Riza",
+              "col_2": "David",
+              "col_3": "FALSE",
+              "col_4": "FALSE",
+              "col_5": "FALSE",
+              "col_6": "FALSE",
+              "col_7": "FALSE"
+            },
+            {
+              "col_0": "",
+              "col_1": "",
+              "col_2": "Josh",
+              "col_3": "FALSE",
+              "col_4": "FALSE",
+              "col_5": "FALSE",
+              "col_6": "FALSE",
+              "col_7": "FALSE"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Developers  & Designers Flagged Tickets Tracker",
+      "spreadsheetId": "1jPaHhwX7yg3-rxifIc6v_9QUSvTL3R4G58ydyL22m6Y",
+      "depth": 1,
+      "error": null,
+      "tabCount": 6,
+      "tabs": [
+        {
+          "name": "Dashboard",
+          "headers": [],
+          "rowCount": 1000,
+          "linksFound": 0,
+          "sampleRows": []
+        },
+        {
+          "name": "Summary",
+          "headers": [],
+          "rowCount": 981,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "",
+              "col_1": "Date Range",
+              "col_2": "Name",
+              "col_3": "Ticket Link/ Client",
+              "col_4": "Type of Red Flag",
+              "col_5": "Reasonable?",
+              "col_6": "Description / Notes"
+            },
+            {
+              "col_0": "",
+              "col_1": "January 5 - 9, 2026",
+              "col_2": "Jeez",
+              "col_3": "https://trello.com/c/orVa0IAx",
+              "col_4": "3 returns of tickets",
+              "col_5": "YES",
+              "col_6": "The RESET Method Sales Page | Elad Rosenberg | |  Additional feedback  from client + Fixes"
+            },
+            {
+              "col_0": "",
+              "col_1": "",
+              "col_2": "Mark",
+              "col_3": "https://trello.com/c/1EnZqyIL",
+              "col_4": "3 returns of tickets",
+              "col_5": "YES",
+              "col_6": "Internal pages for Kramer Events AV (3 pages) Corporate | Fundraisers | Meetings | Update + slices"
+            },
+            {
+              "col_0": "",
+              "col_1": "",
+              "col_2": "Mayvi",
+              "col_3": "https://trello.com/c/JQFoeg1E",
+              "col_4": "3 returns of tickets",
+              "col_5": "YES",
+              "col_6": "Internal pages for Kramer Events AV batch 2 | Events | Hybrid | Company Party | Slices"
+            },
+            {
+              "col_0": "",
+              "col_1": "",
+              "col_2": "Alyessa",
+              "col_3": "https://trello.com/c/GglNLgYX",
+              "col_4": "4  returns of tickets",
+              "col_5": "YES",
+              "col_6": "Design the Advanced Track page, bonus tips and quizzes for Rachel | Update and fixes"
+            }
+          ]
+        },
+        {
+          "name": "Designers",
+          "headers": [
+            "Date Range",
+            "Name",
+            "Project / Ticket ID",
+            "Type of Red Flag",
+            "No. of Tickets",
+            "Reasonable?",
+            "Description / Notes"
+          ],
+          "rowCount": 995,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Date Range": "October 6, 2025 to October 10, 2025",
+              "Name": "Jeez",
+              "Project / Ticket ID": "https://trello.com/c/BCVPDNo4 ",
+              "Type of Red Flag": "3 returns of tickets",
+              "No. of Tickets": "1",
+              "Reasonable?": "YES",
+              "Description / Notes": "Kramer AV logo and moodboard"
+            },
+            {
+              "Date Range": "",
+              "Name": "Roy",
+              "Project / Ticket ID": "https://trello.com/c/7EODJ3ZA ",
+              "Type of Red Flag": "3 returns of tickets",
+              "No. of Tickets": "3",
+              "Reasonable?": "NO",
+              "Description / Notes": "DJTT: Ticket returned multiple times due to inaccurate time estimation of edits and new revision requests from client."
+            },
+            {
+              "Date Range": "",
+              "Name": "Roy",
+              "Project / Ticket ID": "https://trello.com/c/pesNESQO ",
+              "Type of Red Flag": "3 returns of tickets",
+              "No. of Tickets": "",
+              "Reasonable?": "NO",
+              "Description / Notes": "Progobo: Ticket returned multiple times due to inaccurate time estimation of edits and new revision requests and some additional tasks from account managers."
+            },
+            {
+              "Date Range": "",
+              "Name": "Roy",
+              "Project / Ticket ID": "https://trello.com/c/sghTsOpw ",
+              "Type of Red Flag": "3 returns of tickets",
+              "No. of Tickets": "",
+              "Reasonable?": "NO",
+              "Description / Notes": "SpinUpDJs: Ticket returned multiple times due to inaccurate time estimation of edits and new revision requests and some additional tasks from account managers."
+            },
+            {
+              "Date Range": "October 13, 2025 to October 17, 2025",
+              "Name": "Jeez",
+              "Project / Ticket ID": "https://trello.com/c/BCVPDNo4",
+              "Type of Red Flag": "3 returns of tickets",
+              "No. of Tickets": "3",
+              "Reasonable?": "YES",
+              "Description / Notes": "Kramer AV logo and moodboard | Homepage"
+            }
+          ]
+        },
+        {
+          "name": "Developers",
+          "headers": [
+            "Date Range",
+            "Name",
+            "Project / Ticket ID",
+            "Type of Red Flag",
+            "No. of Tickets",
+            "Reasonable?",
+            "Description / Notes"
+          ],
+          "rowCount": 991,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Date Range": "October 6, 2025 to October 10, 2025",
+              "Name": "Alyessa",
+              "Project / Ticket ID": "https://trello.com/c/h41WuIKu",
+              "Type of Red Flag": "3 returns of tickets",
+              "No. of Tickets": "1",
+              "Reasonable?": "YES",
+              "Description / Notes": "Moodboard for price your work: building website pages"
+            },
+            {
+              "Date Range": "October 13, 2025 to October 17, 2025",
+              "Name": "Michael",
+              "Project / Ticket ID": "https://trello.com/c/uARZUPU9",
+              "Type of Red Flag": "3 returns of tickets",
+              "No. of Tickets": "2",
+              "Reasonable?": "YES",
+              "Description / Notes": "Designing a holiday page | Building website pages + fixes"
+            },
+            {
+              "Date Range": "",
+              "Name": "Michael",
+              "Project / Ticket ID": "https://trello.com/c/39HAMyVS",
+              "Type of Red Flag": "3 returns of tickets",
+              "No. of Tickets": "",
+              "Reasonable?": "YES",
+              "Description / Notes": "Designing the four calculator pages | Building website pages  + fixes"
+            },
+            {
+              "Date Range": "",
+              "Name": "Ela",
+              "Project / Ticket ID": "https://trello.com/c/Poj3COL8",
+              "Type of Red Flag": "3 returns of tickets",
+              "No. of Tickets": "1",
+              "Reasonable?": "YES",
+              "Description / Notes": "Task was moved to Alyessa"
+            },
+            {
+              "Date Range": "",
+              "Name": "Alyessa",
+              "Project / Ticket ID": "https://trello.com/c/2iNApiGY",
+              "Type of Red Flag": "3 returns of tickets",
+              "No. of Tickets": "1",
+              "Reasonable?": "YES",
+              "Description / Notes": "Moodboard for 84 West Events | Building website pages + fixes"
+            }
+          ]
+        },
+        {
+          "name": "Video Editor",
+          "headers": [
+            "Date Range",
+            "Name",
+            "Project / Ticket ID",
+            "Type of Red Flag",
+            "No. of Tickets",
+            "Reasonable?",
+            "Description / Notes"
+          ],
+          "rowCount": 1000,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Date Range": "November 10-14, 2025",
+              "Name": "Jena",
+              "Project / Ticket ID": "https://trello.com/c/acVugA6s",
+              "Type of Red Flag": "3 returns of tickets",
+              "No. of Tickets": "1",
+              "Reasonable?": "YES",
+              "Description / Notes": "BWO Qualatex Clearance Sale Meta Ad | For Folder access + Additional feedback  from client & Account manager"
+            },
+            {
+              "Date Range": "November 17-21, 2025",
+              "Name": "NO RED FLAGS"
+            },
+            {
+              "Date Range": "November 24-28, 2025",
+              "Name": "Jena",
+              "Project / Ticket ID": "https://trello.com/c/USUsSchY",
+              "Type of Red Flag": "4 returns of tickets",
+              "No. of Tickets": "1",
+              "Reasonable?": "YES",
+              "Description / Notes": "Tiktok style editing video for Kramer | Additional feedback  from client & Account manager"
+            },
+            {
+              "Date Range": "December 1-5, 2025",
+              "Name": "NO RED FLAGS"
+            },
+            {
+              "Date Range": "December 8-12, 2025",
+              "Name": "NO RED FLAGS"
+            }
+          ]
+        },
+        {
+          "name": "Account Managers | Lite",
+          "headers": [],
+          "rowCount": 982,
+          "linksFound": 0,
+          "sampleRows": []
+        }
+      ]
+    },
+    {
+      "title": "MONTHLY SUMMARY",
+      "spreadsheetId": "1EitQNxT7LngeNZs9xle2ArXdZNuq2yFB30w4J_cCoJM",
+      "depth": 1,
+      "error": null,
+      "tabCount": 7,
+      "tabs": [
+        {
+          "name": "Performance Report",
+          "headers": [
+            "Month",
+            "Attachment"
+          ],
+          "rowCount": 1001,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "",
+              "Month": "2025",
+              "Attachment": "2025 Performance Report"
+            },
+            {
+              "col_0": "",
+              "Month": "July",
+              "Attachment": "July 2025 Performance Report"
+            },
+            {
+              "col_0": "",
+              "Month": "August",
+              "Attachment": "August 2025 Performance Report"
+            },
+            {
+              "col_0": "",
+              "Month": "September",
+              "Attachment": "September 2025 Performance Report"
+            },
+            {
+              "col_0": "",
+              "Month": "October",
+              "Attachment": "October 2025 Performance Report"
+            }
+          ]
+        },
+        {
+          "name": "NOV '25",
+          "headers": [],
+          "rowCount": 1024,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "",
+              "col_1": "Fathom Videos Watched"
+            },
+            {
+              "col_0": "",
+              "col_1": "For the Month November 2025"
+            },
+            {
+              "col_0": "",
+              "col_1": "Account Manager",
+              "col_2": "No. of Fathoms Watched",
+              "col_3": "No. of Fathoms NOT yet watched",
+              "col_4": "Notes"
+            },
+            {
+              "col_0": "",
+              "col_1": "Angel",
+              "col_2": "19",
+              "col_3": "0"
+            },
+            {
+              "col_0": "",
+              "col_1": "Devi",
+              "col_2": "5",
+              "col_3": "0"
+            }
+          ]
+        },
+        {
+          "name": "OCT '25",
+          "headers": [],
+          "rowCount": 1023,
+          "linksFound": 0,
+          "sampleRows": []
+        },
+        {
+          "name": "SEP '25",
+          "headers": [],
+          "rowCount": 1021,
+          "linksFound": 0,
+          "sampleRows": []
+        },
+        {
+          "name": "AUG '25",
+          "headers": [],
+          "rowCount": 1001,
+          "linksFound": 0,
+          "sampleRows": []
+        },
+        {
+          "name": "JULY '25",
+          "headers": [],
+          "rowCount": 1035,
+          "linksFound": 0,
+          "sampleRows": []
+        },
+        {
+          "name": "Client Updates",
+          "headers": [],
+          "rowCount": 1000,
+          "linksFound": 0,
+          "sampleRows": []
+        }
+      ]
+    },
+    {
+      "title": "ACCESS DENIED",
+      "spreadsheetId": "1NksA1Vvu8i-9rw39Qb3hrcAIzSKgnXmdZ4biBQSy6uc",
+      "depth": 1,
+      "error": "CRAWL_FAILED",
+      "tabCount": 0,
+      "tabs": []
+    },
+    {
+      "title": "Holiday Section Tracking Sheet",
+      "spreadsheetId": "1XrVMobNH1kshDWfZQ6misIusohRupsbqj1e3bMR0BTc",
+      "depth": 1,
+      "error": null,
+      "tabCount": 3,
+      "tabs": [
+        {
+          "name": "SARAH",
+          "headers": [
+            "Website Link: "
+          ],
+          "rowCount": 32,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Website Link: ": "RACHEL PORTER"
+            },
+            {
+              "Website Link: ": "Date",
+              "col_1": "Holiday ",
+              "col_2": "Date to Start Creating the Section",
+              "col_3": "Date to Publish",
+              "col_4": "Published",
+              "col_5": "Date to Remove",
+              "col_6": "Removed"
+            },
+            {
+              "Website Link: ": "January 1",
+              "col_1": "New Year's Day"
+            },
+            {
+              "Website Link: ": "January 20",
+              "col_1": "Martin Luther King Jr Day"
+            },
+            {
+              "Website Link: ": "February 14",
+              "col_1": "Valentine's Day"
+            }
+          ]
+        },
+        {
+          "name": "MARIZ",
+          "headers": [
+            "Website Link: "
+          ],
+          "rowCount": 32,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Website Link: ": "HALLEY FOYE"
+            },
+            {
+              "Website Link: ": "Date",
+              "col_1": "Holiday ",
+              "col_2": "Date to Start Creating the Section",
+              "col_3": "Date to Publish",
+              "col_4": "Published",
+              "col_5": "Date to Remove",
+              "col_6": "Removed"
+            },
+            {
+              "Website Link: ": "January 1",
+              "col_1": "New Year's Day"
+            },
+            {
+              "Website Link: ": "January 20",
+              "col_1": "Martin Luther King Jr Day"
+            },
+            {
+              "Website Link: ": "February 14",
+              "col_1": "Valentine's Day"
+            }
+          ]
+        },
+        {
+          "name": "HILDA",
+          "headers": [
+            "Website Link: "
+          ],
+          "rowCount": 1001,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Website Link: ": "JULIE CYLLA"
+            },
+            {
+              "Website Link: ": "Date",
+              "col_1": "Holiday ",
+              "col_2": "Date to Start Creating the Section",
+              "col_3": "Date to Publish",
+              "col_4": "Published",
+              "col_5": "Date to Remove",
+              "col_6": "Removed"
+            },
+            {
+              "Website Link: ": "January 1",
+              "col_1": "New Year's Day"
+            },
+            {
+              "Website Link: ": "January 20",
+              "col_1": "Martin Luther King Jr Day"
+            },
+            {
+              "Website Link: ": "February 14",
+              "col_1": "Valentine's Day"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "AM_Clients_Websites_Status",
+      "spreadsheetId": "1wst1K_5ZvU7v2TH3a0QXwQ4pz5FJdx7YmPWFGEEuENM",
+      "depth": 1,
+      "error": null,
+      "tabCount": 1,
+      "tabs": [
+        {
+          "name": "Sheet1",
+          "headers": [
+            "Account Manger",
+            "Client",
+            "Business Name",
+            "Website Link",
+            "Status",
+            "Notes"
+          ],
+          "rowCount": 1003,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Account Manger": "Devi",
+              "Client": "Caroline Ravn",
+              "Business Name": "Caroline Ravn",
+              "Website Link": "https://carolineravn.com/",
+              "Status": "LAUNCHED"
+            },
+            {
+              "Account Manger": "Ela",
+              "Client": "Dustin",
+              "Business Name": "Dustin Thibeault",
+              "Website Link": "https://hoyonow.com/",
+              "Status": "LAUNCHED BUT STILL BUILDING NEW PAGES"
+            },
+            {
+              "Account Manger": "Mariz",
+              "Client": "Halley Foye",
+              "Business Name": "Carolina Balloons",
+              "Website Link": "https://carolinaballoons.com/",
+              "Status": "LAUNCHED"
+            },
+            {
+              "Account Manger": "Mariz",
+              "Client": "Halley Foye",
+              "Business Name": "Carolina Balloon Boutique",
+              "Website Link": "https://carolinaballoonboutique.com/",
+              "Status": "DEVELOPMENT PHASE"
+            },
+            {
+              "Account Manger": "Angel",
+              "Client": "Beau Kramer ",
+              "Business Name": "Kramer Events",
+              "Website Link": "https://kramerevents.com/",
+              "Status": "LAUNCHED"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "KM ACTIVE CLIENTS - Google Analytics",
+      "spreadsheetId": "19IE69cx5PVdbVV3x6yKfyiH2Hrjv6JENEMAwlHlKy9E",
+      "depth": 1,
+      "error": null,
+      "tabCount": 1,
+      "tabs": [
+        {
+          "name": "Sheet1",
+          "headers": [
+            "Phase 1",
+            "Phase 2"
+          ],
+          "rowCount": 1009,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "Client Name",
+              "col_1": "Business Name",
+              "col_2": "Website Link",
+              "Phase 1": "Devi: Using Tag Assistant",
+              "col_4": "Tag / Code",
+              "Phase 2": "Mariz: Checking Using Ziv's Google Analytics Account"
+            },
+            {
+              "col_0": "",
+              "col_1": "",
+              "col_2": "",
+              "Phase 1": "Is there Google Analytics?"
+            },
+            {
+              "col_0": "Ziv Raviv",
+              "col_1": "Ziv Raviv",
+              "col_2": "https://zivraviv.com/",
+              "Phase 1": "YES",
+              "col_4": "G-MKLP5KBC7H",
+              "Phase 2": "CHECKED & CONFIRMED"
+            },
+            {
+              "col_0": "David Meister",
+              "col_1": "Progobo",
+              "col_2": "https://progobo.com/",
+              "Phase 1": "YES",
+              "col_4": "G-DXZWJ198KP",
+              "Phase 2": "CHECKED & CONFIRMED"
+            },
+            {
+              "col_0": "David Meister",
+              "col_1": "Central Florida Balloon Decor",
+              "col_2": "https://centralfloridaballoondecor.com/",
+              "Phase 1": "YES",
+              "col_4": "G-SLHCFH2YWQ",
+              "Phase 2": "CHECKED & CONFIRMED"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Operation's Team Weekly Ticket Tracker",
+      "spreadsheetId": "1a46z55vnify6R8M7JyH6urFhhgw-IeegThXDMUjT7e8",
+      "depth": 1,
+      "error": null,
+      "tabCount": 3,
+      "tabs": [
+        {
+          "name": "DEVELOPERS",
+          "headers": [
+            "DEVELOPER TEAM'S WEEKLY TICKET TRACKERS"
+          ],
+          "rowCount": 1000,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "DEVELOPER TEAM'S WEEKLY TICKET TRACKERS": "Date",
+              "col_1": "Ela",
+              "col_2": "Alyessa",
+              "col_3": "Abs",
+              "col_4": "Michael",
+              "col_5": "Total",
+              "col_6": "Status"
+            },
+            {
+              "DEVELOPER TEAM'S WEEKLY TICKET TRACKERS": "November 21, 2025",
+              "col_1": "5",
+              "col_2": "14",
+              "col_3": "21",
+              "col_4": "6",
+              "col_5": "46",
+              "col_6": "RED ALERT [40+]"
+            },
+            {
+              "DEVELOPER TEAM'S WEEKLY TICKET TRACKERS": "November 28, 2025",
+              "col_1": "5",
+              "col_2": "5",
+              "col_3": "12",
+              "col_4": "2",
+              "col_5": "24",
+              "col_6": "GREEN ALERT [1-29]"
+            },
+            {
+              "DEVELOPER TEAM'S WEEKLY TICKET TRACKERS": "December 5, 2025",
+              "col_1": "5",
+              "col_2": "6",
+              "col_3": "13",
+              "col_4": "",
+              "col_5": "24",
+              "col_6": "GREEN ALERT [1-29]"
+            },
+            {
+              "DEVELOPER TEAM'S WEEKLY TICKET TRACKERS": "December 12, 2025",
+              "col_1": "6",
+              "col_2": "2",
+              "col_3": "12",
+              "col_4": "",
+              "col_5": "20",
+              "col_6": "GREEN ALERT [1-29]"
+            }
+          ]
+        },
+        {
+          "name": "DESIGNERS",
+          "headers": [
+            "DESIGNER TEAM'S WEEKLY TICKET TRACKERS"
+          ],
+          "rowCount": 1000,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "DESIGNER TEAM'S WEEKLY TICKET TRACKERS": "Date",
+              "col_1": "Kim",
+              "col_2": "Mayvi",
+              "col_3": "Mark",
+              "col_4": "Jesus",
+              "col_5": "Glenn",
+              "col_6": "Total",
+              "col_7": "Status"
+            },
+            {
+              "DESIGNER TEAM'S WEEKLY TICKET TRACKERS": "November 21, 2025",
+              "col_1": "7",
+              "col_2": "8",
+              "col_3": "4",
+              "col_4": "9",
+              "col_5": "11",
+              "col_6": "39",
+              "col_7": "YELLOW ALERT [30-39]"
+            },
+            {
+              "DESIGNER TEAM'S WEEKLY TICKET TRACKERS": "November 28, 2025",
+              "col_1": "8",
+              "col_2": "7",
+              "col_3": "5",
+              "col_4": "8",
+              "col_5": "12",
+              "col_6": "40",
+              "col_7": "RED ALERT [40+]"
+            },
+            {
+              "DESIGNER TEAM'S WEEKLY TICKET TRACKERS": "December 5, 2025",
+              "col_1": "8",
+              "col_2": "5",
+              "col_3": "7",
+              "col_4": "7",
+              "col_5": "10",
+              "col_6": "37",
+              "col_7": "YELLOW ALERT [30-39]"
+            },
+            {
+              "DESIGNER TEAM'S WEEKLY TICKET TRACKERS": "December 12, 2025",
+              "col_1": "6",
+              "col_2": "7",
+              "col_3": "6",
+              "col_4": "9",
+              "col_5": "13",
+              "col_6": "41",
+              "col_7": "RED ALERT [40+]"
+            }
+          ]
+        },
+        {
+          "name": "Video Editor",
+          "headers": [
+            "VIDEO EDITOR'S WEEKLY TICKET TRACKERS"
+          ],
+          "rowCount": 1000,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "VIDEO EDITOR'S WEEKLY TICKET TRACKERS": "Date",
+              "col_1": "P3 | P2",
+              "col_2": "In Progress",
+              "col_3": "Total",
+              "col_4": "Status"
+            },
+            {
+              "VIDEO EDITOR'S WEEKLY TICKET TRACKERS": "December 19, 2025",
+              "col_1": "4",
+              "col_2": "4",
+              "col_3": "4"
+            },
+            {
+              "VIDEO EDITOR'S WEEKLY TICKET TRACKERS": "January 9, 2026",
+              "col_1": "4",
+              "col_2": "2",
+              "col_3": "6"
+            },
+            {
+              "VIDEO EDITOR'S WEEKLY TICKET TRACKERS": "January 16, 2026",
+              "col_1": "6",
+              "col_2": "2",
+              "col_3": "8"
+            },
+            {
+              "VIDEO EDITOR'S WEEKLY TICKET TRACKERS": "January 23, 2026",
+              "col_1": "3",
+              "col_2": "5",
+              "col_3": "8"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "PICS.IO Monitoring Sheet_1hr/week",
+      "spreadsheetId": "1x_g6eQApzJQeQlRusVx_w6g3nEKZk1Xqj9dcyjjsy8o",
+      "depth": 1,
+      "error": null,
+      "tabCount": 5,
+      "tabs": [
+        {
+          "name": "Summary",
+          "headers": [],
+          "rowCount": 1001,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "col_0": "",
+              "col_1": "Pics.io Weekly Monitoring Sheet"
+            },
+            {
+              "col_0": "",
+              "col_1": "February 2026"
+            },
+            {
+              "col_0": "",
+              "col_1": "Account Manager",
+              "col_2": "Week 1",
+              "col_3": "Week 2",
+              "col_4": "Week 3",
+              "col_5": "Week 4"
+            },
+            {
+              "col_0": "",
+              "col_1": "Angel",
+              "col_2": "Done"
+            },
+            {
+              "col_0": "",
+              "col_1": "Riza",
+              "col_2": "Done",
+              "col_3": "Done"
+            }
+          ]
+        },
+        {
+          "name": "Records 2026",
+          "headers": [],
+          "rowCount": 1000,
+          "linksFound": 0,
+          "sampleRows": []
+        },
+        {
+          "name": "ANGEL",
+          "headers": [
+            "Week",
+            "Date",
+            "Client",
+            "Duration",
+            "Notes / Attachments"
+          ],
+          "rowCount": 5,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Week": "Feb. 2-6, 2026",
+              "Date": "Feb 3, 2026",
+              "Client": "Josh Staley",
+              "Duration": "30 mins",
+              "Notes / Attachments": "To replace images on the DJ JS EPK"
+            },
+            {
+              "Week": "",
+              "Date": "Feb 4, 2026",
+              "Client": "Josh Staley",
+              "Duration": "30 mins",
+              "Notes / Attachments": "To share the enhancement folders to the team and pick images to use for WLA"
+            },
+            {
+              "Week": "Feb. 9-13, 2026"
+            },
+            {
+              "Week": "Feb. 16-20, 2026"
+            },
+            {
+              "Week": "Feb. 16-20, 2026",
+              "Date": "",
+              "Client": "",
+              "Duration": "",
+              "Notes / Attachments": ""
+            }
+          ]
+        },
+        {
+          "name": "RIZA",
+          "headers": [
+            "Week",
+            "Date",
+            "Client",
+            "Duration",
+            "Notes / Attachments"
+          ],
+          "rowCount": 1000,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Week": "Feb. 2-6, 2026",
+              "Date": "Feb 3, 2026",
+              "Client": "Josh Staley",
+              "Duration": "30 mins",
+              "Notes / Attachments": "Searched for new photos to be used on the new enhancement page"
+            },
+            {
+              "Week": "Feb. 9-13, 2026",
+              "Date": "Feb 9, 2026",
+              "Client": "Josh Staley",
+              "Duration": "30 mins",
+              "Notes / Attachments": "Searched for new photos to be used on the new enhancement page gallery"
+            },
+            {
+              "Week": "Feb. 16-20, 2026",
+              "Date": "Feb 17, 2026",
+              "Client": "Josh Staley",
+              "Duration": "30 mins",
+              "Notes / Attachments": "Selected photos for the homepage photo update"
+            },
+            {
+              "Week": "",
+              "Date": "Feb 18, 2026",
+              "Client": "Josh Staley",
+              "Duration": "30 mins",
+              "Notes / Attachments": "Selected photos for the blog posts"
+            }
+          ]
+        },
+        {
+          "name": "HILDA",
+          "headers": [
+            "Week",
+            "Date",
+            "Client",
+            "Duration",
+            "Notes / Attachments"
+          ],
+          "rowCount": 1000,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Week": "Feb. 2-6, 2026",
+              "Date": "Feb 3, 2026",
+              "Client": "Julie",
+              "Duration": "20 mins",
+              "Notes / Attachments": "No new images uploaded yet.  Last upload was Dec 2025. Still waiting for the new America250 photos and will do follow-up/Also on leave for 2 days last week"
+            },
+            {
+              "Week": "Feb. 9-13, 2026",
+              "Date": "Feb 12, 2026",
+              "Client": "Julie",
+              "Duration": "30 mins",
+              "Notes / Attachments": "Checked for Easter photos to share with Julie and request approval to use"
+            },
+            {
+              "Week": "",
+              "Date": "Feb 13, 2026",
+              "Client": "Julie",
+              "Duration": "30 mins",
+              "Notes / Attachments": "Checked/Downloaded graduation images to be used for newsletter/blog "
+            },
+            {
+              "Week": "Feb. 16-20, 2026",
+              "Date": "Feb 18, 2026",
+              "Client": "Julie",
+              "Duration": "30 mins",
+              "Notes / Attachments": "Checked all folder to see if there are new America250 images"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "KM - Sanity test",
+      "spreadsheetId": "1BZvQN_mwc_mqedHLzzl3CzhqWhZ6CfYcUFUsKv9HNko",
+      "depth": 2,
+      "error": null,
+      "tabCount": 9,
+      "tabs": [
+        {
+          "name": "Mariz",
+          "headers": [
+            "Date",
+            "Client",
+            "Website",
+            "Form link",
+            "Sanity test (DONE)",
+            "Email Notification received",
+            "Mobile/Desktop",
+            "Remarks"
+          ],
+          "rowCount": 1137,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Date": "2/20/2026",
+              "Client": "Halley Foye",
+              "Website": "https://carolinaballoons.com/",
+              "Form link": "Homepage",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received": "Yes",
+              "Mobile/Desktop": "Desktop",
+              "Remarks": "forms are working"
+            },
+            {
+              "Date": "2/20/2026",
+              "Client": "Halley Foye",
+              "Website": "https://carolinaballoons.com/",
+              "Form link": "Homepage",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received": "Yes",
+              "Mobile/Desktop": "Mobile",
+              "Remarks": "forms are working"
+            },
+            {
+              "Date": "2/13/2026",
+              "Client": "Halley Foye",
+              "Website": "https://carolinaballoons.com/",
+              "Form link": "Homepage",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received": "Yes",
+              "Mobile/Desktop": "Desktop",
+              "Remarks": "forms are working"
+            },
+            {
+              "Date": "2/13/2026",
+              "Client": "Halley Foye",
+              "Website": "https://carolinaballoons.com/",
+              "Form link": "Homepage",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received": "Yes",
+              "Mobile/Desktop": "Mobile",
+              "Remarks": "forms are working"
+            },
+            {
+              "Date": "2/6/2026",
+              "Client": "Halley Foye",
+              "Website": "https://carolinaballoons.com/",
+              "Form link": "Homepage",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received": "Yes",
+              "Mobile/Desktop": "Desktop",
+              "Remarks": "forms are working"
+            }
+          ]
+        },
+        {
+          "name": "Ivy",
+          "headers": [
+            "Date",
+            "Client",
+            "Website",
+            "Sanity test (DONE)",
+            "Email Notification received",
+            "Mobile/Desktop",
+            "Desktop layout",
+            "Mobile layout",
+            "Thank you page is present",
+            "Notes"
+          ],
+          "rowCount": 1001,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Date": "02.07.2025",
+              "Client": "Tim Huckabee",
+              "Website": "https://theprofitableflorist.com/",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received": "YES",
+              "Mobile/Desktop": "Desktop",
+              "Desktop layout": "",
+              "Mobile layout": "",
+              "Thank you page is present": "",
+              "Notes": "The pop up form is working https://prnt.sc/QDldKbq2d3YX; Email login needs verification by Tim; WP form is working https://prnt.sc/7A075E7EEfnR"
+            },
+            {
+              "Date": "",
+              "Client": "Dr. Willow Brown",
+              "Website": "https://drwillowbrown.com/",
+              "Sanity test (DONE)": "FALSE",
+              "Email Notification received": "",
+              "Mobile/Desktop": "",
+              "Desktop layout": "",
+              "Mobile layout": "",
+              "Thank you page is present": "",
+              "Notes": "We did not revamp her homepage"
+            },
+            {
+              "Date": "",
+              "Client": "Caroline Ravn",
+              "Website": "https://carolineravn.com/",
+              "Sanity test (DONE)": "FALSE",
+              "Email Notification received": "",
+              "Mobile/Desktop": "",
+              "Desktop layout": "",
+              "Mobile layout": "",
+              "Thank you page is present": "",
+              "Notes": "We did not revamp her homepage yet"
+            },
+            {
+              "Date": "",
+              "Client": "Karen Sawyer",
+              "Website": "https://www.karensawyerevents.com/",
+              "Sanity test (DONE)": "FALSE",
+              "Email Notification received": "",
+              "Mobile/Desktop": "",
+              "Desktop layout": "",
+              "Mobile layout": "",
+              "Thank you page is present": "",
+              "Notes": "We did not revamp her homepage yet"
+            },
+            {
+              "Date": "",
+              "Client": "Kerry Cameron",
+              "Website": "https://cameronbankruptcylaw.com/",
+              "Sanity test (DONE)": "FALSE",
+              "Email Notification received": "",
+              "Mobile/Desktop": "",
+              "Desktop layout": "",
+              "Mobile layout": "",
+              "Thank you page is present": "",
+              "Notes": "We're still in the process of revamping his homepage"
+            }
+          ]
+        },
+        {
+          "name": "Riz",
+          "headers": [
+            "Date",
+            "Client",
+            "Website",
+            "Form links",
+            "Sanity test (DONE)",
+            "Email Notification received",
+            "Desktop layout",
+            "Mobile layout",
+            "Remarks",
+            "Documentation"
+          ],
+          "rowCount": 283,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Date": "21/02/2025",
+              "Client": "David Meister",
+              "Website": "https://centralfloridaballoondecor.com/",
+              "Form links": "Homepage",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received": "Yes",
+              "Desktop layout": "Passed",
+              "Mobile layout": "Passed",
+              "Remarks": "",
+              "Documentation": "https://prnt.sc/D77dmaYzu3aL"
+            },
+            {
+              "Date": "",
+              "Client": "",
+              "Website": "",
+              "Form links": "Go page",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received": "Yes",
+              "Desktop layout": "Passed",
+              "Mobile layout": "Passed",
+              "Remarks": "",
+              "Documentation": "https://prnt.sc/gFZMPmZ39FgK"
+            },
+            {
+              "Date": "",
+              "Client": "",
+              "Website": "",
+              "Form links": "Lawn Letters",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received": "Yes",
+              "Desktop layout": "Passed",
+              "Mobile layout": "Passed",
+              "Remarks": "",
+              "Documentation": "https://prnt.sc/J-E2hHknGb2A",
+              "col_10": "I think we better transfer the leads/from to 17 hats"
+            },
+            {
+              "Date": "",
+              "Client": "",
+              "Website": "",
+              "Form links": "Color chart download",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received": "Yes",
+              "Desktop layout": "Passed",
+              "Mobile layout": "Passed",
+              "Remarks": "",
+              "Documentation": "https://prnt.sc/9j3UA75jvhAh"
+            },
+            {
+              "Date": "",
+              "Client": "",
+              "Website": "",
+              "Form links": "Decor Inspo",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received": "Yes",
+              "Desktop layout": "Passed",
+              "Mobile layout": "Passed",
+              "Remarks": "",
+              "Documentation": "https://prnt.sc/btc6hG55gZ88"
+            }
+          ]
+        },
+        {
+          "name": "Angel",
+          "headers": [
+            "Date",
+            "Client",
+            "Website",
+            "Comments",
+            "Email Notification received/reflected on backend forms",
+            "Mobile/Desktop",
+            "Is there a separate thank you page? "
+          ],
+          "rowCount": 1601,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Date": "",
+              "Client": "David Meister",
+              "Website": "https://www.orlandostagerental.com/",
+              "Comments": "",
+              "col_4": "TRUE",
+              "Email Notification received/reflected on backend forms": "YES",
+              "Mobile/Desktop": "Mobile",
+              "Is there a separate thank you page? ": "YES"
+            },
+            {
+              "Date": "",
+              "Client": "",
+              "Website": "https://www.tampastagerental.com/",
+              "Comments": "Tampa",
+              "col_4": "TRUE",
+              "Email Notification received/reflected on backend forms": "YES",
+              "Mobile/Desktop": "Mobile",
+              "Is there a separate thank you page? ": "YES"
+            },
+            {
+              "Date": "",
+              "Client": "",
+              "Website": "https://shop.orlandostagerental.com/contact/",
+              "Comments": "contact page_",
+              "col_4": "TRUE",
+              "Email Notification received/reflected on backend forms": "YES",
+              "Mobile/Desktop": "Mobile",
+              "Is there a separate thank you page? ": "YES"
+            },
+            {
+              "Date": "",
+              "Client": "",
+              "Website": "https://shop.orlandostagerental.com/",
+              "Comments": "homepage",
+              "col_4": "TRUE",
+              "Email Notification received/reflected on backend forms": "YES",
+              "Mobile/Desktop": "Mobile",
+              "Is there a separate thank you page? ": "YES"
+            },
+            {
+              "Date": "",
+              "Client": "",
+              "Website": "https://shop.daytonastagerental.com/ ",
+              "Comments": "Daytona",
+              "col_4": "TRUE",
+              "Email Notification received/reflected on backend forms": "YES",
+              "Mobile/Desktop": "Mobile",
+              "Is there a separate thank you page? ": "YES"
+            }
+          ]
+        },
+        {
+          "name": "Kathlyn",
+          "headers": [
+            "Date",
+            "Client",
+            "Website",
+            "Sanity test (DONE)",
+            "Email Notification received/reflected on backend forms",
+            "Mobile/Desktop",
+            "Thank you page is present",
+            "STATUS"
+          ],
+          "rowCount": 197,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Date": "2/13/2026",
+              "Client": "Jorge  - J&M Events",
+              "Website": "https://jandmevents.com/",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received/reflected on backend forms": "Yes",
+              "Mobile/Desktop": "Desktop",
+              "Thank you page is present": "Yes"
+            },
+            {
+              "Date": "",
+              "Client": "Tim Huckabee",
+              "Website": "https://theprofitableflorist.com/",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received/reflected on backend forms": "Yes",
+              "Mobile/Desktop": "Desktop",
+              "Thank you page is present": "Yes"
+            },
+            {
+              "Date": "2/6/2026",
+              "Client": "Jorge  - J&M Events",
+              "Website": "https://jandmevents.com/",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received/reflected on backend forms": "Yes",
+              "Mobile/Desktop": "Desktop",
+              "Thank you page is present": "Yes"
+            },
+            {
+              "Date": "",
+              "Client": "Tim Huckabee",
+              "Website": "https://theprofitableflorist.com/",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received/reflected on backend forms": "Yes",
+              "Mobile/Desktop": "Desktop",
+              "Thank you page is present": "Yes"
+            },
+            {
+              "Date": "1/30/2026",
+              "Client": "Jorge  - J&M Events",
+              "Website": "https://jandmevents.com/",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received/reflected on backend forms": "Yes",
+              "Mobile/Desktop": "Mobile",
+              "Thank you page is present": "Yes"
+            }
+          ]
+        },
+        {
+          "name": "Sarah",
+          "headers": [
+            "Date",
+            "Client",
+            "Website",
+            "Sanity test (DONE)",
+            "Email Notification received",
+            "Mobile/Desktop",
+            "Thank you page is present",
+            "Notes",
+            "Thank you page",
+            "Test recordings"
+          ],
+          "rowCount": 2000,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Date": "02/07/2025",
+              "Client": "Napoleon",
+              "Website": "https://napoleonryan.com/",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received": "None",
+              "Mobile/Desktop": "Desktop",
+              "Thank you page is present": "Yes"
+            },
+            {
+              "Date": "",
+              "Client": "",
+              "Website": "https://magicnapoleon.com/",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received": "None",
+              "Mobile/Desktop": "Desktop",
+              "Thank you page is present": "Yes"
+            },
+            {
+              "Date": "",
+              "Client": "Jacqueline Smith ",
+              "Website": "https://dazzlingballoonsandbeyond.com/go-meeting",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received": "None",
+              "Mobile/Desktop": "Desktop",
+              "Thank you page is present": "Yes",
+              "Notes": "",
+              "Thank you page": "https://dazzlingballoonsandbeyond.com/thank-you/"
+            },
+            {
+              "Date": "",
+              "Client": "",
+              "Website": "Balloon Color Chart",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received": "Yes",
+              "Mobile/Desktop": "Desktop",
+              "Thank you page is present": "Yes"
+            },
+            {
+              "Date": "",
+              "Client": "",
+              "Website": "https://dazzlingballoonsandbeyond.com/",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received": "None",
+              "Mobile/Desktop": "Desktop",
+              "Thank you page is present": "Yes"
+            }
+          ]
+        },
+        {
+          "name": "Hilda",
+          "headers": [
+            "Date",
+            "Client",
+            "Website",
+            "Sanity test (DONE)",
+            "Email Notification received/reflected on backend forms",
+            "Mobile/Desktop",
+            "Thank you page is present",
+            "Note"
+          ],
+          "rowCount": 283,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Date": "02/13/2026",
+              "Client": "Tyler Hacker (every 2 weeks)",
+              "Website": "Homepage",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received/reflected on backend forms": "",
+              "Mobile/Desktop": "Mobile",
+              "Thank you page is present": "",
+              "Note": "All buttons are working and redirecting to the right pages\n\n"
+            },
+            {
+              "Date": "",
+              "Client": "",
+              "Website": "Go page",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received/reflected on backend forms": "",
+              "Mobile/Desktop": "Mobile"
+            },
+            {
+              "Date": "",
+              "Client": "",
+              "Website": "FB-go page",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received/reflected on backend forms": "",
+              "Mobile/Desktop": "Mobile"
+            },
+            {
+              "Date": "02/13/2026",
+              "Client": "Sara Chana Silverstein",
+              "Website": "Homepage",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received/reflected on backend forms": "Yes",
+              "Mobile/Desktop": "Mobile",
+              "Thank you page is present": "Yes"
+            },
+            {
+              "Date": "",
+              "Client": "",
+              "Website": "Contact",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received/reflected on backend forms": "Yes",
+              "Mobile/Desktop": "Mobile",
+              "Thank you page is present": "Yes"
+            }
+          ]
+        },
+        {
+          "name": "Ela",
+          "headers": [
+            "Date",
+            "Client",
+            "Website",
+            "Sanity test (DONE)",
+            "Email Notification received",
+            "Responsive",
+            "Thank you page is present",
+            "Notes"
+          ],
+          "rowCount": 1181,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Date": "10/13/2025",
+              "Client": "Dustin — HOYO",
+              "Website": "https://wordpress-1429673-5867323.cloudwaysapps.com/",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received": "Yes",
+              "Responsive": "Desktop",
+              "Thank you page is present": "Yes"
+            },
+            {
+              "Date": "",
+              "Client": "",
+              "Website": "https://wordpress-1429673-5867323.cloudwaysapps.com/",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received": "Yes",
+              "Responsive": "Mobile",
+              "Thank you page is present": "Yes"
+            },
+            {
+              "Date": "10/14/2025",
+              "Client": "Dustin — HOYO",
+              "Website": "https://wordpress-1429673-5867323.cloudwaysapps.com/",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received": "Yes",
+              "Responsive": "Desktop",
+              "Thank you page is present": "Yes"
+            },
+            {
+              "Date": "",
+              "Client": "",
+              "Website": "https://wordpress-1429673-5867323.cloudwaysapps.com/",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received": "Yes",
+              "Responsive": "Mobile",
+              "Thank you page is present": "Yes"
+            },
+            {
+              "Date": "10/21/2025",
+              "Client": "Dustin — HOYO",
+              "Website": "https://hoyonow.com/",
+              "Sanity test (DONE)": "TRUE",
+              "Email Notification received": "Yes",
+              "Responsive": "Desktop",
+              "Thank you page is present": "Yes"
+            }
+          ]
+        },
+        {
+          "name": "Devi",
+          "headers": [
+            "Date",
+            "Page Name",
+            "Page Link",
+            "Desktop/Mobile",
+            "Redirects to thank you page?",
+            "Email Notification is received?"
+          ],
+          "rowCount": 1252,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Date": "Sep 5, 2025",
+              "Page Name": "Homepage SV",
+              "Page Link": "https://carolineravn.com/",
+              "Desktop/Mobile": "Desktop",
+              "Redirects to thank you page?": "YES",
+              "Email Notification is received?": "YES"
+            },
+            {
+              "Date": "",
+              "Page Name": "Services SV",
+              "Page Link": "https://carolineravn.com/#services ",
+              "Desktop/Mobile": "Desktop",
+              "Redirects to thank you page?": "YES",
+              "Email Notification is received?": "YES"
+            },
+            {
+              "Date": "",
+              "Page Name": "Book Now SV",
+              "Page Link": "https://carolineravn.com/#contact",
+              "Desktop/Mobile": "Desktop",
+              "Redirects to thank you page?": "YES",
+              "Email Notification is received?": "YES"
+            },
+            {
+              "Date": "",
+              "Page Name": "Book a magician SV",
+              "Page Link": "https://carolineravn.com/boka-magiker/",
+              "Desktop/Mobile": "Desktop",
+              "Redirects to thank you page?": "YES",
+              "Email Notification is received?": "YES"
+            },
+            {
+              "Date": "",
+              "Page Name": "Customer SV",
+              "Page Link": "https://carolineravn.com/kunder/",
+              "Desktop/Mobile": "Desktop",
+              "Redirects to thank you page?": "YES",
+              "Email Notification is received?": "YES"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "SANITY CHECKS | CAROLINE RAVN",
+      "spreadsheetId": "1SxVih46lozJjhho_Uho3HWPlzhqIBAcA1j8woNcyR1Y",
+      "depth": 2,
+      "error": null,
+      "tabCount": 1,
+      "tabs": [
+        {
+          "name": "SANITY CHECKS - Caroline Ravn",
+          "headers": [
+            "Date",
+            "Page Name",
+            "Page Link",
+            "Desktop/Mobile",
+            "Redirects to thank you page?",
+            "Email Notification is received?",
+            "Done By"
+          ],
+          "rowCount": 1252,
+          "linksFound": 0,
+          "sampleRows": [
+            {
+              "Date": "9/5/2025",
+              "Page Name": "Homepage SV",
+              "Page Link": "https://carolineravn.com/",
+              "Desktop/Mobile": "Desktop",
+              "Redirects to thank you page?": "YES",
+              "Email Notification is received?": "YES"
+            },
+            {
+              "Date": "",
+              "Page Name": "Services SV",
+              "Page Link": "https://carolineravn.com/#services ",
+              "Desktop/Mobile": "Desktop",
+              "Redirects to thank you page?": "YES",
+              "Email Notification is received?": "YES"
+            },
+            {
+              "Date": "",
+              "Page Name": "Book Now SV",
+              "Page Link": "https://carolineravn.com/#contact",
+              "Desktop/Mobile": "Desktop",
+              "Redirects to thank you page?": "YES",
+              "Email Notification is received?": "YES"
+            },
+            {
+              "Date": "",
+              "Page Name": "Book a magician SV",
+              "Page Link": "https://carolineravn.com/boka-magiker/",
+              "Desktop/Mobile": "Desktop",
+              "Redirects to thank you page?": "YES",
+              "Email Notification is received?": "YES"
+            },
+            {
+              "Date": "",
+              "Page Name": "Customer SV",
+              "Page Link": "https://carolineravn.com/kunder/",
+              "Desktop/Mobile": "Desktop",
+              "Redirects to thank you page?": "YES",
+              "Email Notification is received?": "YES"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

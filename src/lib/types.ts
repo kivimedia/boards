@@ -1613,6 +1613,313 @@ export interface PerformanceBaseline {
 }
 
 
+export interface WhatsAppCustomAction {
+  id: string;
+  user_id: string;
+  keyword: string;
+  label: string;
+  action_type: string;
+  action_config: Record<string, unknown>;
+  response_template: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WhatsAppDigestTemplate {
+  id: string;
+  user_id: string;
+  name: string;
+  sections: DigestSection[];
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DigestSection {
+  type: 'overdue' | 'assigned' | 'mentions' | 'board_summary' | 'custom';
+  title: string;
+  enabled: boolean;
+  config?: Record<string, unknown>;
+}
+
+// P9.2: WhatsApp Business API
+
+export interface WhatsAppConfig {
+  id: string;
+  phone_number_id: string;
+  access_token: string;
+  webhook_verify_token: string;
+  business_account_id: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type WhatsAppMediaType = 'image' | 'video' | 'document' | 'audio';
+
+export interface WhatsAppWebhookMessage {
+  from: string;
+  id: string;
+  timestamp: string;
+  type: 'text' | 'image' | 'video' | 'document' | 'audio' | 'interactive' | 'button' | 'reaction';
+  text?: { body: string };
+  image?: { id: string; mime_type: string; caption?: string };
+  video?: { id: string; mime_type: string; caption?: string };
+  document?: { id: string; mime_type: string; filename?: string; caption?: string };
+  interactive?: { type: string; button_reply?: { id: string; title: string }; list_reply?: { id: string; title: string } };
+}
+
+export interface WhatsAppStatusUpdate {
+  id: string;
+  status: 'sent' | 'delivered' | 'read' | 'failed';
+  timestamp: string;
+  recipient_id: string;
+  errors?: Array<{ code: number; title: string }>;
+}
+
+export type ProductivityReportType = 'individual' | 'team' | 'department' | 'executive';
+export type ProductivityReportFormat = 'pdf' | 'csv' | 'xlsx';
+export type ProductivityReportFileStatus = 'pending' | 'generating' | 'completed' | 'failed';
+
+export interface ProductivityReportConfig {
+  id: string;
+  name: string;
+  report_type: ProductivityReportType;
+  schedule: string | null;
+  recipients: string[];
+  include_sections: string[];
+  filters: Record<string, unknown>;
+  format: ProductivityReportFormat;
+  is_active: boolean;
+  last_generated_at: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProductivityReportFile {
+  id: string;
+  config_id: string | null;
+  report_type: string;
+  format: string;
+  storage_path: string | null;
+  file_size_bytes: number | null;
+  date_range_start: string;
+  date_range_end: string;
+  generated_by: string;
+  status: ProductivityReportFileStatus;
+  error_message: string | null;
+  created_at: string;
+}
+
+// ============================================================================
+// AGENT SKILLS SYSTEM (Migration 039)
+// ============================================================================
+
+export type AgentSkillCategory = 'content' | 'creative' | 'strategy' | 'seo' | 'meta';
+export type AgentSkillPack = 'skills' | 'creative' | 'custom';
+export type AgentQualityTier = 'genuinely_smart' | 'solid' | 'has_potential' | 'placeholder' | 'tool_dependent';
+export type AgentTriggerType = 'manual' | 'automation_rule' | 'card_event' | 'schedule' | 'chained';
+export type AgentExecutionStatus = 'running' | 'success' | 'failed' | 'cancelled' | 'pending_confirmation';
+export type AgentToolCallStatus = 'pending' | 'success' | 'failed' | 'pending_confirmation' | 'confirmed' | 'rejected';
+export type CardAgentTaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+export type SkillImprovementType = 'prompt_update' | 'quality_review' | 'reference_added' | 'bug_fix' | 'feature_add' | 'rewrite';
+
+export interface AgentSkill {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  category: AgentSkillCategory;
+  pack: AgentSkillPack;
+  system_prompt: string;
+
+  // Quality dashboard
+  quality_tier: AgentQualityTier;
+  quality_score: number;
+  quality_notes: string | null;
+  strengths: string[];
+  weaknesses: string[];
+  improvement_suggestions: string[];
+  last_quality_review_at: string | null;
+
+  // Capabilities
+  supported_tools: string[];
+  required_context: string[];
+  output_format: string;
+  estimated_tokens: number;
+
+  // Dependency graph
+  depends_on: string[];
+  feeds_into: string[];
+
+  // External tool dependencies
+  requires_mcp_tools: string[];
+  fallback_behavior: string | null;
+
+  // Reference material
+  reference_docs: { name: string; content_summary: string; quality: string }[];
+
+  // Metadata
+  version: string;
+  is_active: boolean;
+  icon: string | null;
+  color: string | null;
+  sort_order: number;
+
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BoardAgent {
+  id: string;
+  board_id: string;
+  skill_id: string;
+  custom_prompt_additions: string | null;
+  custom_tools: string[] | null;
+  model_preference: string | null;
+  is_active: boolean;
+  auto_trigger_on: string[];
+  max_iterations: number;
+  requires_confirmation: boolean;
+
+  // Stats
+  total_executions: number;
+  successful_executions: number;
+  total_tokens_used: number;
+  total_cost_usd: number;
+  avg_quality_rating: number | null;
+  last_executed_at: string | null;
+
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+
+  // Joined
+  skill?: AgentSkill;
+}
+
+export interface AgentExecution {
+  id: string;
+  board_agent_id: string;
+  skill_id: string;
+  board_id: string | null;
+  card_id: string | null;
+  user_id: string;
+
+  trigger_type: AgentTriggerType;
+  trigger_data: Record<string, unknown>;
+  input_message: string;
+  input_context: Record<string, unknown>;
+  output_response: string | null;
+  output_artifacts: { type: string; content: string; filename?: string }[];
+
+  model_used: string | null;
+  iterations_used: number;
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+  duration_ms: number | null;
+
+  status: AgentExecutionStatus;
+  error_message: string | null;
+
+  quality_rating: number | null;
+  quality_feedback: string | null;
+  was_useful: boolean | null;
+
+  created_at: string;
+  completed_at: string | null;
+
+  // Joined
+  skill?: AgentSkill;
+  tool_calls?: AgentToolCall[];
+}
+
+export interface AgentToolCall {
+  id: string;
+  execution_id: string;
+  tool_name: string;
+  tool_input: Record<string, unknown>;
+  tool_result: Record<string, unknown> | null;
+  status: AgentToolCallStatus;
+  error_message: string | null;
+  confirmed_by: string | null;
+  confirmed_at: string | null;
+  call_order: number;
+  duration_ms: number | null;
+  created_at: string;
+}
+
+export interface CardAgentTask {
+  id: string;
+  card_id: string;
+  skill_id: string;
+  execution_id: string | null;
+  title: string;
+  input_prompt: string | null;
+  status: CardAgentTaskStatus;
+  output_preview: string | null;
+  output_full: string | null;
+  output_artifacts: { type: string; content: string; filename?: string }[];
+  quality_rating: number | null;
+  was_applied: boolean;
+  sort_order: number;
+  created_by: string | null;
+  created_at: string;
+  completed_at: string | null;
+
+  // Joined
+  skill?: AgentSkill;
+  execution?: AgentExecution;
+}
+
+export interface SkillImprovementLog {
+  id: string;
+  skill_id: string;
+  change_type: SkillImprovementType;
+  change_description: string;
+  quality_score_before: number | null;
+  quality_score_after: number | null;
+  quality_tier_before: string | null;
+  quality_tier_after: string | null;
+  changed_by: string | null;
+  created_at: string;
+}
+
+export interface SkillRevision {
+  id: string;
+  skill_id: string;
+  changed_by: string | null;
+  change_summary: string | null;
+  snapshot: Record<string, unknown>;
+  revision_number: number;
+  created_at: string;
+}
+
+// Dashboard aggregation types
+export interface SkillQualityDashboard {
+  total_skills: number;
+  by_tier: Record<AgentQualityTier, number>;
+  by_category: Record<AgentSkillCategory, number>;
+  by_pack: Record<AgentSkillPack, number>;
+  avg_quality_score: number;
+  skills_needing_improvement: AgentSkill[];
+  recent_improvements: SkillImprovementLog[];
+  top_performers: (AgentSkill & { exec_count: number; avg_rating: number })[];
+}
+
+export interface AgentExecutionStats {
+  total_executions: number;
+  success_rate: number;
+  total_cost_usd: number;
+  total_tokens: number;
+  avg_duration_ms: number;
+  avg_quality_rating: number | null;
+  by_skill: { skill_id: string; skill_name: string; count: number; avg_rating: number | null }[];
+  by_day: { date: string; count: number; cost: number }[];
+}
 
 // ============================================================================
 // BOARD COMMAND MODE TYPES (P8.7)
@@ -1859,34 +2166,6 @@ export type BalloonEventType =
   | 'prom'
   | 'nonprofit'
   | 'other';
-
-// ─── Agent Types ────────────────────────────────────────────────
-
-export type AgentQualityTier =
-  | 'genuinely_smart'
-  | 'solid'
-  | 'has_potential'
-  | 'placeholder'
-  | 'tool_dependent';
-
-export interface AgentSkill {
-  id: string;
-  name: string;
-  slug: string;
-  description: string;
-  icon: string;
-  category: string;
-  system_prompt: string;
-  quality_tier: AgentQualityTier;
-  quality_score: number;
-  supported_tools: string[];
-  sort_order: number;
-  strengths: string[];
-  weaknesses: string[];
-  required_context: string[];
-  created_at: string;
-  updated_at: string;
-}
 
 // ─── Performance Keeping Types ──────────────────────────────────
 

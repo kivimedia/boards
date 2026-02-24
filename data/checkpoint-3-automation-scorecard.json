@@ -1,0 +1,2167 @@
+{
+  "summary": {
+    "total": 309,
+    "auto": 118,
+    "autoPercent": 38,
+    "semiAuto": 61,
+    "semiAutoPercent": 20,
+    "human": 127,
+    "humanPercent": 41,
+    "notify": 3,
+    "notifyPercent": 1
+  },
+  "sheets": [
+    {
+      "title": "KM & DC | MASTERLIST OF TRACKERS",
+      "spreadsheetId": "1XPr4nraaXWOv4ubZCwyPLSvbr2LvawU0HT2AvPj8Bjk",
+      "tabs": [
+        {
+          "tabName": "Tracking Dashboard",
+          "columns": []
+        },
+        {
+          "tabName": "Links",
+          "columns": [
+            {
+              "name": "Frequency",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "No clear automation pattern - defaulting to human-required"
+            },
+            {
+              "name": "Title",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "No clear automation pattern - defaulting to human-required"
+            },
+            {
+              "name": "Links",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "No clear automation pattern - defaulting to human-required"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "KM Fathom Video Tracker",
+      "spreadsheetId": "1m1_oQGk3RYd7s9ETTsoCRTvfZPLs-NsiOKCVIiN8BPA",
+      "tabs": [
+        {
+          "tabName": "Summary",
+          "columns": []
+        },
+        {
+          "tabName": "ANGEL",
+          "columns": [
+            {
+              "name": "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Descriptive text requires human input"
+            }
+          ]
+        },
+        {
+          "tabName": "KATH",
+          "columns": [
+            {
+              "name": "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Descriptive text requires human input"
+            }
+          ]
+        },
+        {
+          "tabName": "DEVI",
+          "columns": [
+            {
+              "name": "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Descriptive text requires human input"
+            }
+          ]
+        },
+        {
+          "tabName": "HILDA",
+          "columns": [
+            {
+              "name": "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Descriptive text requires human input"
+            }
+          ]
+        },
+        {
+          "tabName": "RIZA",
+          "columns": [
+            {
+              "name": "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Descriptive text requires human input"
+            }
+          ]
+        },
+        {
+          "tabName": "SARAH",
+          "columns": [
+            {
+              "name": "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Descriptive text requires human input"
+            }
+          ]
+        },
+        {
+          "tabName": "ELA",
+          "columns": [
+            {
+              "name": "REMINDER: Make sure that AFTER YOU WATCHED the fathom videos, you SEND ACTION ITEMS to Ziv. If there are NO action items, then SEND a QUICK SUMMARY of what the meeting is about. This is to remind Ziv of what had happened in the meeting and to let him know that you've watched the video. \nThank you so much for your hardwork!🥰✨ ",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Descriptive text requires human input"
+            }
+          ]
+        },
+        {
+          "tabName": "IVY",
+          "columns": [
+            {
+              "name": "MEETING DATE",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Contains dates - likely date-tracked workflow"
+            },
+            {
+              "name": "DATE WATCHED",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Contains dates - likely date-tracked workflow"
+            },
+            {
+              "name": "FATHOM VIDEO LINK",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "No clear automation pattern - defaulting to human-required"
+            },
+            {
+              "name": "CLIENT",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "WATCHED FATHOM VIDEO?",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "No clear automation pattern - defaulting to human-required"
+            },
+            {
+              "name": "SENT ACTION ITEMS TO ZIV?",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Action items require human definition"
+            },
+            {
+              "name": "ATTACHMENTS",
+              "classification": "AUTO",
+              "reasoning": "File attachment reference"
+            },
+            {
+              "name": "NOTES",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "KM Client Updates Tracker",
+      "spreadsheetId": "1xSLGI3yJiedq9B7yihz37XZHrnPkouyhaH8FqBe7ROI",
+      "tabs": [
+        {
+          "tabName": "Summary",
+          "columns": []
+        },
+        {
+          "tabName": "ELA",
+          "columns": [
+            {
+              "name": "DATE SENT",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "No clear automation pattern - defaulting to human-required"
+            },
+            {
+              "name": "CLIENT",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "UPDATE SENT ON TIME",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Completion status"
+            },
+            {
+              "name": "METHOD",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Categorization - dropdown/enum"
+            },
+            {
+              "name": "NOTES",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        },
+        {
+          "tabName": "ANGEL",
+          "columns": [
+            {
+              "name": "DATE SENT",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "No clear automation pattern - defaulting to human-required"
+            },
+            {
+              "name": "CLIENT",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "UPDATE SENT ON TIME?",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Completion status"
+            },
+            {
+              "name": "METHOD(Email,Whatsapp,etc.)",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Categorization - dropdown/enum"
+            },
+            {
+              "name": "NOTES",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        },
+        {
+          "tabName": "DEVI",
+          "columns": [
+            {
+              "name": "DATE SENT",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "No clear automation pattern - defaulting to human-required"
+            },
+            {
+              "name": "CLIENT",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "UPDATE SENT ON TIME",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Completion status"
+            },
+            {
+              "name": "METHOD",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Categorization - dropdown/enum"
+            },
+            {
+              "name": "NOTES",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        },
+        {
+          "tabName": "HILDA",
+          "columns": [
+            {
+              "name": "DATE SENT",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Contains dates - likely date-tracked workflow"
+            },
+            {
+              "name": "CLIENT",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "UPDATE SENT ON TIME?",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Completion status"
+            },
+            {
+              "name": "METHOD(Email,Whatsapp,etc.)",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Categorization - dropdown/enum"
+            },
+            {
+              "name": "NOTES",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        },
+        {
+          "tabName": "KATH",
+          "columns": [
+            {
+              "name": "DATE SENT",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "No clear automation pattern - defaulting to human-required"
+            },
+            {
+              "name": "CLIENT",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "UPDATE SENT ON TIME?",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Completion status"
+            },
+            {
+              "name": "METHOD(Email,Whatsapp,etc.)",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Categorization - dropdown/enum"
+            },
+            {
+              "name": "NOTES",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        },
+        {
+          "tabName": "IVY",
+          "columns": [
+            {
+              "name": "DATE",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "CLIENT",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "UPDATE SENT ON TIME?",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Completion status"
+            },
+            {
+              "name": "METHOD(Email,Whatsapp,etc.)",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Categorization - dropdown/enum"
+            },
+            {
+              "name": "NOTES",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        },
+        {
+          "tabName": "RIZA",
+          "columns": [
+            {
+              "name": "DATE SENT",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "No clear automation pattern - defaulting to human-required"
+            },
+            {
+              "name": "CLIENT",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "UPDATE SENT ON TIME?",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Completion status"
+            },
+            {
+              "name": "METHOD(Email,Whatsapp,etc.)",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Categorization - dropdown/enum"
+            },
+            {
+              "name": "NOTES",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        },
+        {
+          "tabName": "SARAH",
+          "columns": [
+            {
+              "name": "DATE SENT",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "No clear automation pattern - defaulting to human-required"
+            },
+            {
+              "name": "CLIENT",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "UPDATE SENT ON TIME?",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Completion status"
+            },
+            {
+              "name": "METHOD(Email,Whatsapp,etc.)",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Categorization - dropdown/enum"
+            },
+            {
+              "name": "NOTES",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "KM Sanity Checks",
+      "spreadsheetId": "169j-0iUPBRUKDfhHfS_yvoGhKPhXdI31kfKDjLCJIRM",
+      "tabs": [
+        {
+          "tabName": "Dashboard",
+          "columns": []
+        },
+        {
+          "tabName": "Summary",
+          "columns": []
+        },
+        {
+          "tabName": "RIZA",
+          "columns": [
+            {
+              "name": "DATE",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "CLIENT",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "BUSINESS NAME",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "SANITY CHECK DONE",
+              "classification": "AUTO",
+              "reasoning": "Boolean completion status - trackable"
+            },
+            {
+              "name": "NOTES",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            },
+            {
+              "name": "Column 1",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "No clear automation pattern - defaulting to human-required"
+            }
+          ]
+        },
+        {
+          "tabName": "ANGEL",
+          "columns": [
+            {
+              "name": "DATE",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "CLIENT",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "BUSINESS NAME",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "SANITY CHECK DONE",
+              "classification": "AUTO",
+              "reasoning": "Boolean completion status - trackable"
+            },
+            {
+              "name": "NOTES",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        },
+        {
+          "tabName": "HILDA",
+          "columns": [
+            {
+              "name": "DATE",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "CLIENT",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "BUSINESS NAME",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "SANITY CHECK DONE",
+              "classification": "AUTO",
+              "reasoning": "Boolean completion status - trackable"
+            },
+            {
+              "name": "NOTES",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        },
+        {
+          "tabName": "KATH",
+          "columns": [
+            {
+              "name": "DATE",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "CLIENT",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "BUSINESS NAME",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "SANITY CHECK DONE",
+              "classification": "AUTO",
+              "reasoning": "Boolean completion status - trackable"
+            },
+            {
+              "name": "NOTES",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        },
+        {
+          "tabName": "MARIZ",
+          "columns": [
+            {
+              "name": "DATE",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "CLIENT",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "BUSINESS NAME",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "SANITY CHECK DONE",
+              "classification": "AUTO",
+              "reasoning": "Boolean completion status - trackable"
+            },
+            {
+              "name": "NOTES",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        },
+        {
+          "tabName": "SARAH",
+          "columns": [
+            {
+              "name": "DATE",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "CLIENT",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "BUSINESS NAME",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "SANITY CHECK DONE",
+              "classification": "AUTO",
+              "reasoning": "Boolean completion status - trackable"
+            },
+            {
+              "name": "NOTES",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        },
+        {
+          "tabName": "DEVI",
+          "columns": [
+            {
+              "name": "DATE",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "CLIENT",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "BUSINESS NAME",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "SANITY CHECK DONE",
+              "classification": "AUTO",
+              "reasoning": "Boolean completion status - trackable"
+            },
+            {
+              "name": "NOTES",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        },
+        {
+          "tabName": "ELA",
+          "columns": [
+            {
+              "name": "DATE",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "CLIENT",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "BUSINESS NAME",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "SANITY CHECK DONE",
+              "classification": "AUTO",
+              "reasoning": "Boolean completion status - trackable"
+            },
+            {
+              "name": "NOTES",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        },
+        {
+          "tabName": "IVY",
+          "columns": [
+            {
+              "name": "DATE",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "CLIENT",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "BUSINESS NAME",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "SANITY CHECK DONE",
+              "classification": "AUTO",
+              "reasoning": "Boolean completion status - trackable"
+            },
+            {
+              "name": "NOTES",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Operations Team Daily GoalsTracker",
+      "spreadsheetId": "1hx0oJJ9ulISBj1vlBX8-rQEIqlaERgyh4lg7-mx_B-0",
+      "tabs": [
+        {
+          "tabName": "Daily Summary",
+          "columns": []
+        },
+        {
+          "tabName": "FEB'26",
+          "columns": [
+            {
+              "name": "Date",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "Designer/Dev",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "No clear automation pattern - defaulting to human-required"
+            },
+            {
+              "name": "Commitments",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Goal setting requires human decision"
+            },
+            {
+              "name": "Links",
+              "classification": "AUTO",
+              "reasoning": "Contains URLs - reference/link data"
+            },
+            {
+              "name": "Updated",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Completion status"
+            },
+            {
+              "name": "Completed",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Completion status"
+            },
+            {
+              "name": "%",
+              "classification": "AUTO",
+              "reasoning": "Calculated ratio/percentage"
+            },
+            {
+              "name": "Remarks",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        },
+        {
+          "tabName": "Consolidated Summary",
+          "columns": [
+            {
+              "name": "Operations Team Daily Progress | JANUARY 2026",
+              "classification": "AUTO",
+              "reasoning": "Calculated ratio/percentage"
+            },
+            {
+              "name": "Operations Team Daily Progress",
+              "classification": "AUTO",
+              "reasoning": "Calculated ratio/percentage"
+            },
+            {
+              "name": "Operations Team Daily Progress",
+              "classification": "AUTO",
+              "reasoning": "Calculated ratio/percentage"
+            }
+          ]
+        },
+        {
+          "tabName": "2026 Records",
+          "columns": [
+            {
+              "name": "Date",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "Designer/Dev",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "No clear automation pattern - defaulting to human-required"
+            },
+            {
+              "name": "Commitments",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Goal setting requires human decision"
+            },
+            {
+              "name": "Links",
+              "classification": "AUTO",
+              "reasoning": "Contains URLs - reference/link data"
+            },
+            {
+              "name": "Updated",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Completion status"
+            },
+            {
+              "name": "Completed",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Completion status"
+            },
+            {
+              "name": "%",
+              "classification": "AUTO",
+              "reasoning": "Calculated ratio/percentage"
+            },
+            {
+              "name": "Remarks",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        },
+        {
+          "tabName": "2025 Records",
+          "columns": [
+            {
+              "name": "Operations Team Daily Progress: August 2025",
+              "classification": "AUTO",
+              "reasoning": "Calculated ratio/percentage"
+            },
+            {
+              "name": "Operations Team Daily Progress",
+              "classification": "AUTO",
+              "reasoning": "Calculated ratio/percentage"
+            },
+            {
+              "name": "Operations Team Daily Progress",
+              "classification": "AUTO",
+              "reasoning": "Calculated ratio/percentage"
+            }
+          ]
+        },
+        {
+          "tabName": "Weekly",
+          "columns": []
+        }
+      ]
+    },
+    {
+      "title": "QUARTERLY - Pingdom Speed Test",
+      "spreadsheetId": "1zBWgluXaDAT8HvmXToH2-juAImd4geVZv2GWFi96HDE",
+      "tabs": [
+        {
+          "tabName": "Dashboard",
+          "columns": []
+        },
+        {
+          "tabName": "Summary",
+          "columns": []
+        },
+        {
+          "tabName": "2026 | QUARTER 1",
+          "columns": [
+            {
+              "name": "For the First Quarter of 2026\nJanuary to March",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "For Reference:\nReasonable load time: 3-4 seconds or lower\nReasonable page size: 5MB or less",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Validation check - semi-auto"
+            }
+          ]
+        },
+        {
+          "tabName": "2025 | QUARTER 3",
+          "columns": [
+            {
+              "name": "Quarter 3 (1st week of September)",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "For Reference:\nReasonable load time: 3-4 seconds or lower\nReasonable page size: 5MB or less",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Validation check - semi-auto"
+            }
+          ]
+        },
+        {
+          "tabName": "2025 | QUARTER 4",
+          "columns": [
+            {
+              "name": "For the Fourth Quarter of 2025\nOctober to December",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "For Reference:\nReasonable load time: 3-4 seconds or lower\nReasonable page size: 5MB or less",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Validation check - semi-auto"
+            }
+          ]
+        },
+        {
+          "tabName": "2025",
+          "columns": [
+            {
+              "name": "Test Date",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "Account Manager",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Assignment - triggered by workflow"
+            },
+            {
+              "name": "Client",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "Client Website",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "No clear automation pattern - defaulting to human-required"
+            },
+            {
+              "name": "Attachments / Report",
+              "classification": "AUTO",
+              "reasoning": "File attachment reference"
+            },
+            {
+              "name": "Notes",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        },
+        {
+          "tabName": "2026",
+          "columns": [
+            {
+              "name": "Test Date",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "Account Manager",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Assignment - triggered by workflow"
+            },
+            {
+              "name": "Client",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "Client Website",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "No clear automation pattern - defaulting to human-required"
+            },
+            {
+              "name": "Attachments / Report",
+              "classification": "AUTO",
+              "reasoning": "File attachment reference"
+            },
+            {
+              "name": "Notes",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Google Ads Monthly Report Tracker",
+      "spreadsheetId": "12tO954LRVsT5edcOl4NohdWIU0akZvqTEi4nPHmgBes",
+      "tabs": [
+        {
+          "tabName": "Summary",
+          "columns": []
+        },
+        {
+          "tabName": "JAN'26",
+          "columns": [
+            {
+              "name": "Monthly Google Ads Report",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            }
+          ]
+        },
+        {
+          "tabName": "DEC'25",
+          "columns": [
+            {
+              "name": "Monthly Google Ads Report",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            }
+          ]
+        },
+        {
+          "tabName": "NOV'25",
+          "columns": [
+            {
+              "name": "Monthly Google Ads Report",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            }
+          ]
+        },
+        {
+          "tabName": "OCT'25",
+          "columns": [
+            {
+              "name": "Monthly Google Ads Report",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            }
+          ]
+        },
+        {
+          "tabName": "SEP'25",
+          "columns": [
+            {
+              "name": "Monthly Google Ads Report",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            }
+          ]
+        },
+        {
+          "tabName": "AUG'25",
+          "columns": [
+            {
+              "name": "Monthly Google Ads Report",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            }
+          ]
+        },
+        {
+          "tabName": "JULY'25",
+          "columns": [
+            {
+              "name": "Monthly Google Ads Report",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            }
+          ]
+        },
+        {
+          "tabName": "JUNE'25",
+          "columns": [
+            {
+              "name": "Monthly Google Ads Report",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            }
+          ]
+        },
+        {
+          "tabName": "Copy of SEP",
+          "columns": [
+            {
+              "name": "Monthly Google Ads Report",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Update Schedule",
+      "spreadsheetId": "1ciRMFrWF8oaRRvc9mIn3wYv9Txchp3YM5cI6MPifXY4",
+      "tabs": [
+        {
+          "tabName": "Update Schedule",
+          "columns": [
+            {
+              "name": "Account Manager",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Assignment - triggered by workflow"
+            },
+            {
+              "name": "Client",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "Preferred Time",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "No clear automation pattern - defaulting to human-required"
+            },
+            {
+              "name": "Notes",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Account Managers’ Ticket Update Tracker",
+      "spreadsheetId": "1Os4IP5t615n5aVkhfYHTD6aCqfcyjGvlfWrTklc_DzQ",
+      "tabs": [
+        {
+          "tabName": "Report",
+          "columns": [
+            {
+              "name": "TIMEFRAME",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "No clear automation pattern - defaulting to human-required"
+            },
+            {
+              "name": "ATTACHMENTS",
+              "classification": "AUTO",
+              "reasoning": "File attachment reference"
+            }
+          ]
+        },
+        {
+          "tabName": "FEB'26",
+          "columns": [
+            {
+              "name": "SPARK CLIENTS | UPDATED DAILY ",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Completion status"
+            },
+            {
+              "name": "SPARK LITE CLIENTS | UPDATED 3X A WEEK",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            }
+          ]
+        },
+        {
+          "tabName": "JAN'26",
+          "columns": [
+            {
+              "name": "SPARK CLIENTS | UPDATED DAILY ",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Completion status"
+            },
+            {
+              "name": "SPARK LITE CLIENTS | UPDATED 3X A WEEK",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            }
+          ]
+        },
+        {
+          "tabName": "DEC'25",
+          "columns": [
+            {
+              "name": "SPARK CLIENTS | UPDATED DAILY ",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Completion status"
+            },
+            {
+              "name": "SPARK LITE CLIENTS | UPDATED 3X A WEEK",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            }
+          ]
+        },
+        {
+          "tabName": "NOV'25",
+          "columns": [
+            {
+              "name": "SPARK CLIENTS | UPDATED DAILY ",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Completion status"
+            },
+            {
+              "name": "SPARK LITE CLIENTS | UPDATED 3X A WEEK",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            }
+          ]
+        },
+        {
+          "tabName": "OCT'25",
+          "columns": [
+            {
+              "name": "SPARK CLIENTS",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "No clear automation pattern - defaulting to human-required"
+            },
+            {
+              "name": "SPARK LITE CLIENTS",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "No clear automation pattern - defaulting to human-required"
+            }
+          ]
+        },
+        {
+          "tabName": "TEMP",
+          "columns": [
+            {
+              "name": "SPARK CLIENTS | UPDATED DAILY ",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Completion status"
+            },
+            {
+              "name": "SPARK LITE CLIENTS | UPDATED 3X A WEEK",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            }
+          ]
+        },
+        {
+          "tabName": "sample",
+          "columns": []
+        }
+      ]
+    },
+    {
+      "title": "Developers  & Designers Flagged Tickets Tracker",
+      "spreadsheetId": "1jPaHhwX7yg3-rxifIc6v_9QUSvTL3R4G58ydyL22m6Y",
+      "tabs": [
+        {
+          "tabName": "Dashboard",
+          "columns": []
+        },
+        {
+          "tabName": "Summary",
+          "columns": []
+        },
+        {
+          "tabName": "Designers",
+          "columns": [
+            {
+              "name": "Date Range",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "No clear automation pattern - defaulting to human-required"
+            },
+            {
+              "name": "Name",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "Project / Ticket ID",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Boolean checkbox"
+            },
+            {
+              "name": "Type of Red Flag",
+              "classification": "NOTIFY",
+              "reasoning": "Flagged items should trigger notification"
+            },
+            {
+              "name": "No. of Tickets",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Boolean checkbox"
+            },
+            {
+              "name": "Reasonable?",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Validation check - semi-auto"
+            },
+            {
+              "name": "Description / Notes",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        },
+        {
+          "tabName": "Developers",
+          "columns": [
+            {
+              "name": "Date Range",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "No clear automation pattern - defaulting to human-required"
+            },
+            {
+              "name": "Name",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "Project / Ticket ID",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Boolean checkbox"
+            },
+            {
+              "name": "Type of Red Flag",
+              "classification": "NOTIFY",
+              "reasoning": "Flagged items should trigger notification"
+            },
+            {
+              "name": "No. of Tickets",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Boolean checkbox"
+            },
+            {
+              "name": "Reasonable?",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Validation check - semi-auto"
+            },
+            {
+              "name": "Description / Notes",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        },
+        {
+          "tabName": "Video Editor",
+          "columns": [
+            {
+              "name": "Date Range",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "No clear automation pattern - defaulting to human-required"
+            },
+            {
+              "name": "Name",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "Project / Ticket ID",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Boolean checkbox"
+            },
+            {
+              "name": "Type of Red Flag",
+              "classification": "NOTIFY",
+              "reasoning": "Flagged items should trigger notification"
+            },
+            {
+              "name": "No. of Tickets",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Boolean checkbox"
+            },
+            {
+              "name": "Reasonable?",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Validation check - semi-auto"
+            },
+            {
+              "name": "Description / Notes",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        },
+        {
+          "tabName": "Account Managers | Lite",
+          "columns": []
+        }
+      ]
+    },
+    {
+      "title": "MONTHLY SUMMARY",
+      "spreadsheetId": "1EitQNxT7LngeNZs9xle2ArXdZNuq2yFB30w4J_cCoJM",
+      "tabs": [
+        {
+          "tabName": "Performance Report",
+          "columns": [
+            {
+              "name": "Month",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "Attachment",
+              "classification": "AUTO",
+              "reasoning": "File attachment reference"
+            }
+          ]
+        },
+        {
+          "tabName": "NOV '25",
+          "columns": []
+        },
+        {
+          "tabName": "OCT '25",
+          "columns": []
+        },
+        {
+          "tabName": "SEP '25",
+          "columns": []
+        },
+        {
+          "tabName": "AUG '25",
+          "columns": []
+        },
+        {
+          "tabName": "JULY '25",
+          "columns": []
+        },
+        {
+          "tabName": "Client Updates",
+          "columns": []
+        }
+      ]
+    },
+    {
+      "title": "KM's Other Activities",
+      "spreadsheetId": "1NksA1Vvu8i-9rw39Qb3hrcAIzSKgnXmdZ4biBQSy6uc",
+      "tabs": [
+        {
+          "tabName": "Automator",
+          "columns": [
+            {
+              "name": "Automator Installation",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "No clear automation pattern - defaulting to human-required"
+            }
+          ]
+        },
+        {
+          "tabName": "Core Values of KM Culture",
+          "columns": [
+            {
+              "name": "Core Values of Kivi Media Culture",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "No clear automation pattern - defaulting to human-required"
+            }
+          ]
+        },
+        {
+          "tabName": "ChatGPT's Agent Mode",
+          "columns": [
+            {
+              "name": "ChatGPT's Agent Mode",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "No clear automation pattern - defaulting to human-required"
+            }
+          ]
+        },
+        {
+          "tabName": "GHL Quiz",
+          "columns": [
+            {
+              "name": "GHL QUIZ",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "No clear automation pattern - defaulting to human-required"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Holiday Section Tracking Sheet",
+      "spreadsheetId": "1XrVMobNH1kshDWfZQ6misIusohRupsbqj1e3bMR0BTc",
+      "tabs": [
+        {
+          "tabName": "SARAH",
+          "columns": [
+            {
+              "name": "Website Link: ",
+              "classification": "AUTO",
+              "reasoning": "Reference URL"
+            }
+          ]
+        },
+        {
+          "tabName": "MARIZ",
+          "columns": [
+            {
+              "name": "Website Link: ",
+              "classification": "AUTO",
+              "reasoning": "Reference URL"
+            }
+          ]
+        },
+        {
+          "tabName": "HILDA",
+          "columns": [
+            {
+              "name": "Website Link: ",
+              "classification": "AUTO",
+              "reasoning": "Reference URL"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "AM_Clients_Websites_Status",
+      "spreadsheetId": "1wst1K_5ZvU7v2TH3a0QXwQ4pz5FJdx7YmPWFGEEuENM",
+      "tabs": [
+        {
+          "tabName": "Sheet1",
+          "columns": [
+            {
+              "name": "Account Manger",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Assignment - triggered by workflow"
+            },
+            {
+              "name": "Client",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "Business Name",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "Website Link",
+              "classification": "AUTO",
+              "reasoning": "Reference URL"
+            },
+            {
+              "name": "Status",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Status field - workflow-driven"
+            },
+            {
+              "name": "Notes",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "KM ACTIVE CLIENTS - Google Analytics",
+      "spreadsheetId": "19IE69cx5PVdbVV3x6yKfyiH2Hrjv6JENEMAwlHlKy9E",
+      "tabs": [
+        {
+          "tabName": "Sheet1",
+          "columns": [
+            {
+              "name": "Phase 1",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Status field - workflow-driven"
+            },
+            {
+              "name": "Phase 2",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Status field - workflow-driven"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Operation's Team Weekly Ticket Tracker",
+      "spreadsheetId": "1a46z55vnify6R8M7JyH6urFhhgw-IeegThXDMUjT7e8",
+      "tabs": [
+        {
+          "tabName": "DEVELOPERS",
+          "columns": [
+            {
+              "name": "DEVELOPER TEAM'S WEEKLY TICKET TRACKERS",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            }
+          ]
+        },
+        {
+          "tabName": "DESIGNERS",
+          "columns": [
+            {
+              "name": "DESIGNER TEAM'S WEEKLY TICKET TRACKERS",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            }
+          ]
+        },
+        {
+          "tabName": "Video Editor",
+          "columns": [
+            {
+              "name": "VIDEO EDITOR'S WEEKLY TICKET TRACKERS",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "PICS.IO Monitoring Sheet_1hr/week",
+      "spreadsheetId": "1x_g6eQApzJQeQlRusVx_w6g3nEKZk1Xqj9dcyjjsy8o",
+      "tabs": [
+        {
+          "tabName": "Summary",
+          "columns": []
+        },
+        {
+          "tabName": "Records 2026",
+          "columns": []
+        },
+        {
+          "tabName": "ANGEL",
+          "columns": [
+            {
+              "name": "Week",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "Date",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "Client",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "Duration",
+              "classification": "AUTO",
+              "reasoning": "Calculated ratio/percentage"
+            },
+            {
+              "name": "Notes / Attachments",
+              "classification": "AUTO",
+              "reasoning": "File attachment reference"
+            }
+          ]
+        },
+        {
+          "tabName": "RIZA",
+          "columns": [
+            {
+              "name": "Week",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "Date",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "Client",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "Duration",
+              "classification": "AUTO",
+              "reasoning": "Calculated ratio/percentage"
+            },
+            {
+              "name": "Notes / Attachments",
+              "classification": "AUTO",
+              "reasoning": "File attachment reference"
+            }
+          ]
+        },
+        {
+          "tabName": "HILDA",
+          "columns": [
+            {
+              "name": "Week",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "Date",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "Client",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "Duration",
+              "classification": "AUTO",
+              "reasoning": "Calculated ratio/percentage"
+            },
+            {
+              "name": "Notes / Attachments",
+              "classification": "AUTO",
+              "reasoning": "File attachment reference"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "KM - Sanity test",
+      "spreadsheetId": "1BZvQN_mwc_mqedHLzzl3CzhqWhZ6CfYcUFUsKv9HNko",
+      "tabs": [
+        {
+          "tabName": "Mariz",
+          "columns": [
+            {
+              "name": "Date",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "Client",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "Website",
+              "classification": "AUTO",
+              "reasoning": "Reference URL"
+            },
+            {
+              "name": "Form link",
+              "classification": "AUTO",
+              "reasoning": "Reference URL"
+            },
+            {
+              "name": "Sanity test (DONE)",
+              "classification": "AUTO",
+              "reasoning": "Boolean completion status - trackable"
+            },
+            {
+              "name": "Email Notification received",
+              "classification": "AUTO",
+              "reasoning": "Boolean completion status - trackable"
+            },
+            {
+              "name": "Mobile/Desktop",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Device type - selectable enum"
+            },
+            {
+              "name": "Remarks",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        },
+        {
+          "tabName": "Ivy",
+          "columns": [
+            {
+              "name": "Date",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "Client",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "Website",
+              "classification": "AUTO",
+              "reasoning": "Reference URL"
+            },
+            {
+              "name": "Sanity test (DONE)",
+              "classification": "AUTO",
+              "reasoning": "Boolean completion status - trackable"
+            },
+            {
+              "name": "Email Notification received",
+              "classification": "AUTO",
+              "reasoning": "Boolean completion status - trackable"
+            },
+            {
+              "name": "Mobile/Desktop",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Device type - selectable enum"
+            },
+            {
+              "name": "Desktop layout",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Device type - selectable enum"
+            },
+            {
+              "name": "Mobile layout",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Device type - selectable enum"
+            },
+            {
+              "name": "Thank you page is present",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Page-specific reference"
+            },
+            {
+              "name": "Notes",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        },
+        {
+          "tabName": "Riz",
+          "columns": [
+            {
+              "name": "Date",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "Client",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "Website",
+              "classification": "AUTO",
+              "reasoning": "Reference URL"
+            },
+            {
+              "name": "Form links",
+              "classification": "AUTO",
+              "reasoning": "Reference URL"
+            },
+            {
+              "name": "Sanity test (DONE)",
+              "classification": "AUTO",
+              "reasoning": "Boolean completion status - trackable"
+            },
+            {
+              "name": "Email Notification received",
+              "classification": "AUTO",
+              "reasoning": "Boolean completion status - trackable"
+            },
+            {
+              "name": "Desktop layout",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Device type - selectable enum"
+            },
+            {
+              "name": "Mobile layout",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Device type - selectable enum"
+            },
+            {
+              "name": "Remarks",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            },
+            {
+              "name": "Documentation",
+              "classification": "AUTO",
+              "reasoning": "File attachment reference"
+            }
+          ]
+        },
+        {
+          "tabName": "Angel",
+          "columns": [
+            {
+              "name": "Date",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "Client",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "Website",
+              "classification": "AUTO",
+              "reasoning": "Reference URL"
+            },
+            {
+              "name": "Comments",
+              "classification": "AUTO",
+              "reasoning": "Social media metric"
+            },
+            {
+              "name": "Email Notification received/reflected on backend forms",
+              "classification": "AUTO",
+              "reasoning": "Boolean completion status - trackable"
+            },
+            {
+              "name": "Mobile/Desktop",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Device type - selectable enum"
+            },
+            {
+              "name": "Is there a separate thank you page? ",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Page-specific reference"
+            }
+          ]
+        },
+        {
+          "tabName": "Kathlyn",
+          "columns": [
+            {
+              "name": "Date",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "Client",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "Website",
+              "classification": "AUTO",
+              "reasoning": "Reference URL"
+            },
+            {
+              "name": "Sanity test (DONE)",
+              "classification": "AUTO",
+              "reasoning": "Boolean completion status - trackable"
+            },
+            {
+              "name": "Email Notification received/reflected on backend forms",
+              "classification": "AUTO",
+              "reasoning": "Boolean completion status - trackable"
+            },
+            {
+              "name": "Mobile/Desktop",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Device type - selectable enum"
+            },
+            {
+              "name": "Thank you page is present",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Page-specific reference"
+            },
+            {
+              "name": "STATUS",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Status field - workflow-driven"
+            }
+          ]
+        },
+        {
+          "tabName": "Sarah",
+          "columns": [
+            {
+              "name": "Date",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "Client",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "Website",
+              "classification": "AUTO",
+              "reasoning": "Reference URL"
+            },
+            {
+              "name": "Sanity test (DONE)",
+              "classification": "AUTO",
+              "reasoning": "Boolean completion status - trackable"
+            },
+            {
+              "name": "Email Notification received",
+              "classification": "AUTO",
+              "reasoning": "Boolean completion status - trackable"
+            },
+            {
+              "name": "Mobile/Desktop",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Device type - selectable enum"
+            },
+            {
+              "name": "Thank you page is present",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Page-specific reference"
+            },
+            {
+              "name": "Notes",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            },
+            {
+              "name": "Thank you page",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Page-specific reference"
+            },
+            {
+              "name": "Test recordings",
+              "classification": "AUTO",
+              "reasoning": "File attachment reference"
+            }
+          ]
+        },
+        {
+          "tabName": "Hilda",
+          "columns": [
+            {
+              "name": "Date",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "Client",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "Website",
+              "classification": "AUTO",
+              "reasoning": "Reference URL"
+            },
+            {
+              "name": "Sanity test (DONE)",
+              "classification": "AUTO",
+              "reasoning": "Boolean completion status - trackable"
+            },
+            {
+              "name": "Email Notification received/reflected on backend forms",
+              "classification": "AUTO",
+              "reasoning": "Boolean completion status - trackable"
+            },
+            {
+              "name": "Mobile/Desktop",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Device type - selectable enum"
+            },
+            {
+              "name": "Thank you page is present",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Page-specific reference"
+            },
+            {
+              "name": "Note",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        },
+        {
+          "tabName": "Ela",
+          "columns": [
+            {
+              "name": "Date",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "Client",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Person/entity name"
+            },
+            {
+              "name": "Website",
+              "classification": "AUTO",
+              "reasoning": "Reference URL"
+            },
+            {
+              "name": "Sanity test (DONE)",
+              "classification": "AUTO",
+              "reasoning": "Boolean completion status - trackable"
+            },
+            {
+              "name": "Email Notification received",
+              "classification": "AUTO",
+              "reasoning": "Boolean completion status - trackable"
+            },
+            {
+              "name": "Responsive",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Device type - selectable enum"
+            },
+            {
+              "name": "Thank you page is present",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Page-specific reference"
+            },
+            {
+              "name": "Notes",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Free-text notes require human input"
+            }
+          ]
+        },
+        {
+          "tabName": "Devi",
+          "columns": [
+            {
+              "name": "Date",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "Page Name",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Page-specific reference"
+            },
+            {
+              "name": "Page Link",
+              "classification": "AUTO",
+              "reasoning": "Reference URL"
+            },
+            {
+              "name": "Desktop/Mobile",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Device type - selectable enum"
+            },
+            {
+              "name": "Redirects to thank you page?",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Page-specific reference"
+            },
+            {
+              "name": "Email Notification is received?",
+              "classification": "AUTO",
+              "reasoning": "Boolean completion status - trackable"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "SANITY CHECKS | CAROLINE RAVN",
+      "spreadsheetId": "1SxVih46lozJjhho_Uho3HWPlzhqIBAcA1j8woNcyR1Y",
+      "tabs": [
+        {
+          "tabName": "SANITY CHECKS - Caroline Ravn",
+          "columns": [
+            {
+              "name": "Date",
+              "classification": "AUTO",
+              "reasoning": "Time period - auto-populated"
+            },
+            {
+              "name": "Page Name",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Page-specific reference"
+            },
+            {
+              "name": "Page Link",
+              "classification": "AUTO",
+              "reasoning": "Reference URL"
+            },
+            {
+              "name": "Desktop/Mobile",
+              "classification": "SEMI-AUTO",
+              "reasoning": "Device type - selectable enum"
+            },
+            {
+              "name": "Redirects to thank you page?",
+              "classification": "HUMAN-REQUIRED",
+              "reasoning": "Page-specific reference"
+            },
+            {
+              "name": "Email Notification is received?",
+              "classification": "AUTO",
+              "reasoning": "Boolean completion status - trackable"
+            },
+            {
+              "name": "Done By",
+              "classification": "AUTO",
+              "reasoning": "Boolean completion status - trackable"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

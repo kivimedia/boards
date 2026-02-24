@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getAuthContext, errorResponse, successResponse } from '@/lib/api-helpers';
-import Anthropic from '@anthropic-ai/sdk';
 import { gatherBoardContext, boardContextToText } from '@/lib/board-context';
+import { createAnthropicClient } from '@/lib/ai/providers';
 import type { CommandActionPlan, CommandAction, CommandActionType } from '@/lib/types';
 
 export const maxDuration = 30;
@@ -76,9 +76,9 @@ export async function POST(request: NextRequest) {
       assignees: c.assignee_names,
     })));
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      return errorResponse('AI not configured (missing API key)', 500);
+    const client = await createAnthropicClient(supabase);
+    if (!client) {
+      return errorResponse('AI not configured. Add your Anthropic API key in Settings > AI.', 500);
     }
 
     const systemPrompt = `You are a board command parser. Parse natural language commands into structured action plans for a project management board.
@@ -131,8 +131,6 @@ If the command cannot be parsed or no matching cards exist, respond with:
   "actions": [],
   "summary": "Could not parse command: <reason>"
 }`;
-
-    const client = new Anthropic({ apiKey });
 
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',

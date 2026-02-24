@@ -1,0 +1,168 @@
+{
+  "masterlistTitle": "KM & DC | MASTERLIST OF TRACKERS",
+  "masterlistTabs": [
+    {
+      "name": "Tracking Dashboard",
+      "headers": [],
+      "rowCount": 1023,
+      "linksFound": 7
+    },
+    {
+      "name": "Links",
+      "headers": [
+        "Frequency",
+        "Title",
+        "Links"
+      ],
+      "rowCount": 1000,
+      "linksFound": 16
+    }
+  ],
+  "uniqueLinksFound": 16,
+  "links": [
+    {
+      "url": "https://docs.google.com/spreadsheets/d/1m1_oQGk3RYd7s9ETTsoCRTvfZPLs-NsiOKCVIiN8BPA/edit?gid=1840878838#gid=1840878838",
+      "sheetId": "1m1_oQGk3RYd7s9ETTsoCRTvfZPLs-NsiOKCVIiN8BPA",
+      "sourceTab": "Tracking Dashboard",
+      "sourceRow": 2,
+      "sourceColumn": "col_1",
+      "label": "Fathom Videos Watched",
+      "linkType": "hyperlink"
+    },
+    {
+      "url": "https://docs.google.com/spreadsheets/d/1xSLGI3yJiedq9B7yihz37XZHrnPkouyhaH8FqBe7ROI/edit?gid=1325747932#gid=1325747932",
+      "sheetId": "1xSLGI3yJiedq9B7yihz37XZHrnPkouyhaH8FqBe7ROI",
+      "sourceTab": "Tracking Dashboard",
+      "sourceRow": 24,
+      "sourceColumn": "col_1",
+      "label": "Client Updates Sent On Time",
+      "linkType": "hyperlink"
+    },
+    {
+      "url": "https://docs.google.com/spreadsheets/d/169j-0iUPBRUKDfhHfS_yvoGhKPhXdI31kfKDjLCJIRM/edit?usp=sharing",
+      "sheetId": "169j-0iUPBRUKDfhHfS_yvoGhKPhXdI31kfKDjLCJIRM",
+      "sourceTab": "Tracking Dashboard",
+      "sourceRow": 37,
+      "sourceColumn": "col_1",
+      "label": "No. of Sanity Checks Done",
+      "linkType": "hyperlink"
+    },
+    {
+      "url": "https://docs.google.com/spreadsheets/d/1hx0oJJ9ulISBj1vlBX8-rQEIqlaERgyh4lg7-mx_B-0/edit",
+      "sheetId": "1hx0oJJ9ulISBj1vlBX8-rQEIqlaERgyh4lg7-mx_B-0",
+      "sourceTab": "Tracking Dashboard",
+      "sourceRow": 49,
+      "sourceColumn": "col_1",
+      "label": "Operations Team Daily Goals Tracker",
+      "linkType": "hyperlink"
+    },
+    {
+      "url": "https://docs.google.com/spreadsheets/d/1zBWgluXaDAT8HvmXToH2-juAImd4geVZv2GWFi96HDE/edit?gid=706184884#gid=706184884",
+      "sheetId": "1zBWgluXaDAT8HvmXToH2-juAImd4geVZv2GWFi96HDE",
+      "sourceTab": "Tracking Dashboard",
+      "sourceRow": 60,
+      "sourceColumn": "col_1",
+      "label": "PINGDOM Website Speed Test",
+      "linkType": "hyperlink"
+    },
+    {
+      "url": "https://docs.google.com/spreadsheets/d/12tO954LRVsT5edcOl4NohdWIU0akZvqTEi4nPHmgBes/edit?gid=1049959700#gid=1049959700",
+      "sheetId": "12tO954LRVsT5edcOl4NohdWIU0akZvqTEi4nPHmgBes",
+      "sourceTab": "Tracking Dashboard",
+      "sourceRow": 72,
+      "sourceColumn": "col_1",
+      "label": "Sent Google Ads Report to Clients",
+      "linkType": "hyperlink"
+    },
+    {
+      "url": "https://docs.google.com/spreadsheets/d/1ciRMFrWF8oaRRvc9mIn3wYv9Txchp3YM5cI6MPifXY4/edit?usp=sharing",
+      "sheetId": "1ciRMFrWF8oaRRvc9mIn3wYv9Txchp3YM5cI6MPifXY4",
+      "sourceTab": "Links",
+      "sourceRow": 2,
+      "sourceColumn": "Links",
+      "label": "Update Schedule",
+      "linkType": "smartChip"
+    },
+    {
+      "url": "https://docs.google.com/spreadsheets/d/1Os4IP5t615n5aVkhfYHTD6aCqfcyjGvlfWrTklc_DzQ/edit?gid=413111597#gid=413111597",
+      "sheetId": "1Os4IP5t615n5aVkhfYHTD6aCqfcyjGvlfWrTklc_DzQ",
+      "sourceTab": "Links",
+      "sourceRow": 5,
+      "sourceColumn": "Links",
+      "label": "Account Managers’ Ticket Update Tracker",
+      "linkType": "smartChip"
+    },
+    {
+      "url": "https://docs.google.com/spreadsheets/d/1jPaHhwX7yg3-rxifIc6v_9QUSvTL3R4G58ydyL22m6Y/edit?gid=1713441011#gid=1713441011",
+      "sheetId": "1jPaHhwX7yg3-rxifIc6v_9QUSvTL3R4G58ydyL22m6Y",
+      "sourceTab": "Links",
+      "sourceRow": 8,
+      "sourceColumn": "Links",
+      "label": "Developers  & Designers Flagged Tickets Tracker",
+      "linkType": "smartChip"
+    },
+    {
+      "url": "https://docs.google.com/spreadsheets/d/1EitQNxT7LngeNZs9xle2ArXdZNuq2yFB30w4J_cCoJM/edit?gid=1538600303#gid=1538600303",
+      "sheetId": "1EitQNxT7LngeNZs9xle2ArXdZNuq2yFB30w4J_cCoJM",
+      "sourceTab": "Links",
+      "sourceRow": 10,
+      "sourceColumn": "Links",
+      "label": "MONTHLY SUMMARY",
+      "linkType": "smartChip"
+    },
+    {
+      "url": "https://docs.google.com/spreadsheets/d/1NksA1Vvu8i-9rw39Qb3hrcAIzSKgnXmdZ4biBQSy6uc/edit?usp=sharing",
+      "sheetId": "1NksA1Vvu8i-9rw39Qb3hrcAIzSKgnXmdZ4biBQSy6uc",
+      "sourceTab": "Links",
+      "sourceRow": 12,
+      "sourceColumn": "Links",
+      "label": "KM's Other Activities",
+      "linkType": "smartChip"
+    },
+    {
+      "url": "https://docs.google.com/spreadsheets/d/1XrVMobNH1kshDWfZQ6misIusohRupsbqj1e3bMR0BTc/edit?usp=sharing",
+      "sheetId": "1XrVMobNH1kshDWfZQ6misIusohRupsbqj1e3bMR0BTc",
+      "sourceTab": "Links",
+      "sourceRow": 13,
+      "sourceColumn": "Links",
+      "label": "Holiday Section Tracking Sheet",
+      "linkType": "smartChip"
+    },
+    {
+      "url": "https://docs.google.com/spreadsheets/d/1wst1K_5ZvU7v2TH3a0QXwQ4pz5FJdx7YmPWFGEEuENM/edit?gid=0#gid=0",
+      "sheetId": "1wst1K_5ZvU7v2TH3a0QXwQ4pz5FJdx7YmPWFGEEuENM",
+      "sourceTab": "Links",
+      "sourceRow": 14,
+      "sourceColumn": "Links",
+      "label": "AM_Clients_Websites_Status",
+      "linkType": "smartChip"
+    },
+    {
+      "url": "https://docs.google.com/spreadsheets/d/19IE69cx5PVdbVV3x6yKfyiH2Hrjv6JENEMAwlHlKy9E/edit?gid=0#gid=0",
+      "sheetId": "19IE69cx5PVdbVV3x6yKfyiH2Hrjv6JENEMAwlHlKy9E",
+      "sourceTab": "Links",
+      "sourceRow": 15,
+      "sourceColumn": "Links",
+      "label": "KM ACTIVE CLIENTS - Google Analytics ",
+      "linkType": "smartChip"
+    },
+    {
+      "url": "https://docs.google.com/spreadsheets/d/1a46z55vnify6R8M7JyH6urFhhgw-IeegThXDMUjT7e8/edit?gid=0#gid=0",
+      "sheetId": "1a46z55vnify6R8M7JyH6urFhhgw-IeegThXDMUjT7e8",
+      "sourceTab": "Links",
+      "sourceRow": 16,
+      "sourceColumn": "Links",
+      "label": "Operation's Team Weekly Ticket Tracker",
+      "linkType": "smartChip"
+    },
+    {
+      "url": "https://docs.google.com/spreadsheets/d/1x_g6eQApzJQeQlRusVx_w6g3nEKZk1Xqj9dcyjjsy8o/edit?gid=375652938#gid=375652938",
+      "sheetId": "1x_g6eQApzJQeQlRusVx_w6g3nEKZk1Xqj9dcyjjsy8o",
+      "sourceTab": "Links",
+      "sourceRow": 17,
+      "sourceColumn": "Links",
+      "label": "PICS.IO Monitoring Sheet_1hr/week",
+      "linkType": "smartChip"
+    }
+  ]
+}
