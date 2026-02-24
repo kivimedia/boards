@@ -91,15 +91,28 @@ export function useBoard(boardId: string, initialBoard?: BoardWithLists) {
   const queryClient = useQueryClient();
   const queryKey = ['board', boardId];
   const phase2FetchedRef = useRef(false);
+  // Track whether this is the very first fetch (two-phase fast load) or a
+  // subsequent invalidation refetch (go straight to full board — no phase-1 flash).
+  const isFirstFetchRef = useRef(true);
 
   const query = useQuery({
     queryKey,
-    queryFn: () => fetchBoard(boardId, initialBoard),
+    queryFn: () => {
+      if (isFirstFetchRef.current) {
+        // Initial load: two-phase for fast time-to-interactive
+        isFirstFetchRef.current = false;
+        return fetchBoard(boardId, initialBoard);
+      }
+      // Re-fetch after real-time invalidation: skip phase 1 entirely.
+      // React Query keeps showing the previous (full) data while this request
+      // is in flight, so there is no intermediate partial-data flash.
+      return fetchFullBoard(boardId);
+    },
     enabled: !!boardId,
     // Use placeholderData (not initialData) so React Query always fetches fresh data.
     // initialData is treated as "real" cached data and may not trigger a refetch.
     placeholderData: initialBoard,
-    staleTime: 0,
+    staleTime: 30_000,   // treat data as fresh for 30s to reduce spurious refetches
     retry: 2,
     retryDelay: 1000,
   });
@@ -120,9 +133,10 @@ export function useBoard(boardId: string, initialBoard?: BoardWithLists) {
     });
   }, [query.data, query.isPlaceholderData, boardId, queryClient, queryKey]);
 
-  // Reset phase2 ref when board changes
+  // Reset phase refs when board changes (so new board gets fast two-phase load)
   useEffect(() => {
     phase2FetchedRef.current = false;
+    isFirstFetchRef.current = true;
   }, [boardId]);
 
   // Push client-side timings to profiling store after each successful fetch
@@ -143,18 +157,19 @@ export function useBoard(boardId: string, initialBoard?: BoardWithLists) {
     }
   }, [query.dataUpdatedAt]);
 
-  // PERFORMANCE (P8.2): Debounced invalidation - batch rapid real-time changes
-  // Multiple Supabase changes (e.g., drag-drop reorder) trigger one refresh instead of N
+  // PERFORMANCE: Debounced invalidation — batches rapid real-time changes.
+  // Uses a longer debounce (2s) to avoid constant refetches from high-frequency events.
+  // Subsequent fetches go straight to full board (no phase-1 flash — see queryFn above).
   const invalidateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const debouncedInvalidate = useCallback(() => {
     if (invalidateTimerRef.current) {
       clearTimeout(invalidateTimerRef.current);
     }
     invalidateTimerRef.current = setTimeout(() => {
-      phase2FetchedRef.current = false; // Allow re-fetching all lists
+      phase2FetchedRef.current = false;
       queryClient.invalidateQueries({ queryKey: ['board', boardId] });
       invalidateTimerRef.current = null;
-    }, 500);
+    }, 2000);   // 2s debounce: batches bursts of drag-drop / bulk ops
   }, [queryClient, boardId]);
 
   // Clean up debounce timer on unmount
@@ -198,11 +213,9 @@ export function useBoard(boardId: string, initialBoard?: BoardWithLists) {
         { event: '*', schema: 'public', table: 'card_labels' },
         () => debouncedInvalidate()
       )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'comments' },
-        () => debouncedInvalidate()
-      )
+      // NOTE: comments subscription removed — comment_count changes are low-priority
+      // and were causing constant board refetches. Comment counts update on next
+      // manual refresh or board navigation.
       .subscribe();
 
     return () => {
