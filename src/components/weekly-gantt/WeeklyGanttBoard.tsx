@@ -1,25 +1,30 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { WeeklyTask, WeeklyPlanWithTasks, Profile } from '@/lib/types';
+import type { WeeklyTask, WeeklyPlanWithTasks } from '@/lib/types';
 import { DAY_LABELS, getMonday } from '@/lib/weekly-gantt';
 import { TaskRow } from './TaskRow';
 import { AddTaskRow } from './AddTaskRow';
 import { WeeklyGanttHeader } from './WeeklyGanttHeader';
 import { HistoryPanel } from './HistoryPanel';
 
+interface ClientContact {
+  name: string;
+  email?: string;
+  phone?: string;
+  role?: string;
+}
+
 interface WeeklyGanttBoardProps {
   clientId: string;
   clientName: string;
-  clientContacts?: { email: string; name: string }[];
-  teamMembers: Profile[];
+  clientContacts?: ClientContact[];
 }
 
 export default function WeeklyGanttBoard({
   clientId,
   clientName,
   clientContacts = [],
-  teamMembers,
 }: WeeklyGanttBoardProps) {
   const [plan, setPlan] = useState<WeeklyPlanWithTasks | null>(null);
   const [loading, setLoading] = useState(true);
@@ -281,7 +286,7 @@ export default function WeeklyGanttBoard({
                 key={task.id}
                 task={task}
                 todayIndex={todayIndex}
-                teamMembers={teamMembers}
+                clientContacts={clientContacts}
                 onUpdate={(updates) => updateTask(task.id, updates)}
                 onDelete={() => removeTask(task.id)}
                 planId={plan.id}

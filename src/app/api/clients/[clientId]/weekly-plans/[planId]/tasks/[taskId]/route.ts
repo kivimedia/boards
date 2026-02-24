@@ -10,11 +10,13 @@ interface UpdateTaskBody {
   title?: string;
   description?: string | null;
   owner_id?: string | null;
+  assignee_name?: string | null;
   day_start?: number;
   day_end?: number;
   completed?: boolean;
   sort_order?: number;
   priority?: string;
+  color?: string | null;
   reminder_at?: string | null;
 }
 

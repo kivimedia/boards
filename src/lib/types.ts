@@ -1939,6 +1939,17 @@ export interface WeeklyPlan {
   updated_at: string;
 }
 
+export type WeeklyTaskColor =
+  | 'blue'
+  | 'purple'
+  | 'green'
+  | 'orange'
+  | 'red'
+  | 'pink'
+  | 'teal'
+  | 'yellow'
+  | null;
+
 export interface WeeklyTask {
   id: string;
   plan_id: string;
@@ -1946,12 +1957,14 @@ export interface WeeklyTask {
   description: string | null;
   owner_id: string | null;
   owner?: Profile;
+  assignee_name: string | null;
   day_start: number;
   day_end: number;
   completed: boolean;
   completed_at: string | null;
   sort_order: number;
   priority: WeeklyTaskPriority;
+  color: WeeklyTaskColor;
   reminder_at: string | null;
   reminder_sent: boolean;
   created_at: string;

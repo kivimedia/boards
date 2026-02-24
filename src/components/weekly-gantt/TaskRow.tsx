@@ -1,13 +1,18 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { WeeklyTask, Profile } from '@/lib/types';
+import type { WeeklyTask, WeeklyTaskColor } from '@/lib/types';
 import { ReminderBell } from './ReminderBell';
+
+interface ClientContact {
+  name: string;
+  email?: string;
+}
 
 interface TaskRowProps {
   task: WeeklyTask;
   todayIndex: number;
-  teamMembers: Profile[];
+  clientContacts: ClientContact[];
   onUpdate: (updates: Partial<WeeklyTask>) => void;
   onDelete: () => void;
   planId: string;
@@ -20,10 +25,21 @@ const PRIORITY_COLORS: Record<string, { bar: string; bg: string; dot: string }> 
   low: { bar: '#4ade80', bg: '#f0fdf4', dot: 'bg-green-400' },
 };
 
+const TASK_COLORS: Record<string, { bar: string; dot: string; label: string }> = {
+  blue:   { bar: '#3b82f6', dot: 'bg-blue-500',   label: 'Blue' },
+  purple: { bar: '#8b5cf6', dot: 'bg-purple-500', label: 'Purple' },
+  green:  { bar: '#22c55e', dot: 'bg-green-500',  label: 'Green' },
+  orange: { bar: '#f97316', dot: 'bg-orange-500', label: 'Orange' },
+  red:    { bar: '#ef4444', dot: 'bg-red-500',    label: 'Red' },
+  pink:   { bar: '#ec4899', dot: 'bg-pink-500',   label: 'Pink' },
+  teal:   { bar: '#14b8a6', dot: 'bg-teal-500',   label: 'Teal' },
+  yellow: { bar: '#eab308', dot: 'bg-yellow-500', label: 'Yellow' },
+};
+
 export function TaskRow({
   task,
   todayIndex,
-  teamMembers,
+  clientContacts,
   onUpdate,
   onDelete,
   planId,
@@ -32,10 +48,12 @@ export function TaskRow({
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(task.title);
   const [showOwnerPicker, setShowOwnerPicker] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const ownerRef = useRef<HTMLDivElement>(null);
+  const colorRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (editing && inputRef.current) inputRef.current.focus();
@@ -52,6 +70,18 @@ export function TaskRow({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [showOwnerPicker]);
+
+  // Close color picker on outside click
+  useEffect(() => {
+    if (!showColorPicker) return;
+    const handler = (e: MouseEvent) => {
+      if (colorRef.current && !colorRef.current.contains(e.target as Node)) {
+        setShowColorPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showColorPicker]);
 
   const saveTitle = () => {
     setEditing(false);
@@ -110,10 +140,13 @@ export function TaskRow({
     onUpdate({ day_start: start, day_end: end });
   };
 
-  const colors = PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.medium;
-  const owner = task.owner_id
-    ? teamMembers.find((m) => m.id === task.owner_id)
-    : null;
+  // Color: explicit task color takes precedence over priority-based color
+  const taskColor = task.color ? TASK_COLORS[task.color] : null;
+  const priorityColor = PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.medium;
+  const barColor = taskColor?.bar || priorityColor.bar;
+  const dotClass = taskColor?.dot || priorityColor.dot;
+
+  const assigneeName = task.assignee_name || null;
 
   return (
     <div
@@ -126,13 +159,42 @@ export function TaskRow({
 
       {/* Checkbox + Title */}
       <div className="flex items-center gap-2 px-4 py-2.5 min-w-0">
-        {/* Priority dot (click to cycle) */}
-        <button
-          type="button"
-          onClick={cyclePriority}
-          className={`w-2 h-2 rounded-full shrink-0 ${colors.dot} transition-colors`}
-          title={`Priority: ${task.priority}`}
-        />
+        {/* Color dot (click to open color picker) */}
+        <div className="relative" ref={colorRef}>
+          <button
+            type="button"
+            onClick={() => setShowColorPicker((v) => !v)}
+            className={`w-3 h-3 rounded-full shrink-0 ${dotClass} transition-colors ring-1 ring-black/5 hover:ring-2 hover:ring-electric/40`}
+            title={task.color ? `Color: ${task.color}` : `Priority: ${task.priority} (click to set color)`}
+          />
+          {showColorPicker && (
+            <div className="absolute top-full left-0 mt-1.5 z-30 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-cream-dark dark:border-slate-700 p-2 min-w-[120px]">
+              <p className="text-[10px] font-semibold text-navy/40 dark:text-slate-500 uppercase tracking-wider mb-1.5 px-0.5">Color</p>
+              <div className="grid grid-cols-4 gap-1.5">
+                {Object.entries(TASK_COLORS).map(([key, c]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => { onUpdate({ color: key as WeeklyTaskColor }); setShowColorPicker(false); }}
+                    className={`w-6 h-6 rounded-full ${c.dot} transition-all hover:scale-110 ${
+                      task.color === key ? 'ring-2 ring-offset-1 ring-navy/30 dark:ring-slate-400 scale-110' : ''
+                    }`}
+                    title={c.label}
+                  />
+                ))}
+              </div>
+              {task.color && (
+                <button
+                  type="button"
+                  onClick={() => { onUpdate({ color: null }); setShowColorPicker(false); }}
+                  className="w-full mt-1.5 text-[10px] text-navy/40 dark:text-slate-500 hover:text-navy dark:hover:text-slate-300 font-body py-1 text-center"
+                >
+                  Reset to priority
+                </button>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Checkbox */}
         <button
@@ -179,51 +241,56 @@ export function TaskRow({
         )}
       </div>
 
-      {/* Owner */}
+      {/* Owner (client contacts) */}
       <div className="px-2 relative" ref={ownerRef}>
         <button
           type="button"
           onClick={() => setShowOwnerPicker((v) => !v)}
           className="flex items-center gap-1 text-[11px] text-navy/50 dark:text-slate-400 hover:text-navy dark:hover:text-slate-200 font-body truncate max-w-full"
-          title={owner?.display_name || 'Assign owner'}
+          title={assigneeName || 'Assign owner'}
         >
-          {owner ? (
+          {assigneeName ? (
             <>
               <span className="w-5 h-5 rounded-full bg-electric/20 text-electric text-[9px] font-bold flex items-center justify-center shrink-0">
-                {owner.display_name.slice(0, 2).toUpperCase()}
+                {assigneeName.slice(0, 2).toUpperCase()}
               </span>
-              <span className="truncate">{owner.display_name.split(' ')[0]}</span>
+              <span className="truncate">{assigneeName.split(' ')[0]}</span>
             </>
           ) : (
             <span className="text-navy/30 dark:text-slate-600">—</span>
           )}
         </button>
 
-        {/* Owner dropdown */}
+        {/* Owner dropdown — shows client-defined contacts */}
         {showOwnerPicker && (
           <div className="absolute top-full left-0 mt-1 z-20 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-cream-dark dark:border-slate-700 py-1 min-w-[160px]">
             <button
               type="button"
-              onClick={() => { onUpdate({ owner_id: null }); setShowOwnerPicker(false); }}
+              onClick={() => { onUpdate({ assignee_name: null, owner_id: null }); setShowOwnerPicker(false); }}
               className="w-full text-left px-3 py-1.5 text-xs text-navy/50 dark:text-slate-400 hover:bg-cream dark:hover:bg-slate-700 font-body"
             >
               Unassigned
             </button>
-            {teamMembers.map((member) => (
+            {clientContacts.map((contact, idx) => (
               <button
-                key={member.id}
+                key={`${contact.name}-${idx}`}
                 type="button"
-                onClick={() => { onUpdate({ owner_id: member.id }); setShowOwnerPicker(false); }}
+                onClick={() => { onUpdate({ assignee_name: contact.name, owner_id: null }); setShowOwnerPicker(false); }}
                 className={`w-full text-left px-3 py-1.5 text-xs hover:bg-cream dark:hover:bg-slate-700 font-body flex items-center gap-2 ${
-                  member.id === task.owner_id ? 'text-electric font-medium' : 'text-navy dark:text-slate-200'
+                  assigneeName === contact.name ? 'text-electric font-medium' : 'text-navy dark:text-slate-200'
                 }`}
               >
                 <span className="w-5 h-5 rounded-full bg-electric/20 text-electric text-[9px] font-bold flex items-center justify-center shrink-0">
-                  {member.display_name.slice(0, 2).toUpperCase()}
+                  {contact.name.slice(0, 2).toUpperCase()}
                 </span>
-                {member.display_name}
+                {contact.name}
               </button>
             ))}
+            {clientContacts.length === 0 && (
+              <p className="px-3 py-2 text-[10px] text-navy/30 dark:text-slate-600 font-body">
+                No contacts defined for this client.
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -252,11 +319,11 @@ export function TaskRow({
                   task.completed ? 'opacity-40' : ''
                 } ${isStart && isEnd ? 'rounded-md' : isStart ? 'rounded-l-md' : isEnd ? 'rounded-r-md' : ''}`}
                 style={{
-                  backgroundColor: task.completed ? '#86efac' : `${colors.bar}22`,
-                  borderTop: `2px solid ${task.completed ? '#22c55e' : colors.bar}`,
-                  borderBottom: `2px solid ${task.completed ? '#22c55e' : colors.bar}`,
-                  borderLeft: isStart ? `2px solid ${task.completed ? '#22c55e' : colors.bar}` : 'none',
-                  borderRight: isEnd ? `2px solid ${task.completed ? '#22c55e' : colors.bar}` : 'none',
+                  backgroundColor: task.completed ? '#86efac' : `${barColor}22`,
+                  borderTop: `2px solid ${task.completed ? '#22c55e' : barColor}`,
+                  borderBottom: `2px solid ${task.completed ? '#22c55e' : barColor}`,
+                  borderLeft: isStart ? `2px solid ${task.completed ? '#22c55e' : barColor}` : 'none',
+                  borderRight: isEnd ? `2px solid ${task.completed ? '#22c55e' : barColor}` : 'none',
                 }}
               />
             )}
