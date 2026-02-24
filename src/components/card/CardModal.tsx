@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import { Card, Label, Profile, Comment, CardPriority, CardSize, AIReviewResult, AIQAResult, BoardType, CustomFieldValue } from '@/lib/types';
 import { useAuth } from '@/hooks/useAuth';
+import { useAutoResize } from '@/hooks/useAutoResize';
 import { useProfilingStore } from '@/stores/profiling-store';
 import Modal from '@/components/ui/Modal';
 import CardComments from './CardComments';
@@ -134,6 +135,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const moreBtnRef = useRef<HTMLButtonElement>(null);
   const descMention = useMentionDropdown({ value: description, onChange: setDescription });
+  useAutoResize(descMention.textareaRef, description);
   const [moreMenuPos, setMoreMenuPos] = useState({ top: 0, left: 0 });
   const [linkCopied, setLinkCopied] = useState(false);
   const [archiving, setArchiving] = useState(false);
@@ -897,7 +899,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                                     }
                                   }
                                 }}
-                                className="w-full p-3 rounded-b-xl rounded-t-none bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 border-t-0 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-y font-body min-h-[120px]"
+                                className="w-full p-3 rounded-b-xl rounded-t-none bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 border-t-0 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-none overflow-hidden font-body min-h-[120px]"
                                 placeholder="Add a description... (supports **bold**, *italic*, # Heading, - bullet, @ to mention)"
                                 autoFocus
                               />

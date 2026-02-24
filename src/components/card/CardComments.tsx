@@ -9,6 +9,7 @@ import Button from '@/components/ui/Button';
 import CommentReactions from './CommentReactions';
 import MentionInput from './MentionInput';
 import { MarkdownToolbarUI } from './MarkdownToolbar';
+import { useAutoResize } from '@/hooks/useAutoResize';
 
 const URL_PATTERN = /(https?:\/\/[^\s<]+)/;
 // Matches Trello/ClickUp smart-link format: [https://url.com "smartCard-inline"] or [https://url.com ""]
@@ -82,6 +83,9 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
+  useAutoResize(editTextareaRef, editText);
+  useAutoResize(replyTextareaRef, replyText);
   const [showFullLinks, setShowFullLinks] = useState(false);
 
   // Group comments into threads
@@ -287,8 +291,8 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
                   ref={editTextareaRef}
                   value={editText}
                   onChange={(e) => setEditText(e.target.value)}
-                  className="w-full p-2.5 rounded-b-lg rounded-t-none bg-cream dark:bg-navy border border-electric/30 border-t-0 text-sm text-navy dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-electric/30 resize-y font-body"
-                  rows={3}
+                  className="w-full p-2.5 rounded-b-lg rounded-t-none bg-cream dark:bg-navy border border-electric/30 border-t-0 text-sm text-navy dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-electric/30 resize-none overflow-hidden font-body min-h-[76px]"
+                  rows={1}
                   autoFocus
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { handleEditComment(comment.id); return; }
@@ -370,11 +374,12 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
         {replyingTo === comment.id && (
           <div className="ml-8 mt-2">
             <textarea
+              ref={replyTextareaRef}
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
               placeholder="Write a reply..."
-              className="w-full p-2.5 rounded-lg bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-y font-body"
-              rows={2}
+              className="w-full p-2.5 rounded-lg bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-none overflow-hidden font-body min-h-[60px]"
+              rows={1}
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {

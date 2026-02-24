@@ -7,6 +7,7 @@ import Button from '@/components/ui/Button';
 import { MarkdownToolbarUI } from './MarkdownToolbar';
 import { useMentionDropdown } from './useMentionDropdown';
 import MentionDropdown from './MentionDropdown';
+import { useAutoResize } from '@/hooks/useAutoResize';
 
 interface MentionInputProps {
   cardId: string;
@@ -20,6 +21,7 @@ export default function MentionInput({ onSubmit }: MentionInputProps) {
   const [showPreview, setShowPreview] = useState(false);
 
   const mention = useMentionDropdown({ value: content, onChange: setContent });
+  useAutoResize(mention.textareaRef, content);
 
   const handleSubmit = () => {
     if (!content.trim()) return;
@@ -125,8 +127,8 @@ export default function MentionInput({ onSubmit }: MentionInputProps) {
               onChange={mention.handleInput}
               onKeyDown={handleKeyDown}
               placeholder="Write a comment... Use @ to mention someone"
-              className="w-full p-3 rounded-b-xl rounded-t-none bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 border-t-0 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-y font-body"
-              rows={3}
+              className="w-full p-3 rounded-b-xl rounded-t-none bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 border-t-0 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-none overflow-hidden font-body min-h-[76px]"
+              rows={1}
             />
             {mention.showDropdown && (
               <MentionDropdown
