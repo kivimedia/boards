@@ -179,6 +179,16 @@ export default function MapBoardView({ clientId }: MapBoardViewProps) {
                   {client.client_tag}
                 </span>
               )}
+              <a
+                href={`/client/${clientId}/weekly-gantt`}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium font-body text-navy/60 dark:text-slate-400 hover:text-electric hover:bg-electric/5 transition-all duration-200"
+                title="Weekly Plan — Gantt chart"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                </svg>
+                Weekly Plan
+              </a>
               <button
                 onClick={handleExportPDF}
                 disabled={exporting}
