@@ -8,6 +8,7 @@ import CredentialsVault from './CredentialsVault';
 import MapSectionCard from './MapSectionCard';
 import Button from '@/components/ui/Button';
 import ClientBrainPanel from '@/components/client/ClientBrainPanel';
+import TrelloCardPicker from '@/components/trello/TrelloCardPicker';
 
 interface MapBoardViewProps {
   clientId: string;
@@ -30,6 +31,7 @@ export default function MapBoardView({ clientId }: MapBoardViewProps) {
   const [showSectionMenu, setShowSectionMenu] = useState(false);
   const [addingSectionType, setAddingSectionType] = useState<MapSectionType | null>(null);
   const [showBrainPanel, setShowBrainPanel] = useState(false);
+  const [showTrelloPanel, setShowTrelloPanel] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   const handleExportPDF = async () => {
@@ -179,6 +181,22 @@ export default function MapBoardView({ clientId }: MapBoardViewProps) {
                   {client.client_tag}
                 </span>
               )}
+              <button
+                onClick={() => setShowTrelloPanel(!showTrelloPanel)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium font-body transition-all duration-200 ${
+                  showTrelloPanel
+                    ? 'bg-[#0079BF]/10 text-[#0079BF] ring-2 ring-[#0079BF]/20'
+                    : 'text-navy/60 dark:text-slate-400 hover:text-[#0079BF] hover:bg-[#0079BF]/5'
+                }`}
+                title="Tracked Trello tickets"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0">
+                  <rect x="2" y="2" width="20" height="20" rx="3" fill="currentColor" />
+                  <rect x="5" y="5" width="5" height="12" rx="1" fill="white" />
+                  <rect x="13" y="5" width="5" height="8" rx="1" fill="white" />
+                </svg>
+                Tickets
+              </button>
               <a
                 href={`/client/${clientId}/weekly-gantt`}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium font-body text-navy/60 dark:text-slate-400 hover:text-electric hover:bg-electric/5 transition-all duration-200"
@@ -242,6 +260,31 @@ export default function MapBoardView({ clientId }: MapBoardViewProps) {
             </div>
           )}
         </div>
+
+        {/* Trello Tracked Tickets Panel */}
+        {showTrelloPanel && (
+          <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-[#0079BF]/20 dark:border-[#0079BF]/30 p-4 animate-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-navy dark:text-slate-100 font-heading flex items-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="text-[#0079BF]">
+                  <rect x="2" y="2" width="20" height="20" rx="3" fill="currentColor" />
+                  <rect x="5" y="5" width="5" height="12" rx="1" fill="white" />
+                  <rect x="13" y="5" width="5" height="8" rx="1" fill="white" />
+                </svg>
+                Tracked Trello Tickets
+              </h3>
+              <button
+                onClick={() => setShowTrelloPanel(false)}
+                className="p-1 rounded-lg text-navy/30 dark:text-slate-500 hover:text-navy/50 dark:hover:text-slate-300 hover:bg-cream-dark dark:hover:bg-slate-800 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <TrelloCardPicker clientId={clientId} />
+          </div>
+        )}
 
         {/* Brain Panel (slide-open) */}
         {showBrainPanel && (

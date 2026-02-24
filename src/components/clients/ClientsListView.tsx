@@ -6,12 +6,14 @@ import { Client } from '@/lib/types';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
+import TrelloCardPicker from '@/components/trello/TrelloCardPicker';
 
 export default function ClientsListView() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [createdClientId, setCreatedClientId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     company: '',
@@ -50,14 +52,20 @@ export default function ClientsListView() {
           notes: formData.notes.trim() || undefined,
         }),
       });
-      if (res.ok) {
-        setShowCreate(false);
-        setFormData({ name: '', company: '', contract_type: '', notes: '' });
+      const json = await res.json();
+      if (res.ok && json.data?.id) {
+        setCreatedClientId(json.data.id);
         fetchClients();
       }
     } finally {
       setCreating(false);
     }
+  };
+
+  const closeCreateModal = () => {
+    setShowCreate(false);
+    setCreatedClientId(null);
+    setFormData({ name: '', company: '', contract_type: '', notes: '' });
   };
 
   if (loading) {
@@ -152,61 +160,92 @@ export default function ClientsListView() {
       </div>
 
       {/* Create Client Modal */}
-      <Modal isOpen={showCreate} onClose={() => setShowCreate(false)}>
-        <form onSubmit={handleCreate} className="p-6">
-          <h2 className="text-lg font-heading font-semibold text-navy dark:text-slate-100 mb-4">Create Client</h2>
-          <div className="space-y-4">
-            <Input
-              label="Client Name"
-              placeholder="Enter client name"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              required
-            />
-            <Input
-              label="Company"
-              placeholder="Company name (optional)"
-              value={formData.company}
-              onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-            />
-            <div className="w-full">
-              <label className="block text-sm font-semibold text-navy dark:text-slate-100 mb-1.5 font-body">
-                Contract Type
-              </label>
-              <select
-                value={formData.contract_type}
-                onChange={(e) => setFormData({ ...formData, contract_type: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-dark-surface border-2 border-navy/20 dark:border-slate-700 text-navy dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric transition-all duration-200 font-body text-sm"
-              >
-                <option value="">Select type (optional)</option>
-                <option value="retainer">Retainer</option>
-                <option value="project">Project</option>
-                <option value="hourly">Hourly</option>
-                <option value="consultation">Consultation</option>
-              </select>
-            </div>
-            <div className="w-full">
-              <label className="block text-sm font-semibold text-navy dark:text-slate-100 mb-1.5 font-body">
-                Notes
-              </label>
-              <textarea
-                placeholder="Additional notes (optional)"
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                rows={3}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-dark-surface border-2 border-navy/20 dark:border-slate-700 text-navy dark:text-slate-100 placeholder:text-navy/40 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric transition-all duration-200 font-body text-sm resize-none"
+      <Modal isOpen={showCreate} onClose={closeCreateModal}>
+        {!createdClientId ? (
+          // Step 1: Basic client info
+          <form onSubmit={handleCreate} className="p-6">
+            <h2 className="text-lg font-heading font-semibold text-navy dark:text-slate-100 mb-4">Create Client</h2>
+            <div className="space-y-4">
+              <Input
+                label="Client Name"
+                placeholder="Enter client name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                required
               />
+              <Input
+                label="Company"
+                placeholder="Company name (optional)"
+                value={formData.company}
+                onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+              />
+              <div className="w-full">
+                <label className="block text-sm font-semibold text-navy dark:text-slate-100 mb-1.5 font-body">
+                  Contract Type
+                </label>
+                <select
+                  value={formData.contract_type}
+                  onChange={(e) => setFormData({ ...formData, contract_type: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-dark-surface border-2 border-navy/20 dark:border-slate-700 text-navy dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric transition-all duration-200 font-body text-sm"
+                >
+                  <option value="">Select type (optional)</option>
+                  <option value="retainer">Retainer</option>
+                  <option value="project">Project</option>
+                  <option value="hourly">Hourly</option>
+                  <option value="consultation">Consultation</option>
+                </select>
+              </div>
+              <div className="w-full">
+                <label className="block text-sm font-semibold text-navy dark:text-slate-100 mb-1.5 font-body">
+                  Notes
+                </label>
+                <textarea
+                  placeholder="Additional notes (optional)"
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  rows={3}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-dark-surface border-2 border-navy/20 dark:border-slate-700 text-navy dark:text-slate-100 placeholder:text-navy/40 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric transition-all duration-200 font-body text-sm resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <Button type="button" variant="secondary" onClick={closeCreateModal}>
+                Cancel
+              </Button>
+              <Button type="submit" loading={creating} disabled={!formData.name.trim()}>
+                Create Client
+              </Button>
+            </div>
+          </form>
+        ) : (
+          // Step 2: Track a Trello ticket
+          <div className="p-6">
+            <div className="flex items-center gap-2 mb-1">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <h2 className="text-lg font-heading font-semibold text-navy dark:text-slate-100">Client Created</h2>
+            </div>
+            <p className="text-sm text-navy/50 dark:text-slate-400 font-body mb-5">
+              What ticket should we track for <span className="font-medium text-navy dark:text-slate-200">{formData.name}</span>?
+            </p>
+
+            <TrelloCardPicker clientId={createdClientId} />
+
+            <div className="flex justify-between items-center gap-3 mt-6 pt-4 border-t border-cream-dark dark:border-slate-700">
+              <button
+                type="button"
+                onClick={() => router.push(`/client/${createdClientId}/map`)}
+                className="text-xs text-electric hover:text-electric/80 font-body font-medium"
+              >
+                Go to client map &rarr;
+              </button>
+              <Button type="button" onClick={closeCreateModal}>
+                Done
+              </Button>
             </div>
           </div>
-          <div className="flex justify-end gap-3 mt-6">
-            <Button type="button" variant="secondary" onClick={() => setShowCreate(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" loading={creating} disabled={!formData.name.trim()}>
-              Create Client
-            </Button>
-          </div>
-        </form>
+        )}
       </Modal>
     </div>
   );
