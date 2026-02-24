@@ -796,6 +796,19 @@ export async function executeStandaloneAgent(
     const modelId = params.modelOverride || 'claude-sonnet-4-5-20250929';
     const maxIterations = params.maxIterations || MAX_AGENT_ITERATIONS;
 
+    // Detect provider for model override
+    const modelProvider = (() => {
+      if (modelId.startsWith('gpt-') || modelId.startsWith('o1') || modelId.startsWith('o3')) return 'openai';
+      if (modelId.startsWith('gemini-')) return 'google';
+      return 'anthropic';
+    })();
+
+    // Non-Anthropic models don't support tool use in agents
+    if (modelProvider !== 'anthropic') {
+      callbacks.onError('Tool use not supported for this model in agents — switch to a Claude model.');
+      return;
+    }
+
     // 7. Handle resume from confirmation
     let currentMessages: Anthropic.MessageParam[];
 

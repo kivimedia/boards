@@ -7,9 +7,16 @@ import type { ChatSession } from '@/lib/types';
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const MODELS = [
-  { id: 'claude-haiku-4-5-20251001', label: 'Haiku (fast)' },
-  { id: 'claude-sonnet-4-5-20250929', label: 'Sonnet (balanced)' },
-  { id: 'claude-opus-4-6', label: 'Opus (best)' },
+  // Anthropic
+  { id: 'claude-haiku-4-5-20251001',  label: 'Haiku (fast)',      provider: 'anthropic' as const },
+  { id: 'claude-sonnet-4-5-20250929', label: 'Sonnet',            provider: 'anthropic' as const },
+  { id: 'claude-opus-4-6',            label: 'Opus (best)',        provider: 'anthropic' as const },
+  // OpenAI
+  { id: 'gpt-4o-mini',                label: 'GPT-4o mini',       provider: 'openai' as const },
+  { id: 'gpt-4o',                     label: 'GPT-4o',            provider: 'openai' as const },
+  // Google
+  { id: 'gemini-2.0-flash',           label: 'Gemini 2.0 Flash',  provider: 'google' as const },
+  { id: 'gemini-1.5-pro',             label: 'Gemini 1.5 Pro',    provider: 'google' as const },
 ] as const;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -52,9 +59,16 @@ export default function CardAIChat({ cardId, boardId }: CardAIChatProps) {
   const [error, setError] = useState<string | null>(null);
   const [loadingSession, setLoadingSession] = useState(true);
 
+  const [isOpen, setIsOpen] = useState(true);
+  const [activeTab, setActiveTab] = useState<'chat' | 'history'>('chat');
+  const [allSessions, setAllSessions] = useState<ChatSession[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const isAtBottomRef = useRef(true);
 
   // ── Session loading on mount ──────────────────────────────────────────────
   useEffect(() => {
@@ -150,7 +164,9 @@ export default function CardAIChat({ cardId, boardId }: CardAIChatProps) {
                     i === prev.length - 1 ? { ...m, content: accumulated } : m
                   )
                 );
-                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                if (isAtBottomRef.current) {
+                  messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                }
               } else if (event === 'complete') {
                 if (d.session_id) setSessionId(d.session_id as string);
               } else if (event === 'error') {
@@ -230,8 +246,39 @@ export default function CardAIChat({ cardId, boardId }: CardAIChatProps) {
   };
 
   // ─────────────────────────────────────────────────────────────────────────
+  const handleContainerPaste = async (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const items = Array.from(e.clipboardData.items);
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (!file) continue;
+        const att = await uploadFile(file);
+        if (att) setPendingAttachments((prev) => [...prev, att]);
+        return;
+      }
+    }
+  };
+
+  const loadHistory = async () => {
+    if (loadingHistory) return;
+    setLoadingHistory(true);
+    try {
+      const res = await fetch(`/api/chat?scope=ticket&cardId=${cardId}`);
+      if (res.ok) {
+        const json = await res.json() as { data?: ChatSession[] };
+        setAllSessions(json.data ?? []);
+      }
+    } catch { /* ignore */ } finally {
+      setLoadingHistory(false);
+    }
+  };
+
   return (
-    <div className="border-b border-cream-dark dark:border-slate-700 mb-3">
+    <div
+      className="border-b border-cream-dark dark:border-slate-700 mb-3"
+      onPaste={handleContainerPaste}
+    >
 
       {/* ── Header bar ─────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between pb-2">
@@ -244,11 +291,21 @@ export default function CardAIChat({ cardId, boardId }: CardAIChatProps) {
             onChange={(e) => setModel(e.target.value)}
             className="text-[10px] rounded px-1.5 py-0.5 border border-cream-dark dark:border-slate-600 bg-white dark:bg-slate-800 text-navy dark:text-slate-200 focus:outline-none"
           >
-            {MODELS.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label}
-              </option>
-            ))}
+            <optgroup label="Anthropic">
+              {MODELS.filter(m => m.provider === 'anthropic').map(m => (
+                <option key={m.id} value={m.id}>{m.label}</option>
+              ))}
+            </optgroup>
+            <optgroup label="OpenAI">
+              {MODELS.filter(m => m.provider === 'openai').map(m => (
+                <option key={m.id} value={m.id}>{m.label}</option>
+              ))}
+            </optgroup>
+            <optgroup label="Google">
+              {MODELS.filter(m => m.provider === 'google').map(m => (
+                <option key={m.id} value={m.id}>{m.label}</option>
+              ))}
+            </optgroup>
           </select>
           {messages.length > 0 && (
             <button
