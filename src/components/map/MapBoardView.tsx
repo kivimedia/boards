@@ -9,6 +9,8 @@ import MapSectionCard from './MapSectionCard';
 import Button from '@/components/ui/Button';
 import ClientBrainPanel from '@/components/client/ClientBrainPanel';
 import TrelloCardPicker from '@/components/trello/TrelloCardPicker';
+import MeetingConfigPanel from '@/components/client-updates/MeetingConfigPanel';
+import UpdateHistoryList from '@/components/client-updates/UpdateHistoryList';
 
 interface MapBoardViewProps {
   clientId: string;
@@ -32,6 +34,7 @@ export default function MapBoardView({ clientId }: MapBoardViewProps) {
   const [addingSectionType, setAddingSectionType] = useState<MapSectionType | null>(null);
   const [showBrainPanel, setShowBrainPanel] = useState(false);
   const [showTrelloPanel, setShowTrelloPanel] = useState(false);
+  const [showMeetingsPanel, setShowMeetingsPanel] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   const handleExportPDF = async () => {
@@ -208,6 +211,23 @@ export default function MapBoardView({ clientId }: MapBoardViewProps) {
                 Weekly Plan
               </a>
               <button
+                onClick={() => setShowMeetingsPanel(!showMeetingsPanel)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium font-body transition-all duration-200 ${
+                  showMeetingsPanel
+                    ? 'bg-electric/10 text-electric ring-2 ring-electric/20'
+                    : 'text-navy/60 dark:text-slate-400 hover:text-electric hover:bg-electric/5'
+                }`}
+                title="Meeting config & weekly updates"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" strokeWidth="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" strokeWidth="2" strokeLinecap="round" />
+                  <line x1="8" y1="2" x2="8" y2="6" strokeWidth="2" strokeLinecap="round" />
+                  <line x1="3" y1="10" x2="21" y2="10" strokeWidth="2" />
+                </svg>
+                Meetings
+              </button>
+              <button
                 onClick={handleExportPDF}
                 disabled={exporting}
                 className="p-2 rounded-xl text-navy/40 dark:text-slate-400 hover:text-electric hover:bg-electric/5 transition-all duration-200 disabled:opacity-50"
@@ -283,6 +303,35 @@ export default function MapBoardView({ clientId }: MapBoardViewProps) {
               </button>
             </div>
             <TrelloCardPicker clientId={clientId} />
+          </div>
+        )}
+
+        {/* Meetings Panel */}
+        {showMeetingsPanel && (
+          <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-electric/20 dark:border-electric/30 p-4 animate-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-navy dark:text-slate-100 font-heading flex items-center gap-2">
+                <svg className="w-4 h-4 text-electric" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" strokeWidth="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" strokeWidth="2" strokeLinecap="round" />
+                  <line x1="8" y1="2" x2="8" y2="6" strokeWidth="2" strokeLinecap="round" />
+                  <line x1="3" y1="10" x2="21" y2="10" strokeWidth="2" />
+                </svg>
+                Meeting Config & Updates
+              </h3>
+              <button
+                onClick={() => setShowMeetingsPanel(false)}
+                className="p-1 rounded-lg text-navy/30 dark:text-slate-500 hover:text-navy/50 dark:hover:text-slate-300 hover:bg-cream-dark dark:hover:bg-slate-800 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <MeetingConfigPanel clientId={clientId} />
+            <div className="mt-4 pt-4 border-t border-cream-dark dark:border-slate-700">
+              <UpdateHistoryList clientId={clientId} />
+            </div>
           </div>
         )}
 
