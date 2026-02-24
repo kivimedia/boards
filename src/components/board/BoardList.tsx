@@ -19,6 +19,7 @@ interface BoardListProps {
   list: ListWithCards;
   index: number;
   boardId: string;
+  boardName: string;
   allLists: { id: string; name: string }[];
   onCardClick: (cardId: string) => void;
   onRefresh: () => void;
@@ -56,7 +57,7 @@ function matchesFilter(placement: any, filter: BoardFilter | undefined): boolean
   return true;
 }
 
-export default function BoardList({ list, index, boardId, allLists, onCardClick, onRefresh, selectedCards, toggleCardSelection, filter, isLoadingCards, isDraggingList }: BoardListProps) {
+export default function BoardList({ list, index, boardId, boardName, allLists, onCardClick, onRefresh, selectedCards, toggleCardSelection, filter, isLoadingCards, isDraggingList }: BoardListProps) {
   const [isAddingCard, setIsAddingCard] = useState(false);
   const [newCardTitle, setNewCardTitle] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
@@ -208,6 +209,7 @@ export default function BoardList({ list, index, boardId, allLists, onCardClick,
                       checklist_done={placement.checklist_done || 0}
                       cover_image_url={placement.cover_image_url || null}
                       boardId={boardId}
+                      boardName={boardName}
                       onRefresh={onRefresh}
                     />
                   ))

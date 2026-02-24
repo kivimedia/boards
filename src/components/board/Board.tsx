@@ -324,6 +324,7 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
                   list={list}
                   index={index}
                   boardId={board.id}
+                  boardName={board.name}
                   allLists={sortedLists.map((l) => ({ id: l.id, name: l.name }))}
                   onCardClick={setSelectedCardId}
                   onRefresh={onRefresh}

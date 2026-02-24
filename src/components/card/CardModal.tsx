@@ -38,6 +38,7 @@ import ReactMarkdown from 'react-markdown';
 import { MarkdownToolbarUI } from './MarkdownToolbar';
 import { useMentionDropdown } from './useMentionDropdown';
 import MentionDropdown from './MentionDropdown';
+import { slugify } from '@/lib/slugify';
 
 interface CardModalProps {
   cardId: string;
@@ -167,22 +168,26 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
     }
   }, [TABS.length, activeTab]);
 
-  // Update URL to /c/[cardId]/[slug] when modal opens, restore on close
+  // Update URL to /c/[board-slug]/[assignee]/[card-slug] when modal opens, restore on close
   useEffect(() => {
     if (!card?.title) return;
-    const slug = card.title
-      .toLowerCase()
-      .replace(/[^\w\s-]/g, '')
-      .trim()
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .slice(0, 60);
+    const cardSlug = slugify(card.title);
+    const boardSlug = boardName ? slugify(boardName) : null;
+    // Use first assignee's first name ("Riza Magno" → "riza"), fallback to "unassigned"
+    const personSlug = assignees.length > 0
+      ? slugify(assignees[0].display_name?.split(' ')[0] ?? assignees[0].display_name ?? 'unassigned')
+      : 'unassigned';
+
+    const path = boardSlug
+      ? `/c/${boardSlug}/${personSlug}/${cardSlug}`
+      : `/c/${cardId}/${cardSlug}`;   // fallback if boardName not loaded yet
+
     const prevUrl = window.location.href;
-    window.history.replaceState(null, '', `/c/${cardId}/${slug}`);
+    window.history.replaceState(null, '', path);
     return () => {
       window.history.replaceState(null, '', prevUrl);
     };
-  }, [cardId, card?.title]);
+  }, [cardId, card?.title, boardName, assignees]);
 
   // Close More menu on click-outside (portal-aware)
   useEffect(() => {
