@@ -86,12 +86,16 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   if (!listId) return errorResponse('list_id is required');
 
+  // Use admin client to bypass RLS
+  const db = getAdminClient();
+  if (!db) return errorResponse('Service role key not configured', 500);
+
   // Check card exists
   const { data: card } = await supabase.from('cards').select('id').eq('id', cardId).single();
   if (!card) return errorResponse('Card not found', 404);
 
   // Prevent duplicate mirrors in same list
-  const { data: existing } = await supabase
+  const { data: existing } = await db
     .from('card_placements')
     .select('id')
     .eq('card_id', cardId)
@@ -99,9 +103,9 @@ export async function POST(request: NextRequest, { params }: Params) {
     .maybeSingle();
   if (existing) return errorResponse('Card is already in that list', 409);
 
-  const position = await resolvePosition(listId, positionIndex, supabase);
+  const position = await resolvePosition(listId, positionIndex, db);
 
-  const { error } = await supabase.from('card_placements').insert({
+  const { error } = await db.from('card_placements').insert({
     card_id: cardId,
     list_id: listId,
     position,

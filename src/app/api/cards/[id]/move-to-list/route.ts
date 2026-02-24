@@ -90,7 +90,6 @@ export async function POST(request: NextRequest, { params }: Params) {
   const auth = await getAuthContext();
   if (!auth.ok) return auth.response;
 
-  const { supabase } = auth.ctx;
   const cardId = params.id;
 
   let listId: string;
@@ -105,8 +104,12 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   if (!listId) return errorResponse('list_id is required');
 
+  // Use admin client to bypass RLS
+  const db = getAdminClient();
+  if (!db) return errorResponse('Service role key not configured', 500);
+
   // Find primary placement
-  const { data: placements } = await supabase
+  const { data: placements } = await db
     .from('card_placements')
     .select('id')
     .eq('card_id', cardId)
@@ -116,10 +119,10 @@ export async function POST(request: NextRequest, { params }: Params) {
   const placement = placements?.[0];
   if (!placement) return errorResponse('Primary card placement not found', 404);
 
-  const position = await resolvePosition(listId, positionIndex, supabase);
+  const position = await resolvePosition(listId, positionIndex, db);
 
   // Move primary placement
-  const { error } = await supabase
+  const { error } = await db
     .from('card_placements')
     .update({ list_id: listId, position })
     .eq('id', placement.id);
@@ -127,7 +130,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   if (error) return errorResponse(error.message, 500);
 
   // Remove all mirror placements (card moved to new location)
-  await supabase
+  await db
     .from('card_placements')
     .delete()
     .eq('card_id', cardId)
