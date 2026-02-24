@@ -166,6 +166,22 @@ type SyncResult = {
 // Known AM tab names (used across multiple sheets)
 const AM_TAB_NAMES = ['ANGEL', 'KATH', 'DEVI', 'HILDA', 'RIZA', 'SARAH', 'ELA', 'IVY', 'MARIZ'];
 
+/**
+ * Case-insensitive column lookup that tries multiple header name variants.
+ * Returns the first non-empty value found, or empty string.
+ */
+function getCol(row: Record<string, string>, ...names: string[]): string {
+  const lowerRow: Record<string, string> = {};
+  for (const k of Object.keys(row)) {
+    lowerRow[k.toLowerCase().trim()] = row[k];
+  }
+  for (const name of names) {
+    const v = lowerRow[name.toLowerCase().trim()];
+    if (v) return v;
+  }
+  return '';
+}
+
 function isAMTab(tabTitle: string): boolean {
   return AM_TAB_NAMES.some(
     name => tabTitle.toUpperCase().includes(name)
@@ -206,20 +222,30 @@ async function syncFathomVideos(
       const tabData = await fetchTabData(spreadsheetId, sheet.title, auth);
       const amName = extractAMName(sheet.title);
 
-      // IVY tab has the full schema; other tabs have minimal data
-      const records = tabData.rows.map((row, idx) => ({
-        account_manager_name: amName,
-        client_name: row['CLIENT'] || null,
-        meeting_date: parseDate(row['MEETING DATE']),
-        date_watched: parseDate(row['DATE WATCHED']),
-        fathom_video_link: row['FATHOM VIDEO LINK'] || null,
-        watched: parseBoolean(row['WATCHED FATHOM VIDEO?']),
-        action_items_sent: parseBoolean(row['SENT ACTION ITEMS TO ZIV?']),
-        attachments: row['ATTACHMENTS'] || null,
-        notes: row['NOTES'] || null,
-        source_tab: sheet.title,
-        source_row: idx + 2,
-      })).filter(r => r.client_name || r.meeting_date || r.date_watched);
+      console.log(`[PK Fathom] Tab "${sheet.title}" headers:`, tabData.headers.join(', '));
+      // Use case-insensitive lookup with multiple column name variants so all
+      // AM tabs are parsed correctly regardless of their exact header format.
+      const records = tabData.rows.map((row, idx) => {
+        const clientName = getCol(row, 'CLIENT', 'Client', 'Client Name', 'CLIENT NAME') || null;
+        const meetingDate = parseDate(getCol(row, 'MEETING DATE', 'Meeting Date', 'Date', 'DATE'));
+        const dateWatched = parseDate(getCol(row, 'DATE WATCHED', 'Date Watched', 'Watched Date', 'DATE WATCHED BY ZIV'));
+        const link = getCol(row, 'FATHOM VIDEO LINK', 'Fathom Video Link', 'VIDEO LINK', 'Link', 'LINK') || null;
+        const watched = parseBoolean(getCol(row, 'WATCHED FATHOM VIDEO?', 'WATCHED', 'Watched', 'FATHOM WATCHED', 'ZIV WATCHED'));
+        const actionItems = parseBoolean(getCol(row, 'SENT ACTION ITEMS TO ZIV?', 'ACTION ITEMS', 'Action Items', 'SENT ACTION ITEMS', 'Action Items Sent'));
+        return {
+          account_manager_name: amName,
+          client_name: clientName,
+          meeting_date: meetingDate,
+          date_watched: dateWatched,
+          fathom_video_link: link,
+          watched,
+          action_items_sent: actionItems,
+          attachments: getCol(row, 'ATTACHMENTS', 'Attachments') || null,
+          notes: getCol(row, 'NOTES', 'Notes', 'COMMENT', 'Comment') || null,
+          source_tab: sheet.title,
+          source_row: idx + 2,
+        };
+      }).filter(r => r.client_name || r.meeting_date || r.date_watched || r.fathom_video_link);
 
       if (records.length > 0) {
         const { error } = await supabase.from('pk_fathom_videos').insert(records);
