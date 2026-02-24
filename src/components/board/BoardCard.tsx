@@ -112,7 +112,7 @@ export default function BoardCard({
     }
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 1500);
-  }, [card.id]);
+  }, [card.id, card.title, boardName, assignees]);
 
   const isOverdue = card.due_date && new Date(card.due_date) < new Date();
   const isDueSoon =
