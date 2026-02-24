@@ -3,8 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { WeeklyTask, WeeklyPlanWithTasks } from '@/lib/types';
 import { DAY_LABELS, getMonday } from '@/lib/weekly-gantt';
-import { TaskRow } from './TaskRow';
-import { AddTaskRow } from './AddTaskRow';
+import { DayCard } from './DayCard';
 import { WeeklyGanttHeader } from './WeeklyGanttHeader';
 import { HistoryPanel } from './HistoryPanel';
 
@@ -72,12 +71,12 @@ export default function WeeklyGanttBoard({
   const goToday = () => setWeekStart(getMonday(new Date()));
 
   // ── Task CRUD ──────────────────────────────────────────────────────
-  const addTask = async (title: string) => {
+  const addTask = async (title: string, dayIndex: number = 1) => {
     if (!plan) return;
     const res = await fetch(`${basePath}/${plan.id}/tasks`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, day_start: 1, day_end: 1 }),
+      body: JSON.stringify({ title, day_start: dayIndex, day_end: dayIndex }),
     });
     const json = await res.json();
     if (json.data) {
@@ -121,12 +120,10 @@ export default function WeeklyGanttBoard({
   const copyLastWeek = async () => {
     if (!plan) return;
 
-    // Get the previous week's plan
     const prevMonday = new Date(weekStart);
     prevMonday.setDate(prevMonday.getDate() - 7);
     const prevWeekStart = getMonday(prevMonday);
 
-    // Find previous plan
     const res = await fetch(`${basePath}?limit=10`);
     const json = await res.json();
     const prevPlan = (json.data ?? []).find(
@@ -194,18 +191,31 @@ export default function WeeklyGanttBoard({
     return -1;
   })();
 
-  // Date labels for the header
-  const dateCells = DAY_LABELS.map((label, i) => {
+  // Build date info for each day
+  const dayCards = DAY_LABELS.map((label, i) => {
     const d = new Date(weekStart);
     d.setDate(d.getDate() + i);
+    const dayIndex = i + 1;
+
+    // Tasks that include this day
+    const dayTasks = (plan?.tasks ?? []).filter(
+      t => t.day_start <= dayIndex && t.day_end >= dayIndex
+    );
+
     return {
+      dayIndex,
       label,
       date: d.getDate(),
       month: d.toLocaleDateString('en-US', { month: 'short' }),
-      isToday: i + 1 === todayIndex,
+      isToday: dayIndex === todayIndex,
       isWeekend: i >= 5,
+      tasks: dayTasks,
     };
   });
+
+  // Weekly summary: all tasks
+  const allTasks = plan?.tasks ?? [];
+  const weeklyCompleted = allTasks.filter(t => t.completed).length;
 
   if (loading) {
     return (
@@ -237,75 +247,117 @@ export default function WeeklyGanttBoard({
       />
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* Main gantt area */}
-        <div ref={printRef} className="flex-1 overflow-auto print:overflow-visible">
-          {/* Day column headers */}
-          <div className="sticky top-0 z-10 bg-white dark:bg-dark-surface border-b border-cream-dark dark:border-slate-700">
-            <div className="grid grid-cols-[minmax(200px,2fr)_100px_repeat(7,1fr)_40px] items-center">
-              <div className="px-4 py-2">
-                <span className="text-xs font-semibold text-navy/50 dark:text-slate-400 font-heading uppercase tracking-wider">
-                  Task
-                </span>
-              </div>
-              <div className="px-2 py-2">
-                <span className="text-xs font-semibold text-navy/50 dark:text-slate-400 font-heading uppercase tracking-wider">
-                  Owner
-                </span>
-              </div>
-              {dateCells.map((cell, i) => (
-                <div
-                  key={i}
-                  className={`px-1 py-2 text-center ${
-                    cell.isToday
-                      ? 'bg-electric/10 dark:bg-electric/20 rounded-t-lg'
-                      : cell.isWeekend
-                        ? 'bg-cream/60 dark:bg-navy/30'
-                        : ''
-                  }`}
-                >
-                  <span className={`text-[10px] block font-body ${
-                    cell.isToday ? 'text-electric font-bold' : 'text-navy/40 dark:text-slate-500'
-                  }`}>
-                    {cell.label}
-                  </span>
-                  <span className={`text-xs font-medium font-body ${
-                    cell.isToday ? 'text-electric' : 'text-navy/60 dark:text-slate-400'
-                  }`}>
-                    {cell.date}
-                  </span>
-                </div>
-              ))}
-              <div /> {/* Actions column */}
-            </div>
+        {/* Main card grid area */}
+        <div ref={printRef} className="flex-1 overflow-auto print:overflow-visible p-4">
+          {/* Row 1: Mon - Thu */}
+          <div className="grid grid-cols-4 gap-3 mb-3">
+            {dayCards.slice(0, 4).map(day => (
+              <DayCard
+                key={day.dayIndex}
+                dayIndex={day.dayIndex}
+                dayLabel={day.label}
+                date={day.date}
+                month={day.month}
+                isToday={day.isToday}
+                isWeekend={day.isWeekend}
+                tasks={day.tasks}
+                clientContacts={clientContacts}
+                onUpdateTask={updateTask}
+                onDeleteTask={removeTask}
+                onAddTask={addTask}
+              />
+            ))}
           </div>
 
-          {/* Task rows */}
-          <div>
-            {plan?.tasks.map((task) => (
-              <TaskRow
-                key={task.id}
-                task={task}
-                todayIndex={todayIndex}
+          {/* Row 2: Fri - Sun + Weekly summary */}
+          <div className="grid grid-cols-4 gap-3">
+            {dayCards.slice(4).map(day => (
+              <DayCard
+                key={day.dayIndex}
+                dayIndex={day.dayIndex}
+                dayLabel={day.label}
+                date={day.date}
+                month={day.month}
+                isToday={day.isToday}
+                isWeekend={day.isWeekend}
+                tasks={day.tasks}
                 clientContacts={clientContacts}
-                onUpdate={(updates) => updateTask(task.id, updates)}
-                onDelete={() => removeTask(task.id)}
-                planId={plan.id}
-                clientId={clientId}
+                onUpdateTask={updateTask}
+                onDeleteTask={removeTask}
+                onAddTask={addTask}
               />
             ))}
 
-            {/* Add new task row */}
-            <AddTaskRow onAdd={addTask} />
-          </div>
+            {/* Weekly summary card */}
+            <div className="flex flex-col rounded-xl border border-electric/30 bg-electric/[0.03] dark:bg-electric/[0.06] min-h-[180px]">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-electric/20">
+                <span className="text-xs font-semibold font-heading uppercase tracking-wider text-electric">
+                  Weekly
+                </span>
+                {allTasks.length > 0 && (
+                  <span className="text-[10px] text-electric/60 font-body font-medium">
+                    {weeklyCompleted}/{allTasks.length} done
+                  </span>
+                )}
+              </div>
+              <div className="flex-1 px-2 py-1.5 space-y-0.5 overflow-y-auto max-h-[300px]">
+                {allTasks.length === 0 ? (
+                  <div className="flex items-center justify-center h-full min-h-[120px]">
+                    <p className="text-xs text-navy/25 dark:text-slate-600 font-body text-center px-4">
+                      Add tasks to any day to see your weekly overview here.
+                    </p>
+                  </div>
+                ) : (
+                  allTasks
+                    .sort((a, b) => a.day_start - b.day_start || a.sort_order - b.sort_order)
+                    .map(task => (
+                      <div
+                        key={task.id}
+                        className={`flex items-center gap-1.5 px-1.5 py-1 rounded-md text-xs font-body ${
+                          task.completed ? 'opacity-40' : ''
+                        }`}
+                      >
+                        {/* Color dot */}
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${
+                          task.color
+                            ? (TASK_COLORS_MINI[task.color] || 'bg-electric')
+                            : (PRIORITY_COLORS_MINI[task.priority] || 'bg-electric')
+                        }`} />
 
-          {/* Empty state */}
-          {plan && plan.tasks.length === 0 && (
-            <div className="text-center py-16">
-              <p className="text-sm text-navy/40 dark:text-slate-500 font-body">
-                No tasks yet. Add your first task above or copy from last week.
-              </p>
+                        {/* Completed check */}
+                        {task.completed ? (
+                          <svg className="w-3 h-3 text-green-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        ) : (
+                          <span className="w-3 h-3 shrink-0" />
+                        )}
+
+                        {/* Title */}
+                        <span className={`flex-1 truncate min-w-0 ${
+                          task.completed ? 'line-through text-navy/25 dark:text-slate-600' : 'text-navy/70 dark:text-slate-300'
+                        }`}>
+                          {task.title}
+                        </span>
+
+                        {/* Day range badge */}
+                        <span className="text-[9px] text-navy/30 dark:text-slate-600 shrink-0 font-medium">
+                          {DAY_LABELS[task.day_start - 1]}
+                          {task.day_end !== task.day_start && `–${DAY_LABELS[task.day_end - 1]}`}
+                        </span>
+
+                        {/* Owner initials */}
+                        {task.assignee_name && (
+                          <span className="w-4 h-4 rounded-full bg-electric/15 text-electric text-[7px] font-bold flex items-center justify-center shrink-0">
+                            {task.assignee_name.slice(0, 2).toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                    ))
+                )}
+              </div>
             </div>
-          )}
+          </div>
         </div>
 
         {/* History side panel */}
@@ -320,3 +372,14 @@ export default function WeeklyGanttBoard({
     </div>
   );
 }
+
+// Mini color maps for the weekly summary card
+const TASK_COLORS_MINI: Record<string, string> = {
+  blue: 'bg-blue-500', purple: 'bg-purple-500', green: 'bg-green-500',
+  orange: 'bg-orange-500', red: 'bg-red-500', pink: 'bg-pink-500',
+  teal: 'bg-teal-500', yellow: 'bg-yellow-500',
+};
+
+const PRIORITY_COLORS_MINI: Record<string, string> = {
+  high: 'bg-orange-400', medium: 'bg-electric', low: 'bg-green-400',
+};
