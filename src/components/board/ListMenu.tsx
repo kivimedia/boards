@@ -70,19 +70,6 @@ export default function ListMenu({ listId, listName, boardId, allLists, onRefres
     }
   };
 
-  const handleInsertSeparator = async () => {
-    try {
-      await fetch('/api/separators', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ list_id: listId }),
-      });
-      onRefresh();
-    } catch {
-      // Error handling
-    }
-  };
-
   const handleDeleteList = async () => {
     if (!confirm(`Delete "${listName}" and all its cards?`)) return;
     const { createClient } = await import('@/lib/supabase/client');
@@ -158,15 +145,6 @@ export default function ListMenu({ listId, listName, boardId, allLists, onRefres
           ))}
         </div>
       ) : undefined,
-    },
-    {
-      label: 'Insert Separator',
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="3" y1="12" x2="21" y2="12"/>
-        </svg>
-      ),
-      onClick: handleInsertSeparator,
     },
     { label: '', separator: true },
     {

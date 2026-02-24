@@ -13,15 +13,17 @@ const VALID_FIELD_TYPES: CustomFieldType[] = [
 
 describe('constants', () => {
   describe('BOARD_TYPE_CONFIG', () => {
-    it('has all 6 board types', () => {
+    it('has all 8 board types', () => {
       const types = Object.keys(BOARD_TYPE_CONFIG);
-      expect(types).toHaveLength(6);
-      expect(types).toContain('boutique_decor');
-      expect(types).toContain('marquee_letters');
-      expect(types).toContain('private_clients');
-      expect(types).toContain('owner_dashboard');
-      expect(types).toContain('va_workspace');
-      expect(types).toContain('general_tasks');
+      expect(types).toHaveLength(8);
+      expect(types).toContain('dev');
+      expect(types).toContain('training');
+      expect(types).toContain('account_manager');
+      expect(types).toContain('graphic_designer');
+      expect(types).toContain('executive_assistant');
+      expect(types).toContain('video_editor');
+      expect(types).toContain('copy');
+      expect(types).toContain('client_strategy_map');
     });
 
     it('each board type has required fields', () => {
@@ -53,52 +55,55 @@ describe('constants', () => {
       }
     });
 
-    it('boutique_decor board has correct default lists', () => {
-      expect(BOARD_TYPE_CONFIG.boutique_decor.defaultLists).toEqual([
-        'Website Inquiry',
-        'DM/Text Inquiry',
-        'Responded - Need More Info',
-        'Proposal/Pricing Sent',
-        'Needs Follow-Up',
-        'Needs Invoice',
-        'Invoice Sent',
-        'Paid in Full',
-        'Supplies/Prep Needed',
-        'Event This Week',
-        'Needs Thank You',
-        'Thank You Sent / Complete',
-        "Didn't Book",
-        'Future/On Hold',
-        'Template Cards',
-      ]);
-    });
-
-    it('boutique_decor board has expected custom fields', () => {
-      const fieldNames = BOARD_TYPE_CONFIG.boutique_decor.defaultCustomFields.map((f) => f.name);
-      expect(fieldNames).toContain('Event Date');
-      expect(fieldNames).toContain('Event Type');
-      expect(fieldNames).toContain('Venue');
-      expect(fieldNames).toContain('Estimated Value');
-    });
-
-    it('general_tasks board has correct default lists', () => {
-      expect(BOARD_TYPE_CONFIG.general_tasks.defaultLists).toEqual([
-        'To Do',
+    it('dev board has correct default lists', () => {
+      expect(BOARD_TYPE_CONFIG.dev.defaultLists).toEqual([
+        'Backlog',
+        'Briefed',
         'In Progress',
-        'Done',
-        'Reference',
+        'Code Review',
+        'QA Testing',
+        'Revisions',
+        'Staging',
+        'Ready for Deploy',
+        'Deployed',
       ]);
     });
 
-    it('owner_dashboard board has correct default lists', () => {
-      expect(BOARD_TYPE_CONFIG.owner_dashboard.defaultLists).toContain('Halley Needs to Review');
-      expect(BOARD_TYPE_CONFIG.owner_dashboard.defaultLists).toContain('Approved');
+    it('dev board has expected custom fields', () => {
+      const fieldNames = BOARD_TYPE_CONFIG.dev.defaultCustomFields.map((f) => f.name);
+      expect(fieldNames).toContain('Ticket Type');
+      expect(fieldNames).toContain('Story Points');
+      expect(fieldNames).toContain('Repository');
+      expect(fieldNames).toContain('PR Link');
+    });
+
+    it('copy board has correct default lists', () => {
+      expect(BOARD_TYPE_CONFIG.copy.defaultLists).toEqual([
+        'Briefed',
+        'Research',
+        'Writing',
+        'Internal Review',
+        'Revisions',
+        'Client Review',
+        'Approved',
+        'Published',
+      ]);
+    });
+
+    it('client_strategy_map board has correct default lists', () => {
+      expect(BOARD_TYPE_CONFIG.client_strategy_map.defaultLists).toEqual([
+        'Discovery',
+        'Strategy',
+        'Execution',
+        'Review',
+        'Optimization',
+      ]);
     });
   });
 
   describe('LABEL_COLORS', () => {
-    it('has 10 predefined colors', () => {
-      expect(LABEL_COLORS).toHaveLength(10);
+    it('has 8 predefined colors', () => {
+      expect(LABEL_COLORS).toHaveLength(8);
     });
 
     it('each color has a name and hex value', () => {

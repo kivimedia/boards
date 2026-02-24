@@ -1,8 +1,9 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import type Anthropic from '@anthropic-ai/sdk';
 
+
 /**
- * Stub — agent executor was removed during the Carolina Balloons HQ pivot.
+ * Stub -- agent executor was removed during the Carolina Balloons HQ pivot.
  * This export satisfies the import in api/agents/sessions/[id]/message/route.ts.
  */
 

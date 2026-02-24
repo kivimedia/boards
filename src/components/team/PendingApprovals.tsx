@@ -1,18 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import type { Profile, BusinessRole } from '@/lib/types';
-import { BUSINESS_ROLES, getBusinessRoleLabel } from '@/lib/permissions';
+import type { Profile, AgencyRole } from '@/lib/types';
+import { AGENCY_ROLES, getAgencyRoleLabel } from '@/lib/permissions';
 import Avatar from '@/components/ui/Avatar';
 import Button from '@/components/ui/Button';
 
 export default function PendingApprovals() {
   const [pendingUsers, setPendingUsers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedRoles, setSelectedRoles] = useState<Record<string, BusinessRole>>({});
+  const [selectedRoles, setSelectedRoles] = useState<Record<string, AgencyRole>>({});
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const assignableRoles = BUSINESS_ROLES.filter((r) => r !== 'owner');
+  const assignableRoles = AGENCY_ROLES.filter((r) => r !== 'agency_owner');
 
   useEffect(() => {
     fetchPending();
@@ -42,7 +42,7 @@ export default function PendingApprovals() {
       const res = await fetch('/api/team/approve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, businessRole: role }),
+        body: JSON.stringify({ userId, agencyRole: role }),
       });
       if (res.ok) {
         setPendingUsers((prev) => prev.filter((u) => u.id !== userId));
@@ -118,14 +118,14 @@ export default function PendingApprovals() {
               <select
                 value={selectedRoles[user.id] || ''}
                 onChange={(e) =>
-                  setSelectedRoles((prev) => ({ ...prev, [user.id]: e.target.value as BusinessRole }))
+                  setSelectedRoles((prev) => ({ ...prev, [user.id]: e.target.value as AgencyRole }))
                 }
                 className="appearance-none px-3 py-2 pr-8 rounded-xl bg-white dark:bg-dark-surface border-2 border-navy/20 dark:border-slate-700 text-navy dark:text-slate-100 text-xs font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric transition-all"
               >
                 <option value="">Select role...</option>
                 {assignableRoles.map((role) => (
                   <option key={role} value={role}>
-                    {getBusinessRoleLabel(role)}
+                    {getAgencyRoleLabel(role)}
                   </option>
                 ))}
               </select>

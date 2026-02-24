@@ -10,29 +10,31 @@ interface Toast {
 }
 
 const ACTIVITY_OPTIONS = [
+  'design_review',
+  'dev_qa',
   'chatbot_ticket',
   'chatbot_board',
   'chatbot_global',
+  'client_brain',
+  'nano_banana_edit',
+  'nano_banana_generate',
   'email_draft',
+  'video_generation',
   'brief_assist',
-  'image_prompt_enhance',
-  'proposal_generation',
-  'lead_triage',
-  'follow_up_draft',
-  'friendor_email',
 ];
 
 const ACTIVITY_LABELS: Record<string, string> = {
+  design_review: 'Design Review',
+  dev_qa: 'Dev QA',
   chatbot_ticket: 'Chatbot (Ticket)',
   chatbot_board: 'Chatbot (Board)',
   chatbot_global: 'Chatbot (Global)',
+  client_brain: 'Client Brain',
+  nano_banana_edit: 'Nano Banana Edit',
+  nano_banana_generate: 'Nano Banana Generate',
   email_draft: 'Email Draft',
+  video_generation: 'Video Generation',
   brief_assist: 'Brief Assist',
-  image_prompt_enhance: 'Image Prompt Enhance',
-  proposal_generation: 'Proposal Generation',
-  lead_triage: 'Lead Triage',
-  follow_up_draft: 'Follow-Up Draft',
-  friendor_email: 'Friendor Email',
 };
 
 export default function ActivityConfigManager() {

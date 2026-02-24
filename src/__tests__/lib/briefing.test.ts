@@ -243,14 +243,15 @@ describe('briefing', () => {
   });
 
   describe('BOARD_TYPES_WITH_BRIEFS', () => {
-    it('includes the 3 balloon business board types with briefs', () => {
-      expect(BOARD_TYPES_WITH_BRIEFS).toContain('boutique_decor');
-      expect(BOARD_TYPES_WITH_BRIEFS).toContain('marquee_letters');
-      expect(BOARD_TYPES_WITH_BRIEFS).toContain('private_clients');
+    it('includes the 4 creative/dev board types', () => {
+      expect(BOARD_TYPES_WITH_BRIEFS).toContain('graphic_designer');
+      expect(BOARD_TYPES_WITH_BRIEFS).toContain('dev');
+      expect(BOARD_TYPES_WITH_BRIEFS).toContain('copy');
+      expect(BOARD_TYPES_WITH_BRIEFS).toContain('video_editor');
     });
 
-    it('has exactly 3 entries', () => {
-      expect(BOARD_TYPES_WITH_BRIEFS).toHaveLength(3);
+    it('has exactly 4 entries', () => {
+      expect(BOARD_TYPES_WITH_BRIEFS).toHaveLength(4);
     });
   });
 

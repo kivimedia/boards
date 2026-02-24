@@ -35,12 +35,14 @@ describe('Client Portal Library (P2.4)', () => {
   describe('TICKET_ROUTING_MAP', () => {
     it('maps all 6 ticket types to valid board types', () => {
       const validBoardTypes: BoardType[] = [
-        'boutique_decor',
-        'marquee_letters',
-        'private_clients',
-        'owner_dashboard',
-        'va_workspace',
-        'general_tasks',
+        'dev',
+        'training',
+        'account_manager',
+        'graphic_designer',
+        'executive_assistant',
+        'video_editor',
+        'copy',
+        'client_strategy_map',
       ];
 
       for (const ticketType of ALL_TICKET_TYPES) {
@@ -54,28 +56,28 @@ describe('Client Portal Library (P2.4)', () => {
       expect(Object.keys(TICKET_ROUTING_MAP)).toHaveLength(6);
     });
 
-    it('routes design tickets to boutique_decor board', () => {
-      expect(TICKET_ROUTING_MAP.design).toBe('boutique_decor');
+    it('routes design tickets to graphic_designer board', () => {
+      expect(TICKET_ROUTING_MAP.design).toBe('graphic_designer');
     });
 
-    it('routes bug tickets to general_tasks board', () => {
-      expect(TICKET_ROUTING_MAP.bug).toBe('general_tasks');
+    it('routes bug tickets to dev board', () => {
+      expect(TICKET_ROUTING_MAP.bug).toBe('dev');
     });
 
-    it('routes dev tickets to general_tasks board', () => {
-      expect(TICKET_ROUTING_MAP.dev).toBe('general_tasks');
+    it('routes dev tickets to dev board', () => {
+      expect(TICKET_ROUTING_MAP.dev).toBe('dev');
     });
 
-    it('routes content tickets to general_tasks board', () => {
-      expect(TICKET_ROUTING_MAP.content).toBe('general_tasks');
+    it('routes content tickets to copy board', () => {
+      expect(TICKET_ROUTING_MAP.content).toBe('copy');
     });
 
-    it('routes video tickets to general_tasks board', () => {
-      expect(TICKET_ROUTING_MAP.video).toBe('general_tasks');
+    it('routes video tickets to video_editor board', () => {
+      expect(TICKET_ROUTING_MAP.video).toBe('video_editor');
     });
 
-    it('routes general tickets to general_tasks board', () => {
-      expect(TICKET_ROUTING_MAP.general).toBe('general_tasks');
+    it('routes general tickets to account_manager board', () => {
+      expect(TICKET_ROUTING_MAP.general).toBe('account_manager');
     });
   });
 
@@ -148,12 +150,12 @@ describe('Client Portal Library (P2.4)', () => {
 
   describe('Ticket type to board type expected mappings', () => {
     const expectedMappings: Record<ClientTicketType, BoardType> = {
-      design: 'boutique_decor',
-      bug: 'general_tasks',
-      dev: 'general_tasks',
-      content: 'general_tasks',
-      video: 'general_tasks',
-      general: 'general_tasks',
+      design: 'graphic_designer',
+      bug: 'dev',
+      dev: 'dev',
+      content: 'copy',
+      video: 'video_editor',
+      general: 'account_manager',
     };
 
     it('matches the complete expected routing table', () => {

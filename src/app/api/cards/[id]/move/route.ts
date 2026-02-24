@@ -3,8 +3,6 @@ import { getAuthContext, successResponse, errorResponse, parseBody } from '@/lib
 import { evaluateRules, TriggerEvent } from '@/lib/automation-engine';
 import { getBriefedListName } from '@/lib/briefing';
 import { notifyCardAssignees } from '@/lib/notification-service';
-import { evaluateMirrorRules, cleanupMirrorPlacements } from '@/lib/mirror-engine';
-import { autoPopulateVenue } from '@/lib/venue-auto-populate';
 import { safeNextPosition } from '@/lib/safeNextPosition';
 import { SupabaseClient } from '@supabase/supabase-js';
 
@@ -75,15 +73,6 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   if (error) return errorResponse(error.message, 500);
 
-  // Track last touched on card move
-  await supabase
-    .from('cards')
-    .update({
-      last_touched_at: new Date().toISOString(),
-      last_touched_by: userId,
-    })
-    .eq('id', cardId);
-
   // Look up list names for the automation trigger event
   const listIds = [list_id];
   if (fromListId && fromListId !== list_id) {
@@ -131,35 +120,6 @@ export async function POST(request: NextRequest, { params }: Params) {
       userId
     ).catch((err) => {
       console.error('[MoveCard] Handoff rule evaluation failed:', err);
-    });
-
-    // Evaluate mirror rules in the background
-    evaluateMirrorRules(
-      supabase,
-      cardId,
-      boardId,
-      toList.name as string,
-      userId,
-      placement_id
-    ).catch((err) => {
-      console.error('[MoveCard] Mirror rule evaluation failed:', err);
-    });
-
-    // Clean up stale mirrors from the old list
-    if (fromList?.name) {
-      cleanupMirrorPlacements(
-        supabase,
-        cardId,
-        boardId,
-        fromList.name as string
-      ).catch((err) => {
-        console.error('[MoveCard] Mirror cleanup failed:', err);
-      });
-    }
-
-    // Auto-populate venue when card reaches booking-stage lists
-    autoPopulateVenue(supabase, cardId, boardId, toList.name as string, userId).catch((err) => {
-      console.error('[MoveCard] Auto-venue population failed:', err);
     });
   }
 

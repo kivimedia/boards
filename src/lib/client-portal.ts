@@ -13,12 +13,12 @@ import type {
 // ============================================================================
 
 export const TICKET_ROUTING_MAP: Record<ClientTicketType, BoardType> = {
-  design: 'boutique_decor',
-  bug: 'general_tasks',
-  dev: 'general_tasks',
-  content: 'general_tasks',
-  video: 'general_tasks',
-  general: 'general_tasks',
+  design: 'graphic_designer',
+  bug: 'dev',
+  dev: 'dev',
+  content: 'copy',
+  video: 'video_editor',
+  general: 'account_manager',
 };
 
 export const TICKET_TYPE_LABELS: Record<ClientTicketType, string> = {

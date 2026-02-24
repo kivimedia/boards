@@ -2,8 +2,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
-import HomeDashboard from '@/components/dashboard/HomeDashboard';
-import GlobalSearchBar from '@/components/smart-search/GlobalSearchBar';
+import DashboardContent from '@/components/board/DashboardContent';
 
 export default async function DashboardPage() {
   const supabase = createServerSupabaseClient();
@@ -67,10 +66,8 @@ export default async function DashboardPage() {
     <div className="flex h-screen overflow-hidden">
       <Sidebar initialBoards={boardsRes.data || []} />
       <main className="flex-1 flex flex-col overflow-hidden">
-        <Header title="Dashboard">
-          <GlobalSearchBar />
-        </Header>
-        <HomeDashboard initialBoards={boardsRes.data || []} />
+        <Header title="Boards" />
+        <DashboardContent initialBoards={boardsRes.data || []} stats={stats} />
       </main>
     </div>
   );

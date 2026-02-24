@@ -30,18 +30,6 @@ interface UpdateCardBody {
   cover_image_url?: string | null;
   owner_id?: string | null;
   version?: number;
-  // Lead info fields
-  event_date?: string | null;
-  event_type?: string | null;
-  venue_name?: string | null;
-  venue_city?: string | null;
-  estimated_value?: number | null;
-  lead_source?: string | null;
-  client_email?: string | null;
-  client_phone?: string | null;
-  follow_up_date?: string | null;
-  didnt_book_reason?: string | null;
-  didnt_book_sub_reason?: string | null;
 }
 
 export async function PATCH(request: NextRequest, { params }: Params) {
@@ -51,7 +39,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   const body = await parseBody<UpdateCardBody>(request);
   if (!body.ok) return body.response;
 
-  const { supabase, userId } = auth.ctx;
+  const { supabase } = auth.ctx;
   const updates: Record<string, unknown> = {};
 
   if (body.body.title !== undefined) updates.title = body.body.title;
@@ -60,26 +48,10 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   if (body.body.priority !== undefined) updates.priority = body.body.priority;
   if (body.body.cover_image_url !== undefined) updates.cover_image_url = body.body.cover_image_url;
   if (body.body.owner_id !== undefined) updates.owner_id = body.body.owner_id;
-  // Lead info fields
-  if (body.body.event_date !== undefined) updates.event_date = body.body.event_date;
-  if (body.body.event_type !== undefined) updates.event_type = body.body.event_type;
-  if (body.body.venue_name !== undefined) updates.venue_name = body.body.venue_name;
-  if (body.body.venue_city !== undefined) updates.venue_city = body.body.venue_city;
-  if (body.body.estimated_value !== undefined) updates.estimated_value = body.body.estimated_value;
-  if (body.body.lead_source !== undefined) updates.lead_source = body.body.lead_source;
-  if (body.body.client_email !== undefined) updates.client_email = body.body.client_email;
-  if (body.body.client_phone !== undefined) updates.client_phone = body.body.client_phone;
-  if (body.body.follow_up_date !== undefined) updates.follow_up_date = body.body.follow_up_date;
-  if (body.body.didnt_book_reason !== undefined) updates.didnt_book_reason = body.body.didnt_book_reason;
-  if (body.body.didnt_book_sub_reason !== undefined) updates.didnt_book_sub_reason = body.body.didnt_book_sub_reason;
 
   if (Object.keys(updates).length === 0) {
     return errorResponse('No valid fields to update');
   }
-
-  // Track last touched
-  updates.last_touched_at = new Date().toISOString();
-  updates.last_touched_by = userId;
 
   // Version-based conflict detection (optional, backwards compatible)
   if (body.body.version !== undefined) {

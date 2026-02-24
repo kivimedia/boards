@@ -62,7 +62,7 @@ export async function GET() {
           listId: list?.id,
           boardId: board?.id,
           boardName: board?.name || 'Unknown Board',
-          boardType: board?.type || 'general_tasks',
+          boardType: board?.type || 'dev',
         };
       });
 
