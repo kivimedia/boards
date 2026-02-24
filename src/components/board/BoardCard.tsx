@@ -6,6 +6,7 @@ import { Card, Label, Profile } from '@/lib/types';
 import Avatar from '@/components/ui/Avatar';
 import CardCheckbox from './CardCheckbox';
 import CardQuickEdit from './CardQuickEdit';
+import { slugify } from '@/lib/slugify';
 
 interface BoardCardProps {
   card: Card;
@@ -23,6 +24,7 @@ interface BoardCardProps {
   checklist_done?: number;
   cover_image_url?: string | null;
   boardId?: string;
+  boardName?: string;
   onRefresh?: () => void;
 }
 
@@ -66,6 +68,7 @@ export default function BoardCard({
   checklist_done = 0,
   cover_image_url,
   boardId,
+  boardName,
   onRefresh,
 }: BoardCardProps) {
   const [showQuickEdit, setShowQuickEdit] = useState(false);
@@ -87,14 +90,14 @@ export default function BoardCard({
 
   const handleCopyLink = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const slug = card.title
-      .toLowerCase()
-      .replace(/[^\w\s-]/g, '')
-      .trim()
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .slice(0, 60);
-    const url = `${window.location.origin}/c/${card.id}/${slug}`;
+    const cardSlug = slugify(card.title);
+    const boardSlug = boardName ? slugify(boardName) : null;
+    const personSlug = assignees.length > 0
+      ? slugify(assignees[0].display_name?.split(' ')[0] ?? assignees[0].display_name ?? 'unassigned')
+      : 'unassigned';
+    const url = boardSlug
+      ? `${window.location.origin}/c/${boardSlug}/${personSlug}/${cardSlug}`
+      : `${window.location.origin}/c/${card.id}/${cardSlug}`;
     try {
       await navigator.clipboard.writeText(url);
     } catch {
