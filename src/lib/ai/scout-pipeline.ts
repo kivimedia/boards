@@ -469,24 +469,31 @@ export async function runStep3DeepResearch(
       }
     };
 
-    // Pre-fetch LinkedIn pages via Scrapling stealth (if available)
+    // NOTE: LinkedIn blocks all scrapling fetcher tiers (auth-wall, status 999).
+    // Do NOT attempt to pre-fetch linkedin.com URLs — it wastes time and always fails.
+    // Instead, scrapling is used below for non-LinkedIn URLs (personal sites, portfolios, etc.)
     const scraplingReady = await isScraplingAvailable();
-    const linkedInContentCache: Record<number, string> = {};
+    const websiteContentCache: Record<number, string> = {};
 
     if (scraplingReady) {
-      callbacks.onProgress('Scrapling stealth service detected — pre-fetching LinkedIn profiles...');
-      for (const profile of selected) {
-        if (profile.linkedin_url) {
+      // Pre-fetch candidates' personal websites/portfolios (NOT LinkedIn — that's auth-walled)
+      const profilesWithWebsites = selected.filter((p) => {
+        const website = p.enriched?.website || '';
+        return website && !website.includes('linkedin.com') && !website.includes('facebook.com');
+      });
+      if (profilesWithWebsites.length > 0) {
+        callbacks.onProgress(`Scrapling: pre-fetching ${profilesWithWebsites.length} candidate websites...`);
+        for (const profile of profilesWithWebsites) {
+          const website = profile.enriched?.website || '';
           try {
-            const result = await scraplingStealthy({ url: profile.linkedin_url, timeout: 45 });
+            const result = await scraplingStealthy({ url: website, timeout: 30 });
             if (result.success && result.content && result.content.length > 200) {
-              linkedInContentCache[profile.index] = result.content.slice(0, 8000);
-              callbacks.onProgress(`  Fetched LinkedIn for ${profile.name} (${result.content_length} chars via ${result.fetcher_used})`);
+              websiteContentCache[profile.index] = result.content.slice(0, 8000);
+              callbacks.onProgress(`  Fetched website for ${profile.name} (${result.content_length} chars)`);
             }
           } catch {
-            // Silent fail — web_search will still work as fallback
+            // Silent fail — web_search will still work
           }
-          // Brief cooldown between stealth fetches
           await new Promise((r) => setTimeout(r, 2000));
         }
       }
@@ -495,9 +502,9 @@ export async function runStep3DeepResearch(
     for (const profile of selected) {
       callbacks.onProgress(`Researching ${profile.name}...`);
 
-      // Inject scrapling-fetched LinkedIn content if available
-      const linkedInExtra = linkedInContentCache[profile.index]
-        ? `\n\nPRE-FETCHED LinkedIn page content (use this as primary source, verify with web search):\n${linkedInContentCache[profile.index]}`
+      // Inject scrapling-fetched website content if available (NOT LinkedIn — that's auth-walled)
+      const websiteExtra = websiteContentCache[profile.index]
+        ? `\n\nPRE-FETCHED website content for this candidate (use as supplementary source):\n${websiteContentCache[profile.index]}`
         : '';
 
       const researchPrompt = `Deep research this person for a podcast guest interview about making money with AI coding tools:
@@ -522,7 +529,7 @@ Then output a single JSON object:
 Quality filters:
 - scout_confidence: "high" if clear evidence of paid work + active; "medium" if some evidence; "low" if uncertain
 - Prefer people under 50K followers
-- Only include REAL URLs from search results${linkedInExtra}`;
+- Only include REAL URLs from search results${websiteExtra}`;
 
       let researchMessages: any[] = [{ role: 'user', content: researchPrompt }];
       let researchOutput = '';
