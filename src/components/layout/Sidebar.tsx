@@ -106,11 +106,11 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
       <div className="p-4 flex items-center justify-between">
         {!collapsed && (
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-pink-500 flex items-center justify-center">
-              <span className="text-white font-bold text-sm">CB</span>
+            <div className="w-8 h-8 rounded-lg bg-electric flex items-center justify-center">
+              <span className="text-white font-bold text-sm">KM</span>
             </div>
             <span className="text-white font-heading font-semibold text-lg">
-              Carolina Balloons
+              Kivi Media
             </span>
           </Link>
         )}

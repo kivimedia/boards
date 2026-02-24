@@ -10,8 +10,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Carolina Balloons HQ',
-  description: 'Business management for Carolina Balloons',
+  title: 'KM Boards',
+  description: 'Project management for Kivi Media',
 };
 
 export default function RootLayout({
