@@ -86,11 +86,11 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
       <div className="p-4 flex items-center justify-between">
         {!collapsed && (
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-electric flex items-center justify-center">
-              <span className="text-white font-bold text-sm">KM</span>
+            <div className="w-8 h-8 rounded-lg bg-pink-500 flex items-center justify-center">
+              <span className="text-white font-bold text-sm">CB</span>
             </div>
             <span className="text-white font-heading font-semibold text-lg">
-              Kivi Media
+              Carolina Balloons
             </span>
           </Link>
         )}
@@ -143,19 +143,35 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
         </Link>
 
         <Link
-          href="/clients"
+          href="/proposals"
           className={`
             flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200
-            ${pathname?.startsWith('/clients') || pathname?.startsWith('/client/')
+            ${pathname?.startsWith('/proposals')
               ? 'bg-white/10 text-white'
               : 'text-white/60 hover:text-white hover:bg-white/5'
             }
           `}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" />
           </svg>
-          {!collapsed && <span>Clients</span>}
+          {!collapsed && <span>Proposals</span>}
+        </Link>
+
+        <Link
+          href="/venues"
+          className={`
+            flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200
+            ${pathname?.startsWith('/venues')
+              ? 'bg-white/10 text-white'
+              : 'text-white/60 hover:text-white hover:bg-white/5'
+            }
+          `}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+          </svg>
+          {!collapsed && <span>Venues</span>}
         </Link>
 
         <Link
@@ -174,37 +190,6 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
           {!collapsed && <span>My Tasks</span>}
         </Link>
 
-        <Link
-          href="/team"
-          className={`
-            flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200
-            ${pathname?.startsWith('/team')
-              ? 'bg-white/10 text-white'
-              : 'text-white/60 hover:text-white hover:bg-white/5'
-            }
-          `}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
-          </svg>
-          {!collapsed && <span>Team</span>}
-        </Link>
-
-        <Link
-          href="/agents"
-          className={`
-            flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200
-            ${pathname?.startsWith('/agents') || pathname?.startsWith('/podcast')
-              ? 'bg-white/10 text-white'
-              : 'text-white/60 hover:text-white hover:bg-white/5'
-            }
-          `}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 8V4H8" /><rect width="16" height="12" x="4" y="8" rx="2" /><path d="M2 14h2" /><path d="M20 14h2" /><path d="M15 13v2" /><path d="M9 13v2" />
-          </svg>
-          {!collapsed && <span>Agents</span>}
-        </Link>
 
         {!collapsed && (
           <div className="pt-4 pb-2 px-3">

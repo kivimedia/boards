@@ -519,7 +519,7 @@ export async function runMigration(
 
     for (let bi = 0; bi < config.board_ids.length; bi++) {
       const trelloBoardId = config.board_ids[bi];
-      const boardType = config.board_type_mapping[trelloBoardId] || 'dev';
+      const boardType = config.board_type_mapping[trelloBoardId] || 'general_tasks';
       const boardLabel = `[Board ${bi + 1}/${totalBoards}]`;
 
       // 1. Import board

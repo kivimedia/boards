@@ -5,7 +5,7 @@ import MemberColumn from './MemberColumn';
 import PendingApprovals from './PendingApprovals';
 import type { TeamMemberWorkload } from '@/lib/team-view';
 import { useAuth } from '@/hooks/useAuth';
-import { isAgencyOwner, getAgencyRoleLabel } from '@/lib/permissions';
+import { isBusinessOwner } from '@/lib/permissions';
 
 type Tab = 'workload' | 'pending';
 
@@ -16,7 +16,7 @@ export default function TeamContent() {
   const [pendingCount, setPendingCount] = useState(0);
   const { profile } = useAuth();
 
-  const showApprovalTab = isAgencyOwner(profile?.agency_role ?? null);
+  const showApprovalTab = isBusinessOwner(profile?.business_role ?? null);
 
   useEffect(() => {
     const fetchTeam = async () => {

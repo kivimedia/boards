@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
-import { Card, Label, Profile, Comment, CardPriority, CardSize, AIReviewResult, AIQAResult, BoardType, CustomFieldValue } from '@/lib/types';
+import { Card, Label, Profile, Comment, CardPriority, CardSize, BoardType } from '@/lib/types';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfilingStore } from '@/stores/profiling-store';
 import Modal from '@/components/ui/Modal';
@@ -18,21 +18,12 @@ import CardDependencies from './CardDependencies';
 import CardCustomFields from './CardCustomFields';
 import BriefEditor from './BriefEditor';
 import Avatar from '@/components/ui/Avatar';
-import AIReviewToggle from './AIReviewToggle';
-import AIReviewSubmit from './AIReviewSubmit';
-import AIReviewResults from './AIReviewResults';
-import AIReviewOverride from './AIReviewOverride';
-import AIReviewHistory from './AIReviewHistory';
-import AIQASubmit from './AIQASubmit';
-import AIQAResults from './AIQAResults';
-import AIQAHistory from './AIQAHistory';
 import CardWatchButton from './CardWatchButton';
 import CardPresenceBar from './CardPresenceBar';
 import ClientBrainPanel from '@/components/client/ClientBrainPanel';
-import CardAgentTasksPanel from '@/components/agents/CardAgentTasksPanel';
 import CardApprovalPanel from './CardApprovalPanel';
-import VideoFrameComparison from './VideoFrameComparison';
-import type { FrameVerdict } from '@/lib/ai/design-review';
+import LeadInfoPanel from './LeadInfoPanel';
+import DidntBookPanel from './DidntBookPanel';
 import ReactMarkdown from 'react-markdown';
 
 interface CardModalProps {
@@ -44,7 +35,7 @@ interface CardModalProps {
   onNavigate?: (cardId: string) => void;
 }
 
-type Tab = 'details' | 'brief' | 'checklists' | 'attachments' | 'dependencies' | 'activity' | 'approval' | 'ai-review' | 'ai-qa' | 'brain' | 'agents';
+type Tab = 'details' | 'brief' | 'checklists' | 'attachments' | 'dependencies' | 'activity' | 'approval' | 'brain';
 
 const BASE_TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'details', label: 'Details', icon: '📝' },
@@ -55,28 +46,12 @@ const BASE_TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'activity', label: 'Activity', icon: '📊' },
 ];
 
-const AI_REVIEW_TAB: { key: Tab; label: string; icon: string } = {
-  key: 'ai-review', label: 'AI Review', icon: '🤖',
-};
-
-const AI_REVIEW_BOARD_TYPES: BoardType[] = ['graphic_designer', 'video_editor'];
-
-const AI_QA_TAB: { key: Tab; label: string; icon: string } = {
-  key: 'ai-qa', label: 'AI QA', icon: '🧪',
-};
-
-const AI_QA_BOARD_TYPES: BoardType[] = ['dev'];
-
 const BRAIN_TAB: { key: Tab; label: string; icon: string } = {
   key: 'brain', label: 'Brain', icon: '🧠',
 };
 
 const APPROVAL_TAB: { key: Tab; label: string; icon: string } = {
   key: 'approval', label: 'Approval', icon: '✅',
-};
-
-const AGENTS_TAB: { key: Tab; label: string; icon: string } = {
-  key: 'agents', label: 'Agents', icon: '🤖',
 };
 
 const PRIMARY_TAB_KEYS: Tab[] = ['details', 'brief', 'checklists', 'attachments', 'activity'];
@@ -114,14 +89,6 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
   const [uploadingCover, setUploadingCover] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('details');
   const [boardType, setBoardType] = useState<BoardType | null>(null);
-  const [latestReview, setLatestReview] = useState<AIReviewResult | null>(null);
-  const [showReviewSubmit, setShowReviewSubmit] = useState(false);
-  const [showOverrideModal, setShowOverrideModal] = useState(false);
-  const [reviewRefreshKey, setReviewRefreshKey] = useState(0);
-  const [latestQA, setLatestQA] = useState<AIQAResult | null>(null);
-  const [showQASubmit, setShowQASubmit] = useState(false);
-  const [qaRefreshKey, setQARefreshKey] = useState(0);
-  const [stagingUrl, setStagingUrl] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
@@ -134,17 +101,13 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
   const supabase = createClient();
   const { profile } = useAuth();
 
-  const canOverride = profile?.role === 'admin' || profile?.role === 'department_lead';
-  const showAIReviewTab = boardType ? AI_REVIEW_BOARD_TYPES.includes(boardType) : false;
-  const showAIQATab = boardType ? AI_QA_BOARD_TYPES.includes(boardType) : false;
   const showBrainTab = !!card?.client_id;
+  // Show lead info for pipeline boards (boutique_decor, marquee_letters, private_clients)
+  const isLeadBoard = boardType === 'boutique_decor' || boardType === 'marquee_letters' || boardType === 'private_clients';
   const TABS = [
     ...BASE_TABS,
     APPROVAL_TAB,
-    ...(showAIReviewTab ? [AI_REVIEW_TAB] : []),
-    ...(showAIQATab ? [AI_QA_TAB] : []),
     ...(showBrainTab ? [BRAIN_TAB] : []),
-    AGENTS_TAB,
   ];
 
   const primaryTabs = TABS.filter(t => PRIMARY_TAB_KEYS.includes(t.key));
@@ -185,19 +148,6 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
   useEffect(() => {
     fetchAllCardData();
   }, [cardId, boardId]);
-
-  useEffect(() => {
-    if (showAIReviewTab) {
-      fetchLatestReview();
-    }
-  }, [cardId, showAIReviewTab, reviewRefreshKey]);
-
-  useEffect(() => {
-    if (showAIQATab) {
-      fetchLatestQA();
-      fetchStagingUrl();
-    }
-  }, [cardId, showAIQATab, qaRefreshKey]);
 
   // fetchAllCardData: single API call to get ALL card data (server-side auth)
   const fetchAllCardData = async () => {
@@ -265,73 +215,6 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
     } finally {
       setCardLoading(false);
     }
-  };
-
-  const fetchLatestReview = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/cards/${cardId}/review`);
-      if (!res.ok) return;
-      const json = await res.json();
-      const reviews: AIReviewResult[] = json.data || [];
-      if (reviews.length > 0) {
-        reviews.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        setLatestReview(reviews[0]);
-      } else {
-        setLatestReview(null);
-      }
-    } catch {
-      // Silently fail
-    }
-  }, [cardId]);
-
-  const handleReviewComplete = () => {
-    setShowReviewSubmit(false);
-    setReviewRefreshKey((k) => k + 1);
-  };
-
-  const handleOverrideComplete = () => {
-    setShowOverrideModal(false);
-    setReviewRefreshKey((k) => k + 1);
-  };
-
-  const fetchLatestQA = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/cards/${cardId}/qa`);
-      if (!res.ok) return;
-      const json = await res.json();
-      const qaResults: AIQAResult[] = json.data || [];
-      if (qaResults.length > 0) {
-        qaResults.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        setLatestQA(qaResults[0]);
-      } else {
-        setLatestQA(null);
-      }
-    } catch {
-      // Silently fail
-    }
-  }, [cardId]);
-
-  const fetchStagingUrl = useCallback(async () => {
-    try {
-      const { data } = await supabase
-        .from('custom_field_values')
-        .select('*, definition:custom_field_definitions(*)')
-        .eq('card_id', cardId);
-      const values: CustomFieldValue[] = data || [];
-      const stagingField = values.find(
-        (v) => v.definition && v.definition.name.toLowerCase().includes('staging') && v.definition.field_type === 'url'
-      );
-      if (stagingField && typeof stagingField.value === 'string') {
-        setStagingUrl(stagingField.value);
-      }
-    } catch {
-      // Silently fail
-    }
-  }, [cardId]);
-
-  const handleQAComplete = () => {
-    setShowQASubmit(false);
-    setQARefreshKey((k) => k + 1);
   };
 
   // Refresh: re-fetches card + related data (used after edits)
@@ -807,6 +690,33 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                     boardId={boardId}
                     onRefresh={onRefresh}
                   />
+
+                  {/* Lead Info (pipeline boards only) */}
+                  {isLeadBoard && (
+                    <LeadInfoPanel
+                      cardId={cardId}
+                      eventDate={(card as any).event_date ?? null}
+                      eventType={(card as any).event_type ?? null}
+                      venueName={(card as any).venue_name ?? null}
+                      venueCity={(card as any).venue_city ?? null}
+                      estimatedValue={(card as any).estimated_value ?? null}
+                      leadSource={(card as any).lead_source ?? null}
+                      clientEmail={(card as any).client_email ?? null}
+                      clientPhone={(card as any).client_phone ?? null}
+                      followUpDate={(card as any).follow_up_date ?? null}
+                      onUpdate={(updates) => updateCard(updates as any)}
+                    />
+                  )}
+
+                  {/* Didn't Book (shown when card has a didnt_book_reason or is in a "Didn't Book" list) */}
+                  {isLeadBoard && (
+                    <DidntBookPanel
+                      cardId={cardId}
+                      reason={(card as any).didnt_book_reason ?? null}
+                      subReason={(card as any).didnt_book_sub_reason ?? null}
+                      onUpdate={(updates) => updateCard(updates as any)}
+                    />
+                  )}
                 </div>
 
                 {/* Right column — comments */}
@@ -853,123 +763,6 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
               <CardActivityLog cardId={cardId} />
             )}
 
-            {activeTab === 'ai-review' && (
-              <div className="space-y-6">
-                {/* Toggle / status */}
-                <AIReviewToggle
-                  currentVerdict={latestReview?.overall_verdict || null}
-                  onStartReview={() => setShowReviewSubmit(true)}
-                  isActive={showReviewSubmit}
-                />
-
-                {/* Submit form or results */}
-                {showReviewSubmit ? (
-                  <AIReviewSubmit
-                    cardId={cardId}
-                    onReviewComplete={handleReviewComplete}
-                    onCancel={() => setShowReviewSubmit(false)}
-                  />
-                ) : latestReview ? (
-                  <AIReviewResults
-                    review={latestReview}
-                    onOverride={() => setShowOverrideModal(true)}
-                    onNewReview={() => setShowReviewSubmit(true)}
-                    canOverride={canOverride}
-                  />
-                ) : (
-                  <div className="p-6 rounded-xl bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-center">
-                    <svg className="w-10 h-10 text-navy/15 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                    <p className="text-sm text-navy/40 dark:text-slate-400 font-body mb-3">
-                      No AI review has been run for this card yet.
-                    </p>
-                    <button
-                      onClick={() => setShowReviewSubmit(true)}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-electric text-white hover:bg-electric-bright transition-all shadow-sm"
-                    >
-                      Start First Review
-                    </button>
-                  </div>
-                )}
-
-                {/* Video frame comparison (P9.3) */}
-                {latestReview?.review_type === 'video' && latestReview.frame_verdicts && (latestReview.frame_verdicts as FrameVerdict[]).length > 0 && (
-                  <div className="rounded-xl border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface p-4">
-                    <h4 className="text-sm font-semibold text-navy dark:text-white font-heading mb-3">
-                      Video Frame Analysis
-                    </h4>
-                    <VideoFrameComparison
-                      frameVerdicts={latestReview.frame_verdicts as FrameVerdict[]}
-                      thumbnailSuggestion={latestReview.thumbnail_suggestion ?? undefined}
-                      videoDuration={latestReview.video_duration_seconds ?? undefined}
-                    />
-                  </div>
-                )}
-
-                {/* History */}
-                <AIReviewHistory
-                  cardId={cardId}
-                  currentReviewId={latestReview?.id}
-                  refreshKey={reviewRefreshKey}
-                />
-
-                {/* Override modal */}
-                {showOverrideModal && latestReview && (
-                  <AIReviewOverride
-                    review={latestReview}
-                    cardId={cardId}
-                    onClose={() => setShowOverrideModal(false)}
-                    onOverrideComplete={handleOverrideComplete}
-                  />
-                )}
-              </div>
-            )}
-
-            {activeTab === 'ai-qa' && (
-              <div className="space-y-6">
-                {/* Submit form or results */}
-                {showQASubmit ? (
-                  <AIQASubmit
-                    cardId={cardId}
-                    initialUrl={stagingUrl}
-                    onQAComplete={handleQAComplete}
-                    onCancel={() => setShowQASubmit(false)}
-                  />
-                ) : latestQA ? (
-                  <AIQAResults
-                    qa={latestQA}
-                    onNewQA={() => setShowQASubmit(true)}
-                  />
-                ) : (
-                  <div className="p-6 rounded-xl bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-center">
-                    <svg className="w-10 h-10 text-navy/15 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                    <p className="text-sm text-navy/40 dark:text-slate-400 font-body mb-3">
-                      No AI QA analysis has been run for this card yet.
-                    </p>
-                    <button
-                      onClick={() => setShowQASubmit(true)}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-electric text-white hover:bg-electric-bright transition-all shadow-sm"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                      </svg>
-                      Run First QA Analysis
-                    </button>
-                  </div>
-                )}
-
-                {/* History */}
-                <AIQAHistory
-                  cardId={cardId}
-                  currentQAId={latestQA?.id}
-                  refreshKey={qaRefreshKey}
-                />
-              </div>
-            )}
-
             {activeTab === 'brain' && card?.client_id && (
               <ClientBrainPanel clientId={card.client_id} />
             )}
@@ -983,10 +776,6 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                   onRefresh();
                 }}
               />
-            )}
-
-            {activeTab === 'agents' && (
-              <CardAgentTasksPanel cardId={cardId} />
             )}
           </div>
 

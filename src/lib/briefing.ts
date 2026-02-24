@@ -69,10 +69,9 @@ function isFieldFilled(value: unknown, fieldType: string): boolean {
  * Get the board types that have briefing templates available.
  */
 export const BOARD_TYPES_WITH_BRIEFS: string[] = [
-  'graphic_designer',
-  'dev',
-  'copy',
-  'video_editor',
+  'boutique_decor',
+  'marquee_letters',
+  'private_clients',
 ];
 
 /**

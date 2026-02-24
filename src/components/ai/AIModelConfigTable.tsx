@@ -31,22 +31,16 @@ function getModelsForProvider(provider: AIProvider): string[] {
 
 // Hardcoded defaults to detect unmodified configs
 const DEFAULTS: Record<AIActivity, { provider: AIProvider; model_id: string; temperature: number; max_tokens: number }> = {
-  design_review: { provider: 'anthropic', model_id: 'claude-sonnet-4-5-20250929', temperature: 0.3, max_tokens: 4096 },
-  dev_qa: { provider: 'anthropic', model_id: 'claude-sonnet-4-5-20250929', temperature: 0.2, max_tokens: 4096 },
   chatbot_ticket: { provider: 'anthropic', model_id: 'claude-sonnet-4-5-20250929', temperature: 0.7, max_tokens: 2048 },
   chatbot_board: { provider: 'anthropic', model_id: 'claude-sonnet-4-5-20250929', temperature: 0.7, max_tokens: 4096 },
   chatbot_global: { provider: 'anthropic', model_id: 'claude-sonnet-4-5-20250929', temperature: 0.7, max_tokens: 4096 },
-  client_brain: { provider: 'anthropic', model_id: 'claude-sonnet-4-5-20250929', temperature: 0.5, max_tokens: 4096 },
-  nano_banana_edit: { provider: 'google', model_id: 'gemini-2.0-flash-exp', temperature: 0.7, max_tokens: 1024 },
-  nano_banana_generate: { provider: 'google', model_id: 'gemini-2.0-flash-exp', temperature: 0.8, max_tokens: 1024 },
   email_draft: { provider: 'anthropic', model_id: 'claude-sonnet-4-5-20250929', temperature: 0.6, max_tokens: 2048 },
-  video_generation: { provider: 'openai', model_id: 'sora-2', temperature: 0.7, max_tokens: 1024 },
   brief_assist: { provider: 'anthropic', model_id: 'claude-haiku-4-5-20251001', temperature: 0.5, max_tokens: 1024 },
-  agent_execution: { provider: 'anthropic', model_id: 'claude-sonnet-4-5-20250929', temperature: 0.4, max_tokens: 8192 },
-  agent_standalone_execution: { provider: 'anthropic', model_id: 'claude-sonnet-4-5-20250929', temperature: 0.4, max_tokens: 8192 },
-  web_research: { provider: 'anthropic', model_id: 'claude-sonnet-4-5-20250929', temperature: 0.3, max_tokens: 8192 },
-  replicate_generate: { provider: 'replicate', model_id: 'flux-1.1-pro', temperature: 0.8, max_tokens: 1024 },
   image_prompt_enhance: { provider: 'anthropic', model_id: 'claude-haiku-4-5-20251001', temperature: 0.7, max_tokens: 1024 },
+  proposal_generation: { provider: 'anthropic', model_id: 'claude-sonnet-4-5-20250929', temperature: 0.5, max_tokens: 4096 },
+  lead_triage: { provider: 'anthropic', model_id: 'claude-haiku-4-5-20251001', temperature: 0.3, max_tokens: 2048 },
+  follow_up_draft: { provider: 'anthropic', model_id: 'claude-sonnet-4-5-20250929', temperature: 0.6, max_tokens: 2048 },
+  friendor_email: { provider: 'anthropic', model_id: 'claude-sonnet-4-5-20250929', temperature: 0.6, max_tokens: 2048 },
 };
 
 function isDefaultConfig(config: AIModelConfig): boolean {
