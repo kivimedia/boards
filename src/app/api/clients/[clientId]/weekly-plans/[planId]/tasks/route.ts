@@ -10,9 +10,11 @@ interface CreateTaskBody {
   title: string;
   description?: string;
   owner_id?: string;
+  assignee_name?: string | null;
   day_start?: number;
   day_end?: number;
   priority?: string;
+  color?: string | null;
 }
 
 /**
@@ -27,7 +29,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   if (!body.ok) return body.response;
 
   const { planId } = await params;
-  const { title, description, owner_id, day_start, day_end, priority } = body.body;
+  const { title, description, owner_id, assignee_name, day_start, day_end, priority, color } = body.body;
 
   if (!title?.trim()) return errorResponse('Task title is required');
 
@@ -36,9 +38,11 @@ export async function POST(request: NextRequest, { params }: Params) {
       title: title.trim(),
       description,
       owner_id,
+      assignee_name,
       day_start,
       day_end,
       priority,
+      color,
     });
     return successResponse(task, 201);
   } catch (err) {

@@ -22,14 +22,8 @@ export default async function ClientWeeklyGanttPage({ params }: PageProps) {
 
   if (!client) notFound();
 
-  // Fetch team members for owner picker
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('id, display_name, avatar_url, role')
-    .eq('account_status', 'active')
-    .order('display_name');
-
-  const contacts = (client.contacts ?? []) as { email: string; name: string }[];
+  // Client contacts serve as the assignee list (not agency team members)
+  const contacts = (client.contacts ?? []) as { name: string; email?: string; phone?: string; role?: string }[];
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -40,7 +34,6 @@ export default async function ClientWeeklyGanttPage({ params }: PageProps) {
           clientId={client.id}
           clientName={client.name}
           clientContacts={contacts}
-          teamMembers={profiles || []}
         />
       </main>
     </div>

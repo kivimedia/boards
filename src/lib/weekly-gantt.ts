@@ -133,9 +133,11 @@ export async function createTask(
     title: string;
     description?: string;
     owner_id?: string;
+    assignee_name?: string | null;
     day_start?: number;
     day_end?: number;
     priority?: string;
+    color?: string | null;
   }
 ): Promise<WeeklyTask> {
   // Get max sort_order
@@ -156,9 +158,11 @@ export async function createTask(
       title: task.title,
       description: task.description || null,
       owner_id: task.owner_id || null,
+      assignee_name: task.assignee_name ?? null,
       day_start: task.day_start ?? 1,
       day_end: task.day_end ?? 1,
       priority: task.priority ?? 'medium',
+      color: task.color ?? null,
       sort_order: nextOrder,
     })
     .select()
@@ -175,11 +179,13 @@ export async function updateTask(
     title: string;
     description: string | null;
     owner_id: string | null;
+    assignee_name: string | null;
     day_start: number;
     day_end: number;
     completed: boolean;
     sort_order: number;
     priority: string;
+    color: string | null;
     reminder_at: string | null;
     reminder_sent: boolean;
   }>
@@ -260,10 +266,12 @@ export async function copyFromPlan(
     title: t.title,
     description: t.description,
     owner_id: t.owner_id,
+    assignee_name: t.assignee_name ?? null,
     day_start: t.day_start,
     day_end: t.day_end,
     completed: false,
     priority: t.priority,
+    color: t.color ?? null,
     sort_order: i,
   }));
 
@@ -470,24 +478,26 @@ export function buildPrintHtml(
   clientName: string,
   weekStart: string,
   tasks: WeeklyTask[],
-  teamMembers: { id: string; display_name: string }[]
+  teamMembers?: { id: string; display_name: string }[]
 ): string {
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekEnd.getDate() + 6);
   const weekLabel = `${formatDate(weekStart)} – ${formatDate(weekEnd.toISOString().split('T')[0])}`;
 
-  const ownerMap = new Map(teamMembers.map((m) => [m.id, m.display_name]));
+  const ownerMap = new Map((teamMembers ?? []).map((m) => [m.id, m.display_name]));
 
   const taskRows = tasks
     .map((t) => {
-      const owner = t.owner_id ? (ownerMap.get(t.owner_id) ?? '—') : '—';
+      const owner = t.assignee_name || (t.owner_id ? (ownerMap.get(t.owner_id) ?? '—') : '—');
+      const hex = taskBarHex(t);
       const dayCells = [1, 2, 3, 4, 5, 6, 7]
         .map((d) => {
           const inRange = d >= t.day_start && d <= t.day_end;
           const bg = inRange
-            ? t.completed ? '#dcfce7' : (t.priority === 'high' ? '#fef3c7' : '#dbeafe')
+            ? t.completed ? '#dcfce7' : `${hex}22`
             : 'transparent';
-          return `<td style="width: 60px; text-align: center; padding: 6px; background: ${bg}; border: 1px solid #e5e7eb;">${inRange ? (t.completed ? '&#10003;' : '&bull;') : ''}</td>`;
+          const border = inRange ? `border-top: 2px solid ${t.completed ? '#22c55e' : hex}; border-bottom: 2px solid ${t.completed ? '#22c55e' : hex};` : '';
+          return `<td style="width: 60px; text-align: center; padding: 6px; background: ${bg}; border: 1px solid #e5e7eb; ${border}">${inRange ? (t.completed ? '&#10003;' : '&bull;') : ''}</td>`;
         })
         .join('');
 
@@ -549,6 +559,20 @@ export function buildPrintHtml(
 // ============================================================================
 // INTERNAL HELPERS
 // ============================================================================
+
+const TASK_COLOR_HEX: Record<string, string> = {
+  blue: '#3b82f6', purple: '#8b5cf6', green: '#22c55e', orange: '#f97316',
+  red: '#ef4444', pink: '#ec4899', teal: '#14b8a6', yellow: '#eab308',
+};
+
+const PRIORITY_HEX: Record<string, string> = {
+  high: '#fb923c', medium: '#6366f1', low: '#4ade80',
+};
+
+function taskBarHex(task: WeeklyTask): string {
+  if (task.color && TASK_COLOR_HEX[task.color]) return TASK_COLOR_HEX[task.color];
+  return PRIORITY_HEX[task.priority] || PRIORITY_HEX.medium;
+}
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
