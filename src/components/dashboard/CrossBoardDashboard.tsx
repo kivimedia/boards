@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { BOARD_TYPE_CONFIG } from '@/lib/constants';
 import PipelineView from '@/components/dashboard/PipelineView';
 import type { Board, BoardType } from '@/lib/types';
+import { slugify } from '@/lib/slugify';
 
 interface ListSummary {
   id: string;
@@ -142,7 +143,7 @@ export default function CrossBoardDashboard() {
             return (
               <Link
                 key={summary.board.id}
-                href={`/board/${summary.board.id}`}
+                href={`/board/${slugify(summary.board.name)}`}
                 className="group block bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 hover:border-transparent p-5 transition-all duration-200 hover:shadow-lg dark:hover:shadow-none"
                 style={{
                   ['--board-color' as string]: boardColor,

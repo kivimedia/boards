@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Board } from '@/lib/types';
 import { BOARD_TYPE_CONFIG } from '@/lib/constants';
+import { slugify } from '@/lib/slugify';
 import { createClient } from '@/lib/supabase/client';
 import CreateBoardModal from './CreateBoardModal';
 import Avatar from '@/components/ui/Avatar';
@@ -79,7 +80,7 @@ export default function DashboardContent({ initialBoards, stats }: DashboardCont
     return (
       <div key={board.id} className={`relative group ${isArchived ? 'opacity-60' : ''}`}>
         <Link
-          href={`/board/${board.id}`}
+          href={`/board/${slugify(board.name)}`}
           className="block bg-white dark:bg-dark-surface rounded-2xl p-5 shadow-card dark:shadow-none dark:border dark:border-slate-700 hover:shadow-card-hover hover:translate-y-[-2px] border border-transparent hover:border-electric/20 transition-all duration-200"
         >
           <div className="flex items-start gap-3">
