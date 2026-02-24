@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { BoardType } from '@/lib/types';
 import { BOARD_TYPE_CONFIG } from '@/lib/constants';
+import { slugify } from '@/lib/slugify';
 import { getDefaultAutomationRules } from '@/lib/automation-engine';
 import Modal from '@/components/ui/Modal';
 import Input from '@/components/ui/Input';
@@ -106,7 +107,7 @@ export default function CreateBoardModal({ isOpen, onClose }: CreateBoardModalPr
     setType('dev');
     setLoading(false);
     onClose();
-    router.push(`/board/${board.id}`);
+    router.push(`/board/${slugify(board.name)}`);
     router.refresh();
   };
 

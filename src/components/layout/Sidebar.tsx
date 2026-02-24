@@ -11,6 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePresence } from '@/hooks/usePresence';
 import Avatar from '@/components/ui/Avatar';
 import { useAppStore } from '@/stores/app-store';
+import { slugify } from '@/lib/slugify';
 
 interface SidebarProps {
   initialBoards?: Board[];
@@ -254,11 +255,11 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
           .sort((a, b) => (a.is_starred === b.is_starred ? 0 : a.is_starred ? -1 : 1))
           .map((board) => {
           const config = BOARD_TYPE_CONFIG[board.type];
-          const isActive = pathname === `/board/${board.id}`;
+          const isActive = pathname === `/board/${slugify(board.name)}`;
           return (
             <Link
               key={board.id}
-              href={`/board/${board.id}`}
+              href={`/board/${slugify(board.name)}`}
               className={`
                 group/board flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all duration-200
                 ${isActive
@@ -306,11 +307,11 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
               .filter(b => b.is_archived)
               .map((board) => {
                 const config = BOARD_TYPE_CONFIG[board.type];
-                const isActive = pathname === `/board/${board.id}`;
+                const isActive = pathname === `/board/${slugify(board.name)}`;
                 return (
                   <Link
                     key={board.id}
-                    href={`/board/${board.id}`}
+                    href={`/board/${slugify(board.name)}`}
                     className={`
                       flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all duration-200 opacity-50
                       ${isActive
