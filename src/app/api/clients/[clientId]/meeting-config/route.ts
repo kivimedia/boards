@@ -29,6 +29,7 @@ export async function POST(request: NextRequest, { params }: Params) {
         client_id: params.clientId,
         calendar_event_keyword: body.calendar_event_keyword,
         update_timing: body.update_timing || '1_hour_before',
+        custom_minutes: body.custom_minutes ?? null,
         send_mode: body.send_mode || 'approve',
         is_active: body.is_active ?? true,
         send_to_contacts: body.send_to_contacts || [],
@@ -53,6 +54,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     const updates: Record<string, unknown> = {};
     if (body.calendar_event_keyword !== undefined) updates.calendar_event_keyword = body.calendar_event_keyword;
     if (body.update_timing !== undefined) updates.update_timing = body.update_timing;
+    if (body.custom_minutes !== undefined) updates.custom_minutes = body.custom_minutes;
     if (body.send_mode !== undefined) updates.send_mode = body.send_mode;
     if (body.is_active !== undefined) updates.is_active = body.is_active;
     if (body.send_to_contacts !== undefined) updates.send_to_contacts = body.send_to_contacts;
