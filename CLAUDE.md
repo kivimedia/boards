@@ -5,9 +5,22 @@ Carolina Balloons HQ is a purpose-built business management platform for Carolin
 
 Built with Next.js 14, Supabase, Tailwind CSS, TypeScript. See `Carolina-Balloons-HQ-PRD.md` in the parent directory for full requirements.
 
+## Session Summary (2026-02-24)
+
+### Scrapling Stealth Scraping Integration
+1. **Python microservice** -- `scripts/scrapling-service/` with FastAPI server exposing 4 endpoints (/fetch, /dynamic, /stealth, /extract). Uses Python 3.12 venv with scrapling[all]. Three fetcher tiers: Fetcher (curl_cffi HTTP+TLS spoofing), DynamicFetcher (Playwright/Chromium), StealthyFetcher (Camoufox modified Firefox for anti-bot bypass).
+2. **TypeScript client** -- `src/lib/integrations/scrapling.ts` with `scraplingFetch()`, `scraplingDynamic()`, `scraplingStealthy()`, `scraplingExtract()`, and `scraplingTieredFetch()` (auto-escalation). Health check via `isScraplingAvailable()`.
+3. **Browserless fallback** -- `browserless.ts` getContent() now auto-detects Cloudflare/403 blocks and falls back to Scrapling tiered fetch. Added `stealthFetch()` and `stealthScrape()` methods to BrowserlessClient.
+4. **Web Research stealth tools** -- `web-research.ts` added 2 new Claude tools: `stealth_navigate` (Camoufox page fetch) and `stealth_extract` (adaptive CSS extraction). Claude can invoke these when standard tools get blocked.
+5. **Scout Pipeline LinkedIn enrichment** -- `scout-pipeline.ts` Step 3 now pre-fetches LinkedIn profiles via StealthyFetcher before Claude research, injecting richer content into the research prompt.
+6. **Skill documentation** -- `agent-skill-seeds.ts` web-research skill updated: tier solid→genuinely_smart (70→82), 7 tools (added stealth pair), documented Scrapling integration in reference_docs and improvement_log.
+7. **Start command**: `cd scripts/scrapling-service && .venv/Scripts/uvicorn server:app --port 8099`
+
 ## Users
 - **Halley Foye** (Owner): Full access to all boards, settings, analytics, AI config. Approves proposals. Creates invoices. Role: `owner`
 - **Tiffany** (VA): Access to VA Workspace, Private Clients. Can create proposals for review. Cannot modify pricing/products. Role: `va`
+
+## Session Summary (2026-02-17, continued)
 
 ## Board Types (6)
 | Type | Icon | Lists | Purpose |

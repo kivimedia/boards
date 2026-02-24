@@ -6,8 +6,8 @@
  * Falls back to using fetch against the PostgREST API to verify.
  */
 
-const SUPABASE_URL = 'https://uqoogrnrzfsurupqkgco.supabase.co';
-const SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxb29ncm5yemZzdXJ1cHFrZ2NvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MDYzODUwNiwiZXhwIjoyMDg2MjE0NTA2fQ.QYcsbVFG1p2yZiuZXO0yHf-JTUXwnlzgMbYjV8r-gF0';
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const headers = {
   'apikey': SERVICE_KEY,

@@ -29,8 +29,8 @@ export async function POST(
   const { query, boardId } = body;
   if (!query) return errorResponse('query is required');
 
-  const anthropic = await createAnthropicClient(supabase);
-  if (!anthropic) return errorResponse('AI not configured. Add an Anthropic key in Settings > AI Configuration.', 500);
+  const client = await createAnthropicClient(supabase);
+  if (!client) return errorResponse('AI not configured. Add an Anthropic key in Settings > AI Configuration.', 500);
 
   try {
     // Gather card context in parallel
@@ -154,7 +154,6 @@ You MUST respond with a valid JSON object:
 Make suggested questions specific to this card's actual content.
 IMPORTANT: Your entire response must be valid JSON.`;
 
-    const client = anthropic;
     const encoder = new TextEncoder();
 
     const readable = new ReadableStream({

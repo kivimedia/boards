@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { getAuthContext, errorResponse } from '@/lib/api-helpers';
-import Anthropic from '@anthropic-ai/sdk';
+import { createAnthropicClient } from '@/lib/ai/providers';
 
 export const maxDuration = 60;
 
@@ -27,9 +27,9 @@ export async function POST(request: NextRequest) {
     return errorResponse('query is required');
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return errorResponse('AI assistant not configured', 500);
+  const client = await createAnthropicClient(supabase);
+  if (!client) {
+    return errorResponse('AI assistant not configured. Add your Anthropic API key in Settings > AI.', 500);
   }
 
   try {
@@ -120,7 +120,6 @@ Rules:
 - Detect mood from the question phrasing.
 - Your entire response must be valid JSON. No text before or after the JSON.`;
 
-    const client = new Anthropic({ apiKey });
     const encoder = new TextEncoder();
 
     const readable = new ReadableStream({
