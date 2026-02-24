@@ -3,6 +3,8 @@
 import { useState, useMemo, useCallback, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
+import remarkMentions from '@/lib/remark-mentions';
 import { Comment } from '@/lib/types';
 import Avatar from '@/components/ui/Avatar';
 import Button from '@/components/ui/Button';
@@ -324,7 +326,8 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
             ) : (
               <div className="text-sm text-navy/70 dark:text-slate-300 mt-0.5 font-body prose prose-sm dark:prose-invert max-w-full prose-p:my-0.5 prose-p:font-body prose-a:text-electric prose-a:no-underline hover:prose-a:underline prose-code:text-electric prose-code:bg-electric/10 prose-code:px-1 prose-code:rounded prose-ul:my-1 prose-ol:my-1 prose-li:my-0 [overflow-wrap:break-word] [word-break:break-word]">
                 <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
+                  remarkPlugins={[remarkGfm, remarkMentions]}
+                  rehypePlugins={[rehypeRaw]}
                   components={{
                     a: ({ href, children }) => (
                       <a href={href} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
