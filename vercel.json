@@ -16,7 +16,12 @@
     "src/app/api/migration/jobs/*/backfill-attachments/route.ts": { "maxDuration": 300 },
     "src/app/api/migration/jobs/*/fix-positions/route.ts": { "maxDuration": 300 },
     "src/app/api/cron/performance-sync/route.ts": { "maxDuration": 300 },
-    "src/app/api/performance/sync/route.ts": { "maxDuration": 300 }
+    "src/app/api/performance/sync/route.ts": { "maxDuration": 300 },
+    "src/app/api/cron/calendar-sync/route.ts": { "maxDuration": 60 },
+    "src/app/api/cron/client-updates/route.ts": { "maxDuration": 300 },
+    "src/app/api/cron/meeting-prep/route.ts": { "maxDuration": 60 },
+    "src/app/api/meeting-prep/*/chat/route.ts": { "maxDuration": 120 },
+    "src/app/api/clients/*/weekly-updates/route.ts": { "maxDuration": 120 }
   },
   "crons": [
     {
@@ -30,6 +35,18 @@
     {
       "path": "/api/cron/performance-sync",
       "schedule": "0 4,16 * * *"
+    },
+    {
+      "path": "/api/cron/calendar-sync",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/client-updates",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/meeting-prep",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

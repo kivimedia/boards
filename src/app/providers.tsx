@@ -6,6 +6,7 @@ import ErrorBoundary from '@/components/ErrorBoundary';
 import KeyboardShortcutsProvider from '@/components/layout/KeyboardShortcutsProvider';
 import ProfilingPopup from '@/components/profiling/ProfilingPopup';
 import PageProfiler from '@/components/profiling/PageProfiler';
+import MeetingPrepProvider from '@/components/meeting-prep/MeetingPrepProvider';
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -24,7 +25,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <KeyboardShortcutsProvider>
-          {children}
+          <MeetingPrepProvider>
+            {children}
+          </MeetingPrepProvider>
           <PageProfiler />
           <ProfilingPopup />
         </KeyboardShortcutsProvider>

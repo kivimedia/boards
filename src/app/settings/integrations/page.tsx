@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import SidebarWithBoards from '@/components/layout/SidebarWithBoards';
 import Header from '@/components/layout/Header';
 import IntegrationList from '@/components/integrations/IntegrationList';
+import GoogleCalendarConnect from '@/components/client-updates/GoogleCalendarConnect';
 
 export default async function IntegrationsSettingsPage() {
   const supabase = createServerSupabaseClient();
@@ -22,10 +23,13 @@ export default async function IntegrationsSettingsPage() {
             <div className="mb-6">
               <h2 className="text-lg font-bold text-navy font-heading">Integrations</h2>
               <p className="text-sm text-navy/50 font-body mt-1">
-                Connect Slack, GitHub, and Figma to streamline your workflow.
+                Connect Slack, GitHub, Figma, and Google Calendar to streamline your workflow.
               </p>
             </div>
-            <IntegrationList />
+            <GoogleCalendarConnect />
+            <div className="mt-8">
+              <IntegrationList />
+            </div>
           </div>
         </div>
       </main>
