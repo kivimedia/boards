@@ -6,7 +6,6 @@ import type {
   AgentToolCall,
   CardAgentTask,
   SkillImprovementLog,
-  SkillRevision,
   SkillQualityDashboard,
   AgentExecutionStats,
   AgentQualityTier,
@@ -15,18 +14,59 @@ import type {
   AgentExecutionStatus,
 } from './types';
 
-/**
- * Agent engine — re-expanded with skill revision tracking, quality dashboard,
- * seeding, and improvement utilities.
- * These exports satisfy the imports in api/agents/sessions and api/agents/skills routes.
- */
+// ============================================================================
+// SKILL LIBRARY CRUD
+// ============================================================================
 
-export async function getSkill(supabase: SupabaseClient, skillId: string) {
-  const { data } = await supabase
+export async function listSkills(
+  supabase: SupabaseClient,
+  filters?: {
+    category?: AgentSkillCategory;
+    pack?: AgentSkillPack;
+    quality_tier?: AgentQualityTier;
+    is_active?: boolean;
+    search?: string;
+  }
+): Promise<AgentSkill[]> {
+  let query = supabase
+    .from('agent_skills')
+    .select('*')
+    .order('sort_order', { ascending: true });
+
+  if (filters?.category) query = query.eq('category', filters.category);
+  if (filters?.pack) query = query.eq('pack', filters.pack);
+  if (filters?.quality_tier) query = query.eq('quality_tier', filters.quality_tier);
+  if (filters?.is_active !== undefined) query = query.eq('is_active', filters.is_active);
+  if (filters?.search) query = query.or(`name.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
+
+  const { data, error } = await query;
+  if (error) throw new Error(`Failed to list skills: ${error.message}`);
+  return data ?? [];
+}
+
+export async function getSkill(
+  supabase: SupabaseClient,
+  skillId: string
+): Promise<AgentSkill | null> {
+  const { data, error } = await supabase
     .from('agent_skills')
     .select('*')
     .eq('id', skillId)
     .single();
+  if (error) return null;
+  return data;
+}
+
+export async function getSkillBySlug(
+  supabase: SupabaseClient,
+  slug: string
+): Promise<AgentSkill | null> {
+  const { data, error } = await supabase
+    .from('agent_skills')
+    .select('*')
+    .eq('slug', slug)
+    .single();
+  if (error) return null;
   return data;
 }
 
@@ -34,107 +74,388 @@ export async function updateSkill(
   supabase: SupabaseClient,
   skillId: string,
   updates: Partial<AgentSkill>,
-  changedBy?: string
+  _userId?: string
 ): Promise<AgentSkill> {
-  // 1. Fetch current state for revision snapshot
-  const { data: current, error: fetchErr } = await supabase
-    .from('agent_skills')
-    .select('*')
-    .eq('id', skillId)
-    .single();
-  if (fetchErr || !current) throw new Error(`Skill not found: ${fetchErr?.message ?? skillId}`);
-
-  // 2. Detect which fields actually changed
-  const changedFields = Object.keys(updates).filter(key => {
-    return JSON.stringify((current as Record<string, unknown>)[key])
-      !== JSON.stringify((updates as Record<string, unknown>)[key]);
-  });
-
-  // 3. Snapshot before updating (only if something changed)
-  if (changedFields.length > 0) {
-    const { data: maxRev } = await supabase
-      .from('skill_revisions')
-      .select('revision_number')
-      .eq('skill_id', skillId)
-      .order('revision_number', { ascending: false })
-      .limit(1)
-      .single();
-
-    const nextRevision = (maxRev?.revision_number ?? 0) + 1;
-
-    await supabase.from('skill_revisions').insert({
-      skill_id: skillId,
-      changed_by: changedBy ?? null,
-      change_summary: changedFields.join(', '),
-      snapshot: current,
-      revision_number: nextRevision,
-    });
-  }
-
-  // 4. Perform the actual update
   const { data, error } = await supabase
     .from('agent_skills')
     .update(updates)
     .eq('id', skillId)
-    .select('*')
+    .select()
     .single();
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(`Failed to update skill: ${error.message}`);
+  return data;
+}
+
+export async function createSkill(
+  supabase: SupabaseClient,
+  skill: Omit<AgentSkill, 'id' | 'created_at' | 'updated_at'>
+): Promise<AgentSkill> {
+  const { data, error } = await supabase
+    .from('agent_skills')
+    .insert(skill)
+    .select()
+    .single();
+  if (error) throw new Error(`Failed to create skill: ${error.message}`);
   return data;
 }
 
 // ============================================================================
-// SKILL REVISION HISTORY
+// BOARD AGENTS CRUD
 // ============================================================================
 
-export async function getSkillRevisions(
+export async function listBoardAgents(
   supabase: SupabaseClient,
-  skillId: string,
-  limit = 20
-): Promise<SkillRevision[]> {
-  const { data, error } = await supabase
-    .from('skill_revisions')
-    .select('*')
-    .eq('skill_id', skillId)
-    .order('revision_number', { ascending: false })
-    .limit(limit);
-  if (error) throw new Error(`Failed to get revisions: ${error.message}`);
+  boardId: string,
+  includeInactive = false
+): Promise<BoardAgent[]> {
+  let query = supabase
+    .from('board_agents')
+    .select('*, skill:agent_skills(*)')
+    .eq('board_id', boardId)
+    .order('created_at', { ascending: true });
+
+  if (!includeInactive) {
+    query = query.eq('is_active', true);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error(`Failed to list board agents: ${error.message}`);
   return data ?? [];
 }
 
-export async function restoreSkillRevision(
+export async function getBoardAgent(
   supabase: SupabaseClient,
-  skillId: string,
-  revisionId: string,
-  restoredBy?: string
-): Promise<AgentSkill> {
-  // 1. Fetch the revision (verify it belongs to this skill)
-  const { data: revision, error: revErr } = await supabase
-    .from('skill_revisions')
-    .select('*')
-    .eq('id', revisionId)
-    .eq('skill_id', skillId)
+  agentId: string
+): Promise<BoardAgent | null> {
+  const { data, error } = await supabase
+    .from('board_agents')
+    .select('*, skill:agent_skills(*)')
+    .eq('id', agentId)
     .single();
-  if (revErr || !revision) throw new Error(`Revision not found: ${revErr?.message ?? revisionId}`);
+  if (error) return null;
+  return data;
+}
 
-  // 2. Extract restorable fields from snapshot
-  const snap = revision.snapshot as Record<string, unknown>;
-  const restoreFields: Partial<AgentSkill> = {
-    name: snap.name as string,
-    description: snap.description as string,
-    system_prompt: snap.system_prompt as string,
-    quality_score: snap.quality_score as number,
-    quality_tier: snap.quality_tier as AgentQualityTier,
-    quality_notes: (snap.quality_notes as string) ?? null,
-    is_active: snap.is_active as boolean,
-    icon: (snap.icon as string) ?? null,
-    strengths: snap.strengths as string[],
-    weaknesses: snap.weaknesses as string[],
-    improvement_suggestions: snap.improvement_suggestions as string[],
-    reference_docs: snap.reference_docs as AgentSkill['reference_docs'],
-  };
+export async function addAgentToBoard(
+  supabase: SupabaseClient,
+  boardId: string,
+  skillId: string,
+  config?: {
+    custom_prompt_additions?: string;
+    model_preference?: string;
+    auto_trigger_on?: string[];
+    requires_confirmation?: boolean;
+  }
+): Promise<BoardAgent> {
+  const { data, error } = await supabase
+    .from('board_agents')
+    .insert({
+      board_id: boardId,
+      skill_id: skillId,
+      ...config,
+    })
+    .select('*, skill:agent_skills(*)')
+    .single();
+  if (error) throw new Error(`Failed to add agent to board: ${error.message}`);
+  return data;
+}
 
-  // 3. updateSkill auto-snapshots current state before applying the restore
-  return updateSkill(supabase, skillId, restoreFields, restoredBy);
+export async function updateBoardAgent(
+  supabase: SupabaseClient,
+  agentId: string,
+  updates: Partial<BoardAgent>
+): Promise<BoardAgent> {
+  const { data, error } = await supabase
+    .from('board_agents')
+    .update(updates)
+    .eq('id', agentId)
+    .select('*, skill:agent_skills(*)')
+    .single();
+  if (error) throw new Error(`Failed to update board agent: ${error.message}`);
+  return data;
+}
+
+export async function removeAgentFromBoard(
+  supabase: SupabaseClient,
+  agentId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('board_agents')
+    .delete()
+    .eq('id', agentId);
+  if (error) throw new Error(`Failed to remove agent: ${error.message}`);
+}
+
+// ============================================================================
+// AGENT EXECUTION
+// ============================================================================
+
+export async function createExecution(
+  supabase: SupabaseClient,
+  params: {
+    board_agent_id: string;
+    skill_id: string;
+    board_id?: string;
+    card_id?: string;
+    user_id: string;
+    trigger_type: string;
+    trigger_data?: Record<string, unknown>;
+    input_message: string;
+    input_context?: Record<string, unknown>;
+  }
+): Promise<AgentExecution> {
+  const { data, error } = await supabase
+    .from('agent_executions')
+    .insert({
+      board_agent_id: params.board_agent_id,
+      skill_id: params.skill_id,
+      board_id: params.board_id ?? null,
+      card_id: params.card_id ?? null,
+      user_id: params.user_id,
+      trigger_type: params.trigger_type,
+      trigger_data: params.trigger_data ?? {},
+      input_message: params.input_message,
+      input_context: params.input_context ?? {},
+      status: 'running',
+    })
+    .select()
+    .single();
+  if (error) throw new Error(`Failed to create execution: ${error.message}`);
+  return data;
+}
+
+export async function completeExecution(
+  supabase: SupabaseClient,
+  executionId: string,
+  result: {
+    status: AgentExecutionStatus;
+    output_response?: string;
+    output_artifacts?: { type: string; content: string; filename?: string }[];
+    model_used?: string;
+    iterations_used?: number;
+    input_tokens?: number;
+    output_tokens?: number;
+    cost_usd?: number;
+    duration_ms?: number;
+    error_message?: string;
+  }
+): Promise<AgentExecution> {
+  const { data, error } = await supabase
+    .from('agent_executions')
+    .update({
+      ...result,
+      completed_at: new Date().toISOString(),
+    })
+    .eq('id', executionId)
+    .select()
+    .single();
+  if (error) throw new Error(`Failed to complete execution: ${error.message}`);
+  return data;
+}
+
+export async function rateExecution(
+  supabase: SupabaseClient,
+  executionId: string,
+  rating: {
+    quality_rating: number;
+    quality_feedback?: string;
+    was_useful?: boolean;
+  }
+): Promise<void> {
+  const { error } = await supabase
+    .from('agent_executions')
+    .update(rating)
+    .eq('id', executionId);
+  if (error) throw new Error(`Failed to rate execution: ${error.message}`);
+}
+
+export async function listExecutions(
+  supabase: SupabaseClient,
+  filters: {
+    board_agent_id?: string;
+    skill_id?: string;
+    card_id?: string;
+    user_id?: string;
+    status?: AgentExecutionStatus;
+    limit?: number;
+    offset?: number;
+  }
+): Promise<AgentExecution[]> {
+  let query = supabase
+    .from('agent_executions')
+    .select('*, skill:agent_skills(id, name, slug, icon, color)')
+    .order('created_at', { ascending: false })
+    .limit(filters.limit ?? 50);
+
+  if (filters.board_agent_id) query = query.eq('board_agent_id', filters.board_agent_id);
+  if (filters.skill_id) query = query.eq('skill_id', filters.skill_id);
+  if (filters.card_id) query = query.eq('card_id', filters.card_id);
+  if (filters.user_id) query = query.eq('user_id', filters.user_id);
+  if (filters.status) query = query.eq('status', filters.status);
+  if (filters.offset) query = query.range(filters.offset, filters.offset + (filters.limit ?? 50) - 1);
+
+  const { data, error } = await query;
+  if (error) throw new Error(`Failed to list executions: ${error.message}`);
+  return data ?? [];
+}
+
+// ============================================================================
+// TOOL CALLS
+// ============================================================================
+
+export async function createToolCall(
+  supabase: SupabaseClient,
+  executionId: string,
+  toolCall: {
+    tool_name: string;
+    tool_input: Record<string, unknown>;
+    call_order: number;
+  }
+): Promise<AgentToolCall> {
+  const { data, error } = await supabase
+    .from('agent_tool_calls')
+    .insert({
+      execution_id: executionId,
+      ...toolCall,
+      status: 'pending',
+    })
+    .select()
+    .single();
+  if (error) throw new Error(`Failed to create tool call: ${error.message}`);
+  return data;
+}
+
+export async function completeToolCall(
+  supabase: SupabaseClient,
+  toolCallId: string,
+  result: {
+    tool_result: Record<string, unknown>;
+    status: string;
+    error_message?: string;
+    duration_ms?: number;
+  }
+): Promise<void> {
+  const { error } = await supabase
+    .from('agent_tool_calls')
+    .update(result)
+    .eq('id', toolCallId);
+  if (error) throw new Error(`Failed to complete tool call: ${error.message}`);
+}
+
+// ============================================================================
+// CARD AGENT TASKS
+// ============================================================================
+
+export async function listCardAgentTasks(
+  supabase: SupabaseClient,
+  cardId: string
+): Promise<CardAgentTask[]> {
+  const { data, error } = await supabase
+    .from('card_agent_tasks')
+    .select('*, skill:agent_skills(id, name, slug, icon, color)')
+    .eq('card_id', cardId)
+    .order('sort_order', { ascending: true });
+  if (error) throw new Error(`Failed to list card agent tasks: ${error.message}`);
+  return data ?? [];
+}
+
+export async function createCardAgentTask(
+  supabase: SupabaseClient,
+  task: {
+    card_id: string;
+    skill_id: string;
+    title: string;
+    input_prompt?: string;
+    created_by: string;
+  }
+): Promise<CardAgentTask> {
+  // Get next sort_order
+  const { data: existing } = await supabase
+    .from('card_agent_tasks')
+    .select('sort_order')
+    .eq('card_id', task.card_id)
+    .order('sort_order', { ascending: false })
+    .limit(1);
+
+  const nextOrder = (existing?.[0]?.sort_order ?? -1) + 1;
+
+  const { data, error } = await supabase
+    .from('card_agent_tasks')
+    .insert({ ...task, sort_order: nextOrder })
+    .select('*, skill:agent_skills(id, name, slug, icon, color)')
+    .single();
+  if (error) throw new Error(`Failed to create card agent task: ${error.message}`);
+  return data;
+}
+
+export async function updateCardAgentTask(
+  supabase: SupabaseClient,
+  taskId: string,
+  updates: Partial<CardAgentTask>
+): Promise<CardAgentTask> {
+  const { data, error } = await supabase
+    .from('card_agent_tasks')
+    .update(updates)
+    .eq('id', taskId)
+    .select('*, skill:agent_skills(id, name, slug, icon, color)')
+    .single();
+  if (error) throw new Error(`Failed to update card agent task: ${error.message}`);
+  return data;
+}
+
+export async function deleteCardAgentTask(
+  supabase: SupabaseClient,
+  taskId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('card_agent_tasks')
+    .delete()
+    .eq('id', taskId);
+  if (error) throw new Error(`Failed to delete card agent task: ${error.message}`);
+}
+
+// ============================================================================
+// SKILL IMPROVEMENT LOG
+// ============================================================================
+
+export async function logSkillImprovement(
+  supabase: SupabaseClient,
+  entry: {
+    skill_id: string;
+    change_type: string;
+    change_description: string;
+    quality_score_before?: number;
+    quality_score_after?: number;
+    quality_tier_before?: string;
+    quality_tier_after?: string;
+    changed_by?: string;
+  }
+): Promise<SkillImprovementLog> {
+  const { data, error } = await supabase
+    .from('skill_improvement_log')
+    .insert(entry)
+    .select()
+    .single();
+  if (error) throw new Error(`Failed to log improvement: ${error.message}`);
+  return data;
+}
+
+export async function getImprovementHistory(
+  supabase: SupabaseClient,
+  skillId?: string,
+  limit = 50
+): Promise<SkillImprovementLog[]> {
+  let query = supabase
+    .from('skill_improvement_log')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (skillId) query = query.eq('skill_id', skillId);
+
+  const { data, error } = await query;
+  if (error) throw new Error(`Failed to get improvement history: ${error.message}`);
+  return data ?? [];
 }
 
 // ============================================================================
@@ -281,7 +602,7 @@ export async function getExecutionStats(
 
 export async function seedSkills(
   supabase: SupabaseClient,
-  skillPrompts: Map<string, string> // slug -> system_prompt content
+  skillPrompts: Map<string, string> // slug → system_prompt content
 ): Promise<{ created: number; skipped: number }> {
   const { SKILL_SEEDS } = await import('./agent-skill-seeds');
 
@@ -301,7 +622,7 @@ export async function seedSkills(
       continue;
     }
 
-    const systemPrompt = skillPrompts.get(seed.slug) ?? `[Skill prompt for ${seed.name} -- to be loaded from Skill.md file]`;
+    const systemPrompt = skillPrompts.get(seed.slug) ?? `[Skill prompt for ${seed.name} — to be loaded from Skill.md file]`;
 
     const { error } = await supabase.from('agent_skills').insert({
       slug: seed.slug,
@@ -345,11 +666,11 @@ export async function seedSkills(
 
 /**
  * Updates already-seeded skills with improved quality data and logs the improvements.
- * This is idempotent -- it checks quality_score_before to avoid double-applying.
+ * This is idempotent — it checks quality_score_before to avoid double-applying.
  */
 export async function updateImprovedSkills(
   supabase: SupabaseClient,
-  skillPrompts?: Map<string, string> // optional: slug -> updated system_prompt
+  skillPrompts?: Map<string, string> // optional: slug → updated system_prompt
 ): Promise<{ updated: number; logged: number; skipped: number }> {
   const { SKILL_SEEDS, IMPROVEMENT_LOG } = await import('./agent-skill-seeds');
 
@@ -366,7 +687,7 @@ export async function updateImprovedSkills(
       .single();
 
     if (!skill) {
-      console.warn(`Skill ${improvement.slug} not found -- skipping improvement`);
+      console.warn(`Skill ${improvement.slug} not found — skipping improvement`);
       skipped++;
       continue;
     }
@@ -434,4 +755,69 @@ export async function updateImprovedSkills(
   }
 
   return { updated, logged, skipped };
+}
+
+// ============================================================================
+// SKILL REVISION HISTORY
+// ============================================================================
+
+export async function getSkillRevisions(
+  supabase: SupabaseClient,
+  skillId: string,
+  limit = 20
+) {
+  const { data, error } = await supabase
+    .from('agent_skill_revisions')
+    .select('*')
+    .eq('skill_id', skillId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(`Failed to fetch skill revisions: ${error.message}`);
+  return data || [];
+}
+
+export async function restoreSkillRevision(
+  supabase: SupabaseClient,
+  skillId: string,
+  revisionId: string,
+  userId: string
+) {
+  const { data: revision, error: revErr } = await supabase
+    .from('agent_skill_revisions')
+    .select('*')
+    .eq('id', revisionId)
+    .eq('skill_id', skillId)
+    .single();
+
+  if (revErr || !revision) throw new Error('Revision not found');
+
+  const currentSkill = await getSkill(supabase, skillId);
+  if (currentSkill) {
+    await supabase.from('agent_skill_revisions').insert({
+      skill_id: skillId,
+      changed_by: userId,
+      change_type: 'pre_restore_snapshot',
+      snapshot: {
+        system_prompt: currentSkill.system_prompt,
+        quality_score: currentSkill.quality_score,
+        quality_tier: currentSkill.quality_tier,
+      },
+    });
+  }
+
+  const updates: Record<string, unknown> = {};
+  if (revision.snapshot?.system_prompt) updates.system_prompt = revision.snapshot.system_prompt;
+  if (revision.snapshot?.quality_score != null) updates.quality_score = revision.snapshot.quality_score;
+  if (revision.snapshot?.quality_tier) updates.quality_tier = revision.snapshot.quality_tier;
+
+  if (Object.keys(updates).length > 0) {
+    const { error: updateErr } = await supabase
+      .from('agent_skills')
+      .update(updates)
+      .eq('id', skillId);
+    if (updateErr) throw new Error(`Failed to restore revision: ${updateErr.message}`);
+  }
+
+  return getSkill(supabase, skillId);
 }

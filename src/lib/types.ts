@@ -778,6 +778,7 @@ export interface EnrichedProfile {
   email_source: 'hunter' | 'snov' | 'none';
   email_confidence: number;
   email_verified: boolean;
+  enriched?: { website?: string; [key: string]: unknown };
 }
 
 /** Step 3 output: Full candidate profile after AI deep research */
@@ -2717,6 +2718,35 @@ export interface AgentExecutionStats {
   avg_quality_rating: number | null;
   by_skill: { skill_id: string; skill_name: string; count: number; avg_rating: number | null }[];
   by_day: { date: string; count: number; cost: number }[];
+}
+
+// ============================================================================
+// SKILL CHAIN TYPES
+// ============================================================================
+
+export interface SkillChainStep {
+  skill_slug: string;
+  skill_name: string;
+  order: number;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+  output_summary?: string;
+}
+
+export interface SkillChainPlan {
+  chain_id: string;
+  target_skill: string;
+  steps: SkillChainStep[];
+  total_steps: number;
+}
+
+export interface MultiTurnExecutionCallbacks {
+  onToken: (text: string) => void;
+  onComplete: (output: string) => void;
+  onError: (error: string) => void;
+  onToolCall?: (name: string, input: Record<string, unknown>) => void;
+  onToolResult?: (name: string, result: string, success: boolean) => void;
+  onThinking?: (summary: string) => void;
+  onChainStep?: (step: number, skillName: string, status: string) => void;
 }
 
 // ============================================================================

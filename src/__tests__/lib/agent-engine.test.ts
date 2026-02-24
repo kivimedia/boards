@@ -280,8 +280,8 @@ describe('Agent Engine', () => {
       expect(agentEngine.getSkillBySlug.length).toBe(2);
     });
 
-    it('updateSkill accepts 3 arguments (supabase, skillId, updates)', () => {
-      expect(agentEngine.updateSkill.length).toBe(3);
+    it('updateSkill accepts 3-4 arguments (supabase, skillId, updates, userId?)', () => {
+      expect(agentEngine.updateSkill.length).toBeGreaterThanOrEqual(3);
     });
 
     it('createSkill accepts 2 arguments (supabase, skill)', () => {

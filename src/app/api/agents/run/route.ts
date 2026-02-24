@@ -80,8 +80,8 @@ export async function POST(request: NextRequest) {
               inputPrompt: body.input_message,
             },
             {
-              onToken: (text) => send('token', { text }),
-              onComplete: (output) => {
+              onToken: (text: string) => send('token', { text }),
+              onComplete: (output: string) => {
                 send('complete', {
                   output_preview: output.slice(0, 500),
                   chain_id: chain.chain_id,
@@ -89,11 +89,11 @@ export async function POST(request: NextRequest) {
                 });
                 controller.close();
               },
-              onError: (error) => {
+              onError: (error: string) => {
                 send('error', { error });
                 controller.close();
               },
-              onChainStep: (step, skillName, status) => {
+              onChainStep: (step: number, skillName: string, status: string) => {
                 send('chain_step', { step, skill_name: skillName, status });
               },
             }

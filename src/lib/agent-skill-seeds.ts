@@ -11,7 +11,7 @@ export interface SkillSeed {
   description: string;
   category: AgentSkillCategory;
   pack: AgentSkillPack;
-  system_prompt: string;
+  system_prompt?: string;
   quality_tier: AgentQualityTier;
   quality_score: number;
   quality_notes: string;
