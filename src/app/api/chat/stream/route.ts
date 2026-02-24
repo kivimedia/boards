@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getAuthContext, errorResponse } from '@/lib/api-helpers';
 import { streamChatMessage, getChatSession } from '@/lib/ai/chatbot-stream';
 import {
@@ -18,6 +20,12 @@ import { getSystemPrompt } from '@/lib/ai/prompt-templates';
 import type { ChatScope, ChatMessage } from '@/lib/types';
 
 export const maxDuration = 120;
+
+function detectProvider(modelId: string): 'anthropic' | 'openai' | 'google' {
+  if (modelId.startsWith('gpt-') || modelId.startsWith('o1') || modelId.startsWith('o3')) return 'openai';
+  if (modelId.startsWith('gemini-')) return 'google';
+  return 'anthropic';
+}
 
 interface Attachment {
   type: 'image' | 'file';
@@ -123,24 +131,37 @@ export async function POST(request: NextRequest) {
         const activity = scopeToActivity(scope);
 
         try {
-          // 1. Get API key and create client
-          const apiKey = await getProviderKey(supabase, 'anthropic');
-          if (!apiKey) {
-            emitEvent(controller, 'error', {
-              type: 'error',
-              error: 'Anthropic API key not configured',
-              message: 'Anthropic API key not configured',
-            });
-            controller.close();
-            return;
-          }
-          const client = new Anthropic({ apiKey });
-
-          // 2. Resolve model config
+          // 1. Resolve model config
           const modelConfig = await resolveModelWithFallback(supabase, activity);
           const modelId = (model_override && model_override.trim())
             ? model_override.trim()
             : modelConfig.model_id;
+
+          // 2. Detect provider and get API key
+          const provider = detectProvider(modelId);
+          let apiKey: string | null = null;
+          if (provider === 'openai') {
+            apiKey = await getProviderKey(supabase, 'openai');
+            if (!apiKey) {
+              emitEvent(controller, 'error', { type: 'error', error: 'OpenAI API key not configured', message: 'OpenAI API key not configured' });
+              controller.close();
+              return;
+            }
+          } else if (provider === 'google') {
+            apiKey = await getProviderKey(supabase, 'google');
+            if (!apiKey) {
+              emitEvent(controller, 'error', { type: 'error', error: 'Google AI API key not configured', message: 'Google AI API key not configured' });
+              controller.close();
+              return;
+            }
+          } else {
+            apiKey = await getProviderKey(supabase, 'anthropic');
+            if (!apiKey) {
+              emitEvent(controller, 'error', { type: 'error', error: 'Anthropic API key not configured', message: 'Anthropic API key not configured' });
+              controller.close();
+              return;
+            }
+          }
 
           // 3. Load previous messages if session exists
           let previousMessages: ChatMessage[] | undefined;
@@ -233,35 +254,121 @@ export async function POST(request: NextRequest) {
             anthropicMessages.push({ role: 'user', content: message || '' });
           }
 
-          // 7. Stream from Claude
-          const claudeStream = client.messages.stream({
-            model: modelId,
-            max_tokens: 4096,
-            temperature: modelConfig.temperature,
-            system: fullSystemPrompt,
-            messages: anthropicMessages,
-          });
-
+          // 7. Stream from provider
           let fullText = '';
-          for await (const event of claudeStream) {
-            if (
-              event.type === 'content_block_delta' &&
-              (event.delta as { type: string }).type === 'text_delta'
-            ) {
-              const text = (event.delta as { text: string }).text;
-              fullText += text;
-              emitEvent(controller, 'token', {
-                type: 'token',
-                content: text,
-                text,
-              });
+          let inputTokens = 0;
+          let outputTokens = 0;
+
+          if (provider === 'openai') {
+            const openai = new OpenAI({ apiKey: apiKey! });
+            // Build OpenAI messages format
+            const openaiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
+            if (fullSystemPrompt) {
+              openaiMessages.push({ role: 'system', content: fullSystemPrompt });
             }
+            for (const m of anthropicMessages) {
+              if (typeof m.content === 'string') {
+                openaiMessages.push({ role: m.role as 'user' | 'assistant', content: m.content });
+              } else {
+                const parts: OpenAI.Chat.ChatCompletionContentPart[] = [];
+                for (const block of m.content as { type: string; text?: string; source?: { url: string } }[]) {
+                  if (block.type === 'text' && block.text) {
+                    parts.push({ type: 'text', text: block.text });
+                  } else if (block.type === 'image' && block.source?.url) {
+                    parts.push({ type: 'image_url', image_url: { url: block.source.url } });
+                  }
+                }
+                if (m.role === 'user') {
+                  openaiMessages.push({ role: 'user', content: parts });
+                } else {
+                  // Assistant messages with array content — extract text only
+                  const textContent = parts
+                    .filter((p): p is OpenAI.Chat.ChatCompletionContentPartText => p.type === 'text')
+                    .map(p => p.text).join('');
+                  openaiMessages.push({ role: 'assistant', content: textContent });
+                }
+              }
+            }
+            const openaiStream = await openai.chat.completions.create({
+              model: modelId,
+              messages: openaiMessages,
+              stream: true,
+              max_tokens: 4096,
+              stream_options: { include_usage: true },
+            });
+            for await (const chunk of openaiStream) {
+              const text = chunk.choices[0]?.delta?.content ?? '';
+              if (text) {
+                fullText += text;
+                emitEvent(controller, 'token', { type: 'token', content: text, text });
+              }
+              if (chunk.usage) {
+                inputTokens = chunk.usage.prompt_tokens ?? 0;
+                outputTokens = chunk.usage.completion_tokens ?? 0;
+              }
+            }
+          } else if (provider === 'google') {
+            const genai = new GoogleGenerativeAI(apiKey!);
+            const geminiModel = genai.getGenerativeModel({ model: modelId });
+            // Build Gemini history (all messages except the last user message)
+            const geminiHistory = anthropicMessages.slice(0, -1).map(m => ({
+              role: m.role === 'assistant' ? 'model' : 'user',
+              parts: typeof m.content === 'string'
+                ? [{ text: m.content }]
+                : (m.content as { type: string; text?: string }[])
+                    .filter(b => b.type === 'text' && b.text)
+                    .map(b => ({ text: (b as { text: string }).text })),
+            }));
+            const lastMsg = anthropicMessages[anthropicMessages.length - 1];
+            type GeminiPart = { text: string } | { inlineData: { mimeType: string; data: string } };
+            const lastParts: GeminiPart[] = typeof lastMsg.content === 'string'
+              ? [{ text: lastMsg.content }]
+              : (lastMsg.content as { type: string; text?: string; source?: { url: string } }[]).flatMap((b): GeminiPart[] => {
+                  if (b.type === 'text' && b.text) return [{ text: b.text }];
+                  if (b.type === 'image' && b.source?.url) return [{ inlineData: { mimeType: 'image/jpeg', data: b.source.url.split(',')[1] ?? b.source.url } }];
+                  return [];
+                });
+            const chat = geminiModel.startChat({
+              history: geminiHistory,
+              systemInstruction: fullSystemPrompt || undefined,
+            });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const geminiStream = await chat.sendMessageStream(lastParts as any);
+            for await (const chunk of geminiStream.stream) {
+              const text = chunk.text();
+              if (text) {
+                fullText += text;
+                emitEvent(controller, 'token', { type: 'token', content: text, text });
+              }
+            }
+            const geminiResult = await geminiStream.response;
+            inputTokens = geminiResult.usageMetadata?.promptTokenCount ?? 0;
+            outputTokens = geminiResult.usageMetadata?.candidatesTokenCount ?? 0;
+          } else {
+            // Anthropic (original path)
+            const anthropicClient = new Anthropic({ apiKey: apiKey! });
+            const claudeStream = anthropicClient.messages.stream({
+              model: modelId,
+              max_tokens: 4096,
+              temperature: modelConfig.temperature,
+              system: fullSystemPrompt,
+              messages: anthropicMessages,
+            });
+            for await (const event of claudeStream) {
+              if (
+                event.type === 'content_block_delta' &&
+                (event.delta as { type: string }).type === 'text_delta'
+              ) {
+                const text = (event.delta as { text: string }).text;
+                fullText += text;
+                emitEvent(controller, 'token', { type: 'token', content: text, text });
+              }
+            }
+            const finalMsg = await claudeStream.finalMessage();
+            inputTokens = finalMsg.usage.input_tokens;
+            outputTokens = finalMsg.usage.output_tokens;
           }
 
-          // Get final message for usage stats
-          const finalMsg = await claudeStream.finalMessage();
-          const inputTokens = finalMsg.usage.input_tokens;
-          const outputTokens = finalMsg.usage.output_tokens;
           const latencyMs = Date.now() - startTime;
 
           // 8. Log usage
@@ -271,7 +378,7 @@ export async function POST(request: NextRequest) {
               boardId,
               cardId,
               activity,
-              provider: 'anthropic',
+              provider,
               modelId,
               inputTokens,
               outputTokens,

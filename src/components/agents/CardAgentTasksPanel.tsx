@@ -60,9 +60,13 @@ function StarRating({
 
 // ─── Models ──────────────────────────────────────────────────────────────────
 const AGENT_MODELS = [
-  { id: 'claude-haiku-4-5-20251001',  label: 'Haiku (fast)' },
-  { id: 'claude-sonnet-4-5-20250929', label: 'Sonnet' },
-  { id: 'claude-opus-4-6',            label: 'Opus (best)' },
+  { id: 'claude-haiku-4-5-20251001',  label: 'Haiku (fast)',            provider: 'anthropic' as const },
+  { id: 'claude-sonnet-4-5-20250929', label: 'Sonnet',                  provider: 'anthropic' as const },
+  { id: 'claude-opus-4-6',            label: 'Opus (best)',              provider: 'anthropic' as const },
+  { id: 'gpt-4o-mini',                label: 'GPT-4o mini (chat)',       provider: 'openai' as const },
+  { id: 'gpt-4o',                     label: 'GPT-4o (chat)',            provider: 'openai' as const },
+  { id: 'gemini-2.0-flash',           label: 'Gemini 2.0 Flash (chat)',  provider: 'google' as const },
+  { id: 'gemini-1.5-pro',             label: 'Gemini 1.5 Pro (chat)',    provider: 'google' as const },
 ] as const;
 
 // ─── Chat types ──────────────────────────────────────────────────────────────
@@ -621,9 +625,21 @@ export default function CardAgentTasksPanel({ cardId }: Props) {
                           disabled={cs.streaming}
                           className="text-[10px] rounded px-1.5 py-0.5 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none shrink-0"
                         >
-                          {AGENT_MODELS.map(m => (
-                            <option key={m.id} value={m.id}>{m.label}</option>
-                          ))}
+                          <optgroup label="Anthropic">
+                            {AGENT_MODELS.filter(m => m.provider === 'anthropic').map(m => (
+                              <option key={m.id} value={m.id}>{m.label}</option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="OpenAI">
+                            {AGENT_MODELS.filter(m => m.provider === 'openai').map(m => (
+                              <option key={m.id} value={m.id}>{m.label}</option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="Google">
+                            {AGENT_MODELS.filter(m => m.provider === 'google').map(m => (
+                              <option key={m.id} value={m.id}>{m.label}</option>
+                            ))}
+                          </optgroup>
                         </select>
                       )}
                     </div>
