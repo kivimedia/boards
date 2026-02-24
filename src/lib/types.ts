@@ -115,6 +115,7 @@ export interface Profile {
   avatar_url: string | null;
   role: string;
   business_role?: BusinessRole | null;
+  agency_role?: string | null;
   account_status?: AccountStatus;
   user_role?: UserRole;
   email?: string;
@@ -451,7 +452,11 @@ export type NotificationType =
   | 'proposal_ready'
   | 'follow_up_due'
   | 'lead_received'
-  | 'payment_reminder';
+  | 'payment_reminder'
+  | 'pk_red_flag'
+  | 'pk_overdue'
+  | 'pk_sync_error'
+  | 'pk_reminder';
 
 export interface Notification {
   id: string;
@@ -1854,4 +1859,142 @@ export type BalloonEventType =
   | 'prom'
   | 'nonprofit'
   | 'other';
+
+// ─── Agent Types ────────────────────────────────────────────────
+
+export type AgentQualityTier =
+  | 'genuinely_smart'
+  | 'solid'
+  | 'has_potential'
+  | 'placeholder'
+  | 'tool_dependent';
+
+export interface AgentSkill {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  icon: string;
+  category: string;
+  system_prompt: string;
+  quality_tier: AgentQualityTier;
+  quality_score: number;
+  supported_tools: string[];
+  sort_order: number;
+  strengths: string[];
+  weaknesses: string[];
+  required_context: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── Performance Keeping Types ──────────────────────────────────
+
+export type PKTrackerType =
+  | 'masterlist'
+  | 'fathom_videos'
+  | 'client_updates'
+  | 'ticket_updates'
+  | 'daily_goals'
+  | 'sanity_checks'
+  | 'sanity_tests'
+  | 'pics_monitoring'
+  | 'flagged_tickets'
+  | 'weekly_tickets'
+  | 'pingdom_tests'
+  | 'google_ads_reports'
+  | 'monthly_summaries'
+  | 'update_schedule'
+  | 'holiday_tracking'
+  | 'website_status'
+  | 'google_analytics_status'
+  | 'other_activities';
+
+export const PK_TRACKER_LABELS: Record<PKTrackerType, string> = {
+  masterlist: 'Master List',
+  fathom_videos: 'Fathom Videos',
+  client_updates: 'Client Updates',
+  ticket_updates: 'Ticket Updates',
+  daily_goals: 'Daily Goals',
+  sanity_checks: 'Sanity Checks',
+  sanity_tests: 'Sanity Tests',
+  pics_monitoring: 'Pics Monitoring',
+  flagged_tickets: 'Flagged Tickets',
+  weekly_tickets: 'Weekly Tickets',
+  pingdom_tests: 'Pingdom Tests',
+  google_ads_reports: 'Google Ads Reports',
+  monthly_summaries: 'Monthly Summaries',
+  update_schedule: 'Update Schedule',
+  holiday_tracking: 'Holiday Tracking',
+  website_status: 'Website Status',
+  google_analytics_status: 'Google Analytics Status',
+  other_activities: 'Other Activities',
+};
+
+export const PK_TRACKER_FREQUENCIES: Record<PKTrackerType, string> = {
+  masterlist: 'Hub',
+  fathom_videos: 'Daily',
+  client_updates: '2x/week',
+  ticket_updates: 'Daily',
+  daily_goals: 'Daily',
+  sanity_checks: 'Weekly',
+  sanity_tests: 'Weekly',
+  pics_monitoring: 'Weekly',
+  flagged_tickets: 'Daily',
+  weekly_tickets: 'Weekly',
+  pingdom_tests: 'Daily',
+  google_ads_reports: 'Monthly',
+  monthly_summaries: 'Monthly',
+  update_schedule: 'Reference',
+  holiday_tracking: 'Seasonal',
+  website_status: 'Daily',
+  google_analytics_status: 'Weekly',
+  other_activities: 'Quarterly',
+};
+
+export interface PKTrackerSummary {
+  tracker_type: PKTrackerType;
+  label: string;
+  frequency: string;
+  total_rows: number;
+  last_synced_at: string | null;
+  sync_status: string | null;
+  freshness: 'fresh' | 'stale' | 'overdue';
+}
+
+export interface PKSyncConfig {
+  id: string;
+  tracker_type: PKTrackerType;
+  spreadsheet_id: string;
+  sheet_title: string;
+  sync_frequency: string;
+  is_active: boolean;
+  last_synced_at: string | null;
+  last_sync_status: string | null;
+  row_count: number;
+}
+
+export interface PKSyncRun {
+  id: string;
+  triggered_by: 'cron' | 'manual';
+  started_at: string;
+  completed_at: string | null;
+  status: 'running' | 'completed' | 'failed' | 'error';
+  trackers_synced: number;
+  total_rows_synced: number;
+  sheets_synced: number;
+  rows_synced: number;
+  duration_ms: number;
+  errors: string[];
+}
+
+export interface PKAMScorecard {
+  account_manager_name: string;
+  fathom_videos_watched: number;
+  fathom_videos_total: number;
+  client_updates_on_time: number;
+  client_updates_total: number;
+  sanity_checks_done: number;
+  sanity_checks_total: number;
+}
 
