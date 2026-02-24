@@ -15,6 +15,7 @@ import ShareButton from '@/components/team-presence/ShareButton';
 import ShareModal from '@/components/team-presence/ShareModal';
 import ProfilingToggle from '@/components/profiling/ProfilingToggle';
 import { createClient } from '@/lib/supabase/client';
+import { useAppStore } from '@/stores/app-store';
 import type { BoardViewMode, BoardWithLists, BoardFilter } from '@/lib/types';
 
 interface BoardHeaderProps {
@@ -29,6 +30,7 @@ interface BoardHeaderProps {
   onFilterChange?: (filter: BoardFilter) => void;
   onCardClick?: (cardId: string) => void;
   onRefresh?: () => void;
+  onCreateCard?: () => void;
 }
 
 export default function BoardHeader({
@@ -43,6 +45,7 @@ export default function BoardHeader({
   onFilterChange,
   onCardClick,
   onRefresh,
+  onCreateCard,
 }: BoardHeaderProps) {
   const [showBgPicker, setShowBgPicker] = useState(false);
   const [showDedup, setShowDedup] = useState(false);
@@ -92,18 +95,37 @@ export default function BoardHeader({
     ? 'bg-white/20'
     : 'bg-cream-dark dark:bg-slate-700';
 
+  const { toggleMobileSidebar } = useAppStore();
+
   return (
-    <header className={`${headerBg} shrink-0`}>
-      <div className="flex items-center justify-between px-6 h-14">
+    <header className={`${headerBg} shrink-0 relative z-[100]`}>
+      <div className="flex items-center justify-between px-3 sm:px-6 h-14 gap-2">
         {/* Left side */}
-        <div className="flex items-center gap-4">
-          <h1 className={`text-lg font-semibold font-heading truncate max-w-[200px] sm:max-w-none ${textColor}`}>
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+          {/* Mobile hamburger */}
+          <button
+            onClick={toggleMobileSidebar}
+            className={`md:hidden p-2 rounded-lg transition-colors shrink-0 ${
+              hasBackground && isDarkBackground
+                ? 'text-white/70 hover:text-white hover:bg-white/10'
+                : 'text-navy/50 dark:text-slate-400 hover:text-navy dark:hover:text-white hover:bg-cream-dark dark:hover:bg-slate-800'
+            }`}
+            aria-label="Toggle navigation"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+          </button>
+
+          <h1 className={`text-sm sm:text-lg font-semibold font-heading truncate max-w-[120px] sm:max-w-none ${textColor}`}>
             {boardName}
           </h1>
           {/* Star toggle */}
           <button
             onClick={toggleStar}
-            className={`p-1 rounded transition-colors ${
+            className={`p-2 rounded transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center ${
               isStarred
                 ? 'text-yellow-400'
                 : `${subtleColor} hover:text-yellow-400`
@@ -114,10 +136,10 @@ export default function BoardHeader({
               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
             </svg>
           </button>
-          {/* Archive toggle */}
+          {/* Archive toggle — desktop only */}
           <button
             onClick={toggleArchive}
-            className={`p-1 rounded transition-colors ${subtleColor} hover:${textColor}`}
+            className={`hidden sm:flex p-2 rounded transition-colors min-w-[36px] min-h-[36px] items-center justify-center ${subtleColor} hover:${textColor}`}
             title={isArchived ? 'Unarchive board' : 'Archive board'}
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -132,10 +154,31 @@ export default function BoardHeader({
         </div>
 
         {/* Right side */}
-        <div className="flex items-center gap-2">
-          {/* Smart Search Bar with AI + Create */}
-          {onCardClick && (
-            <SmartSearchBar boardId={boardId} onCardClick={onCardClick} onOpenShareModal={() => setShowShare(true)} isDark={hasBackground && isDarkBackground} />
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          {/* Smart Search Bar with AI + Create — hidden on mobile, shown on sm+ */}
+          <div className="hidden sm:flex">
+            {onCardClick && (
+              <SmartSearchBar boardId={boardId} onCardClick={onCardClick} onOpenShareModal={() => setShowShare(true)} onCreateCard={onCreateCard} isDark={hasBackground && isDarkBackground} />
+            )}
+          </div>
+
+          {/* Mobile: quick create button */}
+          {onCreateCard && (
+            <button
+              onClick={onCreateCard}
+              className={`sm:hidden p-2 rounded-lg transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center ${
+                hasBackground && isDarkBackground
+                  ? 'text-white/70 hover:text-white hover:bg-white/10'
+                  : 'text-navy/50 dark:text-slate-400 hover:text-navy dark:hover:text-white hover:bg-cream-dark dark:hover:bg-slate-800'
+              }`}
+              title="Create card"
+              aria-label="Create card"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </button>
           )}
 
           {/* Filter */}
@@ -151,8 +194,8 @@ export default function BoardHeader({
 
           <div className={`w-px h-5 ${dividerColor} hidden sm:block`} />
 
-          {/* Background picker */}
-          <div className="relative">
+          {/* Background picker — hidden on mobile */}
+          <div className="relative hidden sm:block">
             <button
               onClick={() => setShowBgPicker(!showBgPicker)}
               title="Board background"
@@ -180,11 +223,11 @@ export default function BoardHeader({
             )}
           </div>
 
-          {/* Dedup button */}
+          {/* Dedup button — hidden on mobile */}
           <button
             onClick={() => setShowDedup(true)}
             title="Find &amp; remove duplicate cards"
-            className={`p-2 rounded-lg transition-colors ${
+            className={`hidden sm:flex p-2 rounded-lg transition-colors items-center justify-center ${
               hasBackground && isDarkBackground
                 ? 'text-white/70 hover:text-white hover:bg-white/10'
                 : 'text-navy/40 dark:text-slate-400 hover:text-navy dark:hover:text-white hover:bg-cream-dark dark:hover:bg-slate-800'

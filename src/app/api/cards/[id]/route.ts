@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthContext, successResponse, errorResponse, parseBody } from '@/lib/api-helpers';
 import { checkVersionConflict, bumpVersion } from '@/lib/conflict-resolution';
+import { notifyWatchers } from '@/lib/card-watchers';
 
 interface Params {
   params: { id: string };
@@ -27,6 +28,7 @@ interface UpdateCardBody {
   due_date?: string | null;
   priority?: string;
   cover_image_url?: string | null;
+  owner_id?: string | null;
   version?: number;
   // Lead info fields
   event_date?: string | null;
@@ -57,6 +59,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   if (body.body.due_date !== undefined) updates.due_date = body.body.due_date;
   if (body.body.priority !== undefined) updates.priority = body.body.priority;
   if (body.body.cover_image_url !== undefined) updates.cover_image_url = body.body.cover_image_url;
+  if (body.body.owner_id !== undefined) updates.owner_id = body.body.owner_id;
   // Lead info fields
   if (body.body.event_date !== undefined) updates.event_date = body.body.event_date;
   if (body.body.event_type !== undefined) updates.event_type = body.body.event_type;
@@ -105,6 +108,19 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     } catch {
       // Version bump failed but update succeeded; not critical
     }
+  }
+
+  // Notify watchers about card changes (non-blocking)
+  const changeFields = Object.keys(updates).filter(k => k !== 'updated_at');
+  if (changeFields.length > 0) {
+    const changeDesc = changeFields.join(', ');
+    notifyWatchers(
+      supabase,
+      params.id,
+      `Card updated (${changeDesc})`,
+      undefined,
+      auth.ctx.userId
+    ).catch(() => {});
   }
 
   return successResponse(data);

@@ -169,7 +169,7 @@ export default function BackupDashboard() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-cream dark:bg-dark-bg p-6">
+    <div className="flex-1 overflow-y-auto bg-cream dark:bg-dark-bg p-4 sm:p-6">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header Section */}
         <div className="flex items-center justify-between">

@@ -396,7 +396,7 @@ export default function ListView({ lists, boardId }: ListViewProps) {
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden p-6">
+    <div className="flex-1 flex flex-col overflow-hidden p-3 sm:p-6 pb-20 sm:pb-24">
       {/* Toolbar */}
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs text-navy/40 dark:text-slate-500 font-body tabular-nums">
@@ -414,7 +414,7 @@ export default function ListView({ lists, boardId }: ListViewProps) {
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-auto rounded-2xl border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface shadow-sm dark:shadow-none">
+      <div className="flex-1 overflow-auto rounded-2xl border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface shadow-sm dark:shadow-none overscroll-x-contain">
         <table className="w-full text-sm min-w-[640px]">
           <thead className="sticky top-0 z-10">
             <tr className="bg-cream/50 dark:bg-navy/50 border-b border-cream-dark dark:border-slate-700">

@@ -12,6 +12,7 @@ interface SearchBarProps {
   boardId: string;
   onCardClick: (cardId: string) => void;
   onOpenShareModal?: () => void;
+  onCreateCard?: () => void;
   isDark?: boolean;
 }
 
@@ -23,7 +24,7 @@ const PLACEHOLDERS = [
   'Search cards, people, or ask AI...',
 ];
 
-export default function SearchBar({ boardId, onCardClick, onOpenShareModal, isDark }: SearchBarProps) {
+export default function SearchBar({ boardId, onCardClick, onOpenShareModal, onCreateCard, isDark }: SearchBarProps) {
   const [focused, setFocused] = useState(false);
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -161,8 +162,8 @@ export default function SearchBar({ boardId, onCardClick, onOpenShareModal, isDa
         <div className={`
           flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all
           ${focused
-            ? 'w-[320px] sm:w-[420px] bg-white dark:bg-dark-surface border-electric/40 shadow-sm ring-2 ring-electric/10'
-            : 'w-[200px] sm:w-[280px] bg-white/80 dark:bg-dark-surface/80 border-cream-dark dark:border-slate-700 hover:border-electric/30'
+            ? 'w-[260px] sm:w-[320px] lg:w-[420px] bg-white dark:bg-dark-surface border-electric/40 shadow-sm ring-2 ring-electric/10'
+            : 'w-[160px] sm:w-[200px] lg:w-[280px] bg-white/80 dark:bg-dark-surface/80 border-cream-dark dark:border-slate-700 hover:border-electric/30'
           }
         `}>
           {/* Search icon */}
@@ -228,7 +229,7 @@ export default function SearchBar({ boardId, onCardClick, onOpenShareModal, isDa
 
         {/* Dropdown panel */}
         {showDropdown && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 rounded-xl shadow-modal z-50 overflow-hidden">
+          <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 rounded-xl shadow-modal z-[999] overflow-hidden">
             {mode === 'search' && (
               <SearchResults
                 results={searchResults}
@@ -294,7 +295,7 @@ export default function SearchBar({ boardId, onCardClick, onOpenShareModal, isDa
       </div>
 
       {/* Create button */}
-      <CreateMenu boardId={boardId} />
+      <CreateMenu boardId={boardId} onCreateCard={onCreateCard} />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { BOARD_TYPE_CONFIG } from '@/lib/constants';
 import PipelineView from '@/components/dashboard/PipelineView';
 import type { Board, BoardType } from '@/lib/types';
+import { slugify } from '@/lib/slugify';
 
 interface ListSummary {
   id: string;
@@ -105,7 +106,7 @@ export default function CrossBoardDashboard() {
 
   if (loading) {
     return (
-      <div className="flex-1 overflow-y-auto bg-cream dark:bg-navy p-6">
+      <div className="flex-1 overflow-y-auto bg-cream dark:bg-navy p-4 sm:p-6">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-center py-16">
             <div className="w-6 h-6 border-2 border-electric/30 border-t-electric rounded-full animate-spin" />
@@ -123,7 +124,7 @@ export default function CrossBoardDashboard() {
   }));
 
   return (
-    <div className="flex-1 overflow-y-auto bg-cream p-6">
+    <div className="flex-1 overflow-y-auto bg-cream p-4 sm:p-6">
       <div className="max-w-6xl mx-auto space-y-6">
         <p className="text-navy/60 dark:text-slate-400 font-body text-sm">
           Executive overview of all boards and cross-board activity.
@@ -142,7 +143,7 @@ export default function CrossBoardDashboard() {
             return (
               <Link
                 key={summary.board.id}
-                href={`/board/${summary.board.id}`}
+                href={`/board/${slugify(summary.board.name)}`}
                 className="group block bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 hover:border-transparent p-5 transition-all duration-200 hover:shadow-lg dark:hover:shadow-none"
                 style={{
                   ['--board-color' as string]: boardColor,

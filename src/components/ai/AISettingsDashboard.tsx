@@ -20,7 +20,7 @@ export default function AISettingsDashboard() {
   const [activeTab, setActiveTab] = useState<Tab>('keys');
 
   return (
-    <div className="flex-1 overflow-y-auto bg-cream dark:bg-dark-bg p-6">
+    <div className="flex-1 overflow-y-auto bg-cream dark:bg-dark-bg p-4 sm:p-6">
       <div className="max-w-5xl mx-auto">
         {/* Back link */}
         <Link

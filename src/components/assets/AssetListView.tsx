@@ -39,8 +39,8 @@ export default function AssetListView({ assets, onAssetClick }: AssetListViewPro
   }
 
   return (
-    <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 overflow-hidden">
-      <table className="w-full">
+    <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 overflow-hidden overflow-x-auto">
+      <table className="w-full min-w-[300px]">
         <thead>
           <tr className="border-b-2 border-cream-dark dark:border-slate-700">
             <th className="text-left px-5 py-3 text-xs font-heading font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wider">Name</th>

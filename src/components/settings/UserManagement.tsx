@@ -306,7 +306,7 @@ export default function UserManagement({ currentUserId }: UserManagementProps) {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-cream dark:bg-dark-bg p-6">
+    <div className="flex-1 overflow-y-auto bg-cream dark:bg-dark-bg p-4 sm:p-6">
       <div className="max-w-5xl mx-auto">
         {/* Toast Notification */}
         {toast && (

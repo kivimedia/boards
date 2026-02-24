@@ -8,7 +8,7 @@ import { createClient } from '@supabase/supabase-js';
  */
 export async function POST(request: NextRequest) {
   try {
-    const { email, redirectTo } = await request.json();
+    const { email } = await request.json();
 
     if (!email?.trim()) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       type: 'recovery',
       email: email.trim(),
       options: {
-        redirectTo: redirectTo || `${process.env.NEXT_PUBLIC_SITE_URL || 'https://kmboards.co'}/reset-password`,
+        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://kmboards.co'}/reset-password`,
       },
     });
 

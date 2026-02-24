@@ -1,19 +1,47 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Comment } from '@/lib/types';
 import Avatar from '@/components/ui/Avatar';
 import Button from '@/components/ui/Button';
 import CommentReactions from './CommentReactions';
+import MentionInput from './MentionInput';
+import { MarkdownToolbarUI } from './MarkdownToolbar';
+import { useAutoResize } from '@/hooks/useAutoResize';
 
 const URL_PATTERN = /(https?:\/\/[^\s<]+)/;
+// Matches Trello/ClickUp smart-link format: [https://url.com "smartCard-inline"] or [https://url.com ""]
+const SMART_LINK_PATTERN = /\[(https?:\/\/[^\s\]]+)\s+"[^"]*"\]/g;
 
 function extractUrls(text: string): string[] {
   return text.match(new RegExp(URL_PATTERN.source, 'g')) || [];
 }
 
-function linkifyContent(text: string) {
-  const parts = text.split(URL_PATTERN);
+function shortenUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/^www\./, '');
+    let path = parsed.pathname;
+    if (path === '/') return host;
+    // Truncate long paths
+    if (path.length > 30) path = path.slice(0, 27) + '...';
+    return host + path;
+  } catch {
+    // Fallback: just truncate the raw URL
+    return url.length > 50 ? url.slice(0, 47) + '...' : url;
+  }
+}
+
+/** Strip Trello/ClickUp smart-link wrappers before linkifying: [url "type"] → url */
+function normalizeSmartLinks(text: string): string {
+  return text.replace(SMART_LINK_PATTERN, '$1');
+}
+
+function linkifyContent(text: string, showFullLinks = false) {
+  const normalized = normalizeSmartLinks(text);
+  const parts = normalized.split(URL_PATTERN);
   return parts.map((part, i) =>
     URL_PATTERN.test(part) ? (
       <a
@@ -23,8 +51,9 @@ function linkifyContent(text: string) {
         rel="noopener noreferrer"
         className="text-electric hover:underline break-all"
         onClick={(e) => e.stopPropagation()}
+        title={showFullLinks ? undefined : part}
       >
-        {part}
+        {showFullLinks ? part : shortenUrl(part)}
       </a>
     ) : (
       <span key={i}>{part}</span>
@@ -39,15 +68,25 @@ interface CardCommentsProps {
   onCommentAdded?: (comment: Comment) => void;
   boardId?: string;
   currentUserId?: string | null;
+  isAdmin?: boolean;
 }
 
-export default function CardComments({ cardId, comments, onRefresh, onCommentAdded, currentUserId }: CardCommentsProps) {
+export default function CardComments({ cardId, comments, onRefresh, onCommentAdded, boardId, currentUserId, isAdmin }: CardCommentsProps) {
   const [newComment, setNewComment] = useState('');
   const [replyText, setReplyText] = useState('');
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
+  useAutoResize(editTextareaRef, editText);
+  useAutoResize(replyTextareaRef, replyText);
+  const [showFullLinks, setShowFullLinks] = useState(false);
 
   // Group comments into threads
   const { topLevel, repliesByParent } = useMemo(() => {
@@ -62,11 +101,15 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
         top.push(c);
       }
     }
+    // Most recent comments at the top
+    top.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    // Replies stay oldest-first within each thread
+    replies.forEach((arr) => arr.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()));
     return { topLevel: top, repliesByParent: replies };
   }, [comments]);
 
-  const handleAddComment = async (parentId?: string) => {
-    const text = parentId ? replyText : newComment;
+  const handleAddComment = async (parentId?: string, mentionedUserIds?: string[], directContent?: string) => {
+    const text = directContent || (parentId ? replyText : newComment);
     if (!text.trim()) return;
     setLoading(true);
     setCommentError(null);
@@ -78,6 +121,7 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
         body: JSON.stringify({
           content: text.trim(),
           parent_comment_id: parentId || null,
+          ...(mentionedUserIds?.length ? { mentioned_user_ids: mentionedUserIds } : {}),
         }),
       });
 
@@ -129,6 +173,33 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
       console.error('Failed to delete comment:', err);
     }
     onRefresh();
+  };
+
+  const handleEditComment = async (commentId: string) => {
+    if (!editText.trim()) return;
+    setEditLoading(true);
+    setEditError(null);
+    try {
+      const res = await fetch(`/api/cards/${cardId}/comments`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commentId, content: editText.trim() }),
+      });
+      if (res.ok) {
+        setEditingCommentId(null);
+        setEditText('');
+        setEditError(null);
+        onRefresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setEditError(data?.error || `Save failed (${res.status}). Please try again.`);
+      }
+    } catch (err) {
+      console.error('Failed to edit comment:', err);
+      setEditError('Network error — please check your connection and try again.');
+    } finally {
+      setEditLoading(false);
+    }
   };
 
   const handleAddLinkAsAttachment = useCallback(async (comment: Comment) => {
@@ -190,18 +261,85 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
                   minute: '2-digit',
                 })}
               </span>
-              {currentUserId === comment.user_id && (
-                <button
-                  onClick={() => handleDeleteComment(comment.id)}
-                  className="opacity-0 group-hover:opacity-100 text-navy/30 dark:text-slate-500 hover:text-danger text-xs transition-all ml-auto"
-                >
-                  Delete
-                </button>
+              {(currentUserId === comment.user_id || isAdmin) && (
+                <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all ml-auto">
+                  <button
+                    onClick={() => { setEditingCommentId(comment.id); setEditText(comment.content); }}
+                    className="text-navy/30 dark:text-slate-500 hover:text-electric text-xs"
+                  >
+                    Edit
+                  </button>
+                  {currentUserId === comment.user_id && (
+                    <button
+                      onClick={() => handleDeleteComment(comment.id)}
+                      className="text-navy/30 dark:text-slate-500 hover:text-danger text-xs"
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
               )}
             </div>
-            <p className="text-sm text-navy/70 dark:text-slate-300 mt-0.5 font-body whitespace-pre-wrap">
-              {linkifyContent(comment.content)}
-            </p>
+            {editingCommentId === comment.id ? (
+              <div className="mt-1">
+                <MarkdownToolbarUI
+                  textareaRef={editTextareaRef}
+                  value={editText}
+                  onChange={setEditText}
+                />
+                <textarea
+                  ref={editTextareaRef}
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  className="w-full p-2.5 rounded-b-lg rounded-t-none bg-cream dark:bg-navy border border-electric/30 border-t-0 text-sm text-navy dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-electric/30 resize-none overflow-hidden font-body min-h-[76px]"
+                  rows={1}
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { handleEditComment(comment.id); return; }
+                    if (e.key === 'Escape') { setEditingCommentId(null); setEditText(''); return; }
+                    const ta = editTextareaRef.current;
+                    if (ta && e.key === 'b' && (e.metaKey || e.ctrlKey)) {
+                      e.preventDefault();
+                      const s = ta.selectionStart, en = ta.selectionEnd;
+                      const sel = editText.slice(s, en) || 'bold text';
+                      setEditText(editText.slice(0, s) + '**' + sel + '**' + editText.slice(en));
+                      requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + 2, s + 2 + sel.length); });
+                    } else if (ta && e.key === 'i' && (e.metaKey || e.ctrlKey)) {
+                      e.preventDefault();
+                      const s = ta.selectionStart, en = ta.selectionEnd;
+                      const sel = editText.slice(s, en) || 'italic text';
+                      setEditText(editText.slice(0, s) + '*' + sel + '*' + editText.slice(en));
+                      requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + 1, s + 1 + sel.length); });
+                    }
+                  }}
+                />
+                {editError && (
+                  <p className="text-xs text-danger mt-1 font-body">{editError}</p>
+                )}
+                <div className="flex items-center gap-2 mt-1.5">
+                  <Button size="sm" onClick={() => handleEditComment(comment.id)} loading={editLoading}>Save</Button>
+                  <button onClick={() => { setEditingCommentId(null); setEditText(''); setEditError(null); }} className="text-xs text-navy/40 dark:text-slate-500 hover:text-navy/60 dark:hover:text-slate-300">Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-navy/70 dark:text-slate-300 mt-0.5 font-body prose prose-sm dark:prose-invert max-w-full prose-p:my-0.5 prose-p:font-body prose-a:text-electric prose-a:no-underline hover:prose-a:underline prose-code:text-electric prose-code:bg-electric/10 prose-code:px-1 prose-code:rounded prose-ul:my-1 prose-ol:my-1 prose-li:my-0 [overflow-wrap:break-word] [word-break:break-word]">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    a: ({ href, children }) => (
+                      <a href={href} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                        {showFullLinks ? href : children}
+                      </a>
+                    ),
+                  }}
+                >
+                  {normalizeSmartLinks(comment.content)}
+                </ReactMarkdown>
+                {comment.updated_at && comment.updated_at !== comment.created_at && (
+                  <span className="text-[10px] text-navy/25 dark:text-slate-600 ml-1.5">(edited)</span>
+                )}
+              </div>
+            )}
             <div className="flex items-center gap-2 mt-1">
               <CommentReactions commentId={comment.id} cardId={cardId} />
               {!isReply && (
@@ -236,11 +374,12 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
         {replyingTo === comment.id && (
           <div className="ml-8 mt-2">
             <textarea
+              ref={replyTextareaRef}
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
               placeholder="Write a reply..."
-              className="w-full p-2.5 rounded-lg bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-none font-body"
-              rows={2}
+              className="w-full p-2.5 rounded-lg bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-none overflow-hidden font-body min-h-[60px]"
+              rows={1}
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -280,36 +419,32 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
 
   return (
     <div>
-      <h3 className="text-sm font-semibold text-navy/50 dark:text-slate-400 mb-3 font-heading">
-        Comments and activity
-        <span className="ml-1.5 text-navy/30 dark:text-slate-500 font-normal">({comments.length})</span>
-      </h3>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-navy/50 dark:text-slate-400 font-heading">
+          Comments and activity
+          <span className="ml-1.5 text-navy/30 dark:text-slate-500 font-normal">({comments.length})</span>
+        </h3>
+        <button
+          onClick={() => setShowFullLinks(!showFullLinks)}
+          className="text-[10px] text-navy/35 dark:text-slate-500 hover:text-electric transition-colors font-body flex items-center gap-1"
+          title={showFullLinks ? 'Show shortened links' : 'Show full links'}
+        >
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+          {showFullLinks ? 'Shorten links' : 'Full links'}
+        </button>
+      </div>
 
       {/* Add comment — top of column like Trello */}
       <div className="mb-4">
-        <textarea
-          value={newComment}
-          onChange={(e) => { setNewComment(e.target.value); setCommentError(null); }}
-          placeholder="Write a comment..."
-          className="w-full p-2.5 rounded-xl bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-none font-body transition-all"
-          rows={newComment ? 3 : 1}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              handleAddComment();
-            }
+        <MentionInput
+          cardId={cardId}
+          boardId={boardId}
+          onSubmit={(content, mentionedUserIds) => {
+            handleAddComment(undefined, mentionedUserIds, content);
           }}
         />
         {commentError && (
           <p className="text-xs text-danger mt-1 font-body">{commentError}</p>
-        )}
-        {newComment.trim() && (
-          <div className="flex items-center justify-between mt-1.5">
-            <span className="text-[10px] text-navy/30 dark:text-slate-500 font-body">Enter to send, Shift+Enter for new line</span>
-            <Button size="sm" onClick={() => handleAddComment()} loading={loading}>
-              Comment
-            </Button>
-          </div>
         )}
       </div>
 

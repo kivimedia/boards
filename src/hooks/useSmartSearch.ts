@@ -81,12 +81,33 @@ export function useSmartSearch(boardId: string) {
       const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&board_id=${boardId}`);
       if (res.ok) {
         const json = await res.json();
-        const data = json.data || json;
+        const raw = json.data || json;
+
+        // API returns a flat SearchResult[] array — group by type
+        let grouped: SearchResults;
+        if (Array.isArray(raw)) {
+          const cards: SearchResultItem[] = [];
+          const boards: SearchResultItem[] = [];
+          const people: SearchResultItem[] = [];
+          const comments: SearchResultItem[] = [];
+          for (const item of raw) {
+            switch (item.type) {
+              case 'card': cards.push(item); break;
+              case 'board': boards.push(item); break;
+              case 'person': people.push(item); break;
+              case 'comment': comments.push(item); break;
+            }
+          }
+          grouped = { cards, boards, people, comments };
+        } else {
+          grouped = raw;
+        }
+
         setSearchResults({
-          cards: (data.cards || []).slice(0, 8),
-          boards: (data.boards || []).slice(0, 4),
-          people: (data.people || []).slice(0, 4),
-          comments: (data.comments || []).slice(0, 4),
+          cards: (grouped.cards || []).slice(0, 8),
+          boards: (grouped.boards || []).slice(0, 4),
+          people: (grouped.people || []).slice(0, 4),
+          comments: (grouped.comments || []).slice(0, 4),
         });
       }
     } catch {

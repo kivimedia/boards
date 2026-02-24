@@ -20,6 +20,7 @@ interface BoardListProps {
   list: ListWithCards;
   index: number;
   boardId: string;
+  boardName: string;
   allLists: { id: string; name: string }[];
   onCardClick: (cardId: string) => void;
   onRefresh: () => void;
@@ -57,7 +58,7 @@ function matchesFilter(placement: any, filter: BoardFilter | undefined): boolean
   return true;
 }
 
-export default function BoardList({ list, index, boardId, allLists, onCardClick, onRefresh, selectedCards, toggleCardSelection, filter, isLoadingCards, isDraggingList }: BoardListProps) {
+export default function BoardList({ list, index, boardId, boardName, allLists, onCardClick, onRefresh, selectedCards, toggleCardSelection, filter, isLoadingCards, isDraggingList }: BoardListProps) {
   const [isAddingCard, setIsAddingCard] = useState(false);
   const [newCardTitle, setNewCardTitle] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
@@ -86,32 +87,28 @@ export default function BoardList({ list, index, boardId, allLists, onCardClick,
   const handleAddCard = async () => {
     if (!newCardTitle.trim()) return;
     setLoading(true);
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    // Create card
-    const { data: card } = await supabase
-      .from('cards')
-      .insert({ title: newCardTitle.trim(), created_by: user.id })
-      .select()
-      .single();
-
-    if (card) {
-      // Create placement
-      const maxPosition = Math.max(0, ...list.cards.map((c) => c.position));
-      await supabase.from('card_placements').insert({
-        card_id: card.id,
-        list_id: list.id,
-        position: maxPosition + 1,
-        is_mirror: false,
+    try {
+      // Use server API — bypasses client-side RLS on card_placements
+      const res = await fetch(`/api/lists/${list.id}/cards`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newCardTitle.trim() }),
       });
-    }
 
-    setNewCardTitle('');
-    setIsAddingCard(false);
-    setLoading(false);
-    onRefresh();
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        console.error('[AddCard] Server error:', data?.error || res.status);
+        return;
+      }
+
+      setNewCardTitle('');
+      setIsAddingCard(false);
+      onRefresh();
+    } catch (err) {
+      console.error('[AddCard] Unexpected error:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleUpdateName = async () => {
@@ -221,6 +218,7 @@ export default function BoardList({ list, index, boardId, allLists, onCardClick,
                         checklist_done={placement.checklist_done || 0}
                         cover_image_url={placement.cover_image_url || null}
                         boardId={boardId}
+                        boardName={boardName}
                         onRefresh={onRefresh}
                       />
                     )
@@ -271,7 +269,7 @@ export default function BoardList({ list, index, boardId, allLists, onCardClick,
           ) : (
             <button
               onClick={() => setIsAddingCard(true)}
-              className="mx-1.5 mb-2 px-3 py-2 rounded-xl text-sm text-navy/40 dark:text-slate-400 hover:text-navy/60 dark:hover:text-slate-300 hover:bg-cream-dark/50 dark:hover:bg-slate-800/50 transition-all duration-200 text-left font-body"
+              className="mx-1.5 mb-2 px-3 py-2.5 rounded-xl text-sm text-navy/40 dark:text-slate-400 hover:text-navy/60 dark:hover:text-slate-300 hover:bg-cream-dark/50 dark:hover:bg-slate-800/50 transition-all duration-200 text-left font-body w-[calc(100%-0.75rem)] min-h-[44px] flex items-center"
             >
               + Add a card
             </button>

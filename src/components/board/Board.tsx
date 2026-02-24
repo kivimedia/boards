@@ -224,56 +224,39 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
           lists: newLists,
         });
 
-        // Fire DB writes in background
+        // Persist via server API (bypasses RLS on card_placements)
         if (source.droppableId === destination.droppableId) {
           const sortedSrc = [...sourceList.cards].sort((a, b) => a.position - b.position);
           const [mv] = sortedSrc.splice(source.index, 1);
           sortedSrc.splice(destination.index, 0, mv);
 
-          const minIdx = Math.min(source.index, destination.index);
-          const maxIdx = Math.max(source.index, destination.index);
-          const updates = [];
-          for (let i = minIdx; i <= maxIdx; i++) {
-            updates.push(
-              supabase
-                .from('card_placements')
-                .update({ position: i })
-                .eq('id', sortedSrc[i].id)
-            );
-          }
-          Promise.all(updates);
+          fetch('/api/cards/reorder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              list_id: source.droppableId,
+              ordered_placement_ids: sortedSrc.map((c) => c.id),
+            }),
+          }).catch((err) => {
+            console.error('[DragEnd] Failed to persist card order:', err);
+            onRefresh();
+          });
         } else {
           const sourcePlacements = [...sourceList.cards].sort((a, b) => a.position - b.position);
-          const destPlacements = [...destList.cards].sort((a, b) => a.position - b.position);
           const [mv] = sourcePlacements.splice(source.index, 1);
-          destPlacements.splice(destination.index, 0, mv);
 
-          // Update moved card's list_id and position
-          supabase
-            .from('card_placements')
-            .update({ list_id: destination.droppableId, position: destination.index })
-            .eq('id', mv.id)
-            .then(() => {
-              const sourceUpdates = [];
-              for (let i = source.index; i < sourcePlacements.length; i++) {
-                sourceUpdates.push(
-                  supabase
-                    .from('card_placements')
-                    .update({ position: i })
-                    .eq('id', sourcePlacements[i].id)
-                );
-              }
-              const destUpdates = [];
-              for (let i = destination.index + 1; i < destPlacements.length; i++) {
-                destUpdates.push(
-                  supabase
-                    .from('card_placements')
-                    .update({ position: i })
-                    .eq('id', destPlacements[i].id)
-                );
-              }
-              Promise.all([...sourceUpdates, ...destUpdates]);
-            });
+          fetch('/api/cards/reorder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              placement_id: mv.id,
+              dest_list_id: destination.droppableId,
+              dest_index: destination.index,
+            }),
+          }).catch((err) => {
+            console.error('[DragEnd] Failed to persist cross-list move:', err);
+            onRefresh();
+          });
         }
       }
     },
@@ -283,7 +266,20 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
   const handleAddList = async () => {
     if (!newListName.trim()) return;
 
-    const maxPosition = Math.max(0, ...board.lists.map((l) => l.position));
+    // Compute safe next list position (guard against int4 overflow)
+    const INT4_SAFE_THRESHOLD = 2147483640;
+    const positions = board.lists.map((l) => l.position);
+    let maxPosition = positions.length > 0 ? Math.max(...positions) : -1;
+    if (maxPosition >= INT4_SAFE_THRESHOLD) {
+      // Renumber existing lists sequentially to reclaim position space
+      const sorted = [...board.lists].sort((a, b) => a.position - b.position);
+      await Promise.all(
+        sorted.map((l, i) =>
+          supabase.from('lists').update({ position: i }).eq('id', l.id)
+        )
+      );
+      maxPosition = sorted.length - 1;
+    }
     await supabase.from('lists').insert({
       board_id: board.id,
       name: newListName.trim(),
@@ -320,7 +316,7 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
                 panRef.current = el;
               }}
               {...provided.droppableProps}
-              className="flex-1 flex gap-3 overflow-x-auto p-6 pb-4 scrollbar-thin items-start"
+              className="flex-1 flex gap-3 overflow-x-auto p-3 sm:p-6 pb-20 sm:pb-24 scrollbar-thin items-start"
             >
               {sortedLists.map((list, index) => (
                 <BoardList
@@ -328,6 +324,7 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
                   list={list}
                   index={index}
                   boardId={board.id}
+                  boardName={board.name}
                   allLists={sortedLists.map((l) => ({ id: l.id, name: l.name }))}
                   onCardClick={setSelectedCardId}
                   onRefresh={onRefresh}

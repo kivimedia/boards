@@ -19,15 +19,17 @@ export default function CardActions({ cardId, boardId, onClose, onRefresh }: Car
   const [targetBoardId, setTargetBoardId] = useState('');
   const [targetLists, setTargetLists] = useState<List[]>([]);
   const [targetListId, setTargetListId] = useState('');
+  const [targetListCardCount, setTargetListCardCount] = useState(0);
+  const [targetPositionIndex, setTargetPositionIndex] = useState(-1); // -1 = end
   const [loading, setLoading] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
-    const fetchBoards = async () => {
-      const { data } = await supabase.from('boards').select('*').order('name');
-      setBoards(data || []);
-    };
-    fetchBoards();
+    // Use server API so RLS doesn't filter out boards
+    fetch('/api/boards')
+      .then((r) => r.json())
+      .then((json) => setBoards(json.data || json || []))
+      .catch(() => setBoards([]));
   }, []);
 
   useEffect(() => {
@@ -35,41 +37,48 @@ export default function CardActions({ cardId, boardId, onClose, onRefresh }: Car
       setTargetLists([]);
       return;
     }
-    const fetchLists = async () => {
-      const { data } = await supabase
-        .from('lists')
-        .select('*')
-        .eq('board_id', targetBoardId)
-        .order('position');
-      setTargetLists(data || []);
-      if (data && data.length > 0) setTargetListId(data[0].id);
-    };
-    fetchLists();
+    fetch(`/api/boards/${targetBoardId}/lists`)
+      .then((r) => r.json())
+      .then((json) => {
+        const lists = json.data || json || [];
+        setTargetLists(lists);
+        if (lists.length > 0) setTargetListId(lists[0].id);
+      })
+      .catch(() => setTargetLists([]));
   }, [targetBoardId]);
+
+  useEffect(() => {
+    if (!targetListId) { setTargetListCardCount(0); setTargetPositionIndex(-1); return; }
+    fetch(`/api/lists/${targetListId}/cards/count`)
+      .then((r) => r.json())
+      .then((json) => {
+        setTargetListCardCount(json.data?.count ?? json.count ?? 0);
+        setTargetPositionIndex(-1); // reset to "bottom" when list changes
+      })
+      .catch(() => { setTargetListCardCount(0); setTargetPositionIndex(-1); });
+  }, [targetListId]);
 
   const handleMirror = async () => {
     if (!targetListId) return;
     setLoading(true);
-
-    const { data: maxPos } = await supabase
-      .from('card_placements')
-      .select('position')
-      .eq('list_id', targetListId)
-      .order('position', { ascending: false })
-      .limit(1);
-
-    const position = maxPos && maxPos.length > 0 ? maxPos[0].position + 1 : 0;
-
-    await supabase.from('card_placements').insert({
-      card_id: cardId,
-      list_id: targetListId,
-      position,
-      is_mirror: true,
-    });
-
-    setLoading(false);
-    setShowMirror(false);
-    onRefresh();
+    try {
+      const res = await fetch(`/api/cards/${cardId}/mirror`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ list_id: targetListId, position_index: targetPositionIndex }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data?.error || 'Mirror failed. Please try again.');
+      } else {
+        setShowMirror(false);
+        onRefresh();
+      }
+    } catch {
+      alert('Mirror failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDuplicate = async () => {
@@ -87,33 +96,33 @@ export default function CardActions({ cardId, boardId, onClose, onRefresh }: Car
   const handleMove = async () => {
     if (!targetListId) return;
     setLoading(true);
-
-    const { data: placement } = await supabase
-      .from('card_placements')
-      .select('*')
-      .eq('card_id', cardId)
-      .eq('is_mirror', false)
-      .limit(1)
-      .single();
-
-    if (placement) {
-      const { data: maxPos } = await supabase
-        .from('card_placements')
-        .select('position')
-        .eq('list_id', targetListId)
-        .order('position', { ascending: false })
-        .limit(1);
-
-      const position = maxPos && maxPos.length > 0 ? maxPos[0].position + 1 : 0;
-
-      await supabase
-        .from('card_placements')
-        .update({ list_id: targetListId, position })
-        .eq('id', placement.id);
+    try {
+      const res = await fetch(`/api/cards/${cardId}/move-to-list`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ list_id: targetListId, position_index: targetPositionIndex }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data?.error || 'Move failed. Please try again.');
+      } else {
+        setShowMove(false);
+        onRefresh();
+      }
+    } catch {
+      alert('Move failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
+  };
 
+  const handleArchive = async () => {
+    if (!confirm('Archive this ticket? It will be hidden from the board but can be restored later.')) return;
+    setLoading(true);
+    await supabase.from('cards').update({ is_archived: true }).eq('id', cardId);
+    await supabase.from('card_placements').delete().eq('card_id', cardId);
     setLoading(false);
-    setShowMove(false);
+    onClose();
     onRefresh();
   };
 
@@ -145,6 +154,19 @@ export default function CardActions({ cardId, boardId, onClose, onRefresh }: Car
           {targetLists.map((l) => (
             <option key={l.id} value={l.id}>{l.name}</option>
           ))}
+        </select>
+      )}
+      {targetListId && (
+        <select
+          value={targetPositionIndex}
+          onChange={(e) => setTargetPositionIndex(Number(e.target.value))}
+          className="w-full px-3 py-2 rounded-lg bg-cream dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-electric/30 font-body"
+        >
+          <option value={0}>Position 1 (top)</option>
+          {Array.from({ length: targetListCardCount }, (_, i) => (
+            <option key={i + 1} value={i + 1}>Position {i + 2}</option>
+          ))}
+          <option value={-1}>Bottom (last)</option>
         </select>
       )}
       <Button size="sm" onClick={onSubmit} loading={loading} className="w-full">
@@ -184,6 +206,14 @@ export default function CardActions({ cardId, boardId, onClose, onRefresh }: Car
         {showMove && <BoardListSelector onSubmit={handleMove} submitLabel="Move Card" />}
 
         <hr className="border-cream-dark dark:border-slate-700 my-2" />
+
+        <button
+          onClick={handleArchive}
+          disabled={loading}
+          className="w-full text-left px-3 py-2 rounded-lg text-sm text-navy/60 dark:text-slate-400 hover:bg-cream-dark dark:hover:bg-slate-800 hover:text-navy dark:hover:text-slate-100 transition-all font-body"
+        >
+          Archive this ticket
+        </button>
 
         <button
           onClick={handleDelete}

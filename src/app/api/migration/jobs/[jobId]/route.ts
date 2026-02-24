@@ -73,7 +73,26 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     .single();
 
   if (error) return errorResponse(error.message, 500);
-  return successResponse(data);
+
+  // Cascade cancel to all children if this is a parent job
+  const { data: children } = await supabase
+    .from('migration_jobs')
+    .select('id, status')
+    .eq('parent_job_id', jobId)
+    .in('status', ['pending', 'running']);
+
+  if (children && children.length > 0) {
+    await supabase
+      .from('migration_jobs')
+      .update({ status: 'cancelled' })
+      .eq('parent_job_id', jobId)
+      .in('status', ['pending', 'running']);
+  }
+
+  return successResponse({
+    ...data,
+    children_cancelled: children?.length ?? 0,
+  });
 }
 
 /**

@@ -44,6 +44,21 @@ function getNotificationIcon(type: NotificationType) {
           <line x1="3" y1="21" x2="10" y2="14" />
         </svg>
       );
+    case 'card_due_soon':
+    case 'card_overdue':
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="12 6 12 12 16 14" />
+        </svg>
+      );
+    case 'card_watched':
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
+      );
     case 'onboarding_started':
       return (
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -177,9 +192,12 @@ export default function NotificationCenter() {
 
     if (notification.card_id) {
       setIsOpen(false);
-      // Navigate to the board where the card is located
       if (notification.board_id) {
+        // Direct deep-link: board page opens card modal immediately
         router.push(`/board/${notification.board_id}?card=${notification.card_id}`);
+      } else {
+        // Fallback for older notifications without board_id: use /c/ redirect
+        router.push(`/c/${notification.card_id}`);
       }
     }
   };
@@ -217,7 +235,7 @@ export default function NotificationCenter() {
 
       {/* Dropdown Panel */}
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-[calc(100vw-1rem)] sm:w-80 max-w-sm bg-white dark:bg-dark-surface rounded-2xl shadow-xl dark:shadow-none border border-cream-dark dark:border-slate-700 z-50 overflow-hidden">
+        <div className="absolute right-0 top-full mt-2 w-[calc(100vw-1rem)] sm:w-80 max-w-sm bg-white dark:bg-dark-surface rounded-2xl shadow-xl dark:shadow-none border border-cream-dark dark:border-slate-700 z-[999] overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-cream-dark dark:border-slate-700">
             <h3 className="text-sm font-semibold text-navy dark:text-slate-100 font-heading">

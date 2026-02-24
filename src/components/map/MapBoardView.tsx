@@ -148,7 +148,7 @@ export default function MapBoardView({ clientId }: MapBoardViewProps) {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-cream dark:bg-dark-bg p-6">
+    <div className="flex-1 overflow-y-auto bg-cream dark:bg-dark-bg p-4 sm:p-6">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Client Header */}
         <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-6">

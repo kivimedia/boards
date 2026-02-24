@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import { Card, Label, Profile, Comment, CardPriority, CardSize, BoardType } from '@/lib/types';
 import { useAuth } from '@/hooks/useAuth';
+import { useAutoResize } from '@/hooks/useAutoResize';
 import { useProfilingStore } from '@/stores/profiling-store';
 import Modal from '@/components/ui/Modal';
 import CardComments from './CardComments';
@@ -24,7 +25,12 @@ import ClientBrainPanel from '@/components/client/ClientBrainPanel';
 import CardApprovalPanel from './CardApprovalPanel';
 import LeadInfoPanel from './LeadInfoPanel';
 import DidntBookPanel from './DidntBookPanel';
+import CardAIChat from './CardAIChat';
 import ReactMarkdown from 'react-markdown';
+import { MarkdownToolbarUI } from './MarkdownToolbar';
+import { useMentionDropdown } from './useMentionDropdown';
+import MentionDropdown from './MentionDropdown';
+import { slugify } from '@/lib/slugify';
 
 interface CardModalProps {
   cardId: string;
@@ -41,7 +47,6 @@ const BASE_TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'details', label: 'Details', icon: '📝' },
   { key: 'brief', label: 'Brief', icon: '📋' },
   { key: 'checklists', label: 'Checklists', icon: '☑️' },
-  { key: 'attachments', label: 'Attachments', icon: '📎' },
   { key: 'dependencies', label: 'Dependencies', icon: '🔗' },
   { key: 'activity', label: 'Activity', icon: '📊' },
 ];
@@ -67,6 +72,7 @@ const PRIORITY_OPTIONS: { value: CardPriority; label: string; color: string }[] 
 export default function CardModal({ cardId, boardId, onClose, onRefresh, allCardIds, onNavigate }: CardModalProps) {
   const [card, setCard] = useState<Card | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [cardLoading, setCardLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [labels, setLabels] = useState<Label[]>([]);
@@ -79,6 +85,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [showDescriptionPreview, setShowDescriptionPreview] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [boardName, setBoardName] = useState('');
   const [listName, setListName] = useState('');
@@ -87,16 +94,23 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
   const [cardSize, setCardSize] = useState<CardSize>('medium');
   const [uploadingCover, setUploadingCover] = useState(false);
+  const [coverError, setCoverError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('details');
   const [boardType, setBoardType] = useState<BoardType | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const moreBtnRef = useRef<HTMLButtonElement>(null);
+  const descMention = useMentionDropdown({ value: description, onChange: setDescription });
+  useAutoResize(descMention.textareaRef, description);
   const [moreMenuPos, setMoreMenuPos] = useState({ top: 0, left: 0 });
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [archiving, setArchiving] = useState(false);
   // Profiling refs
   const openTimeRef = useRef(performance.now());
   const timingsRef = useRef<Record<string, number>>({});
+  // Capture the URL that was active when this modal opened — restore it on close
+  const prevUrlRef = useRef(typeof window !== 'undefined' ? window.location.href : '');
   const completedRef = useRef<Set<string>>(new Set());
   const supabase = createClient();
   const { profile } = useAuth();
@@ -120,6 +134,27 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
       setActiveTab('details');
     }
   }, [TABS.length, activeTab]);
+
+  // Update URL to /c/[board-slug]/[assignee]/[card-slug] when modal opens, restore on close
+  useEffect(() => {
+    // Wait until we have card title + board name (data fully loaded, not loading state)
+    if (!card?.title || !boardName || cardLoading) return;
+
+    const cardSlug = slugify(card.title);
+    const boardSlug = slugify(boardName);
+    // Use first assignee's first name ("Riza Magno" → "riza"), fallback to "unassigned"
+    const personSlug = assignees.length > 0
+      ? slugify(assignees[0].display_name?.split(' ')[0] ?? assignees[0].display_name ?? 'unassigned')
+      : 'unassigned';
+
+    const path = `/c/${boardSlug}/${personSlug}/${cardSlug}`;
+    window.history.replaceState(null, '', path);
+
+    // On cleanup (modal closes or card changes), restore original pre-modal URL
+    return () => {
+      window.history.replaceState(null, '', prevUrlRef.current);
+    };
+  }, [cardId, card?.title, boardName, assignees, cardLoading]);
 
   // Close More menu on click-outside (portal-aware)
   useEffect(() => {
@@ -179,6 +214,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
 
       setCard(cardData);
       setCurrentUserId(data.userId || null);
+      setIsAdmin(data.isAdmin || false);
       setTitle(cardData.title);
       setDescription(cardData.description || '');
       setDueDate(cardData.due_date ? cardData.due_date.split('T')[0] : '');
@@ -286,30 +322,46 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
   const handleCoverImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const inputEl = e.target;
+    const fileCopy = new File([file], file.name, { type: file.type });
+    // Show local preview immediately
+    const localPreview = URL.createObjectURL(fileCopy);
+    setCoverImageUrl(localPreview);
+    setCoverError(null);
     setUploadingCover(true);
     try {
-      const ext = file.name.split('.').pop() || 'jpg';
-      const storagePath = `covers/${cardId}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage
-        .from('card-attachments')
-        .upload(storagePath, file);
-      if (uploadError) throw uploadError;
-      const { data: urlData } = supabase.storage
-        .from('card-attachments')
-        .getPublicUrl(storagePath);
-      const url = urlData.publicUrl;
-      setCoverImageUrl(url);
-      await updateCard({ cover_image_url: url } as any);
+      const formData = new FormData();
+      formData.append('file', fileCopy);
+      const res = await fetch(`/api/cards/${cardId}/cover`, {
+        method: 'POST',
+        body: formData,
+      });
+      const json = await res.json();
+      URL.revokeObjectURL(localPreview);
+      if (!res.ok) {
+        setCoverImageUrl(null);
+        setCoverError(json?.error || 'Cover upload failed. Please try again.');
+        return;
+      }
+      // Use signed URL returned from server for immediate display
+      setCoverImageUrl(json.data?.signedUrl || null);
+      onRefresh();
     } catch (err) {
       console.error('Cover upload failed:', err);
+      URL.revokeObjectURL(localPreview);
+      setCoverImageUrl(null);
+      setCoverError('Cover upload failed. Please try again.');
     } finally {
       setUploadingCover(false);
+      inputEl.value = '';
     }
   };
 
   const handleRemoveCover = async () => {
     setCoverImageUrl(null);
-    await updateCard({ cover_image_url: null } as any);
+    setCoverError(null);
+    await fetch(`/api/cards/${cardId}/cover`, { method: 'DELETE' });
+    onRefresh();
   };
 
   const handleCardSizeChange = (size: CardSize) => {
@@ -358,6 +410,16 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
     }
   }, [allCardIds, onNavigate, cardId]);
 
+  const handleArchive = async () => {
+    if (!confirm('Archive this ticket? It will be hidden from the board but can be restored later.')) return;
+    setArchiving(true);
+    await supabase.from('cards').update({ is_archived: true }).eq('id', cardId);
+    await supabase.from('card_placements').delete().eq('card_id', cardId);
+    setArchiving(false);
+    onClose();
+    onRefresh();
+  };
+
   if (!card) {
     return (
       <Modal isOpen={true} onClose={onClose} size="xl">
@@ -396,12 +458,24 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
   return (
     <Modal isOpen={true} onClose={onClose} size="xl" onKeyDown={handleModalKeyDown}>
       {/* Cover Image */}
+      {!coverImageUrl && (
+        <>
+          <label className="cursor-pointer group flex items-center justify-center gap-2 w-full h-12 rounded-t-2xl border-b border-dashed border-cream-dark dark:border-slate-700 hover:bg-cream dark:hover:bg-slate-800/50 transition-colors text-navy/30 dark:text-slate-600 hover:text-electric dark:hover:text-electric text-xs font-medium">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            {uploadingCover ? 'Uploading...' : 'Add cover image'}
+            <input type="file" accept="image/*" className="hidden" onChange={handleCoverImageUpload} disabled={uploadingCover} />
+          </label>
+          {coverError && (
+            <p className="text-xs text-danger text-center py-1 px-3 font-body">{coverError}</p>
+          )}
+        </>
+      )}
       {coverImageUrl && (
-        <div className="relative w-full h-40 bg-cream dark:bg-navy overflow-hidden rounded-t-2xl">
+        <div className="relative w-full h-48 bg-cream dark:bg-navy overflow-hidden rounded-t-2xl flex items-center justify-center">
           {coverImageUrl.includes('supabase.co') || coverImageUrl.startsWith('/') ? (
-            <Image src={coverImageUrl} alt="" fill sizes="(max-width: 1024px) 90vw, 896px" className="object-cover" quality={90} />
+            <Image src={coverImageUrl} alt="" fill sizes="(max-width: 1024px) 90vw, 896px" className="object-contain" quality={90} onError={() => setCoverImageUrl(null)} />
           ) : (
-            <img src={coverImageUrl} alt="" className="w-full h-full object-cover" loading="eager" />
+            <img src={coverImageUrl} alt="" className="w-full h-full object-contain" loading="eager" onError={() => setCoverImageUrl(null)} />
           )}
           <div className="absolute bottom-2 right-2 flex gap-1.5">
             <label className="cursor-pointer inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-white/90 dark:bg-dark-surface/90 text-navy dark:text-slate-200 hover:bg-white dark:hover:bg-dark-surface transition-colors shadow-sm backdrop-blur-sm">
@@ -420,7 +494,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
         </div>
       )}
 
-      <div className="p-5 pb-6">
+      <div className="p-4 sm:p-5 pb-6">
         {/* Board > List breadcrumb */}
         {(boardName || listName) && (
           <div className="flex items-center gap-1.5 text-xs text-navy/40 dark:text-slate-500 font-medium font-body mb-1 pr-8">
@@ -581,12 +655,27 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                       <span className="font-body">{tab.label}</span>
                     </button>
                   ))}
+                  <hr className="border-cream-dark dark:border-slate-700 my-1" />
+                  <button
+                    onClick={() => {
+                      setMoreMenuOpen(false);
+                      handleArchive();
+                    }}
+                    disabled={archiving}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors text-navy/60 dark:text-slate-400 hover:bg-cream-dark dark:hover:bg-slate-800 disabled:opacity-50"
+                  >
+                    <span className="text-[11px]">📦</span>
+                    <span className="font-body">{archiving ? 'Archiving…' : 'Archive this ticket'}</span>
+                  </button>
                 </div>,
                 document.body
               )}
             </div>
           )}
         </div>
+
+        {/* Card AI Chat */}
+        <CardAIChat cardId={cardId} boardId={boardId} />
 
         <div className="relative">
           {/* Main content */}
@@ -627,13 +716,88 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                     </div>
                     {isEditingDescription ? (
                       <div>
-                        <textarea
-                          value={description}
-                          onChange={(e) => setDescription(e.target.value)}
-                          className="w-full p-3 rounded-xl bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-none font-body min-h-[120px]"
-                          placeholder="Add a description..."
-                          autoFocus
-                        />
+                        {/* Write / Preview tabs */}
+                        <div className="flex items-center gap-0 mb-0">
+                          {(['Write', 'Preview'] as const).map((tab) => (
+                            <button
+                              key={tab}
+                              type="button"
+                              onClick={() => setShowDescriptionPreview(tab === 'Preview')}
+                              className={`px-3 py-1.5 text-xs font-medium border border-b-0 transition-colors font-body first:rounded-tl-lg last:rounded-tr-lg ${
+                                (tab === 'Preview') === showDescriptionPreview
+                                  ? 'bg-cream dark:bg-navy border-cream-dark dark:border-slate-700 text-navy dark:text-slate-100'
+                                  : 'bg-white dark:bg-slate-800/50 border-transparent text-navy/40 dark:text-slate-500 hover:text-navy/70'
+                              }`}
+                            >
+                              {tab}
+                            </button>
+                          ))}
+                        </div>
+                        {showDescriptionPreview ? (
+                          <div className="min-h-[120px] p-3 rounded-b-xl rounded-tr-xl bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-sm font-body prose prose-sm dark:prose-invert max-w-full prose-p:my-0.5 prose-headings:font-heading prose-a:text-electric prose-code:text-electric prose-code:bg-electric/10 prose-code:px-1 prose-code:rounded [overflow-wrap:break-word]">
+                            {description.trim()
+                              ? <ReactMarkdown>{description}</ReactMarkdown>
+                              : <span className="text-navy/30 dark:text-slate-500">Nothing to preview yet...</span>
+                            }
+                          </div>
+                        ) : (
+                          <>
+                            <MarkdownToolbarUI
+                              textareaRef={descMention.textareaRef}
+                              value={description}
+                              onChange={setDescription}
+                            />
+                            <div className="relative">
+                              <textarea
+                                ref={descMention.textareaRef}
+                                value={description}
+                                onChange={descMention.handleInput}
+                                onKeyDown={(e) => {
+                                  if (descMention.handleKeyDown(e)) return;
+                                  const ta = descMention.textareaRef.current;
+                                  if (ta && e.key === 'b' && (e.metaKey || e.ctrlKey)) {
+                                    e.preventDefault();
+                                    const s = ta.selectionStart, en = ta.selectionEnd;
+                                    const sel = description.slice(s, en) || 'bold text';
+                                    const text = description.slice(0, s) + '**' + sel + '**' + description.slice(en);
+                                    setDescription(text);
+                                    requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + 2, s + 2 + sel.length); });
+                                  } else if (ta && e.key === 'i' && (e.metaKey || e.ctrlKey)) {
+                                    e.preventDefault();
+                                    const s = ta.selectionStart, en = ta.selectionEnd;
+                                    const sel = description.slice(s, en) || 'italic text';
+                                    const text = description.slice(0, s) + '*' + sel + '*' + description.slice(en);
+                                    setDescription(text);
+                                    requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + 1, s + 1 + sel.length); });
+                                  } else if (ta && e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+                                    e.preventDefault();
+                                    const s = ta.selectionStart, en = ta.selectionEnd;
+                                    const sel = description.slice(s, en) || '';
+                                    const url = window.prompt('Enter URL:', 'https://');
+                                    if (url && url !== 'https://') {
+                                      const linkText = sel || 'link text';
+                                      const md = `[${linkText}](${url})`;
+                                      setDescription(description.slice(0, s) + md + description.slice(en));
+                                      requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + md.length, s + md.length); });
+                                    }
+                                  }
+                                }}
+                                className="w-full p-3 rounded-b-xl rounded-t-none bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 border-t-0 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-none overflow-hidden font-body min-h-[120px]"
+                                placeholder="Add a description... (supports **bold**, *italic*, # Heading, - bullet, @ to mention)"
+                                autoFocus
+                              />
+                              {descMention.showDropdown && (
+                                <MentionDropdown
+                                  profiles={descMention.filteredProfiles}
+                                  selectedIndex={descMention.selectedIndex}
+                                  onSelect={descMention.selectProfile}
+                                  onHover={descMention.setSelectedIndex}
+                                  filter={descMention.dropdownFilter}
+                                />
+                              )}
+                            </div>
+                          </>
+                        )}
                         <div className="flex gap-2 mt-2">
                           <button
                             onClick={handleDescriptionSave}
@@ -645,6 +809,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                             onClick={() => {
                               setDescription(card.description || '');
                               setIsEditingDescription(false);
+                              setShowDescriptionPreview(false);
                             }}
                             className="px-3 py-1.5 text-navy/50 dark:text-slate-400 text-sm rounded-lg hover:bg-cream-dark dark:hover:bg-slate-800 transition-colors"
                           >
@@ -656,10 +821,10 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                       <div className="relative">
                         <div
                           onClick={() => setIsEditingDescription(true)}
-                          className={`p-3 rounded-xl bg-cream dark:bg-navy hover:bg-cream-dark dark:hover:bg-slate-800 cursor-pointer transition-colors min-h-[60px] text-sm text-navy dark:text-slate-200 font-body ${description && !descriptionExpanded && description.length > 300 ? 'max-h-[200px] overflow-hidden' : ''}`}
+                          className={`p-3 rounded-xl bg-cream dark:bg-navy hover:bg-cream-dark dark:hover:bg-slate-800 cursor-pointer transition-colors min-h-[60px] text-sm text-navy dark:text-slate-200 font-body ${description && !descriptionExpanded && description.length > 300 ? 'max-h-[200px] overflow-hidden' : 'overflow-x-hidden'}`}
                         >
                           {description ? (
-                            <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-heading prose-p:font-body prose-p:text-navy dark:prose-p:text-slate-200 prose-a:text-electric prose-code:text-electric prose-code:bg-electric/10 prose-code:px-1 prose-code:rounded">
+                            <div className="prose prose-sm dark:prose-invert max-w-full prose-headings:font-heading prose-p:font-body prose-p:text-navy dark:prose-p:text-slate-200 prose-a:text-electric prose-code:text-electric prose-code:bg-electric/10 prose-code:px-1 prose-code:rounded [overflow-wrap:break-word] [word-break:break-word]">
                               <ReactMarkdown>{description}</ReactMarkdown>
                             </div>
                           ) : (
@@ -717,22 +882,32 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                       onUpdate={(updates) => updateCard(updates as any)}
                     />
                   )}
+
+                  {/* Attachments inline */}
+                  <CardAttachments
+                    cardId={cardId}
+                    coverImageUrl={coverImageUrl}
+                    onCoverChange={(url) => setCoverImageUrl(url)}
+                    onRefresh={() => { fetchCardDetails(); onRefresh(); }}
+                  />
                 </div>
 
                 {/* Right column — comments */}
                 <div className="min-w-0 lg:border-l lg:border-cream-dark lg:dark:border-slate-700 lg:pl-6">
                   <CardComments
                     cardId={cardId}
+                    boardId={boardId}
                     comments={comments}
                     onRefresh={fetchCardDetails}
                     onCommentAdded={(comment) => {
                       setComments((prev) => {
                         // Avoid duplicates if refresh already added it
                         if (prev.some((c) => c.id === comment.id)) return prev;
-                        return [...prev, comment];
+                        return [comment, ...prev];
                       });
                     }}
                     currentUserId={currentUserId}
+                    isAdmin={isAdmin}
                   />
                 </div>
               </div>
@@ -744,15 +919,6 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
 
             {activeTab === 'checklists' && (
               <CardChecklists cardId={cardId} onRefresh={onRefresh} />
-            )}
-
-            {activeTab === 'attachments' && (
-              <CardAttachments
-                cardId={cardId}
-                coverImageUrl={coverImageUrl}
-                onCoverChange={(url) => setCoverImageUrl(url)}
-                onRefresh={onRefresh}
-              />
             )}
 
             {activeTab === 'dependencies' && (
@@ -784,10 +950,10 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
             <>
               {/* Mobile backdrop */}
               <div
-                className="fixed inset-0 bg-black/20 z-10 sm:hidden"
+                className="fixed inset-0 bg-black/40 z-10 lg:hidden"
                 onClick={() => setSidebarOpen(false)}
               />
-              <div className="absolute top-0 right-0 bottom-0 w-64 bg-white dark:bg-dark-surface border-l border-cream-dark dark:border-slate-700 shadow-lg overflow-y-auto z-10 animate-in slide-in-from-right duration-200 rounded-r-xl">
+              <div className="absolute top-0 right-0 bottom-0 w-full sm:w-72 bg-white dark:bg-dark-surface border-l border-cream-dark dark:border-slate-700 shadow-lg overflow-y-auto z-10 animate-in slide-in-from-right duration-200 rounded-r-xl">
                 <div className="p-4 space-y-4">
                   {/* Panel header */}
                   <div className="flex items-center justify-between">
@@ -882,6 +1048,42 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                     />
                   </div>
 
+                  {/* Owner / Lead */}
+                  <div>
+                    <h4 className="text-xs font-semibold text-navy/40 dark:text-slate-400 mb-1.5 uppercase tracking-wider font-heading">
+                      Owner
+                    </h4>
+                    {card.owner_id ? (
+                      <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200/50 dark:border-amber-800/30 group">
+                        <span className="text-amber-500 text-[10px]" title="Card owner">&#9733;</span>
+                        <Avatar name={allProfiles.find(p => p.id === card.owner_id)?.display_name || 'Owner'} src={allProfiles.find(p => p.id === card.owner_id)?.avatar_url} size="sm" />
+                        <span className="truncate font-body text-xs text-navy dark:text-slate-100 font-medium">{allProfiles.find(p => p.id === card.owner_id)?.display_name || 'Owner'}</span>
+                        <button
+                          onClick={() => updateCard({ owner_id: null } as any)}
+                          className="ml-auto opacity-0 group-hover:opacity-100 text-navy/30 dark:text-slate-500 hover:text-danger transition-all"
+                          title="Remove owner"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <select
+                          onChange={(e) => {
+                            if (e.target.value) updateCard({ owner_id: e.target.value } as any);
+                          }}
+                          value=""
+                          className="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium text-navy/40 dark:text-slate-500 border border-dashed border-cream-dark dark:border-slate-700 hover:border-electric/40 bg-transparent cursor-pointer appearance-none font-body"
+                        >
+                          <option value="">Assign owner...</option>
+                          {allProfiles.map((p) => (
+                            <option key={p.id} value={p.id}>{p.display_name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Assignees */}
                   <div>
                     <h4 className="text-xs font-semibold text-navy/40 dark:text-slate-400 mb-1.5 uppercase tracking-wider font-heading">
@@ -958,20 +1160,6 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                     onToggle={toggleLabel}
                   />
 
-                  {/* Cover image upload (when no cover) */}
-                  {!coverImageUrl && (
-                    <div>
-                      <h4 className="text-xs font-semibold text-navy/40 dark:text-slate-400 mb-1.5 uppercase tracking-wider font-heading">
-                        Cover Image
-                      </h4>
-                      <label className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-navy/40 dark:text-slate-500 border border-dashed border-cream-dark dark:border-slate-700 hover:border-electric/40 hover:text-electric transition-colors cursor-pointer">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                        {uploadingCover ? 'Uploading...' : 'Add cover image'}
-                        <input type="file" accept="image/*" className="hidden" onChange={handleCoverImageUpload} disabled={uploadingCover} />
-                      </label>
-                    </div>
-                  )}
-
                   {/* Actions */}
                   <CardActions
                     cardId={cardId}
@@ -1014,15 +1202,40 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
           )}
 
           <button
-            onClick={() => {
+            onClick={async () => {
               const url = `${window.location.origin}/card/${cardId}`;
-              navigator.clipboard.writeText(url);
+              try {
+                await navigator.clipboard.writeText(url);
+                setLinkCopied(true);
+                setTimeout(() => setLinkCopied(false), 2000);
+              } catch {
+                // Fallback for non-secure contexts
+                const textarea = document.createElement('textarea');
+                textarea.value = url;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                setLinkCopied(true);
+                setTimeout(() => setLinkCopied(false), 2000);
+              }
             }}
-            className="text-navy/30 dark:text-slate-500 hover:text-electric transition-colors flex items-center gap-1"
+            className={`transition-colors flex items-center gap-1 ${linkCopied ? 'text-green-500' : 'text-navy/30 dark:text-slate-500 hover:text-electric'}`}
             title="Copy card link"
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
-            Copy link
+            {linkCopied ? (
+              <>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                Copied!
+              </>
+            ) : (
+              <>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                Copy link
+              </>
+            )}
           </button>
           <span>Updated {new Date(card.updated_at).toLocaleDateString()}</span>
         </div>
