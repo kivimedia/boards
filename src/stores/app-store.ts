@@ -19,6 +19,9 @@ interface AppState {
   sidebarCollapsed: boolean;
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
+  mobileSidebarOpen: boolean;
+  setMobileSidebarOpen: (open: boolean) => void;
+  toggleMobileSidebar: () => void;
 
   // Notifications (placeholder for P1.6)
   notifications: Notification[];
@@ -42,6 +45,10 @@ export const useAppStore = create<AppState>((set) => ({
   toggleSidebar: () =>
     set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
   setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
+  mobileSidebarOpen: false,
+  setMobileSidebarOpen: (open) => set({ mobileSidebarOpen: open }),
+  toggleMobileSidebar: () =>
+    set((state) => ({ mobileSidebarOpen: !state.mobileSidebarOpen })),
 
   // Notifications
   notifications: [],

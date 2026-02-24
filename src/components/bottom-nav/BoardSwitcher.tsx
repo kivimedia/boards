@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Board, BoardType } from '@/lib/types';
+import { slugify } from '@/lib/slugify';
 
 const BOARD_TYPE_OPTIONS: { value: BoardType; label: string }[] = [
   { value: 'boutique_decor', label: 'Boutique Decor' },
@@ -111,7 +112,7 @@ export default function BoardSwitcher({ currentBoardId, onClose }: BoardSwitcher
       if (res.ok) {
         const { data: board } = await res.json();
         if (board?.id) {
-          router.push(`/board/${board.id}`);
+          router.push(`/board/${slugify(board.name)}`);
           onClose();
           return;
         }
@@ -228,7 +229,7 @@ export default function BoardSwitcher({ currentBoardId, onClose }: BoardSwitcher
                   key={board.id}
                   onClick={() => {
                     if (board.id !== currentBoardId) {
-                      router.push(`/board/${board.id}`);
+                      router.push(`/board/${slugify(board.name)}`);
                     }
                     onClose();
                   }}

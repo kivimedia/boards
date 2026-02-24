@@ -165,8 +165,7 @@ export async function bulkDelete(
 }
 
 /**
- * Archive multiple cards by removing their placements.
- * The cards still exist in DB but are no longer visible on any board.
+ * Archive multiple cards: set is_archived=true and remove all placements.
  */
 export async function bulkArchive(
   supabase: SupabaseClient,
@@ -176,13 +175,23 @@ export async function bulkArchive(
   const errors: string[] = [];
 
   for (const cardId of cardIds) {
-    const { error } = await supabase
+    const { error: cardErr } = await supabase
+      .from('cards')
+      .update({ is_archived: true })
+      .eq('id', cardId);
+
+    if (cardErr) {
+      errors.push(`Failed to archive card ${cardId}: ${cardErr.message}`);
+      continue;
+    }
+
+    const { error: placementErr } = await supabase
       .from('card_placements')
       .delete()
       .eq('card_id', cardId);
 
-    if (error) {
-      errors.push(`Failed to archive card ${cardId}: ${error.message}`);
+    if (placementErr) {
+      errors.push(`Failed to remove placements for card ${cardId}: ${placementErr.message}`);
     } else {
       archived++;
     }

@@ -1,6 +1,13 @@
 import { NextRequest } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { getAuthContext, successResponse, errorResponse, parseBody } from '@/lib/api-helpers';
 import { bulkMoveCards, bulkAssign, bulkAddLabel, bulkDelete, bulkSetPriority, bulkArchive } from '@/lib/bulk-operations';
+
+function getAdminClient() {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) return null;
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key);
+}
 
 type BulkAction = 'move' | 'assign' | 'add_label' | 'delete' | 'set_priority' | 'archive';
 
@@ -36,7 +43,8 @@ export async function POST(request: NextRequest) {
     return errorResponse('card_ids must be a non-empty array');
   }
 
-  const { supabase } = auth.ctx;
+  // Use service role client to bypass RLS on card_placements, cards, etc.
+  const supabase = getAdminClient() ?? auth.ctx.supabase;
 
   let result;
 

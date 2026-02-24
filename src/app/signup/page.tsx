@@ -13,7 +13,7 @@ export default function SignupPage() {
             Create your account
           </p>
         </div>
-        <div className="bg-white rounded-2xl shadow-card p-8">
+        <div className="bg-white rounded-2xl shadow-card p-6 sm:p-8">
           <SignupForm />
           <p className="text-center text-sm text-navy/70 mt-6 font-body">
             Already have an account?{' '}

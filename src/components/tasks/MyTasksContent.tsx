@@ -92,10 +92,10 @@ export default function MyTasksContent() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-cream dark:bg-navy p-6">
+    <div className="flex-1 overflow-y-auto bg-cream dark:bg-navy p-4 sm:p-6">
       <div className="max-w-4xl mx-auto">
         {/* Toolbar */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <p className="text-navy/60 dark:text-white/60 font-body text-sm">
             {total > 0
               ? `Showing ${tasks.length} of ${total} assigned tasks.`

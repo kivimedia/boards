@@ -12,6 +12,7 @@ import BottomNavBar from '@/components/bottom-nav/BottomNavBar';
 import InboxView from '@/components/bottom-nav/InboxView';
 import PlannerView from '@/components/bottom-nav/PlannerView';
 import { useProfilingStore, BoardProfilingData } from '@/stores/profiling-store';
+import { createClient } from '@/lib/supabase/client';
 import { BoardWithLists, BoardViewMode, BoardFilter } from '@/lib/types';
 
 function isDarkColor(color: string | null | undefined): boolean {
@@ -97,6 +98,7 @@ export default function BoardView({ boardId, boardName, initialBoard, initialTim
     url.searchParams.delete('card');
     window.history.replaceState({}, '', url.toString());
   }, []);
+
   const [filter, setFilter] = useState<BoardFilter>({
     labels: [],
     members: [],
@@ -106,6 +108,28 @@ export default function BoardView({ boardId, boardName, initialBoard, initialTim
 
   // Use initialBoard as fallback while loading
   const displayBoard = board || initialBoard;
+
+  const handleCreateCard = useCallback(async () => {
+    if (!displayBoard?.lists?.length) return;
+    const targetList = displayBoard.lists[0];
+    if (!targetList) return;
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data: card, error } = await supabase
+      .from('cards')
+      .insert({ title: 'New Card', created_by: user.id })
+      .select('id')
+      .single();
+    if (error || !card) return;
+    await supabase.from('card_placements').insert({
+      card_id: card.id,
+      list_id: targetList.id,
+      position: 0,
+    });
+    refresh();
+    openCard(card.id);
+  }, [displayBoard, refresh, openCard]);
 
   // Track client render time - append to profiling data once board is rendered
   useEffect(() => {
@@ -191,6 +215,7 @@ export default function BoardView({ boardId, boardName, initialBoard, initialTim
             onFilterChange={setFilter}
             onCardClick={openCard}
             onRefresh={refresh}
+            onCreateCard={handleCreateCard}
           />
           <SavedFilterBar
             boardId={boardId}

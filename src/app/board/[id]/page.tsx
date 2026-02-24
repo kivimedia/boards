@@ -5,12 +5,14 @@ import BoardView from '@/components/board/BoardView';
 import { canAccessBoardByRole } from '@/lib/permissions';
 import { BoardWithLists } from '@/lib/types';
 import type { BoardProfilingData } from '@/stores/profiling-store';
+import { slugify, isUUID } from '@/lib/slugify';
 
 interface BoardPageProps {
   params: { id: string };
+  searchParams?: Record<string, string | string[]>;
 }
 
-export default async function BoardPage({ params }: BoardPageProps) {
+export default async function BoardPage({ params, searchParams }: BoardPageProps) {
   const ssrStart = performance.now();
 
   const supabase = createServerSupabaseClient();
@@ -22,17 +24,33 @@ export default async function BoardPage({ params }: BoardPageProps) {
     redirect('/login');
   }
 
-  // Fetch board + role + lists + labels + sidebar in parallel (all lightweight)
+  // Fetch board + role + sidebar in parallel
   const tParallel0 = performance.now();
-  const [
-    { data: board },
-    { data: profile },
-    { data: allBoards },
-  ] = await Promise.all([
-    supabase.from('boards').select('*').eq('id', params.id).single(),
+  const [{ data: profile }, { data: allBoards }] = await Promise.all([
     supabase.from('profiles').select('agency_role').eq('id', user.id).single(),
     supabase.from('boards').select('*').order('created_at', { ascending: true }),
   ]);
+
+  // Resolve board: accept both UUID (/board/abc-123) and slug (/board/daily-cookie)
+  let board: any = null;
+  if (isUUID(params.id)) {
+    // UUID path — fetch directly, then redirect to clean slug URL
+    const { data } = await supabase.from('boards').select('*').eq('id', params.id).single();
+    if (data) {
+      const qs = searchParams && Object.keys(searchParams).length > 0
+        ? '?' + new URLSearchParams(
+            Object.entries(searchParams).flatMap(([k, v]) =>
+              Array.isArray(v) ? v.map((val) => [k, val]) : [[k, v]]
+            )
+          ).toString()
+        : '';
+      redirect(`/board/${slugify(data.name)}${qs}`);
+    }
+    notFound();
+  } else {
+    // Slug path — find the board whose name matches this slug
+    board = (allBoards ?? []).find((b: any) => slugify(b.name) === params.id) ?? null;
+  }
   const parallelMs = performance.now() - tParallel0;
 
   if (!board) {

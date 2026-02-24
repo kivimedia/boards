@@ -48,7 +48,7 @@ export default function BottomNavBar({ activeView, onViewChange, boardId }: Bott
 
   return (
     <>
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1 px-2 py-1.5 bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 rounded-2xl shadow-lg shadow-navy/10 dark:shadow-black/30">
+      <div className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1 px-2 py-1.5 bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 rounded-2xl shadow-lg shadow-navy/10 dark:shadow-black/30 safe-area-inset-bottom">
         {tabs.map((tab) => (
           <NavTab
             key={tab.view}

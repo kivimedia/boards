@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { getAuthContext, errorResponse } from '@/lib/api-helpers';
+
+function getAdminClient() {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) return null;
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key);
+}
 
 interface Params {
   params: { id: string };
@@ -18,6 +25,8 @@ export async function GET(request: NextRequest, { params }: Params) {
   if (!auth.ok) return auth.response;
 
   const { supabase } = auth.ctx;
+  // Use service role for tables blocked by RLS (card_assignees, profiles)
+  const db = getAdminClient() ?? supabase;
   const boardId = request.nextUrl.searchParams.get('boardId');
   if (!boardId) return errorResponse('boardId query param is required');
 
@@ -37,9 +46,9 @@ export async function GET(request: NextRequest, { params }: Params) {
     supabase.from('card_placements').select('list:lists(name)').eq('card_id', params.id).eq('is_mirror', false).single(),
     supabase.from('card_labels').select('label:labels(*)').eq('card_id', params.id),
     supabase.from('labels').select('*').eq('board_id', boardId),
-    supabase.from('card_assignees').select('*').eq('card_id', params.id),
-    supabase.from('profiles').select('id, display_name, avatar_url, role'),
-    supabase.from('comments').select('*').eq('card_id', params.id).order('created_at', { ascending: true }),
+    db.from('card_assignees').select('*').eq('card_id', params.id),
+    db.from('profiles').select('id, display_name, avatar_url, role'),
+    supabase.from('comments').select('*').eq('card_id', params.id).order('created_at', { ascending: false }),
   ]);
   const tQuery = performance.now() - tQuery0;
 
@@ -70,9 +79,15 @@ export async function GET(request: NextRequest, { params }: Params) {
 
   const total = performance.now() - t0;
 
+  // Check if current user is admin (ziv@dailycookie.co)
+  const currentProfile = profilesMap.get(auth.ctx.userId) as any;
+  const { data: { session } } = await supabase.auth.getSession();
+  const isAdmin = session?.user?.email === 'ziv@dailycookie.co';
+
   const responseData = {
     card,
     userId: auth.ctx.userId,
+    isAdmin,
     boardType: boardResult.data?.type || null,
     boardName: boardResult.data?.name || '',
     listName: (placementResult.data?.list as any)?.name || '',

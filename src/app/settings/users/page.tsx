@@ -3,8 +3,7 @@ import { redirect } from 'next/navigation';
 import SidebarWithBoards from '@/components/layout/SidebarWithBoards';
 import Header from '@/components/layout/Header';
 import UserManagement from '@/components/settings/UserManagement';
-import { isAdmin } from '@/lib/permissions';
-import { UserRole } from '@/lib/types';
+import { hasFeatureAccess } from '@/lib/feature-access';
 
 export default async function UsersSettingsPage() {
   const supabase = createServerSupabaseClient();
@@ -14,15 +13,8 @@ export default async function UsersSettingsPage() {
     redirect('/login');
   }
 
-  const { data: currentProfile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single();
-
-  const userRole = (currentProfile?.user_role || currentProfile?.role || 'member') as UserRole;
-
-  if (!isAdmin(userRole)) {
+  const canAccess = await hasFeatureAccess(supabase, user.id, 'user_management');
+  if (!canAccess) {
     redirect('/settings');
   }
 

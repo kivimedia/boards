@@ -1,25 +1,8 @@
 import { NextRequest } from 'next/server';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { getAuthContext, successResponse, errorResponse, parseBody } from '@/lib/api-helpers';
+import { createClient } from '@supabase/supabase-js';
+import { getAuthContext, successResponse, errorResponse, parseBody, requireFeatureAccess } from '@/lib/api-helpers';
 import { UserRole } from '@/lib/types';
 import { ALL_ROLES } from '@/lib/permissions';
-
-/** Helper: verify the requesting user is an admin */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function requireAdmin(supabase: SupabaseClient<any>, userId: string) {
-  const { data: currentProfile, error }: { data: any; error: any } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .single();
-
-  if (error || !currentProfile) return null;
-
-  const userRole = currentProfile.user_role || currentProfile.role || 'member';
-  if (userRole !== 'admin') return null;
-
-  return currentProfile;
-}
 
 /** Helper: get admin Supabase client with service role */
 function getAdminClient() {
@@ -41,8 +24,8 @@ export async function GET() {
 
   const { supabase, userId } = auth.ctx;
 
-  const admin = await requireAdmin(supabase, userId);
-  if (!admin) return errorResponse('Forbidden: Admin access required', 403);
+  const denied = await requireFeatureAccess(supabase, userId, 'user_management');
+  if (denied) return denied;
 
   const { data: profiles, error } = await supabase
     .from('profiles')
@@ -94,8 +77,8 @@ export async function PATCH(request: NextRequest) {
 
   const { supabase, userId } = auth.ctx;
 
-  const admin = await requireAdmin(supabase, userId);
-  if (!admin) return errorResponse('Forbidden: Admin access required', 403);
+  const denied = await requireFeatureAccess(supabase, userId, 'user_management');
+  if (denied) return denied;
 
   const body = await parseBody<UpdateUserBody>(request);
   if (!body.ok) return body.response;
@@ -187,8 +170,8 @@ export async function DELETE(request: NextRequest) {
 
   const { supabase, userId } = auth.ctx;
 
-  const admin = await requireAdmin(supabase, userId);
-  if (!admin) return errorResponse('Forbidden: Admin access required', 403);
+  const denied = await requireFeatureAccess(supabase, userId, 'user_management');
+  if (denied) return denied;
 
   const body = await parseBody<DeleteUserBody>(request);
   if (!body.ok) return body.response;

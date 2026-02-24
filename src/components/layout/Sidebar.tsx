@@ -10,6 +10,8 @@ import { BOARD_TYPE_CONFIG } from '@/lib/constants';
 import { useAuth } from '@/hooks/useAuth';
 import { usePresence } from '@/hooks/usePresence';
 import Avatar from '@/components/ui/Avatar';
+import { useAppStore } from '@/stores/app-store';
+import { slugify } from '@/lib/slugify';
 
 interface SidebarProps {
   initialBoards?: Board[];
@@ -24,6 +26,12 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
   const supabase = createClient();
   const { presentUsers } = usePresence({ channelName: 'app:global' });
   const onlineOthers = presentUsers.filter(u => u.userId !== user?.id);
+  const { mobileSidebarOpen, setMobileSidebarOpen } = useAppStore();
+
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    setMobileSidebarOpen(false);
+  }, [pathname, setMobileSidebarOpen]);
 
   const toggleStar = useCallback(async (e: React.MouseEvent, boardId: string, currentStarred: boolean) => {
     e.preventDefault();
@@ -72,14 +80,26 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
   }, [user]);
 
   return (
+    <>
+      {/* Mobile overlay backdrop */}
+      {mobileSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setMobileSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
     <aside
       className={`
-        ${collapsed ? 'w-16' : 'w-64'}
+        ${collapsed ? 'md:w-16' : 'md:w-64'}
+        w-72
         h-screen bg-navy/95 backdrop-blur-xl
         border-r border-white/5
         flex flex-col
         transition-all duration-300 ease-out
         shrink-0
+        fixed md:relative z-50 md:z-auto
+        ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}
     >
       {/* Header */}
@@ -191,6 +211,22 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
         </Link>
 
 
+        <Link
+          href="/performance"
+          className={`
+            flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200
+            ${pathname?.startsWith('/performance')
+              ? 'bg-white/10 text-white'
+              : 'text-white/60 hover:text-white hover:bg-white/5'
+            }
+          `}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+          </svg>
+          {!collapsed && <span>Performance</span>}
+        </Link>
+
         {!collapsed && (
           <div className="pt-4 pb-2 px-3">
             <span className="text-[10px] font-semibold text-white/30 uppercase tracking-wider">
@@ -204,11 +240,11 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
           .sort((a, b) => (a.is_starred === b.is_starred ? 0 : a.is_starred ? -1 : 1))
           .map((board) => {
           const config = BOARD_TYPE_CONFIG[board.type];
-          const isActive = pathname === `/board/${board.id}`;
+          const isActive = pathname === `/board/${slugify(board.name)}`;
           return (
             <Link
               key={board.id}
-              href={`/board/${board.id}`}
+              href={`/board/${slugify(board.name)}`}
               className={`
                 group/board flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all duration-200
                 ${isActive
@@ -256,11 +292,11 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
               .filter(b => b.is_archived)
               .map((board) => {
                 const config = BOARD_TYPE_CONFIG[board.type];
-                const isActive = pathname === `/board/${board.id}`;
+                const isActive = pathname === `/board/${slugify(board.name)}`;
                 return (
                   <Link
                     key={board.id}
-                    href={`/board/${board.id}`}
+                    href={`/board/${slugify(board.name)}`}
                     className={`
                       flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all duration-200 opacity-50
                       ${isActive
@@ -328,5 +364,6 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
         </div>
       </div>
     </aside>
+    </>
   );
 }
