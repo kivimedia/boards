@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect, useLayoutEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -91,6 +91,8 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
   const mainTextareaRef = useRef<HTMLTextAreaElement>(null);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const commentsContainerRef = useRef<HTMLDivElement>(null);
+  const scrollAdjustRef = useRef<{ container: HTMLElement; scrollTop: number; scrollHeight: number } | null>(null);
   useAutoResize(editTextareaRef, editTextUndo.value);
   useAutoResize(replyTextareaRef, replyText);
   const [showFullLinks, setShowFullLinks] = useState(false);
@@ -111,6 +113,27 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
       return () => clearTimeout(timer);
     }
   }, [comments.length, editingCommentId, onRefresh]);
+
+  // Find the nearest scrollable ancestor (the modal container)
+  const findScrollParent = (): HTMLElement | null => {
+    let el = commentsContainerRef.current?.parentElement;
+    while (el) {
+      const { overflowY } = getComputedStyle(el);
+      if (overflowY === 'auto' || overflowY === 'scroll') return el;
+      el = el.parentElement;
+    }
+    return null;
+  };
+
+  // Preserve scroll position when a new comment is prepended
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    const info = scrollAdjustRef.current;
+    if (!info) return;
+    scrollAdjustRef.current = null;
+    const heightDiff = info.container.scrollHeight - info.scrollHeight;
+    info.container.scrollTop = info.scrollTop + heightDiff;
+  }, [comments]);
 
   const { topLevel, repliesByParent } = useMemo(() => {
     const top: Comment[] = [];
@@ -169,8 +192,16 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
         newCommentUndo.clearHistory();
       }
 
-      // Immediately show the new comment from POST response (no full refresh needed)
+      // Capture scroll position before adding comment to prevent scroll jump
       if (savedComment && onCommentAdded) {
+        const scrollContainer = findScrollParent();
+        if (scrollContainer) {
+          scrollAdjustRef.current = {
+            container: scrollContainer,
+            scrollTop: scrollContainer.scrollTop,
+            scrollHeight: scrollContainer.scrollHeight,
+          };
+        }
         onCommentAdded(savedComment);
       }
     } catch (err) {
@@ -472,7 +503,7 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
         )}
       </div>
 
-      <div className="space-y-4 divide-y divide-cream-dark dark:divide-slate-700/50 [&>*:not(:first-child)]:pt-4">
+      <div ref={commentsContainerRef} className="space-y-4 divide-y divide-cream-dark dark:divide-slate-700/50 [&>*:not(:first-child)]:pt-4">
         {topLevel.map((comment) => renderComment(comment))}
       </div>
     </div>
