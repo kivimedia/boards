@@ -3,7 +3,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Attachment } from '@/lib/types';
-import { useAuth } from '@/hooks/useAuth';
 import Button from '@/components/ui/Button';
 
 interface CardAttachmentsProps {
@@ -89,7 +88,6 @@ export default function CardAttachments({ cardId, coverImageUrl, onCoverChange, 
   const [linkName, setLinkName] = useState('');
   const [addingLink, setAddingLink] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { user } = useAuth();
   const supabase = createClient();
 
   useEffect(() => {
@@ -108,11 +106,6 @@ export default function CardAttachments({ cardId, coverImageUrl, onCoverChange, 
   const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
 
   const uploadFile = async (file: File) => {
-    if (!user) {
-      alert('You must be logged in to upload files.');
-      return;
-    }
-
     if (file.size > MAX_FILE_SIZE) {
       alert(`File "${file.name}" exceeds the 500MB limit.`);
       return;
