@@ -40,14 +40,12 @@ export function useMeetingPrep() {
 
       if (events.length === 0) return;
 
-      // Fetch active configs
-      // We can't easily fetch all configs in one call, so we check events against known patterns
-      // For simplicity, find the nearest event and check if any config matches
+      // Fetch all active meeting configs to match events to clients
+      const configsRes = await fetch('/api/meeting-configs');
+      const configs: { client_id: string; client_name: string; calendar_event_keyword: string }[] =
+        configsRes.ok ? ((await configsRes.json()).data || []) : [];
+
       const now = Date.now();
-      const configsRes = await fetch('/api/google-calendar/events?days=1');
-      // Actually we need the configs — let's check differently
-      // The meeting-prep cron handles the actual triggering via push notifications
-      // This hook just watches for imminent meetings based on cached events
 
       for (const event of events) {
         const startMs = new Date(event.start_time).getTime();
@@ -56,11 +54,18 @@ export function useMeetingPrep() {
         if (minutesUntil < 0 || minutesUntil > 15) continue;
         if (dismissedRef.current.has(event.google_event_id)) continue;
 
+        // Match event title to a client config by keyword
+        const matchedConfig = configs.find(c =>
+          event.title.toLowerCase().includes(c.calendar_event_keyword.toLowerCase())
+        );
+
+        if (!matchedConfig) continue; // Skip events without a matching client config
+
         setState(prev => ({
           ...prev,
           upcomingMeeting: {
-            clientId: '', // Will be resolved from configs
-            clientName: event.title,
+            clientId: matchedConfig.client_id,
+            clientName: matchedConfig.client_name,
             meetingTitle: event.title,
             startTime: event.start_time,
             eventLink: event.event_link,
