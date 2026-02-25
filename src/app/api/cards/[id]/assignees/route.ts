@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { getAuthContext, successResponse, errorResponse, parseBody } from '@/lib/api-helpers';
 
 interface Params {
@@ -7,6 +8,12 @@ interface Params {
 
 interface ToggleAssigneeBody {
   user_id: string;
+}
+
+function getAdminClient() {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) return null;
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key);
 }
 
 export async function POST(request: NextRequest, { params }: Params) {
@@ -18,7 +25,7 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   if (!body.body.user_id) return errorResponse('user_id is required');
 
-  const { supabase } = auth.ctx;
+  const { supabase, userId } = auth.ctx;
   const cardId = params.id;
   const { user_id } = body.body;
 
@@ -42,6 +49,39 @@ export async function POST(request: NextRequest, { params }: Params) {
       .from('card_assignees')
       .insert({ card_id: cardId, user_id });
     if (error) return errorResponse(error.message, 500);
+
+    // Send notification to assignee (non-blocking)
+    if (user_id !== userId) {
+      const db = getAdminClient() ?? supabase;
+      const [cardRes, placementRes, assignerRes] = await Promise.all([
+        supabase.from('cards').select('title').eq('id', cardId).single(),
+        db
+          .from('card_placements')
+          .select('list_id, lists(board_id)')
+          .eq('card_id', cardId)
+          .eq('is_mirror', false)
+          .single(),
+        supabase.from('profiles').select('display_name').eq('id', userId).single(),
+      ]);
+
+      const cardTitle = cardRes.data?.title || 'Card';
+      const boardId = (placementRes.data?.lists as any)?.board_id ?? null;
+      const assignerName = assignerRes.data?.display_name || 'Someone';
+
+      supabase
+        .from('notifications')
+        .insert({
+          user_id,
+          type: 'card_assigned',
+          title: `${assignerName} assigned you: ${cardTitle}`,
+          body: '',
+          card_id: cardId,
+          board_id: boardId,
+          metadata: { assigner_id: userId },
+        })
+        .catch(() => {}); // Silently fail if notification insert fails
+    }
+
     return successResponse({ action: 'added' }, 201);
   }
 }

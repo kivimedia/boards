@@ -61,7 +61,7 @@ async function safeNextPositionServer(listId: string, fallbackDb: any) {
 /**
  * POST /api/lists/[id]/cards
  * Create a new card and place it in this list.
- * Body: { title: string }
+ * Body: { title: string, assignee_ids?: string[] }
  */
 export async function POST(request: NextRequest, { params }: Params) {
   const auth = await getAuthContext();
@@ -71,9 +71,11 @@ export async function POST(request: NextRequest, { params }: Params) {
   const listId = params.id;
 
   let title: string;
+  let assigneeIds: string[] = [];
   try {
     const body = await request.json();
     title = (body.title || '').trim();
+    assigneeIds = Array.isArray(body.assignee_ids) ? body.assignee_ids : [];
   } catch {
     return errorResponse('Invalid request body');
   }
@@ -112,6 +114,41 @@ export async function POST(request: NextRequest, { params }: Params) {
     // Card was created but placement failed — attempt cleanup
     await supabase.from('cards').delete().eq('id', card.id);
     return errorResponse(`Failed to place card: ${placementError.message}`, 500);
+  }
+
+  // Create assignees and send notifications (non-blocking)
+  if (assigneeIds.length > 0) {
+    const assigneeRows = assigneeIds.map((uid) => ({ card_id: card.id, user_id: uid }));
+    supabase
+      .from('card_assignees')
+      .upsert(assigneeRows, { onConflict: 'card_id,user_id' })
+      .then(async () => {
+        // Send notifications to assignees
+        const creatorProfile = await supabase
+          .from('profiles')
+          .select('display_name')
+          .eq('id', userId)
+          .single()
+          .catch(() => ({ data: { display_name: 'Someone' } }));
+        const creatorName = creatorProfile.data?.display_name || 'Someone';
+
+        const notifRows = assigneeIds
+          .filter((uid) => uid !== userId)
+          .map((uid) => ({
+            user_id: uid,
+            type: 'card_assigned',
+            title: `${creatorName} assigned you: ${title}`,
+            body: '',
+            card_id: card.id,
+            board_id: list.board_id,
+            metadata: { assigner_id: userId },
+          }));
+
+        if (notifRows.length > 0) {
+          supabase.from('notifications').insert(notifRows).catch(() => {});
+        }
+      })
+      .catch(() => {});
   }
 
   return successResponse(card, 201);
