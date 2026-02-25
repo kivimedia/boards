@@ -345,7 +345,7 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
                 </div>
               </div>
             ) : (
-              <div className="text-sm text-navy/70 dark:text-slate-300 mt-0.5 font-body prose prose-sm dark:prose-invert max-w-full prose-p:my-0.5 prose-p:font-body prose-a:text-electric prose-a:no-underline hover:prose-a:underline prose-code:text-electric prose-code:bg-electric/10 prose-code:px-1 prose-code:rounded prose-ul:my-1 prose-ol:my-1 prose-li:my-0 [overflow-wrap:break-word] [word-break:break-word]">
+              <div className="text-sm text-navy/70 dark:text-slate-300 mt-0.5 font-body prose prose-sm dark:prose-invert max-w-full prose-p:my-0.5 prose-p:font-body prose-a:text-electric prose-a:no-underline hover:prose-a:underline prose-code:text-electric prose-code:bg-electric/10 prose-code:px-1 prose-code:rounded prose-ul:my-1 prose-ul:list-disc prose-ul:ml-5 prose-ol:my-1 prose-ol:list-decimal prose-ol:ml-5 prose-li:my-0 prose-li:ml-0 [overflow-wrap:break-word] [word-break:break-word]">
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm, remarkMentions]}
                   rehypePlugins={[rehypeRaw]}
