@@ -147,7 +147,18 @@ export default function ClientsListView() {
       const res = await fetch(`/api/boards/${selectedBoard.id}/cards/paginated?list_id=${listId}&limit=100`);
       const json = await res.json();
       const result = json.data;
-      setCards(result?.cards || result || []);
+      // API returns card_placements with nested cards objects — flatten them
+      const items: unknown[] = result?.items || result?.cards || (Array.isArray(result) ? result : []);
+      const flatCards: CardItem[] = items.map((item: any) => {
+        const card = item.cards || item;
+        return {
+          id: card.id || item.card_id,
+          title: card.title || 'Untitled',
+          priority: card.priority || 'none',
+          client_id: card.client_id ?? null,
+        };
+      }).filter((c: CardItem) => c.id);
+      setCards(flatCards);
     } catch {} finally {
       setLoadingCards(false);
     }
