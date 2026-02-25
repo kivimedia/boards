@@ -156,14 +156,14 @@ export default function SearchBar({ boardId, onCardClick, onOpenShareModal, onCr
   const currentModeConfig = modeConfig[mode];
 
   return (
-    <div className="flex items-center gap-2">
-      <div ref={containerRef} className="relative">
+    <div className="flex items-center gap-2 w-full sm:w-auto">
+      <div ref={containerRef} className="relative w-full sm:w-auto">
         {/* Search input */}
         <div className={`
-          flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all
+          flex items-center gap-2 px-3 py-2 sm:py-1.5 rounded-xl border transition-all
           ${focused
-            ? 'w-[260px] sm:w-[320px] lg:w-[420px] bg-white dark:bg-dark-surface border-electric/40 shadow-sm ring-2 ring-electric/10'
-            : 'w-[160px] sm:w-[200px] lg:w-[280px] bg-white/80 dark:bg-dark-surface/80 border-cream-dark dark:border-slate-700 hover:border-electric/30'
+            ? 'w-full sm:w-[320px] lg:w-[420px] bg-white dark:bg-dark-surface border-electric/40 shadow-sm ring-2 ring-electric/10'
+            : 'w-full sm:w-[200px] lg:w-[280px] bg-white/80 dark:bg-dark-surface/80 border-cream-dark dark:border-slate-700 hover:border-electric/30'
           }
         `}>
           {/* Search icon */}

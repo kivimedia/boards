@@ -210,8 +210,8 @@ export default function InboxView({ currentBoardId, onCardClick }: InboxViewProp
   }
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-6 pb-24">
-      <div className="max-w-3xl mx-auto">
+    <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 py-6 pb-24">
+      <div className="max-w-3xl mx-auto w-full">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-8 h-8 rounded-lg bg-electric/10 dark:bg-electric/20 flex items-center justify-center">
             <svg className="w-4 h-4 text-electric" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -227,44 +227,48 @@ export default function InboxView({ currentBoardId, onCardClick }: InboxViewProp
         </div>
 
         {/* Filter pills */}
-        <div className="flex flex-wrap gap-4 mb-5">
+        <div className="space-y-3 mb-5">
           {/* Priority filters */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] uppercase tracking-wider text-navy/30 dark:text-slate-600 font-body mr-1">Priority</span>
-            {PRIORITY_FILTERS.map((f) => (
-              <button
-                key={f.value}
-                onClick={() => setPriorityFilter(f.value === priorityFilter ? 'all' : f.value)}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-body transition-all ${
-                  priorityFilter === f.value
-                    ? 'bg-electric text-white shadow-sm'
-                    : 'bg-cream-dark/40 dark:bg-slate-800/60 text-navy/50 dark:text-slate-400 hover:bg-cream-dark dark:hover:bg-slate-800'
-                }`}
-              >
-                {f.color && <span className={`w-2 h-2 rounded-full ${f.color}`} />}
-                {f.label}
-              </button>
-            ))}
+          <div className="flex items-start gap-2">
+            <span className="text-[10px] uppercase tracking-wider text-navy/30 dark:text-slate-600 font-body pt-1 shrink-0">Priority</span>
+            <div className="flex flex-wrap gap-1.5 min-w-0">
+              {PRIORITY_FILTERS.map((f) => (
+                <button
+                  key={f.value}
+                  onClick={() => setPriorityFilter(f.value === priorityFilter ? 'all' : f.value)}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-body transition-all shrink-0 ${
+                    priorityFilter === f.value
+                      ? 'bg-electric text-white shadow-sm'
+                      : 'bg-cream-dark/40 dark:bg-slate-800/60 text-navy/50 dark:text-slate-400 hover:bg-cream-dark dark:hover:bg-slate-800'
+                  }`}
+                >
+                  {f.color && <span className={`w-2 h-2 rounded-full ${f.color}`} />}
+                  {f.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Due date filters */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] uppercase tracking-wider text-navy/30 dark:text-slate-600 font-body mr-1">Due</span>
-            {DUE_FILTERS.map((f) => (
-              <button
-                key={f.value}
-                onClick={() => setDueFilter(f.value === dueFilter ? 'all' : f.value)}
-                className={`px-2.5 py-1 rounded-full text-xs font-body transition-all ${
-                  dueFilter === f.value
-                    ? 'bg-electric text-white shadow-sm'
-                    : f.value === 'overdue' && dueFilter !== f.value
-                    ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30'
-                    : 'bg-cream-dark/40 dark:bg-slate-800/60 text-navy/50 dark:text-slate-400 hover:bg-cream-dark dark:hover:bg-slate-800'
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
+          <div className="flex items-start gap-2">
+            <span className="text-[10px] uppercase tracking-wider text-navy/30 dark:text-slate-600 font-body pt-1 shrink-0">Due</span>
+            <div className="flex flex-wrap gap-1.5 min-w-0">
+              {DUE_FILTERS.map((f) => (
+                <button
+                  key={f.value}
+                  onClick={() => setDueFilter(f.value === dueFilter ? 'all' : f.value)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-body transition-all shrink-0 whitespace-nowrap ${
+                    dueFilter === f.value
+                      ? 'bg-electric text-white shadow-sm'
+                      : f.value === 'overdue' && dueFilter !== f.value
+                      ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30'
+                      : 'bg-cream-dark/40 dark:bg-slate-800/60 text-navy/50 dark:text-slate-400 hover:bg-cream-dark dark:hover:bg-slate-800'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -320,7 +324,7 @@ export default function InboxView({ currentBoardId, onCardClick }: InboxViewProp
                       <div
                         key={item.placementId}
                         onClick={() => handleCardClick(item)}
-                        className={`w-full text-left p-4 bg-white dark:bg-dark-surface border rounded-xl hover:border-electric/40 dark:hover:border-electric/40 hover:shadow-sm transition-all group cursor-pointer ${
+                        className={`w-full text-left p-3 sm:p-4 bg-white dark:bg-dark-surface border rounded-xl hover:border-electric/40 dark:hover:border-electric/40 hover:shadow-sm transition-all group cursor-pointer overflow-hidden ${
                           isNewItem
                             ? 'border-electric/30 dark:border-electric/20 ring-1 ring-electric/10'
                             : 'border-cream-dark dark:border-slate-700'
@@ -342,18 +346,18 @@ export default function InboxView({ currentBoardId, onCardClick }: InboxViewProp
                               )}
                             </div>
 
-                            <div className="flex items-center gap-3 text-xs text-navy/40 dark:text-slate-500 font-body">
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-cream-dark/50 dark:bg-slate-800 rounded-md">
+                            <div className="flex items-center gap-2 text-xs text-navy/40 dark:text-slate-500 font-body flex-wrap">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-cream-dark/50 dark:bg-slate-800 rounded-md max-w-[180px] truncate">
                                 {item.listName}
                               </span>
-                              <span>{timeAgo(item.createdAt)}</span>
+                              <span className="shrink-0">{timeAgo(item.createdAt)}</span>
                             </div>
 
                             {/* Quick actions */}
-                            <div className="flex items-center gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex items-center gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity flex-wrap">
                               <button
                                 onClick={(e) => handleClaim(e, item.cardId)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-body rounded-lg bg-electric/10 text-electric hover:bg-electric/20 transition-colors"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-body rounded-lg bg-electric/10 text-electric hover:bg-electric/20 transition-colors shrink-0"
                                 title="Assign to me"
                               >
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -363,7 +367,7 @@ export default function InboxView({ currentBoardId, onCardClick }: InboxViewProp
                               </button>
                               <button
                                 onClick={(e) => handleSnooze(e, item.cardId)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-body rounded-lg bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/30 transition-colors"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-body rounded-lg bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/30 transition-colors shrink-0"
                                 title="Snooze to tomorrow"
                               >
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

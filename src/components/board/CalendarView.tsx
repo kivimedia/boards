@@ -145,10 +145,11 @@ export default function CalendarView({ lists }: CalendarViewProps) {
         </div>
 
         {/* Day names header */}
-        <div className="hidden sm:grid grid-cols-7 border-b border-cream-dark dark:border-slate-700">
+        <div className="grid grid-cols-7 border-b border-cream-dark dark:border-slate-700">
           {DAY_NAMES.map((day) => (
-            <div key={day} className="px-2 py-2 text-center text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wider font-heading">
-              {day}
+            <div key={day} className="px-1 sm:px-2 py-2 text-center text-[10px] sm:text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-tight sm:tracking-wider font-heading">
+              <span className="hidden sm:inline">{day}</span>
+              <span className="sm:hidden">{day.substring(0, 2)}</span>
             </div>
           ))}
         </div>
