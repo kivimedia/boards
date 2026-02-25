@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { Attachment } from '@/lib/types';
 import Button from '@/components/ui/Button';
 
@@ -80,6 +81,7 @@ function ImageThumbnail({ storagePath, fileName, supabase }: { storagePath: stri
 }
 
 export default function CardAttachments({ cardId, coverImageUrl, onCoverChange, onRefresh }: CardAttachmentsProps) {
+  const { user } = useAuth();
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
