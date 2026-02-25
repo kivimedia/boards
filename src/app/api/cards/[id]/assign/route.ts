@@ -72,7 +72,7 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   if (assignError) return errorResponse(assignError.message, 500);
 
-  // Create notification (non-blocking)
+  // Create notification (non-blocking, silently fail)
   supabase
     .from('notifications')
     .insert({
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       board_id: boardId,
       metadata: { assigner_id: userId },
     })
-    .catch(() => {}); // Silently fail if notification insert fails
+    .then(() => {});
 
   return successResponse({ assigned: true });
 }
