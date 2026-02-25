@@ -44,7 +44,7 @@ export function useUndoRedoKeyboard(
       }
     };
 
-    element.addEventListener('keydown', handleKeyDown, { capture: true });
-    return () => element.removeEventListener('keydown', handleKeyDown, { capture: true });
+    element.addEventListener('keydown', handleKeyDown as EventListener, { capture: true });
+    return () => element.removeEventListener('keydown', handleKeyDown as EventListener, { capture: true });
   }, [undo, redo]);
 }

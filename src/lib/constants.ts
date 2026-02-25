@@ -187,6 +187,13 @@ export const BOARD_TYPE_CONFIG: Record<BoardType, BoardTypeConfig> = {
       { name: 'Review Date', field_type: 'date' },
     ],
   },
+  client_board: {
+    label: 'Client Board',
+    icon: '👤',
+    defaultLists: ['Backlog', 'In Progress', 'Review', 'Done'],
+    color: '#6366f1',
+    defaultCustomFields: [],
+  },
 };
 
 export const LABEL_COLORS = [
