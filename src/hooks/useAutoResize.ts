@@ -23,8 +23,11 @@ export function useAutoResize(
   const resize = useCallback(() => {
     const el = ref.current;
     if (!el) return;
+    // Reset height to auto to get accurate scrollHeight
     el.style.height = 'auto';
-    el.style.height = `${el.scrollHeight}px`;
+    // Set height to scrollHeight with a small delay to ensure layout is updated
+    const height = Math.max(el.scrollHeight, 120); // minimum 120px (min-h-[120px])
+    el.style.height = `${height}px`;
   }, [ref]);
 
   // Fire synchronously after every DOM update where value changes.
@@ -39,7 +42,21 @@ export function useAutoResize(
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    el.addEventListener('input', resize);
-    return () => el.removeEventListener('input', resize);
+    
+    const handleInput = () => {
+      resize();
+    };
+    
+    el.addEventListener('input', handleInput);
+    // Also trigger on focus to ensure proper height
+    el.addEventListener('focus', () => {
+      // Small delay to ensure content is rendered
+      setTimeout(resize, 0);
+    });
+    
+    return () => {
+      el.removeEventListener('input', handleInput);
+      el.removeEventListener('focus', handleInput);
+    };
   }, [ref, resize]);
 }
