@@ -114,46 +114,70 @@ export default function ClientsListView() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {clients.map((client) => (
-              <button
+              <div
                 key={client.id}
-                onClick={() => router.push(`/client/${client.id}/map`)}
                 className="group text-left bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 hover:border-electric/30 p-5 transition-all duration-200 hover:shadow-lg"
               >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-electric/10 flex items-center justify-center shrink-0 group-hover:bg-electric/20 transition-colors">
-                    <span className="text-electric font-heading font-bold text-sm">
-                      {client.name.charAt(0).toUpperCase()}
-                    </span>
+                <button
+                  onClick={() => router.push(`/client/${client.id}/map`)}
+                  className="w-full text-left"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="w-10 h-10 rounded-xl bg-electric/10 flex items-center justify-center shrink-0 group-hover:bg-electric/20 transition-colors">
+                      <span className="text-electric font-heading font-bold text-sm">
+                        {client.name.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    {client.contract_type && (
+                      <span className="text-[10px] font-semibold text-electric bg-electric/10 px-2 py-0.5 rounded-full uppercase tracking-wide">
+                        {client.contract_type}
+                      </span>
+                    )}
                   </div>
-                  {client.contract_type && (
-                    <span className="text-[10px] font-semibold text-electric bg-electric/10 px-2 py-0.5 rounded-full uppercase tracking-wide">
-                      {client.contract_type}
-                    </span>
+                  <h3 className="text-navy dark:text-slate-100 font-heading font-semibold text-base mb-1 group-hover:text-electric transition-colors">
+                    {client.name}
+                  </h3>
+                  {client.company && (
+                    <p className="text-navy/50 dark:text-slate-400 font-body text-sm mb-2">{client.company}</p>
                   )}
+                  <div className="flex items-center gap-3 text-navy/40 dark:text-slate-500 text-xs font-body">
+                    {client.contacts && client.contacts.length > 0 && (
+                      <span className="flex items-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+                        </svg>
+                        {client.contacts.length} contact{client.contacts.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                    {client.client_tag && (
+                      <span className="bg-cream-dark dark:bg-slate-800 px-1.5 py-0.5 rounded text-navy/50 dark:text-slate-400">
+                        {client.client_tag}
+                      </span>
+                    )}
+                  </div>
+                </button>
+                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-cream-dark dark:border-slate-700">
+                  <button
+                    onClick={() => router.push(`/client/${client.id}/portal`)}
+                    className="flex items-center gap-1.5 text-xs font-body text-navy/40 dark:text-slate-500 hover:text-electric transition-colors"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
+                    </svg>
+                    Client Board
+                  </button>
+                  <span className="text-navy/20 dark:text-slate-700">|</span>
+                  <button
+                    onClick={() => router.push(`/client/${client.id}/map`)}
+                    className="flex items-center gap-1.5 text-xs font-body text-navy/40 dark:text-slate-500 hover:text-electric transition-colors"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" /><line x1="8" y1="2" x2="8" y2="18" /><line x1="16" y1="6" x2="16" y2="22" />
+                    </svg>
+                    Strategy Map
+                  </button>
                 </div>
-                <h3 className="text-navy dark:text-slate-100 font-heading font-semibold text-base mb-1 group-hover:text-electric transition-colors">
-                  {client.name}
-                </h3>
-                {client.company && (
-                  <p className="text-navy/50 dark:text-slate-400 font-body text-sm mb-2">{client.company}</p>
-                )}
-                <div className="flex items-center gap-3 text-navy/40 dark:text-slate-500 text-xs font-body">
-
-                  {client.contacts && client.contacts.length > 0 && (
-                    <span className="flex items-center gap-1">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
-                      </svg>
-                      {client.contacts.length} contact{client.contacts.length !== 1 ? 's' : ''}
-                    </span>
-                  )}
-                  {client.client_tag && (
-                    <span className="bg-cream-dark dark:bg-slate-800 px-1.5 py-0.5 rounded text-navy/50 dark:text-slate-400">
-                      {client.client_tag}
-                    </span>
-                  )}
-                </div>
-              </button>
+              </div>
             ))}
           </div>
         )}

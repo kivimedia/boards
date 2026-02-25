@@ -28,8 +28,20 @@ export async function GET(_request: NextRequest, { params }: Params) {
 
   if (commentsRes.error) return errorResponse(commentsRes.error.message, 500);
 
+  // Check if requesting user is a client — filter to external comments only
+  const { data: reqProfile } = await supabase
+    .from('profiles')
+    .select('user_role')
+    .eq('id', auth.ctx.userId)
+    .single();
+
+  let comments = commentsRes.data || [];
+  if (reqProfile?.user_role === 'client') {
+    comments = comments.filter((c: any) => c.is_external === true);
+  }
+
   const profilesMap = new Map((profilesRes.data || []).map((p: any) => [p.id, p]));
-  const commentsWithProfiles = (commentsRes.data || []).map((c: any) => ({
+  const commentsWithProfiles = comments.map((c: any) => ({
     ...c,
     profile: profilesMap.get(c.user_id) || null,
   }));
@@ -59,6 +71,15 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   const { supabase, userId } = auth.ctx;
 
+  // Check if user is a client — their comments are always external
+  const { data: commentorProfile } = await supabase
+    .from('profiles')
+    .select('user_role')
+    .eq('id', userId)
+    .single();
+
+  const isClientUser = commentorProfile?.user_role === 'client';
+
   // Insert comment and fetch profile in parallel
   const tQuery0 = performance.now();
   const [insertRes, profileRes] = await Promise.all([
@@ -69,6 +90,7 @@ export async function POST(request: NextRequest, { params }: Params) {
         user_id: userId,
         content: body.body.content.trim(),
         parent_comment_id: body.body.parent_comment_id || null,
+        ...(isClientUser ? { is_external: true } : {}),
       })
       .select('*')
       .single(),

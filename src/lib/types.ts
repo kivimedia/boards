@@ -6,7 +6,8 @@ export type BoardType =
   | 'executive_assistant'
   | 'video_editor'
   | 'copy'
-  | 'client_strategy_map';
+  | 'client_strategy_map'
+  | 'client_board';
 
 export type AutomationTriggerType =
   | 'card_moved'
@@ -116,6 +117,7 @@ export interface Profile {
   agency_role?: AgencyRole | null;
   account_status?: AccountStatus;
   user_role?: UserRole;
+  client_id?: string | null;
   email?: string;
   created_at?: string;
 }
@@ -130,6 +132,7 @@ export interface Board {
   background_image_url?: string | null;
   is_archived: boolean;
   is_starred: boolean;
+  client_id?: string | null;
 }
 
 export interface BoardFilter {
@@ -192,10 +195,22 @@ export interface Comment {
   user_id: string;
   content: string;
   parent_comment_id: string | null;
+  is_external?: boolean;
   created_at: string;
   updated_at?: string;
   profile?: Profile;
   replies?: Comment[];
+}
+
+export interface ClientApiKey {
+  id: string;
+  client_id: string;
+  provider: 'openai' | 'anthropic' | 'gemini';
+  api_key_encrypted: string;
+  label: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // P1.1: Enhanced Card Model
