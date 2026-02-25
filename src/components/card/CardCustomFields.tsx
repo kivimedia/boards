@@ -19,10 +19,6 @@ export default function CardCustomFields({ cardId, boardId, onRefresh }: CardCus
   const supabase = createClient();
 
   useEffect(() => {
-    fetchFields();
-  }, [fetchFields]);
-
-  useEffect(() => {
     return () => {
       Object.values(debounceTimers.current).forEach(clearTimeout);
     };
@@ -85,6 +81,10 @@ export default function CardCustomFields({ cardId, boardId, onRefresh }: CardCus
       setLoading(false);
     }
   }, [cardId, boardId, supabase]);
+
+  useEffect(() => {
+    fetchFields();
+  }, [fetchFields]);
 
   const saveFieldValue = useCallback(
     async (fieldDefinitionId: string, value: unknown) => {
