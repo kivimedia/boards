@@ -119,35 +119,35 @@ export async function POST(request: NextRequest, { params }: Params) {
   // Create assignees and send notifications (non-blocking)
   if (assigneeIds.length > 0) {
     const assigneeRows = assigneeIds.map((uid) => ({ card_id: card.id, user_id: uid }));
-    supabase
-      .from('card_assignees')
-      .upsert(assigneeRows, { onConflict: 'card_id,user_id' })
-      .then(async () => {
-        // Send notifications to assignees
-        const { data: creatorProfile } = await supabase
-          .from('profiles')
-          .select('display_name')
-          .eq('id', userId)
-          .single();
-        const creatorName = creatorProfile?.display_name || 'Someone';
+    (async () => {
+      await supabase
+        .from('card_assignees')
+        .upsert(assigneeRows, { onConflict: 'card_id,user_id' });
 
-        const notifRows = assigneeIds
-          .filter((uid) => uid !== userId)
-          .map((uid) => ({
-            user_id: uid,
-            type: 'card_assigned',
-            title: `${creatorName} assigned you: ${title}`,
-            body: '',
-            card_id: card.id,
-            board_id: list.board_id,
-            metadata: { assigner_id: userId },
-          }));
+      // Send notifications to assignees
+      const { data: creatorProfile } = await supabase
+        .from('profiles')
+        .select('display_name')
+        .eq('id', userId)
+        .single();
+      const creatorName = creatorProfile?.display_name || 'Someone';
 
-        if (notifRows.length > 0) {
-          supabase.from('notifications').insert(notifRows).then(() => {});
-        }
-      })
-      .catch(() => {});
+      const notifRows = assigneeIds
+        .filter((uid) => uid !== userId)
+        .map((uid) => ({
+          user_id: uid,
+          type: 'card_assigned',
+          title: `${creatorName} assigned you: ${title}`,
+          body: '',
+          card_id: card.id,
+          board_id: list.board_id,
+          metadata: { assigner_id: userId },
+        }));
+
+      if (notifRows.length > 0) {
+        await supabase.from('notifications').insert(notifRows);
+      }
+    })().catch(() => {});
   }
 
   return successResponse(card, 201);
