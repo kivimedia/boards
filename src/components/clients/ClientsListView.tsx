@@ -365,7 +365,7 @@ export default function ClientsListView() {
       {/* Create Client Modal */}
       <Modal isOpen={showCreate} onClose={closeCreateModal} size="xl">
         {!createdClientId ? (
-          <form onSubmit={handleCreate} className="p-6 max-h-[85vh] overflow-y-auto">
+          <form onSubmit={handleCreate} className="p-6">
             <h2 className="text-lg font-heading font-semibold text-navy dark:text-slate-100 mb-4">Create Client</h2>
 
             {/* Basic Info */}
