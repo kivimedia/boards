@@ -80,7 +80,8 @@ export default function CardCustomFields({ cardId, boardId, onRefresh }: CardCus
       setDefinitions([]);
       setLoading(false);
     }
-  }, [cardId, boardId, supabase]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase client is a stable singleton, including it causes infinite re-renders
+  }, [cardId, boardId]);
 
   useEffect(() => {
     fetchFields();

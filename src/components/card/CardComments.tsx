@@ -472,7 +472,7 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
         )}
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-4 divide-y divide-cream-dark dark:divide-slate-700/50 [&>*:not(:first-child)]:pt-4">
         {topLevel.map((comment) => renderComment(comment))}
       </div>
     </div>
