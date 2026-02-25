@@ -110,7 +110,7 @@ export async function POST(request: NextRequest, { params }: Params) {
           .filter((uid: string) => uid !== userId)
           .map((uid: string) => ({
             user_id: uid,
-            type: 'mention' as const,
+            type: 'card_mentioned' as const,
             title: `${authorName} mentioned you in a comment`,
             body: insertRes.data.content?.slice(0, 120) || '',
             card_id: params.id,
