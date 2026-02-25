@@ -100,6 +100,18 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
   useUndoRedoKeyboard(editTextareaRef, editTextUndo.undo, editTextUndo.redo);
 
   // Group comments into threads
+  // Detect when comments are unexpectedly cleared (e.g., on tab switch) and refetch
+  useEffect(() => {
+    // If we're editing a comment and comments suddenly become empty, that's suspicious
+    if (editingCommentId && comments.length === 0) {
+      // Refetch after a short delay to let any pending operations complete
+      const timer = setTimeout(() => {
+        onRefresh();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [comments.length, editingCommentId, onRefresh]);
+
   const { topLevel, repliesByParent } = useMemo(() => {
     const top: Comment[] = [];
     const replies: Map<string, Comment[]> = new Map();
