@@ -6,7 +6,6 @@ import { Client } from '@/lib/types';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
-import TrelloCardPicker from '@/components/trello/TrelloCardPicker';
 
 interface CalendarEvent {
   id: string;
@@ -15,6 +14,33 @@ interface CalendarEvent {
   start_time: string;
   end_time: string;
   is_recurring: boolean;
+}
+
+interface BoardItem {
+  id: string;
+  name: string;
+  type: string;
+}
+
+interface ListItem {
+  id: string;
+  board_id: string;
+  name: string;
+  position: number;
+}
+
+interface CardItem {
+  id: string;
+  title: string;
+  priority: string;
+  client_id: string | null;
+}
+
+interface SelectedCard {
+  id: string;
+  title: string;
+  boardName: string;
+  listName: string;
 }
 
 export default function ClientsListView() {
@@ -39,7 +65,18 @@ export default function ClientsListView() {
   const [eventFilter, setEventFilter] = useState('');
   const [selectedEventTitle, setSelectedEventTitle] = useState('');
   const [showCalendarSection, setShowCalendarSection] = useState(false);
-  const [showTrelloSection, setShowTrelloSection] = useState(false);
+
+  // Board card picker
+  const [showCardSection, setShowCardSection] = useState(false);
+  const [boards, setBoards] = useState<BoardItem[]>([]);
+  const [lists, setLists] = useState<ListItem[]>([]);
+  const [cards, setCards] = useState<CardItem[]>([]);
+  const [loadingBoards, setLoadingBoards] = useState(false);
+  const [loadingLists, setLoadingLists] = useState(false);
+  const [loadingCards, setLoadingCards] = useState(false);
+  const [selectedBoard, setSelectedBoard] = useState<BoardItem | null>(null);
+  const [selectedList, setSelectedList] = useState<ListItem | null>(null);
+  const [selectedCards, setSelectedCards] = useState<SelectedCard[]>([]);
 
   const router = useRouter();
 
@@ -69,6 +106,69 @@ export default function ClientsListView() {
     }
   }, [showCalendarSection]);
 
+  // Fetch boards when card section is opened
+  useEffect(() => {
+    if (showCardSection && boards.length === 0 && !loadingBoards) {
+      setLoadingBoards(true);
+      fetch('/api/boards')
+        .then(r => r.json())
+        .then(json => setBoards(json.data || []))
+        .catch(() => {})
+        .finally(() => setLoadingBoards(false));
+    }
+  }, [showCardSection]);
+
+  const handleBoardChange = async (boardId: string) => {
+    const board = boards.find(b => b.id === boardId) || null;
+    setSelectedBoard(board);
+    setSelectedList(null);
+    setLists([]);
+    setCards([]);
+    if (!boardId) return;
+
+    setLoadingLists(true);
+    try {
+      const res = await fetch(`/api/boards/${boardId}/lists`);
+      const json = await res.json();
+      setLists(json.data || []);
+    } catch {} finally {
+      setLoadingLists(false);
+    }
+  };
+
+  const handleListChange = async (listId: string) => {
+    const list = lists.find(l => l.id === listId) || null;
+    setSelectedList(list);
+    setCards([]);
+    if (!listId || !selectedBoard) return;
+
+    setLoadingCards(true);
+    try {
+      const res = await fetch(`/api/boards/${selectedBoard.id}/cards/paginated?list_id=${listId}&limit=100`);
+      const json = await res.json();
+      const result = json.data;
+      setCards(result?.cards || result || []);
+    } catch {} finally {
+      setLoadingCards(false);
+    }
+  };
+
+  const toggleCard = (card: CardItem) => {
+    const already = selectedCards.find(c => c.id === card.id);
+    if (already) {
+      setSelectedCards(prev => prev.filter(c => c.id !== card.id));
+    } else {
+      setSelectedCards(prev => [...prev, {
+        id: card.id,
+        title: card.title,
+        boardName: selectedBoard?.name || '',
+        listName: selectedList?.name || '',
+      }]);
+    }
+  };
+
+  const isCardSelected = (cardId: string) => selectedCards.some(c => c.id === cardId);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim()) return;
@@ -96,7 +196,7 @@ export default function ClientsListView() {
 
         // If a calendar event was selected, create meeting config
         if (selectedEventTitle.trim()) {
-          await fetch(`/api/clients/${newClientId}/meeting-config`, {
+          fetch(`/api/clients/${newClientId}/meeting-config`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -105,7 +205,16 @@ export default function ClientsListView() {
               send_mode: 'approve',
               is_active: true,
             }),
-          });
+          }).catch(() => {});
+        }
+
+        // Link selected board cards to this client
+        for (const card of selectedCards) {
+          fetch(`/api/cards/${card.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ client_id: newClientId }),
+          }).catch(() => {});
         }
       }
     } finally {
@@ -120,7 +229,12 @@ export default function ClientsListView() {
     setSelectedEventTitle('');
     setEventFilter('');
     setShowCalendarSection(false);
-    setShowTrelloSection(false);
+    setShowCardSection(false);
+    setSelectedBoard(null);
+    setSelectedList(null);
+    setLists([]);
+    setCards([]);
+    setSelectedCards([]);
   };
 
   // Deduplicate recurring events by title
@@ -433,38 +547,151 @@ export default function ClientsListView() {
               )}
             </div>
 
-            {/* Collapsible: Track Trello Tickets */}
+            {/* Collapsible: Link Board Cards */}
             <div className="mt-3 border border-cream-dark dark:border-slate-700 rounded-xl overflow-hidden">
               <button
                 type="button"
-                onClick={() => setShowTrelloSection(!showTrelloSection)}
+                onClick={() => setShowCardSection(!showCardSection)}
                 className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-cream/50 dark:hover:bg-slate-800/30 transition-colors"
               >
                 <div className="flex items-center gap-2">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="shrink-0 text-[#0079BF]">
-                    <rect x="2" y="2" width="20" height="20" rx="3" fill="currentColor" />
-                    <rect x="5" y="5" width="5" height="12" rx="1" fill="white" />
-                    <rect x="13" y="5" width="5" height="8" rx="1" fill="white" />
+                  <svg className="w-4 h-4 text-electric" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
                   </svg>
                   <span className="text-sm font-semibold text-navy dark:text-slate-200 font-body">
-                    Track Trello Tickets
+                    Link Board Cards
                   </span>
+                  {selectedCards.length > 0 && (
+                    <span className="text-[10px] bg-electric/10 text-electric px-2 py-0.5 rounded-full font-medium">
+                      {selectedCards.length} selected
+                    </span>
+                  )}
                 </div>
                 <svg
-                  className={`w-4 h-4 text-navy/30 dark:text-slate-500 transition-transform ${showTrelloSection ? 'rotate-180' : ''}`}
+                  className={`w-4 h-4 text-navy/30 dark:text-slate-500 transition-transform ${showCardSection ? 'rotate-180' : ''}`}
                   fill="none" stroke="currentColor" viewBox="0 0 24 24"
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
-              {showTrelloSection && (
+              {showCardSection && (
                 <div className="px-4 pb-4 border-t border-cream-dark dark:border-slate-700">
                   <p className="text-xs text-navy/40 dark:text-slate-500 font-body mt-3 mb-3">
-                    You can link Trello tickets after the client is created.
+                    Pick cards from your boards to link to this client.
                   </p>
-                  <div className="bg-cream/30 dark:bg-slate-800/20 rounded-lg px-3 py-2 text-xs text-navy/50 dark:text-slate-400 font-body">
-                    Trello board picker will appear after creating the client.
-                  </div>
+
+                  {/* Selected cards */}
+                  {selectedCards.length > 0 && (
+                    <div className="space-y-1.5 mb-3">
+                      {selectedCards.map(card => (
+                        <div key={card.id} className="flex items-center gap-2 bg-electric/5 dark:bg-electric/10 border border-electric/20 rounded-lg px-3 py-2">
+                          <svg className="w-3.5 h-3.5 text-electric shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-navy dark:text-slate-200 font-body truncate">{card.title}</p>
+                            <p className="text-[10px] text-navy/40 dark:text-slate-500 font-body truncate">{card.boardName} &rsaquo; {card.listName}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedCards(prev => prev.filter(c => c.id !== card.id))}
+                            className="text-navy/30 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400 transition-colors"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Board selector */}
+                  <select
+                    value={selectedBoard?.id ?? ''}
+                    onChange={(e) => handleBoardChange(e.target.value)}
+                    disabled={loadingBoards}
+                    className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-navy/15 dark:border-slate-700 text-sm font-body text-navy dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric transition-all disabled:opacity-50 mb-2"
+                  >
+                    <option value="">
+                      {loadingBoards ? 'Loading boards...' : 'Select a board'}
+                    </option>
+                    {boards.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+
+                  {/* List selector */}
+                  {selectedBoard && (
+                    <select
+                      value={selectedList?.id ?? ''}
+                      onChange={(e) => handleListChange(e.target.value)}
+                      disabled={loadingLists}
+                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-navy/15 dark:border-slate-700 text-sm font-body text-navy dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric transition-all disabled:opacity-50 mb-2"
+                    >
+                      <option value="">
+                        {loadingLists ? 'Loading lists...' : 'Select a list'}
+                      </option>
+                      {lists.map(l => (
+                        <option key={l.id} value={l.id}>{l.name}</option>
+                      ))}
+                    </select>
+                  )}
+
+                  {/* Card list */}
+                  {selectedList && (
+                    <div className="max-h-48 overflow-y-auto rounded-lg border border-navy/15 dark:border-slate-700 bg-white dark:bg-dark-surface divide-y divide-cream-dark/50 dark:divide-slate-700/50">
+                      {loadingCards ? (
+                        <div className="px-3 py-4 text-xs text-navy/40 dark:text-slate-500 font-body text-center">
+                          Loading cards...
+                        </div>
+                      ) : cards.length === 0 ? (
+                        <div className="px-3 py-4 text-xs text-navy/40 dark:text-slate-500 font-body text-center">
+                          No cards in this list.
+                        </div>
+                      ) : (
+                        cards.map(card => {
+                          const selected = isCardSelected(card.id);
+                          const alreadyLinked = !!card.client_id && !selected;
+                          return (
+                            <button
+                              key={card.id}
+                              type="button"
+                              onClick={() => !alreadyLinked && toggleCard(card)}
+                              disabled={alreadyLinked}
+                              className={`w-full text-left px-3 py-2 text-xs font-body transition-colors flex items-center gap-2 ${
+                                selected
+                                  ? 'text-electric bg-electric/5 dark:bg-electric/10'
+                                  : alreadyLinked
+                                  ? 'text-navy/30 dark:text-slate-600 bg-cream/30 dark:bg-slate-800/20 cursor-default'
+                                  : 'text-navy dark:text-slate-200 hover:bg-electric/5 dark:hover:bg-electric/10 cursor-pointer'
+                              }`}
+                            >
+                              {selected ? (
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-electric">
+                                  <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                              ) : alreadyLinked ? (
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                                </svg>
+                              ) : (
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-navy/20 dark:text-slate-600">
+                                  <line x1="12" y1="5" x2="12" y2="19" />
+                                  <line x1="5" y1="12" x2="19" y2="12" />
+                                </svg>
+                              )}
+                              <span className="truncate">{card.title}</span>
+                              {alreadyLinked && (
+                                <span className="text-[10px] text-navy/25 dark:text-slate-600 ml-auto shrink-0">linked</span>
+                              )}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -479,36 +706,51 @@ export default function ClientsListView() {
             </div>
           </form>
         ) : (
-          // Step 2: Link Trello tickets + success
-          <div className="p-6 max-h-[85vh] overflow-y-auto">
-            <div className="flex items-center gap-2 mb-1">
+          // Success view
+          <div className="p-6">
+            <div className="flex items-center gap-2 mb-4">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
               <h2 className="text-lg font-heading font-semibold text-navy dark:text-slate-100">Client Created</h2>
             </div>
 
-            {selectedEventTitle && (
-              <div className="flex items-center gap-2 bg-electric/5 dark:bg-electric/10 border border-electric/20 rounded-xl px-3 py-2 mt-3 mb-4">
-                <svg className="w-4 h-4 text-electric shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" strokeWidth="2" />
-                  <line x1="16" y1="2" x2="16" y2="6" strokeWidth="2" strokeLinecap="round" />
-                  <line x1="8" y1="2" x2="8" y2="6" strokeWidth="2" strokeLinecap="round" />
-                  <line x1="3" y1="10" x2="21" y2="10" strokeWidth="2" />
-                </svg>
-                <span className="text-xs font-medium text-navy dark:text-slate-200 font-body">
-                  Meeting prep linked: <span className="text-electric">{selectedEventTitle}</span>
-                </span>
-              </div>
-            )}
+            <div className="space-y-3 mb-6">
+              {selectedEventTitle && (
+                <div className="flex items-center gap-2 bg-electric/5 dark:bg-electric/10 border border-electric/20 rounded-xl px-3 py-2">
+                  <svg className="w-4 h-4 text-electric shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" strokeWidth="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" strokeWidth="2" strokeLinecap="round" />
+                    <line x1="8" y1="2" x2="8" y2="6" strokeWidth="2" strokeLinecap="round" />
+                    <line x1="3" y1="10" x2="21" y2="10" strokeWidth="2" />
+                  </svg>
+                  <span className="text-xs font-medium text-navy dark:text-slate-200 font-body">
+                    Meeting prep linked: <span className="text-electric">{selectedEventTitle}</span>
+                  </span>
+                </div>
+              )}
 
-            <p className="text-sm text-navy/50 dark:text-slate-400 font-body mb-5">
-              Link Trello tickets for <span className="font-medium text-navy dark:text-slate-200">{formData.name}</span>:
-            </p>
+              {selectedCards.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-[10px] font-semibold text-navy/40 dark:text-slate-500 uppercase tracking-wider font-body">
+                    Linked Cards ({selectedCards.length})
+                  </p>
+                  {selectedCards.map(card => (
+                    <div key={card.id} className="flex items-center gap-2 bg-cream/60 dark:bg-slate-800/40 rounded-lg px-3 py-2">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-500 shrink-0">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-navy dark:text-slate-200 font-body truncate">{card.title}</p>
+                        <p className="text-[10px] text-navy/40 dark:text-slate-500 font-body truncate">{card.boardName} &rsaquo; {card.listName}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
-            <TrelloCardPicker clientId={createdClientId} />
-
-            <div className="flex justify-between items-center gap-3 mt-6 pt-4 border-t border-cream-dark dark:border-slate-700">
+            <div className="flex justify-between items-center gap-3 pt-4 border-t border-cream-dark dark:border-slate-700">
               <button
                 type="button"
                 onClick={() => router.push(`/client/${createdClientId}/map`)}
