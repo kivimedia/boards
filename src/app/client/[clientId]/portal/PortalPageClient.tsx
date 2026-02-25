@@ -4,13 +4,14 @@ import { useState, useCallback } from 'react';
 import ClientPortalKanban from '@/components/client/ClientPortalKanban';
 import ClientTicketSubmit from '@/components/client/ClientTicketSubmit';
 import ClientSatisfaction from '@/components/client/ClientSatisfaction';
+import ClientUserManager from '@/components/client/ClientUserManager';
 
 interface PortalPageClientProps {
   clientId: string;
   clientName: string;
 }
 
-type PortalTab = 'board' | 'submit' | 'satisfaction';
+type PortalTab = 'board' | 'submit' | 'satisfaction' | 'logins';
 
 const TABS: { key: PortalTab; label: string; icon: string }[] = [
   {
@@ -27,6 +28,11 @@ const TABS: { key: PortalTab; label: string; icon: string }[] = [
     key: 'satisfaction',
     label: 'Feedback',
     icon: 'M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+  },
+  {
+    key: 'logins',
+    label: 'Client Logins',
+    icon: 'M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z',
   },
 ];
 
@@ -83,6 +89,10 @@ export default function PortalPageClient({ clientId, clientName }: PortalPageCli
           <div className="max-w-lg">
             <ClientSatisfaction clientId={clientId} />
           </div>
+        )}
+
+        {activeTab === 'logins' && (
+          <ClientUserManager clientId={clientId} />
         )}
       </div>
     </div>

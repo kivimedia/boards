@@ -74,9 +74,11 @@ export function canEditCard(role: UserRole): boolean {
 
 /**
  * Check if a user can move cards on a board.
- * Observers and clients cannot move cards.
+ * Observers cannot move cards.
+ * Clients can only move cards on their own client board.
  */
-export function canMoveCard(role: UserRole): boolean {
+export function canMoveCard(role: UserRole, isClientBoard?: boolean): boolean {
+  if (role === 'client' && isClientBoard) return true;
   return hasMinRole(role, 'guest');
 }
 
@@ -131,8 +133,10 @@ export function canMoveCardBetweenColumns(
 
 /**
  * Check if user can comment on cards.
+ * Clients can comment (their comments are auto-set to external).
  */
 export function canComment(role: UserRole): boolean {
+  if (role === 'client') return true;
   return hasMinRole(role, 'guest');
 }
 
@@ -213,6 +217,7 @@ const DEFAULT_BOARD_ROLE_ACCESS: Record<string, AgencyRole[]> = {
   video_editor: ['agency_owner', 'video_editor'],
   client_strategy_map: ['agency_owner', 'account_manager', 'executive_assistant'],
   copy: ['agency_owner', 'designer', 'account_manager'],
+  client_board: ['agency_owner', 'account_manager', 'executive_assistant'],
 };
 
 /**

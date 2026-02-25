@@ -50,5 +50,39 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Client role isolation: restrict client users to their own board + map
+  if (user && !isPublicPath) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('user_role, client_id')
+      .eq('id', user.id)
+      .single();
+
+    if (profile?.user_role === 'client' && profile?.client_id) {
+      const clientId = profile.client_id;
+      const clientAllowedPrefixes = [
+        '/client-board',
+        `/client/${clientId}/map`,
+        '/api/client-board',
+        '/api/cards/',
+        '/api/clients/' + clientId,
+        '/api/auth/',
+      ];
+
+      const isAllowed =
+        clientAllowedPrefixes.some((p) => pathname.startsWith(p)) ||
+        isPublicPath;
+
+      if (!isAllowed) {
+        if (pathname.startsWith('/api/')) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+        const url = request.nextUrl.clone();
+        url.pathname = '/client-board';
+        return NextResponse.redirect(url);
+      }
+    }
+  }
+
   return supabaseResponse;
 }

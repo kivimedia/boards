@@ -29,6 +29,21 @@ export default function LoginForm() {
       setError(error.message);
       setLoading(false);
     } else {
+      // Check if the user is a client — redirect to client board
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('user_role, client_id')
+          .eq('id', authUser.id)
+          .single();
+
+        if (profile?.user_role === 'client' && profile?.client_id) {
+          router.push('/client-board');
+          router.refresh();
+          return;
+        }
+      }
       router.push('/');
       router.refresh();
     }
