@@ -59,15 +59,16 @@ export function useUndoRedo(
       // Trim history to maxHistory length, removing oldest entries
       if (newHistory.length > maxHistory) {
         newHistory.shift();
+        // Also update current if we trimmed from the beginning
+        setCurrent((c) => Math.max(0, c - 1));
         return newHistory;
       }
 
+      // Move cursor to the end of new history
+      setCurrent((c) => c + 1);
       return newHistory;
     });
-
-    // Move cursor to the end of new history
-    setCurrent((prev) => Math.min(prev + 1, history.length));
-  }, [history, current, maxHistory]);
+  }, [current, maxHistory]);
 
   const undo = useCallback(() => {
     setCurrent((prev) => Math.max(0, prev - 1));
