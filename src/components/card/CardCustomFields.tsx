@@ -14,12 +14,13 @@ export default function CardCustomFields({ cardId, boardId, onRefresh }: CardCus
   const [definitions, setDefinitions] = useState<CustomFieldDefinition[]>([]);
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({});
   const supabase = createClient();
 
   useEffect(() => {
     fetchFields();
-  }, [cardId, boardId]);
+  }, [fetchFields]);
 
   useEffect(() => {
     return () => {
@@ -27,8 +28,16 @@ export default function CardCustomFields({ cardId, boardId, onRefresh }: CardCus
     };
   }, []);
 
-  const fetchFields = async () => {
+  const fetchFields = useCallback(async () => {
     setLoading(true);
+    setError(null);
+    
+    // Set a timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      setLoading(false);
+      setError('Custom fields request timed out. Please refresh.');
+    }, 10000);
+
     try {
       const [defsResult, valsResult] = await Promise.all([
         supabase
@@ -42,6 +51,23 @@ export default function CardCustomFields({ cardId, boardId, onRefresh }: CardCus
           .eq('card_id', cardId),
       ]);
 
+      clearTimeout(timeoutId);
+
+      if (defsResult.error) {
+        console.error('Failed to fetch custom field definitions:', defsResult.error);
+        setError('Failed to load custom fields');
+        setDefinitions([]);
+        setLoading(false);
+        return;
+      }
+      if (valsResult.error) {
+        console.error('Failed to fetch custom field values:', valsResult.error);
+        setError('Failed to load custom field values');
+        setDefinitions([]);
+        setLoading(false);
+        return;
+      }
+
       setDefinitions(defsResult.data || []);
 
       const valueMap: Record<string, unknown> = {};
@@ -49,13 +75,16 @@ export default function CardCustomFields({ cardId, boardId, onRefresh }: CardCus
         valueMap[v.field_definition_id] = v.value;
       });
       setValues(valueMap);
+      setLoading(false);
+      setError(null);
     } catch (err) {
+      clearTimeout(timeoutId);
       console.error('Failed to fetch custom fields:', err);
+      setError('Network error loading custom fields');
       setDefinitions([]);
-    } finally {
       setLoading(false);
     }
-  };
+  }, [cardId, boardId, supabase]);
 
   const saveFieldValue = useCallback(
     async (fieldDefinitionId: string, value: unknown) => {
@@ -215,6 +244,25 @@ export default function CardCustomFields({ cardId, boardId, onRefresh }: CardCus
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
           </svg>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div>
+        <h3 className="text-sm font-semibold text-navy/50 dark:text-slate-400 mb-3 font-heading">
+          Custom Fields
+        </h3>
+        <div className="space-y-2">
+          <p className="text-sm text-danger font-body">{error}</p>
+          <button
+            onClick={() => fetchFields()}
+            className="px-3 py-1.5 rounded-lg bg-electric/10 text-electric text-sm font-medium hover:bg-electric/20 transition-colors font-body"
+          >
+            Retry
+          </button>
         </div>
       </div>
     );
