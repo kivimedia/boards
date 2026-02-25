@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -12,6 +12,8 @@ import CommentReactions from './CommentReactions';
 import MentionInput from './MentionInput';
 import { MarkdownToolbarUI } from './MarkdownToolbar';
 import { useAutoResize } from '@/hooks/useAutoResize';
+import { useUndoRedo } from '@/hooks/useUndoRedo';
+import { useUndoRedoKeyboard } from '@/hooks/useUndoRedoKeyboard';
 
 const URL_PATTERN = /(https?:\/\/[^\s<]+)/;
 // Matches Trello/ClickUp smart-link format: [https://url.com "smartCard-inline"] or [https://url.com ""]
@@ -74,21 +76,28 @@ interface CardCommentsProps {
 }
 
 export default function CardComments({ cardId, comments, onRefresh, onCommentAdded, boardId, currentUserId, isAdmin }: CardCommentsProps) {
-  const [newComment, setNewComment] = useState('');
+  // Undo/Redo for new comment
+  const newCommentUndo = useUndoRedo('');
   const [replyText, setReplyText] = useState('');
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
-  const [editText, setEditText] = useState('');
+  // Undo/Redo for edit text
+  const editTextUndo = useUndoRedo('');
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const mainTextareaRef = useRef<HTMLTextAreaElement>(null);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
-  useAutoResize(editTextareaRef, editText);
+  useAutoResize(editTextareaRef, editTextUndo.value);
   useAutoResize(replyTextareaRef, replyText);
   const [showFullLinks, setShowFullLinks] = useState(false);
+
+  // Attach keyboard shortcuts for undo/redo
+  useUndoRedoKeyboard(mainTextareaRef, newCommentUndo.undo, newCommentUndo.redo);
+  useUndoRedoKeyboard(editTextareaRef, editTextUndo.undo, editTextUndo.redo);
 
   // Group comments into threads
   const { topLevel, repliesByParent } = useMemo(() => {
@@ -111,7 +120,7 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
   }, [comments]);
 
   const handleAddComment = async (parentId?: string, mentionedUserIds?: string[], directContent?: string) => {
-    const text = directContent || (parentId ? replyText : newComment);
+    const text = directContent || (parentId ? replyText : newCommentUndo.value);
     if (!text.trim()) return;
     setLoading(true);
     setCommentError(null);
@@ -145,7 +154,7 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
         setReplyingTo(null);
         setExpandedThreads((prev) => new Set(prev).add(parentId));
       } else {
-        setNewComment('');
+        newCommentUndo.clearHistory();
       }
 
       // Immediately show the new comment from POST response (no full refresh needed)
@@ -178,18 +187,18 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
   };
 
   const handleEditComment = async (commentId: string) => {
-    if (!editText.trim()) return;
+    if (!editTextUndo.value.trim()) return;
     setEditLoading(true);
     setEditError(null);
     try {
       const res = await fetch(`/api/cards/${cardId}/comments`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ commentId, content: editText.trim() }),
+        body: JSON.stringify({ commentId, content: editTextUndo.value.trim() }),
       });
       if (res.ok) {
         setEditingCommentId(null);
-        setEditText('');
+        editTextUndo.clearHistory();
         setEditError(null);
         onRefresh();
       } else {
@@ -266,7 +275,7 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
               {(currentUserId === comment.user_id || isAdmin) && (
                 <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all ml-auto">
                   <button
-                    onClick={() => { setEditingCommentId(comment.id); setEditText(comment.content); }}
+                    onClick={() => { setEditingCommentId(comment.id); editTextUndo.setValue(comment.content); }}
                     className="text-navy/30 dark:text-slate-500 hover:text-electric text-xs"
                   >
                     Edit
@@ -286,31 +295,31 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
               <div className="mt-1">
                 <MarkdownToolbarUI
                   textareaRef={editTextareaRef}
-                  value={editText}
-                  onChange={setEditText}
+                  value={editTextUndo.value}
+                  onChange={editTextUndo.setValue}
                 />
                 <textarea
                   ref={editTextareaRef}
-                  value={editText}
-                  onChange={(e) => setEditText(e.target.value)}
+                  value={editTextUndo.value}
+                  onChange={(e) => editTextUndo.setValue(e.target.value)}
                   className="w-full p-2.5 rounded-b-lg rounded-t-none bg-cream dark:bg-navy border border-electric/30 border-t-0 text-sm text-navy dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-electric/30 resize-none overflow-hidden font-body min-h-[76px]"
                   rows={1}
                   autoFocus
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { handleEditComment(comment.id); return; }
-                    if (e.key === 'Escape') { setEditingCommentId(null); setEditText(''); return; }
+                    if (e.key === 'Escape') { setEditingCommentId(null); editTextUndo.clearHistory(); return; }
                     const ta = editTextareaRef.current;
                     if (ta && e.key === 'b' && (e.metaKey || e.ctrlKey)) {
                       e.preventDefault();
                       const s = ta.selectionStart, en = ta.selectionEnd;
-                      const sel = editText.slice(s, en) || 'bold text';
-                      setEditText(editText.slice(0, s) + '**' + sel + '**' + editText.slice(en));
+                      const sel = editTextUndo.value.slice(s, en) || 'bold text';
+                      editTextUndo.setValue(editTextUndo.value.slice(0, s) + '**' + sel + '**' + editTextUndo.value.slice(en));
                       requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + 2, s + 2 + sel.length); });
                     } else if (ta && e.key === 'i' && (e.metaKey || e.ctrlKey)) {
                       e.preventDefault();
                       const s = ta.selectionStart, en = ta.selectionEnd;
-                      const sel = editText.slice(s, en) || 'italic text';
-                      setEditText(editText.slice(0, s) + '*' + sel + '*' + editText.slice(en));
+                      const sel = editTextUndo.value.slice(s, en) || 'italic text';
+                      editTextUndo.setValue(editTextUndo.value.slice(0, s) + '*' + sel + '*' + editTextUndo.value.slice(en));
                       requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + 1, s + 1 + sel.length); });
                     }
                   }}
@@ -320,7 +329,7 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
                 )}
                 <div className="flex items-center gap-2 mt-1.5">
                   <Button size="sm" onClick={() => handleEditComment(comment.id)} loading={editLoading}>Save</Button>
-                  <button onClick={() => { setEditingCommentId(null); setEditText(''); setEditError(null); }} className="text-xs text-navy/40 dark:text-slate-500 hover:text-navy/60 dark:hover:text-slate-300">Cancel</button>
+                  <button onClick={() => { setEditingCommentId(null); editTextUndo.clearHistory(); setEditError(null); }} className="text-xs text-navy/40 dark:text-slate-500 hover:text-navy/60 dark:hover:text-slate-300">Cancel</button>
                 </div>
               </div>
             ) : (
