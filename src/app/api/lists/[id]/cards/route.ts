@@ -124,13 +124,12 @@ export async function POST(request: NextRequest, { params }: Params) {
       .upsert(assigneeRows, { onConflict: 'card_id,user_id' })
       .then(async () => {
         // Send notifications to assignees
-        const creatorProfile = await supabase
+        const { data: creatorProfile } = await supabase
           .from('profiles')
           .select('display_name')
           .eq('id', userId)
-          .single()
-          .catch(() => ({ data: { display_name: 'Someone' } }));
-        const creatorName = creatorProfile.data?.display_name || 'Someone';
+          .single();
+        const creatorName = creatorProfile?.display_name || 'Someone';
 
         const notifRows = assigneeIds
           .filter((uid) => uid !== userId)
@@ -145,7 +144,7 @@ export async function POST(request: NextRequest, { params }: Params) {
           }));
 
         if (notifRows.length > 0) {
-          supabase.from('notifications').insert(notifRows).catch(() => {});
+          supabase.from('notifications').insert(notifRows).then(() => {});
         }
       })
       .catch(() => {});
