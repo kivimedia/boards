@@ -119,11 +119,24 @@ export default function CardActions({ cardId, boardId, onClose, onRefresh }: Car
   const handleArchive = async () => {
     if (!confirm('Archive this ticket? It will be hidden from the board but can be restored later.')) return;
     setLoading(true);
-    await supabase.from('cards').update({ is_archived: true }).eq('id', cardId);
-    await supabase.from('card_placements').delete().eq('card_id', cardId);
-    setLoading(false);
-    onClose();
-    onRefresh();
+    try {
+      const res = await fetch('/api/cards/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'archive', card_ids: [cardId] }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data?.error || 'Archive failed. Please try again.');
+      } else {
+        onClose();
+        onRefresh();
+      }
+    } catch {
+      alert('Archive failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDelete = async () => {
