@@ -620,7 +620,7 @@ export default function ClientsListView() {
                     <option value="">
                       {loadingBoards ? 'Loading boards...' : 'Select a board'}
                     </option>
-                    {boards.map(b => (
+                    {(Array.isArray(boards) ? boards : []).map(b => (
                       <option key={b.id} value={b.id}>{b.name}</option>
                     ))}
                   </select>
@@ -636,7 +636,7 @@ export default function ClientsListView() {
                       <option value="">
                         {loadingLists ? 'Loading lists...' : 'Select a list'}
                       </option>
-                      {lists.map(l => (
+                      {(Array.isArray(lists) ? lists : []).map(l => (
                         <option key={l.id} value={l.id}>{l.name}</option>
                       ))}
                     </select>
@@ -654,7 +654,7 @@ export default function ClientsListView() {
                           No cards in this list.
                         </div>
                       ) : (
-                        cards.map(card => {
+                        (Array.isArray(cards) ? cards : []).map(card => {
                           const selected = isCardSelected(card.id);
                           const alreadyLinked = !!card.client_id && !selected;
                           return (
