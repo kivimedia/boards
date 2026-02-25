@@ -59,6 +59,28 @@ export function MarkdownToolbarUI({ textareaRef, value, onChange }: MarkdownTool
 
   const ACTIONS = [
     {
+      label: 'P',
+      title: 'Paragraph',
+      icon: <span className="text-xs font-bold font-heading leading-none">P</span>,
+      fn: (v: string, s: number, e: number) => {
+        // Remove heading prefixes (# or ##) from the start of lines
+        const lineStart = v.lastIndexOf('\n', s - 1) + 1;
+        const lineEnd = v.indexOf('\n', e) === -1 ? v.length : v.indexOf('\n', e);
+        const selectedLines = v.slice(lineStart, lineEnd);
+        const cleaned = selectedLines
+          .split('\n')
+          .map((line) => {
+            // Remove heading prefixes
+            if (line.startsWith('## ')) return line.slice(3);
+            if (line.startsWith('# ')) return line.slice(2);
+            return line;
+          })
+          .join('\n');
+        const text = v.slice(0, lineStart) + cleaned + v.slice(lineEnd);
+        return { text, cursorStart: lineStart, cursorEnd: lineStart + cleaned.length };
+      },
+    },
+    {
       label: 'H1',
       title: 'Heading 1',
       icon: <span className="text-xs font-bold font-heading leading-none">H1</span>,
