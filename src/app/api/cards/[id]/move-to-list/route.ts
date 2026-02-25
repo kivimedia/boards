@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getAuthContext, successResponse, errorResponse } from '@/lib/api-helpers';
+import { notifyWatchers } from '@/lib/card-watchers';
 
 interface Params {
   params: { id: string };
@@ -90,6 +91,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   const auth = await getAuthContext();
   if (!auth.ok) return auth.response;
 
+  const { supabase, userId } = auth.ctx;
   const cardId = params.id;
 
   let listId: string;
@@ -121,6 +123,16 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   const position = await resolvePosition(listId, positionIndex, db);
 
+  // Get card title and target list/board info for notification
+  const [cardRes, targetListRes] = await Promise.all([
+    supabase.from('cards').select('title').eq('id', cardId).single(),
+    db.from('lists').select('id, name, board_id').eq('id', listId).single(),
+  ]);
+
+  const cardTitle = cardRes.data?.title || 'Card';
+  const listName = targetListRes.data?.name || 'Unknown';
+  const boardId = targetListRes.data?.board_id || null;
+
   // Move primary placement
   const { error } = await db
     .from('card_placements')
@@ -135,6 +147,16 @@ export async function POST(request: NextRequest, { params }: Params) {
     .delete()
     .eq('card_id', cardId)
     .eq('is_mirror', true);
+
+  // Notify watchers (non-blocking)
+  notifyWatchers(
+    supabase,
+    cardId,
+    `${cardTitle} moved to ${listName}`,
+    `The card was moved to the ${listName} list`,
+    userId,
+    boardId
+  ).catch(() => {});
 
   return successResponse({ moved: true });
 }
