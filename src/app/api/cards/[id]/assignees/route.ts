@@ -79,7 +79,7 @@ export async function POST(request: NextRequest, { params }: Params) {
           board_id: boardId,
           metadata: { assigner_id: userId },
         })
-        .catch(() => {}); // Silently fail if notification insert fails
+        .then(() => {}); // Silently fail if notification insert fails
     }
 
     return successResponse({ action: 'added' }, 201);
