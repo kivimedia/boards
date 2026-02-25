@@ -347,6 +347,9 @@ export interface Client {
   client_tag: string | null;
   contract_type: string | null;
   notes: string | null;
+  email: string | null;
+  phone: string | null;
+  location: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
