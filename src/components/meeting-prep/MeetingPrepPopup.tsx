@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import type { MeetingPrepTicket } from '@/lib/types';
@@ -36,22 +36,70 @@ export default function MeetingPrepPopup({ clientId, meetingTitle, meetingTime, 
   const [data, setData] = useState<MeetingPrepData | null>(null);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (isOpen) fetchPrep();
+    if (isOpen) {
+      fetchPrep();
+    } else {
+      // Cancel any in-flight requests when modal closes
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    }
   }, [isOpen, clientId]);
+
+  // Re-fetch when tab becomes visible (handles tab switching issue)
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && data === null && !loading) {
+        // Tab just became visible and we don't have data yet
+        fetchPrep();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isOpen, data, loading]);
 
   async function fetchPrep() {
     setLoading(true);
+    setError(null);
+
+    // Cancel previous request if still in flight
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Create new abort controller for this request
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       const params = new URLSearchParams({ title: meetingTitle, time: meetingTime });
       if (eventLink) params.set('link', eventLink);
-      const res = await fetch(`/api/meeting-prep/${clientId}?${params}`);
+      const res = await fetch(`/api/meeting-prep/${clientId}?${params}`, { signal: controller.signal });
       if (res.ok) {
         const json = await res.json();
-        setData(json.data || json);
+        const prepData = json.data || json;
+        if (prepData) {
+          setData(prepData);
+          setError(null);
+        } else {
+          setError('No meeting prep data available');
+        }
+      } else {
+        setError(`Failed to load prep data (${res.status})`);
       }
-    } catch {} finally {
+    } catch (err) {
+      // Don't set error if request was aborted (component unmounted or tab switched)
+      if (err instanceof Error && err.name !== 'AbortError') {
+        setError(err.message || 'Failed to load prep data');
+      }
+    } finally {
       setLoading(false);
     }
   }
@@ -173,7 +221,19 @@ export default function MeetingPrepPopup({ clientId, meetingTitle, meetingTime, 
             )}
           </>
         ) : (
-          <p className="text-sm text-navy/40 dark:text-slate-500 font-body">Failed to load prep data</p>
+          <div className="space-y-3">
+            <p className="text-sm text-navy/40 dark:text-slate-500 font-body">
+              {error || 'No prep data available'}
+            </p>
+            {error && (
+              <button
+                onClick={fetchPrep}
+                className="px-3 py-1.5 rounded-lg bg-electric/10 text-electric text-sm font-medium hover:bg-electric/20 transition-colors font-body"
+              >
+                Try Again
+              </button>
+            )}
+          </div>
         )}
 
         {/* Start Meeting */}
