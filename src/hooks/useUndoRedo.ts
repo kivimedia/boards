@@ -78,9 +78,10 @@ export function useUndoRedo(
   }, [history.length]);
 
   const clearHistory = useCallback(() => {
-    setHistory([value]);
+    // Clear history and reset value to empty string
+    setHistory(['']);
     setCurrent(0);
-  }, [value]);
+  }, []);
 
   const canUndo = current > 0;
   const canRedo = current < history.length - 1;
