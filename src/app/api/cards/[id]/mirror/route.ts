@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getAuthContext, successResponse, errorResponse } from '@/lib/api-helpers';
+import { notifyWatchers } from '@/lib/card-watchers';
 
 interface Params {
   params: { id: string };
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   const auth = await getAuthContext();
   if (!auth.ok) return auth.response;
 
-  const { supabase } = auth.ctx;
+  const { supabase, userId } = auth.ctx;
   const cardId = params.id;
 
   let listId: string;
@@ -90,8 +91,8 @@ export async function POST(request: NextRequest, { params }: Params) {
   const db = getAdminClient();
   if (!db) return errorResponse('Service role key not configured', 500);
 
-  // Check card exists
-  const { data: card } = await supabase.from('cards').select('id').eq('id', cardId).single();
+  // Check card exists and get title
+  const { data: card } = await supabase.from('cards').select('id, title').eq('id', cardId).single();
   if (!card) return errorResponse('Card not found', 404);
 
   // Prevent duplicate mirrors in same list
@@ -105,6 +106,13 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   const position = await resolvePosition(listId, positionIndex, db);
 
+  // Get target list/board info for notification
+  const { data: targetList } = await db
+    .from('lists')
+    .select('id, name, board_id')
+    .eq('id', listId)
+    .single();
+
   const { error } = await db.from('card_placements').insert({
     card_id: cardId,
     list_id: listId,
@@ -113,5 +121,19 @@ export async function POST(request: NextRequest, { params }: Params) {
   });
 
   if (error) return errorResponse(error.message, 500);
+
+  // Notify watchers (non-blocking)
+  const cardTitle = card.title || 'Card';
+  const listName = targetList?.name || 'Unknown';
+  const boardId = targetList?.board_id || null;
+  notifyWatchers(
+    supabase,
+    cardId,
+    `${cardTitle} mirrored to ${listName}`,
+    `The card was mirrored to the ${listName} list`,
+    userId,
+    boardId
+  ).catch(() => {});
+
   return successResponse({ mirrored: true });
 }
