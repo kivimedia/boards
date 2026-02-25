@@ -363,13 +363,13 @@ export default function ClientsListView() {
       </div>
 
       {/* Create Client Modal */}
-      <Modal isOpen={showCreate} onClose={closeCreateModal} size="xl">
+      <Modal isOpen={showCreate} onClose={closeCreateModal} size="lg">
         {!createdClientId ? (
-          <form onSubmit={handleCreate} className="p-6">
-            <h2 className="text-lg font-heading font-semibold text-navy dark:text-slate-100 mb-4">Create Client</h2>
+          <form onSubmit={handleCreate} className="p-5">
+            <h2 className="text-lg font-heading font-semibold text-navy dark:text-slate-100 mb-3">Create Client</h2>
 
-            {/* Basic Info */}
-            <div className="space-y-4">
+            {/* Row 1: Name + Company */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
               <Input
                 label="Client Name"
                 placeholder="Enter client name"
@@ -383,31 +383,34 @@ export default function ClientsListView() {
                 value={formData.company}
                 onChange={(e) => setFormData({ ...formData, company: e.target.value })}
               />
+            </div>
 
-              {/* Contact Info Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Input
-                  label="Email"
-                  type="email"
-                  placeholder="client@company.com"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                />
-                <Input
-                  label="Phone"
-                  type="tel"
-                  placeholder="+1 (555) 123-4567"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                />
-              </div>
+            {/* Row 2: Email + Phone */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+              <Input
+                label="Email"
+                type="email"
+                placeholder="client@company.com"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              />
+              <Input
+                label="Phone"
+                type="tel"
+                placeholder="+1 (555) 123-4567"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              />
+            </div>
+
+            {/* Row 3: Location + Contract Type */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
               <Input
                 label="Location"
                 placeholder="City, Country (optional)"
                 value={formData.location}
                 onChange={(e) => setFormData({ ...formData, location: e.target.value })}
               />
-
               <div className="w-full">
                 <label className="block text-sm font-semibold text-navy dark:text-slate-100 mb-1.5 font-body">
                   Contract Type
@@ -418,29 +421,30 @@ export default function ClientsListView() {
                   className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-dark-surface border-2 border-navy/20 dark:border-slate-700 text-navy dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric transition-all duration-200 font-body text-sm"
                 >
                   <option value="">Select type (optional)</option>
-                  <option value="retainer">Retainer</option>
-                  <option value="project">Project</option>
-                  <option value="hourly">Hourly</option>
-                  <option value="consultation">Consultation</option>
+                  <option value="vip">VIP</option>
+                  <option value="sparks">Sparks</option>
+                  <option value="sparks_lite">Sparks Lite</option>
+                  <option value="other">Other</option>
                 </select>
-              </div>
-
-              <div className="w-full">
-                <label className="block text-sm font-semibold text-navy dark:text-slate-100 mb-1.5 font-body">
-                  Notes
-                </label>
-                <textarea
-                  placeholder="Additional notes (optional)"
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  rows={2}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-dark-surface border-2 border-navy/20 dark:border-slate-700 text-navy dark:text-slate-100 placeholder:text-navy/40 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric transition-all duration-200 font-body text-sm resize-none"
-                />
               </div>
             </div>
 
+            {/* Notes */}
+            <div className="mb-3">
+              <label className="block text-sm font-semibold text-navy dark:text-slate-100 mb-1.5 font-body">
+                Notes
+              </label>
+              <textarea
+                placeholder="Additional notes (optional)"
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                rows={2}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-dark-surface border-2 border-navy/20 dark:border-slate-700 text-navy dark:text-slate-100 placeholder:text-navy/40 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric transition-all duration-200 font-body text-sm resize-none"
+              />
+            </div>
+
             {/* Collapsible: Match Calendar Event */}
-            <div className="mt-5 border border-cream-dark dark:border-slate-700 rounded-xl overflow-hidden">
+            <div className="border border-cream-dark dark:border-slate-700 rounded-xl overflow-hidden">
               <button
                 type="button"
                 onClick={() => setShowCalendarSection(!showCalendarSection)}
@@ -548,7 +552,7 @@ export default function ClientsListView() {
             </div>
 
             {/* Collapsible: Link Board Cards */}
-            <div className="mt-3 border border-cream-dark dark:border-slate-700 rounded-xl overflow-hidden">
+            <div className="mt-2 border border-cream-dark dark:border-slate-700 rounded-xl overflow-hidden">
               <button
                 type="button"
                 onClick={() => setShowCardSection(!showCardSection)}
@@ -696,7 +700,7 @@ export default function ClientsListView() {
               )}
             </div>
 
-            <div className="flex justify-end gap-3 mt-6">
+            <div className="flex justify-end gap-3 mt-4">
               <Button type="button" variant="secondary" onClick={closeCreateModal}>
                 Cancel
               </Button>
