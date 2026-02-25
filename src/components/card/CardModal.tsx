@@ -860,7 +860,13 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                         {showDescriptionPreview ? (
                           <div className="min-h-[120px] p-3 rounded-b-xl rounded-tr-xl bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-sm font-body prose prose-sm dark:prose-invert max-w-full prose-p:my-0.5 prose-headings:font-heading prose-a:text-electric prose-code:text-electric prose-code:bg-electric/10 prose-code:px-1 prose-code:rounded [overflow-wrap:break-word]">
                             {description.trim()
-                              ? <ReactMarkdown>{description}</ReactMarkdown>
+                              ? <ReactMarkdown components={{
+                                  a: ({ href, children }) => (
+                                    <a href={href} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                                      {children}
+                                    </a>
+                                  ),
+                                }}>{description}</ReactMarkdown>
                               : <span className="text-navy/30 dark:text-slate-500">Nothing to preview yet...</span>
                             }
                           </div>
@@ -949,7 +955,17 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                         >
                           {description ? (
                             <div className="prose prose-sm dark:prose-invert max-w-full prose-headings:font-heading prose-p:font-body prose-p:text-navy dark:prose-p:text-slate-200 prose-a:text-electric prose-code:text-electric prose-code:bg-electric/10 prose-code:px-1 prose-code:rounded [overflow-wrap:break-word] [word-break:break-word]">
-                              <ReactMarkdown>{description}</ReactMarkdown>
+                              <ReactMarkdown
+                                components={{
+                                  a: ({ href, children }) => (
+                                    <a href={href} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                                      {children}
+                                    </a>
+                                  ),
+                                }}
+                              >
+                                {description}
+                              </ReactMarkdown>
                             </div>
                           ) : (
                             <span className="text-navy/30 dark:text-slate-500">Click to add a description...</span>
