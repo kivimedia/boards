@@ -8,6 +8,8 @@ import { MarkdownToolbarUI } from './MarkdownToolbar';
 import { useMentionDropdown } from './useMentionDropdown';
 import MentionDropdown from './MentionDropdown';
 import { useAutoResize } from '@/hooks/useAutoResize';
+import { useUndoRedo } from '@/hooks/useUndoRedo';
+import { useUndoRedoKeyboard } from '@/hooks/useUndoRedoKeyboard';
 
 interface MentionInputProps {
   cardId: string;
@@ -16,22 +18,23 @@ interface MentionInputProps {
 }
 
 export default function MentionInput({ onSubmit }: MentionInputProps) {
-  const [content, setContent] = useState('');
+  const contentUndo = useUndoRedo('');
   const [loading, setLoading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
 
-  const mention = useMentionDropdown({ value: content, onChange: setContent });
-  useAutoResize(mention.textareaRef, content);
+  const mention = useMentionDropdown({ value: contentUndo.value, onChange: contentUndo.setValue });
+  useAutoResize(mention.textareaRef, contentUndo.value);
+  useUndoRedoKeyboard(mention.textareaRef, contentUndo.undo, contentUndo.redo);
 
   const handleSubmit = () => {
-    if (!content.trim()) return;
+    if (!contentUndo.value.trim()) return;
     setLoading(true);
     // Resolve mentioned user IDs from profile display names found in text
     const mentionedUserIds = mention.profiles
-      .filter((p) => content.includes(`@${p.display_name}`))
+      .filter((p) => contentUndo.value.includes(`@${p.display_name}`))
       .map((p) => p.id);
-    onSubmit(content.trim(), mentionedUserIds);
-    setContent('');
+    onSubmit(contentUndo.value.trim(), mentionedUserIds);
+    contentUndo.clearHistory();
     setLoading(false);
   };
 
@@ -51,27 +54,27 @@ export default function MentionInput({ onSubmit }: MentionInputProps) {
     if (ta && e.key === 'b' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       const s = ta.selectionStart, en = ta.selectionEnd;
-      const sel = content.slice(s, en) || 'bold text';
-      const text = content.slice(0, s) + '**' + sel + '**' + content.slice(en);
-      setContent(text);
+      const sel = contentUndo.value.slice(s, en) || 'bold text';
+      const text = contentUndo.value.slice(0, s) + '**' + sel + '**' + contentUndo.value.slice(en);
+      contentUndo.setValue(text);
       requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + 2, s + 2 + sel.length); });
     } else if (ta && e.key === 'i' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       const s = ta.selectionStart, en = ta.selectionEnd;
-      const sel = content.slice(s, en) || 'italic text';
-      const text = content.slice(0, s) + '*' + sel + '*' + content.slice(en);
-      setContent(text);
+      const sel = contentUndo.value.slice(s, en) || 'italic text';
+      const text = contentUndo.value.slice(0, s) + '*' + sel + '*' + contentUndo.value.slice(en);
+      contentUndo.setValue(text);
       requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + 1, s + 1 + sel.length); });
     } else if (ta && e.key === 'k' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       const s = ta.selectionStart, en = ta.selectionEnd;
-      const sel = content.slice(s, en) || '';
+      const sel = contentUndo.value.slice(s, en) || '';
       const url = window.prompt('Enter URL:', 'https://');
       if (url && url !== 'https://') {
         const linkText = sel || 'link text';
         const md = `[${linkText}](${url})`;
-        const text = content.slice(0, s) + md + content.slice(en);
-        setContent(text);
+        const text = contentUndo.value.slice(0, s) + md + contentUndo.value.slice(en);
+        contentUndo.setValue(text);
         requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + md.length, s + md.length); });
       }
     }
@@ -108,8 +111,8 @@ export default function MentionInput({ onSubmit }: MentionInputProps) {
       <div className="relative">
         {showPreview ? (
           <div className="min-h-[76px] p-3 rounded-b-xl rounded-tr-xl bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-sm font-body prose prose-sm dark:prose-invert max-w-full prose-p:my-0.5 prose-p:font-body prose-a:text-electric prose-code:text-electric prose-code:bg-electric/10 prose-code:px-1 prose-code:rounded prose-ul:my-1 prose-ol:my-1 [overflow-wrap:break-word]">
-            {content.trim() ? (
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+            {contentUndo.value.trim() ? (
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{contentUndo.value}</ReactMarkdown>
             ) : (
               <span className="text-navy/30 dark:text-slate-500">Nothing to preview yet...</span>
             )}
@@ -118,12 +121,12 @@ export default function MentionInput({ onSubmit }: MentionInputProps) {
           <>
             <MarkdownToolbarUI
               textareaRef={mention.textareaRef}
-              value={content}
-              onChange={setContent}
+              value={contentUndo.value}
+              onChange={contentUndo.setValue}
             />
             <textarea
               ref={mention.textareaRef}
-              value={content}
+              value={contentUndo.value}
               onChange={mention.handleInput}
               onKeyDown={handleKeyDown}
               placeholder="Write a comment... Use @ to mention someone"
@@ -143,10 +146,10 @@ export default function MentionInput({ onSubmit }: MentionInputProps) {
         )}
       </div>
 
-      {content.trim() && (
+      {contentUndo.value.trim() && (
         <div className="flex items-center justify-between mt-2">
           <span className="text-[11px] text-navy/30 dark:text-slate-500 font-body">
-            {typeof navigator !== 'undefined' && navigator.platform.includes('Mac') ? 'Cmd' : 'Ctrl'}+Enter to submit
+            {typeof navigator !== 'undefined' && navigator.platform.includes('Mac') ? 'Cmd' : 'Ctrl'}+Enter to submit | Ctrl+Z to undo
           </span>
           <Button size="sm" onClick={handleSubmit} loading={loading}>
             Submit
