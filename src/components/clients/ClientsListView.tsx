@@ -8,6 +8,15 @@ import Input from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
 import TrelloCardPicker from '@/components/trello/TrelloCardPicker';
 
+interface CalendarEvent {
+  id: string;
+  google_event_id: string;
+  title: string;
+  start_time: string;
+  end_time: string;
+  is_recurring: boolean;
+}
+
 export default function ClientsListView() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,7 +28,19 @@ export default function ClientsListView() {
     company: '',
     contract_type: '',
     notes: '',
+    email: '',
+    phone: '',
+    location: '',
   });
+
+  // Calendar event matching
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(false);
+  const [eventFilter, setEventFilter] = useState('');
+  const [selectedEventTitle, setSelectedEventTitle] = useState('');
+  const [showCalendarSection, setShowCalendarSection] = useState(false);
+  const [showTrelloSection, setShowTrelloSection] = useState(false);
+
   const router = useRouter();
 
   const fetchClients = async () => {
@@ -36,6 +57,18 @@ export default function ClientsListView() {
     fetchClients();
   }, []);
 
+  // Fetch calendar events when calendar section is opened
+  useEffect(() => {
+    if (showCalendarSection && calendarEvents.length === 0 && !loadingEvents) {
+      setLoadingEvents(true);
+      fetch('/api/google-calendar/events?days=30')
+        .then(r => r.json())
+        .then(json => setCalendarEvents(json.data || []))
+        .catch(() => {})
+        .finally(() => setLoadingEvents(false));
+    }
+  }, [showCalendarSection]);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim()) return;
@@ -50,12 +83,30 @@ export default function ClientsListView() {
           company: formData.company.trim() || undefined,
           contract_type: formData.contract_type.trim() || undefined,
           notes: formData.notes.trim() || undefined,
+          email: formData.email.trim() || undefined,
+          phone: formData.phone.trim() || undefined,
+          location: formData.location.trim() || undefined,
         }),
       });
       const json = await res.json();
       if (res.ok && json.data?.id) {
-        setCreatedClientId(json.data.id);
+        const newClientId = json.data.id;
+        setCreatedClientId(newClientId);
         fetchClients();
+
+        // If a calendar event was selected, create meeting config
+        if (selectedEventTitle.trim()) {
+          await fetch(`/api/clients/${newClientId}/meeting-config`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              calendar_event_keyword: selectedEventTitle.trim(),
+              update_timing: '1_hour_before',
+              send_mode: 'approve',
+              is_active: true,
+            }),
+          });
+        }
       }
     } finally {
       setCreating(false);
@@ -65,8 +116,22 @@ export default function ClientsListView() {
   const closeCreateModal = () => {
     setShowCreate(false);
     setCreatedClientId(null);
-    setFormData({ name: '', company: '', contract_type: '', notes: '' });
+    setFormData({ name: '', company: '', contract_type: '', notes: '', email: '', phone: '', location: '' });
+    setSelectedEventTitle('');
+    setEventFilter('');
+    setShowCalendarSection(false);
+    setShowTrelloSection(false);
   };
+
+  // Deduplicate recurring events by title
+  const uniqueEvents = calendarEvents.reduce<CalendarEvent[]>((acc, e) => {
+    if (!acc.find(x => x.title === e.title)) acc.push(e);
+    return acc;
+  }, []);
+
+  const filteredEvents = eventFilter.trim()
+    ? uniqueEvents.filter(e => e.title.toLowerCase().includes(eventFilter.toLowerCase()))
+    : uniqueEvents;
 
   if (loading) {
     return (
@@ -184,11 +249,12 @@ export default function ClientsListView() {
       </div>
 
       {/* Create Client Modal */}
-      <Modal isOpen={showCreate} onClose={closeCreateModal}>
+      <Modal isOpen={showCreate} onClose={closeCreateModal} size="xl">
         {!createdClientId ? (
-          // Step 1: Basic client info
-          <form onSubmit={handleCreate} className="p-6">
+          <form onSubmit={handleCreate} className="p-6 max-h-[85vh] overflow-y-auto">
             <h2 className="text-lg font-heading font-semibold text-navy dark:text-slate-100 mb-4">Create Client</h2>
+
+            {/* Basic Info */}
             <div className="space-y-4">
               <Input
                 label="Client Name"
@@ -203,6 +269,31 @@ export default function ClientsListView() {
                 value={formData.company}
                 onChange={(e) => setFormData({ ...formData, company: e.target.value })}
               />
+
+              {/* Contact Info Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Input
+                  label="Email"
+                  type="email"
+                  placeholder="client@company.com"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                />
+                <Input
+                  label="Phone"
+                  type="tel"
+                  placeholder="+1 (555) 123-4567"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                />
+              </div>
+              <Input
+                label="Location"
+                placeholder="City, Country (optional)"
+                value={formData.location}
+                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+              />
+
               <div className="w-full">
                 <label className="block text-sm font-semibold text-navy dark:text-slate-100 mb-1.5 font-body">
                   Contract Type
@@ -219,6 +310,7 @@ export default function ClientsListView() {
                   <option value="consultation">Consultation</option>
                 </select>
               </div>
+
               <div className="w-full">
                 <label className="block text-sm font-semibold text-navy dark:text-slate-100 mb-1.5 font-body">
                   Notes
@@ -227,11 +319,156 @@ export default function ClientsListView() {
                   placeholder="Additional notes (optional)"
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  rows={3}
+                  rows={2}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-dark-surface border-2 border-navy/20 dark:border-slate-700 text-navy dark:text-slate-100 placeholder:text-navy/40 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric transition-all duration-200 font-body text-sm resize-none"
                 />
               </div>
             </div>
+
+            {/* Collapsible: Match Calendar Event */}
+            <div className="mt-5 border border-cream-dark dark:border-slate-700 rounded-xl overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowCalendarSection(!showCalendarSection)}
+                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-cream/50 dark:hover:bg-slate-800/30 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-electric" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" strokeWidth="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" strokeWidth="2" strokeLinecap="round" />
+                    <line x1="8" y1="2" x2="8" y2="6" strokeWidth="2" strokeLinecap="round" />
+                    <line x1="3" y1="10" x2="21" y2="10" strokeWidth="2" />
+                  </svg>
+                  <span className="text-sm font-semibold text-navy dark:text-slate-200 font-body">
+                    Match Calendar Event
+                  </span>
+                  {selectedEventTitle && (
+                    <span className="text-[10px] bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full font-medium">
+                      Matched
+                    </span>
+                  )}
+                </div>
+                <svg
+                  className={`w-4 h-4 text-navy/30 dark:text-slate-500 transition-transform ${showCalendarSection ? 'rotate-180' : ''}`}
+                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {showCalendarSection && (
+                <div className="px-4 pb-4 border-t border-cream-dark dark:border-slate-700">
+                  <p className="text-xs text-navy/40 dark:text-slate-500 font-body mt-3 mb-2">
+                    Select a recurring meeting to auto-generate prep before calls.
+                  </p>
+
+                  {selectedEventTitle ? (
+                    <div className="flex items-center gap-2 bg-electric/5 dark:bg-electric/10 border border-electric/20 rounded-xl px-3 py-2">
+                      <svg className="w-4 h-4 text-electric shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" strokeWidth="2" />
+                        <line x1="16" y1="2" x2="16" y2="6" strokeWidth="2" strokeLinecap="round" />
+                        <line x1="8" y1="2" x2="8" y2="6" strokeWidth="2" strokeLinecap="round" />
+                        <line x1="3" y1="10" x2="21" y2="10" strokeWidth="2" />
+                      </svg>
+                      <span className="text-sm font-medium text-navy dark:text-slate-100 font-body flex-1">{selectedEventTitle}</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedEventTitle('')}
+                        className="text-navy/30 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <input
+                        type="text"
+                        value={eventFilter}
+                        onChange={e => setEventFilter(e.target.value)}
+                        placeholder="Search your calendar events..."
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric font-body mb-2"
+                      />
+                      <div className="max-h-40 overflow-y-auto rounded-xl border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface divide-y divide-cream-dark/50 dark:divide-slate-700/50">
+                        {loadingEvents ? (
+                          <div className="px-3 py-4 text-xs text-navy/40 dark:text-slate-500 font-body text-center">
+                            Loading calendar events...
+                          </div>
+                        ) : filteredEvents.length === 0 ? (
+                          <div className="px-3 py-4 text-xs text-navy/40 dark:text-slate-500 font-body text-center">
+                            {calendarEvents.length === 0
+                              ? 'No calendar events found. Connect Google Calendar first.'
+                              : 'No events match your search.'}
+                          </div>
+                        ) : (
+                          filteredEvents.map((event) => (
+                            <button
+                              key={event.id}
+                              type="button"
+                              onClick={() => { setSelectedEventTitle(event.title); setEventFilter(''); }}
+                              className="w-full text-left px-3 py-2.5 text-sm font-body transition-colors hover:bg-electric/5 dark:hover:bg-electric/10 cursor-pointer flex items-center gap-3"
+                            >
+                              <div className="flex-1 min-w-0">
+                                <p className="text-navy dark:text-slate-200 font-medium truncate">{event.title}</p>
+                                <p className="text-[11px] text-navy/40 dark:text-slate-500 mt-0.5">
+                                  Next: {new Date(event.start_time).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                                  {' at '}
+                                  {new Date(event.start_time).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                                  {event.is_recurring && (
+                                    <span className="ml-1.5 text-electric/70">&#8635; recurring</span>
+                                  )}
+                                </p>
+                              </div>
+                              <svg className="w-4 h-4 text-navy/20 dark:text-slate-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <line x1="12" y1="5" x2="12" y2="19" strokeWidth="2" strokeLinecap="round" />
+                                <line x1="5" y1="12" x2="19" y2="12" strokeWidth="2" strokeLinecap="round" />
+                              </svg>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Collapsible: Track Trello Tickets */}
+            <div className="mt-3 border border-cream-dark dark:border-slate-700 rounded-xl overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowTrelloSection(!showTrelloSection)}
+                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-cream/50 dark:hover:bg-slate-800/30 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="shrink-0 text-[#0079BF]">
+                    <rect x="2" y="2" width="20" height="20" rx="3" fill="currentColor" />
+                    <rect x="5" y="5" width="5" height="12" rx="1" fill="white" />
+                    <rect x="13" y="5" width="5" height="8" rx="1" fill="white" />
+                  </svg>
+                  <span className="text-sm font-semibold text-navy dark:text-slate-200 font-body">
+                    Track Trello Tickets
+                  </span>
+                </div>
+                <svg
+                  className={`w-4 h-4 text-navy/30 dark:text-slate-500 transition-transform ${showTrelloSection ? 'rotate-180' : ''}`}
+                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {showTrelloSection && (
+                <div className="px-4 pb-4 border-t border-cream-dark dark:border-slate-700">
+                  <p className="text-xs text-navy/40 dark:text-slate-500 font-body mt-3 mb-3">
+                    You can link Trello tickets after the client is created.
+                  </p>
+                  <div className="bg-cream/30 dark:bg-slate-800/20 rounded-lg px-3 py-2 text-xs text-navy/50 dark:text-slate-400 font-body">
+                    Trello board picker will appear after creating the client.
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="flex justify-end gap-3 mt-6">
               <Button type="button" variant="secondary" onClick={closeCreateModal}>
                 Cancel
@@ -242,16 +479,31 @@ export default function ClientsListView() {
             </div>
           </form>
         ) : (
-          // Step 2: Track a Trello ticket
-          <div className="p-6">
+          // Step 2: Link Trello tickets + success
+          <div className="p-6 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center gap-2 mb-1">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
               <h2 className="text-lg font-heading font-semibold text-navy dark:text-slate-100">Client Created</h2>
             </div>
+
+            {selectedEventTitle && (
+              <div className="flex items-center gap-2 bg-electric/5 dark:bg-electric/10 border border-electric/20 rounded-xl px-3 py-2 mt-3 mb-4">
+                <svg className="w-4 h-4 text-electric shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" strokeWidth="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" strokeWidth="2" strokeLinecap="round" />
+                  <line x1="8" y1="2" x2="8" y2="6" strokeWidth="2" strokeLinecap="round" />
+                  <line x1="3" y1="10" x2="21" y2="10" strokeWidth="2" />
+                </svg>
+                <span className="text-xs font-medium text-navy dark:text-slate-200 font-body">
+                  Meeting prep linked: <span className="text-electric">{selectedEventTitle}</span>
+                </span>
+              </div>
+            )}
+
             <p className="text-sm text-navy/50 dark:text-slate-400 font-body mb-5">
-              What ticket should we track for <span className="font-medium text-navy dark:text-slate-200">{formData.name}</span>?
+              Link Trello tickets for <span className="font-medium text-navy dark:text-slate-200">{formData.name}</span>:
             </p>
 
             <TrelloCardPicker clientId={createdClientId} />

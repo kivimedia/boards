@@ -22,6 +22,9 @@ interface CreateClientBody {
   client_tag?: string;
   contract_type?: string;
   notes?: string;
+  email?: string;
+  phone?: string;
+  location?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -31,7 +34,7 @@ export async function POST(request: NextRequest) {
   const body = await parseBody<CreateClientBody>(request);
   if (!body.ok) return body.response;
 
-  const { name, company, contacts, client_tag, contract_type, notes } = body.body;
+  const { name, company, contacts, client_tag, contract_type, notes, email, phone, location } = body.body;
   if (!name?.trim()) return errorResponse('Client name is required');
 
   const { supabase, userId } = auth.ctx;
@@ -44,6 +47,9 @@ export async function POST(request: NextRequest) {
       client_tag: client_tag?.trim() || null,
       contract_type: contract_type?.trim() || null,
       notes: notes?.trim() || null,
+      email: email?.trim() || null,
+      phone: phone?.trim() || null,
+      location: location?.trim() || null,
       created_by: userId,
     })
     .select()
