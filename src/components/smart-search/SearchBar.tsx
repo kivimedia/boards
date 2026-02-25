@@ -160,7 +160,7 @@ export default function SearchBar({ boardId, onCardClick, onOpenShareModal, onCr
       <div ref={containerRef} className="relative w-full sm:w-auto">
         {/* Search input */}
         <div className={`
-          flex items-center gap-2 px-3 py-2 sm:py-1.5 rounded-xl border transition-all
+          flex items-center gap-2 px-3 py-2 sm:py-1.5 rounded-xl border transition-all min-w-0
           ${focused
             ? 'w-full sm:w-[320px] lg:w-[420px] bg-white dark:bg-dark-surface border-electric/40 shadow-sm ring-2 ring-electric/10'
             : 'w-full sm:w-[200px] lg:w-[280px] bg-white/80 dark:bg-dark-surface/80 border-cream-dark dark:border-slate-700 hover:border-electric/30'
@@ -180,7 +180,7 @@ export default function SearchBar({ boardId, onCardClick, onOpenShareModal, onCr
             onFocus={() => setFocused(true)}
             onKeyDown={handleKeyDown}
             placeholder={PLACEHOLDERS[placeholderIdx]}
-            className="flex-1 text-sm bg-transparent text-navy dark:text-white placeholder:text-navy/30 dark:placeholder:text-slate-500 outline-none font-body"
+            className="flex-1 min-w-0 text-sm bg-transparent text-navy dark:text-white placeholder:text-navy/30 dark:placeholder:text-slate-500 outline-none font-body truncate"
           />
 
           {/* Mode toggle + indicator */}
