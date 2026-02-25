@@ -39,7 +39,7 @@ function PhaseTable({ phases, totalMs }: { phases: ProfilingPhase[]; totalMs: nu
 
 function BoardPanel({ data, onDismiss }: { data: BoardProfilingData; onDismiss: () => void }) {
   return (
-    <div className="w-80 bg-white dark:bg-dark-surface rounded-xl shadow-modal dark:shadow-none border border-cream-dark dark:border-slate-700 p-3 animate-in fade-in slide-in-from-bottom-2 duration-200">
+    <div className="w-full sm:w-80 bg-white dark:bg-dark-surface rounded-xl shadow-modal dark:shadow-none border border-cream-dark dark:border-slate-700 p-3 animate-in fade-in slide-in-from-bottom-2 duration-200">
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
@@ -76,7 +76,7 @@ function BoardPanel({ data, onDismiss }: { data: BoardProfilingData; onDismiss: 
 
 function CardPanel({ data, onDismiss }: { data: CardProfilingData; onDismiss: () => void }) {
   return (
-    <div className="w-80 bg-white dark:bg-dark-surface rounded-xl shadow-modal dark:shadow-none border border-cream-dark dark:border-slate-700 p-3 animate-in fade-in slide-in-from-bottom-2 duration-200">
+    <div className="w-full sm:w-80 bg-white dark:bg-dark-surface rounded-xl shadow-modal dark:shadow-none border border-cream-dark dark:border-slate-700 p-3 animate-in fade-in slide-in-from-bottom-2 duration-200">
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <span className="text-[10px] font-bold uppercase tracking-wider text-purple-500">Card Profile</span>
@@ -102,7 +102,7 @@ function CardPanel({ data, onDismiss }: { data: CardProfilingData; onDismiss: ()
 
 function PagePanel({ data, onDismiss }: { data: PageProfilingData; onDismiss: () => void }) {
   return (
-    <div className="w-80 bg-white dark:bg-dark-surface rounded-xl shadow-modal dark:shadow-none border border-cream-dark dark:border-slate-700 p-3 animate-in fade-in slide-in-from-bottom-2 duration-200">
+    <div className="w-full sm:w-80 bg-white dark:bg-dark-surface rounded-xl shadow-modal dark:shadow-none border border-cream-dark dark:border-slate-700 p-3 animate-in fade-in slide-in-from-bottom-2 duration-200">
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <span className="text-[10px] font-bold uppercase tracking-wider text-teal-500">Page Profile</span>
@@ -151,7 +151,7 @@ export default function ProfilingPopup() {
   if (!showBoardPopup && !showCardPopup && !showPagePopup) return null;
 
   return createPortal(
-    <div className="fixed bottom-20 right-4 z-[9999] flex flex-col gap-2">
+    <div className="fixed bottom-24 sm:bottom-20 right-2 sm:right-4 z-[9999] flex flex-col gap-2 max-w-[calc(100vw-1rem)] sm:max-w-none">
       {showPagePopup && pageProfiling && (
         <PagePanel data={pageProfiling} onDismiss={dismissPage} />
       )}
