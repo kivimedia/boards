@@ -43,7 +43,7 @@ export async function GET(request: NextRequest, { params }: Params) {
   ] = await Promise.all([
     supabase.from('cards').select('*').eq('id', params.id).single(),
     supabase.from('boards').select('type, name').eq('id', boardId).single(),
-    supabase.from('card_placements').select('list:lists(name)').eq('card_id', params.id).eq('is_mirror', false).single(),
+    supabase.from('card_placements').select('list:lists(id, name), position_index').eq('card_id', params.id).eq('is_mirror', false).single(),
     supabase.from('card_labels').select('label:labels(*)').eq('card_id', params.id),
     supabase.from('labels').select('*').eq('board_id', boardId),
     db.from('card_assignees').select('*').eq('card_id', params.id),
@@ -84,6 +84,11 @@ export async function GET(request: NextRequest, { params }: Params) {
   const { data: { session } } = await supabase.auth.getSession();
   const isAdmin = session?.user?.email === 'ziv@dailycookie.co';
 
+  // Calculate card position in list (1-indexed)
+  const listId = (placementResult.data?.list as any)?.id;
+  const positionIndex = placementResult.data?.position_index ?? null;
+  const cardPosition = positionIndex !== null ? positionIndex + 1 : null;
+
   const responseData = {
     card,
     userId: auth.ctx.userId,
@@ -91,6 +96,7 @@ export async function GET(request: NextRequest, { params }: Params) {
     boardType: boardResult.data?.type || null,
     boardName: boardResult.data?.name || '',
     listName: (placementResult.data?.list as any)?.name || '',
+    cardPosition,
     labels: cardLabelsResult.data?.map((cl: any) => cl.label).filter(Boolean) || [],
     boardLabels: boardLabelsResult.data || [],
     assignees: (assigneesResult.data || []).map((a: any) => profilesMap.get(a.user_id)).filter(Boolean),
