@@ -138,6 +138,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
   const [stagingUrl, setStagingUrl] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [showMoveModal, setShowMoveModal] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const moreBtnRef = useRef<HTMLButtonElement>(null);
   const descMention = useMentionDropdown({ value: description, onChange: setDescription });
@@ -580,6 +581,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
   const totalCards = allCardIds?.length ?? 0;
 
   return (
+    <>
     <Modal isOpen={true} onClose={onClose} size="xl" onKeyDown={handleModalKeyDown}>
       {/* Cover Image */}
       {!coverImageUrl && (
@@ -621,10 +623,11 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
       <div className="p-4 sm:p-5 pb-6">
         {/* Board > List breadcrumb */}
         {(boardName || listName) && (
-          <div className="flex items-center gap-1.5 text-xs text-navy/40 dark:text-slate-500 font-medium font-body mb-1 pr-8">
-            {boardName && <span>{boardName}</span>}
+          <div className="flex items-center gap-2 text-sm text-navy/70 dark:text-slate-400 font-medium font-body mb-3 pr-8 bg-cream/50 dark:bg-slate-800/30 px-3 py-2 rounded-lg border border-cream-dark/50 dark:border-slate-700/50">
+            <svg className="w-4 h-4 text-navy/40 dark:text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
+            {boardName && <span className="font-semibold">{boardName}</span>}
             {boardName && listName && (
-              <svg className="w-3 h-3 text-navy/25 dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              <svg className="w-3.5 h-3.5 text-navy/30 dark:text-slate-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
             )}
             {listName && <span>{listName}</span>}
           </div>
@@ -690,6 +693,16 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                   </div>
                 )}
               </div>
+
+              {/* Move button */}
+              <button
+                onClick={() => setShowMoveModal(true)}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium transition-colors shrink-0 bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-navy/50 dark:text-slate-400 hover:bg-cream-dark dark:hover:bg-slate-800 hover:text-navy dark:hover:text-slate-200"
+                title="Move card to another board/list"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                <span className="hidden sm:inline">Move</span>
+              </button>
 
               {/* Properties toggle */}
               <button
@@ -1510,5 +1523,29 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
         </div>
       </div>
     </Modal>
+
+    {/* Move Modal */}
+    {showMoveModal && (
+      <Modal isOpen={showMoveModal} onClose={() => setShowMoveModal(false)} size="sm">
+        <div className="p-5">
+          <h3 className="text-lg font-bold text-navy dark:text-slate-100 mb-4 font-heading">
+            Move Card
+          </h3>
+          <CardActions
+            cardId={cardId}
+            boardId={boardId}
+            onClose={() => {
+              setShowMoveModal(false);
+              onClose();
+            }}
+            onRefresh={() => {
+              setShowMoveModal(false);
+              onRefresh();
+            }}
+          />
+        </div>
+      </Modal>
+    )}
+  </>
   );
 }
