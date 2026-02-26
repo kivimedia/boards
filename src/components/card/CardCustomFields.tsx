@@ -28,59 +28,34 @@ export default function CardCustomFields({ cardId, boardId, onRefresh }: CardCus
     setLoading(true);
     setError(null);
     
-    // Set a timeout to prevent infinite loading
-    const timeoutId = setTimeout(() => {
-      setLoading(false);
-      setError('Custom fields request timed out. Please refresh.');
-    }, 10000);
-
     try {
-      const [defsResult, valsResult] = await Promise.all([
-        supabase
-          .from('custom_field_definitions')
-          .select('*')
-          .eq('board_id', boardId)
-          .order('position', { ascending: true }),
-        supabase
-          .from('custom_field_values')
-          .select('*, definition:custom_field_definitions(*)')
-          .eq('card_id', cardId),
-      ]);
-
-      clearTimeout(timeoutId);
-
-      if (defsResult.error) {
-        console.error('Failed to fetch custom field definitions:', defsResult.error);
-        setError('Failed to load custom fields');
-        setDefinitions([]);
-        setLoading(false);
-        return;
-      }
-      if (valsResult.error) {
-        console.error('Failed to fetch custom field values:', valsResult.error);
-        setError('Failed to load custom field values');
+      const res = await fetch(`/api/cards/${cardId}/custom-fields?boardId=${boardId}`);
+      
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        console.error('Failed to fetch custom fields:', errData);
+        setError(errData.error || 'Failed to load custom fields');
         setDefinitions([]);
         setLoading(false);
         return;
       }
 
-      setDefinitions(defsResult.data || []);
+      const data = await res.json();
+      setDefinitions(data.definitions || []);
 
       const valueMap: Record<string, unknown> = {};
-      (valsResult.data || []).forEach((v: CustomFieldValue) => {
+      (data.values || []).forEach((v: CustomFieldValue) => {
         valueMap[v.field_definition_id] = v.value;
       });
       setValues(valueMap);
       setLoading(false);
       setError(null);
     } catch (err) {
-      clearTimeout(timeoutId);
       console.error('Failed to fetch custom fields:', err);
       setError('Network error loading custom fields');
       setDefinitions([]);
       setLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase client is a stable singleton, including it causes infinite re-renders
   }, [cardId, boardId]);
 
   useEffect(() => {
