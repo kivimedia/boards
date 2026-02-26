@@ -69,7 +69,7 @@ export default function TrelloCardPicker({ clientId, onSelect, compact }: Trello
           setBoards(json.data ?? []);
         }
       })
-      .catch(() => setError('Failed to load Trello boards'))
+      .catch(() => setError('Failed to load boards'))
       .finally(() => setLoadingBoards(false));
   }, []);
 
@@ -223,7 +223,7 @@ export default function TrelloCardPicker({ clientId, onSelect, compact }: Trello
       <div className="space-y-2.5">
         {linked.length === 0 && !compact && (
           <p className="text-[10px] font-semibold text-navy/40 dark:text-slate-500 uppercase tracking-wider font-body">
-            Track a Trello Ticket
+            Track a Ticket
           </p>
         )}
 
@@ -235,7 +235,7 @@ export default function TrelloCardPicker({ clientId, onSelect, compact }: Trello
           className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-navy/15 dark:border-slate-700 text-sm font-body text-navy dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric transition-all disabled:opacity-50"
         >
           <option value="">
-            {loadingBoards ? 'Loading boards...' : 'Select a Trello board'}
+            {loadingBoards ? 'Loading boards...' : 'Select a board'}
           </option>
           {boards.map((b) => (
             <option key={b.id} value={b.id}>{b.name}</option>

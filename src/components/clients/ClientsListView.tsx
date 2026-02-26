@@ -6,6 +6,7 @@ import { Client } from '@/lib/types';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
+import TrelloCardPicker from '@/components/trello/TrelloCardPicker';
 
 interface CalendarEvent {
   id: string;
@@ -58,6 +59,22 @@ export default function ClientsListView() {
     phone: '',
     location: '',
   });
+
+  // Edit client
+  const [editClient, setEditClient] = useState<Client | null>(null);
+  const [editData, setEditData] = useState({
+    name: '',
+    company: '',
+    contract_type: '',
+    notes: '',
+    email: '',
+    phone: '',
+    location: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [editBoards, setEditBoards] = useState<BoardItem[]>([]);
+  const [editMainBoardId, setEditMainBoardId] = useState<string>('');
+  const [loadingEditBoards, setLoadingEditBoards] = useState(false);
 
   // Calendar event matching
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
@@ -248,6 +265,85 @@ export default function ClientsListView() {
     setSelectedCards([]);
   };
 
+  const openEditModal = async (client: Client) => {
+    setEditClient(client);
+    setEditData({
+      name: client.name || '',
+      company: client.company || '',
+      contract_type: client.contract_type || '',
+      notes: client.notes || '',
+      email: client.email || '',
+      phone: client.phone || '',
+      location: client.location || '',
+    });
+
+    // Fetch boards for assignment
+    setLoadingEditBoards(true);
+    try {
+      const [boardsRes, clientBoardsRes] = await Promise.all([
+        fetch('/api/boards'),
+        fetch(`/api/clients/${client.id}/boards`),
+      ]);
+      const boardsJson = await boardsRes.json();
+      const clientBoardsJson = await clientBoardsRes.json();
+      setEditBoards(boardsJson.data || []);
+
+      // Find the main board (client_board type linked to this client)
+      const linkedBoards = clientBoardsJson.data || [];
+      const mainBoard = linkedBoards[0]; // first linked board is main
+      setEditMainBoardId(mainBoard?.board_id || '');
+    } catch {
+      setEditBoards([]);
+    } finally {
+      setLoadingEditBoards(false);
+    }
+  };
+
+  const closeEditModal = () => {
+    setEditClient(null);
+    setEditData({ name: '', company: '', contract_type: '', notes: '', email: '', phone: '', location: '' });
+    setEditBoards([]);
+    setEditMainBoardId('');
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editClient || !editData.name.trim()) return;
+
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/clients/${editClient.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editData.name.trim(),
+          company: editData.company.trim() || null,
+          contract_type: editData.contract_type.trim() || null,
+          notes: editData.notes.trim() || null,
+          email: editData.email.trim() || null,
+          phone: editData.phone.trim() || null,
+          location: editData.location.trim() || null,
+        }),
+      });
+
+      // Link main board if selected
+      if (editMainBoardId) {
+        await fetch(`/api/clients/${editClient.id}/boards`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ boardId: editMainBoardId }),
+        });
+      }
+
+      if (res.ok) {
+        fetchClients();
+        closeEditModal();
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Deduplicate recurring events by title
   const uniqueEvents = calendarEvents.reduce<CalendarEvent[]>((acc, e) => {
     if (!acc.find(x => x.title === e.title)) acc.push(e);
@@ -366,12 +462,138 @@ export default function ClientsListView() {
                     </svg>
                     Strategy Map
                   </button>
+                  <button
+                    onClick={() => openEditModal(client)}
+                    className="ml-auto flex items-center justify-center w-7 h-7 rounded-lg text-navy/30 dark:text-slate-600 hover:text-electric hover:bg-electric/5 dark:hover:bg-electric/10 transition-colors"
+                    title="Client settings"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg>
+                  </button>
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {/* Edit Client Modal */}
+      <Modal isOpen={!!editClient} onClose={closeEditModal} size="lg">
+        <form onSubmit={handleSaveEdit} className="p-5">
+          <h2 className="text-lg font-heading font-semibold text-navy dark:text-slate-100 mb-3">Client Settings</h2>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+            <Input
+              label="Client Name"
+              placeholder="Enter client name"
+              value={editData.name}
+              onChange={(e) => setEditData({ ...editData, name: e.target.value })}
+              required
+            />
+            <Input
+              label="Company"
+              placeholder="Company name (optional)"
+              value={editData.company}
+              onChange={(e) => setEditData({ ...editData, company: e.target.value })}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+            <Input
+              label="Email"
+              type="email"
+              placeholder="client@company.com"
+              value={editData.email}
+              onChange={(e) => setEditData({ ...editData, email: e.target.value })}
+            />
+            <Input
+              label="Phone"
+              type="tel"
+              placeholder="+1 (555) 123-4567"
+              value={editData.phone}
+              onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+            <Input
+              label="Location"
+              placeholder="City, Country (optional)"
+              value={editData.location}
+              onChange={(e) => setEditData({ ...editData, location: e.target.value })}
+            />
+            <div className="w-full">
+              <label className="block text-sm font-semibold text-navy dark:text-slate-100 mb-1.5 font-body">
+                Contract Type
+              </label>
+              <select
+                value={editData.contract_type}
+                onChange={(e) => setEditData({ ...editData, contract_type: e.target.value })}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-dark-surface border-2 border-navy/20 dark:border-slate-700 text-navy dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric transition-all duration-200 font-body text-sm"
+              >
+                <option value="">Select type (optional)</option>
+                <option value="vip">VIP</option>
+                <option value="sparks">Sparks</option>
+                <option value="sparks_lite">Sparks Lite</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="mb-3">
+            <label className="block text-sm font-semibold text-navy dark:text-slate-100 mb-1.5 font-body">
+              Notes
+            </label>
+            <textarea
+              placeholder="Additional notes (optional)"
+              value={editData.notes}
+              onChange={(e) => setEditData({ ...editData, notes: e.target.value })}
+              rows={2}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-dark-surface border-2 border-navy/20 dark:border-slate-700 text-navy dark:text-slate-100 placeholder:text-navy/40 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric transition-all duration-200 font-body text-sm resize-none"
+            />
+          </div>
+
+          {/* Main Board Assignment */}
+          <div className="mb-3">
+            <label className="block text-sm font-semibold text-navy dark:text-slate-100 mb-1.5 font-body">
+              Main Board
+            </label>
+            <select
+              value={editMainBoardId}
+              onChange={(e) => setEditMainBoardId(e.target.value)}
+              disabled={loadingEditBoards}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-dark-surface border-2 border-navy/20 dark:border-slate-700 text-navy dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric transition-all duration-200 font-body text-sm disabled:opacity-50"
+            >
+              <option value="">
+                {loadingEditBoards ? 'Loading boards...' : 'Select a board (optional)'}
+              </option>
+              {editBoards.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Tracked Tickets */}
+          {editClient && (
+            <div className="mb-3 border border-cream-dark dark:border-slate-700 rounded-xl p-4">
+              <h3 className="text-sm font-semibold text-navy dark:text-slate-100 mb-2 font-body">
+                Tracked Tickets
+              </h3>
+              <TrelloCardPicker clientId={editClient.id} />
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 mt-4">
+            <Button type="button" variant="secondary" onClick={closeEditModal}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={saving} disabled={!editData.name.trim()}>
+              Save Changes
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Create Client Modal */}
       <Modal isOpen={showCreate} onClose={closeCreateModal} size="lg">

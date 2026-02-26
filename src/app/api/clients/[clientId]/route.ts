@@ -27,6 +27,9 @@ interface UpdateClientBody {
   client_tag?: string;
   contract_type?: string;
   notes?: string;
+  email?: string;
+  phone?: string;
+  location?: string;
 }
 
 export async function PATCH(request: NextRequest, { params }: Params) {
@@ -48,6 +51,9 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   if (body.body.client_tag !== undefined) updates.client_tag = body.body.client_tag?.trim() || null;
   if (body.body.contract_type !== undefined) updates.contract_type = body.body.contract_type?.trim() || null;
   if (body.body.notes !== undefined) updates.notes = body.body.notes?.trim() || null;
+  if (body.body.email !== undefined) updates.email = body.body.email?.trim() || null;
+  if (body.body.phone !== undefined) updates.phone = body.body.phone?.trim() || null;
+  if (body.body.location !== undefined) updates.location = body.body.location?.trim() || null;
 
   if (Object.keys(updates).length === 0) {
     return errorResponse('No valid fields to update');

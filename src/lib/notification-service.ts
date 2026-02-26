@@ -157,16 +157,16 @@ export async function sendEmailNotification(
       body: JSON.stringify({
         from: fromEmail,
         to: [profile.email],
-        subject: `${subject} - KM Boards`,
+        subject: `${subject} - Kivi Media`,
         html: `
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px 0;">
             <div style="background: #1a1f36; border-radius: 12px; padding: 16px 20px; margin-bottom: 20px;">
-              <h1 style="color: #fff; font-size: 16px; margin: 0;">KM Boards</h1>
+              <h1 style="color: #fff; font-size: 16px; margin: 0;">Kivi Media</h1>
             </div>
             <p style="color: #333; font-size: 14px; line-height: 1.6; font-weight: 600;">${subject}</p>
             ${body ? `<p style="color: #555; font-size: 13px; line-height: 1.5;">${body.slice(0, 300)}${body.length > 300 ? '...' : ''}</p>` : ''}
             <div style="text-align: center; margin: 24px 0;">
-              <a href="${cardLink}" style="display: inline-block; background: #4F6BFF; color: #fff; text-decoration: none; padding: 10px 24px; border-radius: 8px; font-weight: 600; font-size: 13px;">View in KM Boards</a>
+              <a href="${cardLink}" style="display: inline-block; background: #4F6BFF; color: #fff; text-decoration: none; padding: 10px 24px; border-radius: 8px; font-weight: 600; font-size: 13px;">View in Kivi Media</a>
             </div>
             <p style="color: #999; font-size: 11px;">You're receiving this because of your notification preferences.</p>
           </div>

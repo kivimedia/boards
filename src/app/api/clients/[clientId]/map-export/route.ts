@@ -215,7 +215,7 @@ export async function GET(_request: NextRequest, { params }: Params) {
     doc.setFontSize(7);
     doc.setTextColor(180, 180, 200);
     doc.text(
-      `Page ${i} of ${pageCount} | ${client.name} Strategy Map | Agency Board`,
+      `Page ${i} of ${pageCount} | ${client.name} Strategy Map | Kivi Media`,
       pageWidth / 2,
       doc.internal.pageSize.getHeight() - 5,
       { align: 'center' }

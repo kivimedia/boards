@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     event: 'webhook.test',
     timestamp: new Date().toISOString(),
     data: {
-      message: 'This is a test webhook delivery from Agency Board.',
+      message: 'This is a test webhook delivery from Kivi Media.',
       user_id: auth.ctx.userId,
     },
   };
