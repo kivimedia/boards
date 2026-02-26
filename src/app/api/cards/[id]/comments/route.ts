@@ -17,6 +17,10 @@ export async function GET(_request: NextRequest, { params }: Params) {
 
   const tQuery0 = performance.now();
   const [commentsRes, profilesRes] = await Promise.all([
+    // ===== CRITICAL: COMMENTS MUST BE NEWEST-FIRST =====
+    // ascending: false ensures comments are returned newest-to-oldest
+    // This is the standard sort order for all KMBoards comment threads
+    // Frontend relies on this order for proper display
     supabase
       .from('comments')
       .select('*')

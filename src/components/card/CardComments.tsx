@@ -103,7 +103,9 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
   useUndoRedoKeyboard(mainTextareaRef, newCommentUndo.undo, newCommentUndo.redo);
   useUndoRedoKeyboard(editTextareaRef, editTextUndo.undo, editTextUndo.redo);
 
-  // Group comments into threads
+  // Group comments into threads and ensure proper sort order
+  // NOTE: Comments MUST be newest-first (most recent at top)
+  // This is the standard for comment threads across KMBoards
   // Detect when comments are unexpectedly cleared (e.g., on tab switch) and refetch
   useEffect(() => {
     // If we're editing a comment and comments suddenly become empty, that's suspicious
@@ -149,10 +151,27 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
         top.push(c);
       }
     }
-    // Most recent comments at the top
-    top.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    // Replies stay oldest-first within each thread
-    replies.forEach((arr) => arr.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()));
+    // ===== CRITICAL: SORT ORDER FOR ALL COMMENTS =====
+    // Top-level comments: NEWEST FIRST (most recent at top)
+    // This ensures users see the latest activity without scrolling
+    // Format: [newest comment] ... [oldest comment]
+    top.sort((a, b) => {
+      const timeA = new Date(a.created_at).getTime();
+      const timeB = new Date(b.created_at).getTime();
+      return timeB - timeA; // Descending: newest first
+    });
+    
+    // Replies within threads: OLDEST FIRST (chronological order)
+    // This preserves conversation flow within each reply thread
+    // Format: [original comment] ... [latest reply]
+    replies.forEach((arr) => {
+      arr.sort((a, b) => {
+        const timeA = new Date(a.created_at).getTime();
+        const timeB = new Date(b.created_at).getTime();
+        return timeA - timeB; // Ascending: oldest first
+      });
+    });
+    
     return { topLevel: top, repliesByParent: replies };
   }, [comments]);
 
