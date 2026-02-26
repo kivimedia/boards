@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useCallback, RefObject } from 'react';
+import { useEffect, useLayoutEffect, useCallback, useRef, RefObject } from 'react';
 
 /**
  * Makes a textarea automatically grow (and shrink) to fit its content.
@@ -20,15 +20,38 @@ export function useAutoResize(
   ref: RefObject<HTMLTextAreaElement>,
   value?: string
 ) {
+  const resizeTimerRef = useRef<NodeJS.Timeout>();
+  const lastHeightRef = useRef<number>(0);
+
   const resize = useCallback(() => {
     const el = ref.current;
     if (!el) return;
+    
     // Reset height to auto to get accurate scrollHeight
     el.style.height = 'auto';
-    // Set height to scrollHeight with a small delay to ensure layout is updated
-    const height = Math.max(el.scrollHeight, 120); // minimum 120px (min-h-[120px])
-    el.style.height = `${height}px`;
+    const scrollHeight = el.scrollHeight;
+    
+    // Only update if height actually changed (optimization to reduce reflows)
+    const newHeight = Math.max(scrollHeight, 120); // minimum 120px (min-h-[120px])
+    if (lastHeightRef.current !== newHeight) {
+      el.style.height = `${newHeight}px`;
+      lastHeightRef.current = newHeight;
+    }
   }, [ref]);
+
+  const debouncedResize = useCallback(() => {
+    // Clear existing timer to debounce rapid calls
+    if (resizeTimerRef.current) {
+      clearTimeout(resizeTimerRef.current);
+    }
+    
+    // For very large text, use a small debounce to avoid jank
+    // For normal text, resize immediately
+    const isLargeText = value && value.length > 1000;
+    const delay = isLargeText ? 50 : 0; // 50ms debounce for large text
+    
+    resizeTimerRef.current = setTimeout(resize, delay);
+  }, [value, resize]);
 
   // Fire synchronously after every DOM update where value changes.
   // useLayoutEffect ensures we resize BEFORE the browser paints, so there's
@@ -36,15 +59,15 @@ export function useAutoResize(
   // appears already filled (edit-comment open with existing text).
   useLayoutEffect(() => {
     resize();
-  }, [value, resize]);
+  }, [resize]);
 
-  // Also listen for user typing (covers cases where value state lags input)
+  // Also listen for user typing with debounce to avoid jank on long comments
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     
     const handleInput = () => {
-      resize();
+      debouncedResize();
     };
     
     el.addEventListener('input', handleInput);
@@ -57,6 +80,9 @@ export function useAutoResize(
     return () => {
       el.removeEventListener('input', handleInput);
       el.removeEventListener('focus', handleInput);
+      if (resizeTimerRef.current) {
+        clearTimeout(resizeTimerRef.current);
+      }
     };
-  }, [ref, resize]);
+  }, [ref, resize, debouncedResize]);
 }
