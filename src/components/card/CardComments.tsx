@@ -10,6 +10,8 @@ import Avatar from '@/components/ui/Avatar';
 import Button from '@/components/ui/Button';
 import CommentReactions from './CommentReactions';
 import MentionInput from './MentionInput';
+import MentionDropdown from './MentionDropdown';
+import { useMentionDropdown } from './useMentionDropdown';
 import { MarkdownToolbarUI } from './MarkdownToolbar';
 import { useAutoResize } from '@/hooks/useAutoResize';
 import { useUndoRedo } from '@/hooks/useUndoRedo';
@@ -90,11 +92,11 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
   const [editError, setEditError] = useState<string | null>(null);
   const mainTextareaRef = useRef<HTMLTextAreaElement>(null);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
   const commentsContainerRef = useRef<HTMLDivElement>(null);
   const scrollAdjustRef = useRef<{ container: HTMLElement; scrollTop: number; scrollHeight: number } | null>(null);
+  const replyMention = useMentionDropdown({ value: replyText, onChange: setReplyText });
   useAutoResize(editTextareaRef, editTextUndo.value);
-  useAutoResize(replyTextareaRef, replyText);
+  useAutoResize(replyMention.textareaRef as React.RefObject<HTMLTextAreaElement>, replyText);
   const [showFullLinks, setShowFullLinks] = useState(false);
 
   // Attach keyboard shortcuts for undo/redo
@@ -427,16 +429,17 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
 
         {/* Reply input */}
         {replyingTo === comment.id && (
-          <div className="ml-8 mt-2">
+          <div className="ml-8 mt-2 relative">
             <textarea
-              ref={replyTextareaRef}
+              ref={replyMention.textareaRef}
               value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
-              placeholder="Write a reply..."
+              onChange={replyMention.handleInput}
+              placeholder="Write a reply... Use @ to mention someone"
               className="w-full p-2.5 rounded-lg bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-none overflow-hidden font-body min-h-[60px]"
               rows={1}
               autoFocus
               onKeyDown={(e) => {
+                if (replyMention.handleKeyDown(e)) return;
                 if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                   handleAddComment(comment.id);
                 }
@@ -446,6 +449,15 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
                 }
               }}
             />
+            {replyMention.showDropdown && (
+              <MentionDropdown
+                profiles={replyMention.filteredProfiles}
+                selectedIndex={replyMention.selectedIndex}
+                onSelect={replyMention.selectProfile}
+                onHover={replyMention.setSelectedIndex}
+                filter={replyMention.dropdownFilter}
+              />
+            )}
             {replyText.trim() && (
               <div className="flex items-center gap-2 mt-1.5">
                 <Button size="sm" onClick={() => handleAddComment(comment.id)} loading={loading}>

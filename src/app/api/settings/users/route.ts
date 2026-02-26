@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getAuthContext, successResponse, errorResponse, parseBody, requireFeatureAccess } from '@/lib/api-helpers';
 import { UserRole } from '@/lib/types';
 import { ALL_ROLES } from '@/lib/permissions';
+import { getOrCreateClientBoard } from '@/lib/client-board-sync';
 
 /** Helper: get admin Supabase client with service role */
 function getAdminClient() {
@@ -115,6 +116,50 @@ export async function PATCH(request: NextRequest) {
 
     if (error) {
       return errorResponse(error.message, 500);
+    }
+  }
+
+  // If role changed to 'client', auto-create a clients record and link it
+  if (user_role === 'client') {
+    const adminClient = getAdminClient();
+    if (adminClient) {
+      // Check if this user already has a client_id
+      const { data: currentProfile } = await supabase
+        .from('profiles')
+        .select('client_id, display_name, email')
+        .eq('id', user_id)
+        .single();
+
+      if (currentProfile && !currentProfile.client_id) {
+        // Create a new clients record
+        const clientName = display_name?.trim() || currentProfile.display_name || 'New Client';
+        const clientEmail = email?.trim() || currentProfile.email || null;
+
+        const { data: newClient } = await adminClient
+          .from('clients')
+          .insert({
+            name: clientName,
+            email: clientEmail,
+            created_by: userId,
+          })
+          .select('id')
+          .single();
+
+        if (newClient) {
+          // Link profile to client
+          await adminClient
+            .from('profiles')
+            .update({ client_id: newClient.id })
+            .eq('id', user_id);
+
+          // Create client board
+          try {
+            await getOrCreateClientBoard(adminClient, newClient.id);
+          } catch {
+            // Non-critical: board can be created later
+          }
+        }
+      }
     }
   }
 
