@@ -120,6 +120,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [boardName, setBoardName] = useState('');
   const [listName, setListName] = useState('');
+  const [cardPosition, setCardPosition] = useState<number | null>(null);
   const [dueDate, setDueDate] = useState('');
   const [startDate, setStartDate] = useState('');
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
@@ -283,6 +284,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
       setBoardType(data.boardType || null);
       setBoardName(data.boardName || '');
       setListName(data.listName || '');
+      setCardPosition(data.cardPosition ?? null);
 
       setLabels(data.labels || []);
       setBoardLabels(data.boardLabels || []);
@@ -621,7 +623,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
       )}
 
       <div className="p-4 sm:p-5 pb-6">
-        {/* Board > List breadcrumb */}
+        {/* Board > List breadcrumb with position */}
         {(boardName || listName) && (
           <div className="flex items-center gap-2 text-sm text-navy/70 dark:text-slate-400 font-medium font-body mb-3 pr-8 bg-cream/50 dark:bg-slate-800/30 px-3 py-2 rounded-lg border border-cream-dark/50 dark:border-slate-700/50">
             <svg className="w-4 h-4 text-navy/40 dark:text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
@@ -630,6 +632,12 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
               <svg className="w-3.5 h-3.5 text-navy/30 dark:text-slate-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
             )}
             {listName && <span>{listName}</span>}
+            {cardPosition !== null && (
+              <>
+                <span className="text-navy/30 dark:text-slate-600">•</span>
+                <span className="text-xs bg-electric/10 text-electric px-2 py-0.5 rounded-full font-semibold">#{cardPosition}</span>
+              </>
+            )}
           </div>
         )}
 
