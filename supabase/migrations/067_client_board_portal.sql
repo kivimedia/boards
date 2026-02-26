@@ -79,16 +79,16 @@ BEGIN
     COALESCE(new.raw_user_meta_data->>'display_name', new.email),
     new.raw_user_meta_data->>'avatar_url',
     COALESCE(new.raw_user_meta_data->>'user_role', 'member'),
-    COALESCE((new.raw_user_meta_data->>'user_role')::user_role, 'member'),
+    COALESCE((new.raw_user_meta_data->>'user_role')::public.user_role, 'member'::public.user_role),
     CASE
-      WHEN new.raw_user_meta_data->>'user_role' = 'client' THEN 'active'::account_status_enum
-      ELSE 'pending'::account_status_enum
+      WHEN new.raw_user_meta_data->>'user_role' = 'client' THEN 'active'::public.account_status_enum
+      ELSE 'pending'::public.account_status_enum
     END,
     (new.raw_user_meta_data->>'client_id')::UUID
   );
   RETURN new;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- ============================================================================
 -- 6. SEED board_role_access for client_board type

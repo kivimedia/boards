@@ -65,8 +65,10 @@ export default function CommentReactions({ commentId, cardId }: CommentReactions
     return acc;
   }, {});
 
+  const hasReactions = Object.keys(grouped).length > 0;
+
   return (
-    <div className="flex flex-wrap items-center gap-1 mt-1">
+    <div className="flex flex-wrap items-center gap-1">
       {Object.entries(grouped).map(([emoji, group]) => {
         const currentUserReacted = user
           ? group.some((r) => r.user_id === user.id)
@@ -84,7 +86,7 @@ export default function CommentReactions({ commentId, cardId }: CommentReactions
               inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs transition-all
               ${currentUserReacted
                 ? 'bg-electric/10 border border-electric'
-                : 'bg-cream dark:bg-slate-800 border border-transparent'
+                : 'bg-cream dark:bg-slate-800 border border-transparent hover:bg-cream-dark dark:hover:bg-slate-700'
               }
             `}
           >
@@ -97,10 +99,16 @@ export default function CommentReactions({ commentId, cardId }: CommentReactions
       <div className="relative">
         <button
           onClick={() => setShowPicker(!showPicker)}
-          className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-cream dark:bg-slate-800 text-navy/40 dark:text-slate-500 hover:bg-cream-dark dark:hover:bg-slate-700 hover:text-navy/60 dark:hover:text-slate-300 text-xs transition-all"
-          title="Add reaction"
+          className={`
+            inline-flex items-center justify-center rounded-full transition-all
+            ${hasReactions
+              ? 'w-6 h-6 text-navy/40 dark:text-slate-500 bg-cream dark:bg-slate-800 hover:bg-cream-dark dark:hover:bg-slate-700'
+              : 'w-7 h-7 text-navy/30 dark:text-slate-600 hover:text-navy/50 dark:hover:text-slate-400 hover:bg-cream dark:hover:bg-slate-800'
+            }
+          `}
+          title="React"
         >
-          +
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" strokeWidth="1.5"/><path d="M8 14s1.5 2 4 2 4-2 4-2" strokeWidth="1.5" strokeLinecap="round"/><circle cx="9" cy="9.5" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="9.5" r="1" fill="currentColor" stroke="none"/></svg>
         </button>
         {showPicker && (
           <div className="absolute bottom-full left-0 mb-1 z-50">
