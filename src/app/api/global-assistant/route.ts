@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
 
     const context = lines.join('\n');
 
-    const systemPrompt = `You are a helpful project management assistant for KM Boards. You have access to the user's boards, cards, assignments, and team data across ALL their boards.
+    const systemPrompt = `You are a helpful project management assistant for Kivi Media. You have access to the user's boards, cards, assignments, and team data across ALL their boards.
 
 Answer the user's question based on the data provided. Be concise and specific. Use the actual data to provide accurate answers.
 

@@ -31,17 +31,17 @@ async function sendCredentialsEmail(params: {
       body: JSON.stringify({
         from: fromEmail,
         to: [params.to],
-        subject: 'Welcome to Kivi Media Boards - Your Login Credentials',
+        subject: 'Welcome to Kivi Media - Your Login Credentials',
         html: `
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 0;">
             <div style="background: #1a1f36; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
-              <h1 style="color: #fff; font-size: 20px; margin: 0;">Kivi Media Boards</h1>
+              <h1 style="color: #fff; font-size: 20px; margin: 0;">Kivi Media</h1>
             </div>
             <p style="color: #333; font-size: 15px; line-height: 1.6;">
               Hi ${params.displayName},
             </p>
             <p style="color: #333; font-size: 15px; line-height: 1.6;">
-              You have been invited to Kivi Media Boards. Here are your login credentials:
+              You have been invited to Kivi Media. Here are your login credentials:
             </p>
             <div style="background: #f5f5f5; border-radius: 8px; padding: 16px; margin: 20px 0; font-family: monospace;">
               <p style="margin: 4px 0; font-size: 14px;"><strong>Email:</strong> ${params.to}</p>

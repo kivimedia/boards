@@ -203,7 +203,7 @@ export default function BrandingEditor({ clientId }: BrandingEditorProps) {
                   className="text-sm font-bold"
                   style={{ color: accentColor }}
                 >
-                  {companyName || 'Agency Board'}
+                  {companyName || 'Kivi Media'}
                 </div>
               )}
             </div>

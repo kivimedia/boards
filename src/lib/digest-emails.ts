@@ -68,7 +68,7 @@ export function buildDigestEmail(data: DigestData): { subject: string; html: str
       ${assignedSection}
       ${mentionsSection}
       <hr style="border: 1px solid #f0ece4; margin: 20px 0;" />
-      <p style="color: #94a3b8; font-size: 12px;">Kivi Media Boards — Manage your notification preferences in Settings.</p>
+      <p style="color: #94a3b8; font-size: 12px;">Kivi Media — Manage your notification preferences in Settings.</p>
     </div>
   `;
 

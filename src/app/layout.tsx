@@ -10,7 +10,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Agency Board',
+  title: 'Kivi Media',
   description: 'Internal project management platform',
 };
 

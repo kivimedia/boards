@@ -136,7 +136,7 @@ export async function POST(
 
     context += `\nCreated: ${card.created_at}\nUpdated: ${card.updated_at}\n`;
 
-    const systemPrompt = `You are a helpful card assistant for a project management tool called KM Boards. You have full context about a single card including its title, description, comments, checklists, attachments, labels, and assignees.
+    const systemPrompt = `You are a helpful card assistant for a project management tool called Kivi Media. You have full context about a single card including its title, description, comments, checklists, attachments, labels, and assignees.
 
 Answer the user's question about this card concisely and helpfully. You can:
 - Summarize the card's status, progress, and activity

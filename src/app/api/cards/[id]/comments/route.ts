@@ -224,11 +224,11 @@ async function sendMentionEmails(
         body: JSON.stringify({
           from: fromEmail,
           to: [email],
-          subject: `${authorName} mentioned you on "${cardTitle}" - KM Boards`,
+          subject: `${authorName} mentioned you on "${cardTitle}" - Kivi Media`,
           html: `
             <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px 0;">
               <div style="background: #1a1f36; border-radius: 12px; padding: 16px 20px; margin-bottom: 20px;">
-                <h1 style="color: #fff; font-size: 16px; margin: 0;">KM Boards</h1>
+                <h1 style="color: #fff; font-size: 16px; margin: 0;">Kivi Media</h1>
               </div>
               <p style="color: #333; font-size: 14px; line-height: 1.6;">
                 <strong>${authorName}</strong> mentioned you in a comment on <strong>${cardTitle}</strong>:

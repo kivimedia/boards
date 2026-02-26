@@ -5,7 +5,7 @@
  * into the pk_* tables in Supabase. Adapted from the crawler script
  * at scripts/crawl-performance-sheets.js.
  *
- * Phase 1 (Bridge): Read-only from Google Sheets, display in KM Boards.
+ * Phase 1 (Bridge): Read-only from Google Sheets, display in Kivi Media.
  */
 
 import { SupabaseClient } from '@supabase/supabase-js';

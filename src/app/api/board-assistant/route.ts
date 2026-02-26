@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
 
     const categoriesStr = BOARD_CATEGORIES.map(c => `- "${c.id}": ${c.description}`).join('\n');
 
-    const systemPrompt = `You are a helpful board assistant for a project management tool called KM Boards. You have full read access to the current board's data including all cards, lists, assignments, due dates, labels, and team members.
+    const systemPrompt = `You are a helpful board assistant for a project management tool called Kivi Media. You have full read access to the current board's data including all cards, lists, assignments, due dates, labels, and team members.
 
 Answer the user's question based on the board data provided. Be concise and specific. Use the actual data to provide accurate answers.
 

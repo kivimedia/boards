@@ -159,7 +159,7 @@ app.post('/webhook', (req, res) => {
  */
 export async function GET() {
   return successResponse({
-    title: 'Agency Board Public API',
+    title: 'Kivi Media API',
     version: 'v1',
     base_url: '/api/v1',
     authentication: {

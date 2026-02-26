@@ -191,7 +191,7 @@ export default function MapBoardView({ clientId }: MapBoardViewProps) {
                     ? 'bg-[#0079BF]/10 text-[#0079BF] ring-2 ring-[#0079BF]/20'
                     : 'text-navy/60 dark:text-slate-400 hover:text-[#0079BF] hover:bg-[#0079BF]/5'
                 }`}
-                title="Tracked Trello tickets"
+                title="Tracked tickets"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0">
                   <rect x="2" y="2" width="20" height="20" rx="3" fill="currentColor" />
@@ -281,7 +281,7 @@ export default function MapBoardView({ clientId }: MapBoardViewProps) {
           )}
         </div>
 
-        {/* Trello Tracked Tickets Panel */}
+        {/* Tracked Tickets Panel */}
         {showTrelloPanel && (
           <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-[#0079BF]/20 dark:border-[#0079BF]/30 p-4 animate-in slide-in-from-top-2 duration-200">
             <div className="flex items-center justify-between mb-3">
@@ -291,7 +291,7 @@ export default function MapBoardView({ clientId }: MapBoardViewProps) {
                   <rect x="5" y="5" width="5" height="12" rx="1" fill="white" />
                   <rect x="13" y="5" width="5" height="8" rx="1" fill="white" />
                 </svg>
-                Tracked Trello Tickets
+                Tracked Tickets
               </h3>
               <button
                 onClick={() => setShowTrelloPanel(false)}

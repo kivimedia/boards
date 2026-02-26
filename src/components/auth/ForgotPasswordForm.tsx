@@ -51,7 +51,7 @@ export default function ForgotPasswordForm() {
         </div>
         {emailSent ? (
           <p className="text-navy/70 text-sm font-body">
-            Check your inbox (and spam folder) for an email from Kivi Media Boards with a reset link.
+            Check your inbox (and spam folder) for an email from Kivi Media with a reset link.
           </p>
         ) : actionLink ? (
           <div className="space-y-3">

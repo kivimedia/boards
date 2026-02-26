@@ -39,7 +39,7 @@ export async function linkPhone(
   // Send verification code via WhatsApp (placeholder)
   await sendWhatsAppMessage(supabase, {
     phoneNumber,
-    content: `Your Agency Board verification code is: ${code}`,
+    content: `Your Kivi Media verification code is: ${code}`,
     messageType: 'verification',
   });
 
