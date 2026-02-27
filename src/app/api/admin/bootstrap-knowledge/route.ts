@@ -9,11 +9,9 @@ export const maxDuration = 300;
 /**
  * POST /api/admin/bootstrap-knowledge
  * One-time bootstrap: indexes ALL cards and generates ALL board summaries.
- * Processes cards in batches of 25 within the 300s Vercel limit.
- * Call repeatedly until `remaining === 0`.
+ * Loops internally within the 300s Vercel limit, processing batches of 25.
+ * Progress is visible via /api/settings/knowledge-status polling.
  * Auth: CRON_SECRET bearer token OR authenticated admin session.
- *
- * Body (optional): { batchSize?: number, skipSummaries?: boolean }
  */
 export async function POST(request: Request) {
   // Accept either CRON_SECRET or authenticated session
@@ -22,13 +20,11 @@ export async function POST(request: Request) {
   const hasCronAuth = cronSecret && authHeader === `Bearer ${cronSecret}`;
 
   if (!hasCronAuth) {
-    // Fallback: check session auth
     const userSupabase = createServerSupabaseClient();
     const { data: { session } } = await userSupabase.auth.getSession();
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    // Verify admin role
     const { data: profile } = await userSupabase
       .from('profiles')
       .select('user_role')
@@ -39,56 +35,55 @@ export async function POST(request: Request) {
     }
   }
 
-  let body: { batchSize?: number; skipSummaries?: boolean } = {};
-  try {
-    body = await request.json();
-  } catch {
-    // defaults
-  }
-
-  const batchSize = Math.min(body.batchSize || 25, 50);
-
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
   const startTime = Date.now();
+  const TIME_LIMIT = 260_000; // 260s, leave 40s buffer
+  const BATCH_SIZE = 25;
+
+  let totalEmbedded = 0;
+  let totalSkipped = 0;
+  let totalErrors = 0;
+  let batches = 0;
 
   try {
-    // Find ALL cards not yet indexed
-    const { data: allCards } = await supabase
-      .from('cards')
-      .select('id, updated_at')
-      .order('updated_at', { ascending: false });
+    // Loop: keep finding unindexed cards and processing them until time runs out
+    while (Date.now() - startTime < TIME_LIMIT) {
+      const { data: allCards } = await supabase
+        .from('cards')
+        .select('id, updated_at')
+        .order('updated_at', { ascending: false });
 
-    if (!allCards || allCards.length === 0) {
-      return NextResponse.json({ message: 'No cards found', total: 0, remaining: 0 });
+      if (!allCards || allCards.length === 0) break;
+
+      const { data: indexed } = await supabase
+        .from('knowledge_index_state')
+        .select('entity_id')
+        .eq('entity_type', 'card')
+        .in('entity_id', allCards.map((c: any) => c.id));
+
+      const indexedSet = new Set((indexed || []).map((i: any) => i.entity_id));
+      const unindexed: CardToIndex[] = allCards
+        .filter((c: any) => !indexedSet.has(c.id))
+        .slice(0, BATCH_SIZE);
+
+      if (unindexed.length === 0) break; // All cards indexed
+
+      const result = await indexCardBatch(supabase, unindexed);
+      totalEmbedded += result.embedded;
+      totalSkipped += result.skipped;
+      totalErrors += result.errors;
+      batches++;
+
+      console.log(`[bootstrap] Batch ${batches}: ${result.embedded} embedded, ${result.skipped} skipped (${Math.round((Date.now() - startTime) / 1000)}s elapsed)`);
     }
 
-    // Get already-indexed card IDs
-    const { data: indexed } = await supabase
-      .from('knowledge_index_state')
-      .select('entity_id, last_content_hash')
-      .eq('entity_type', 'card')
-      .eq('status', 'indexed');
-
-    const indexedSet = new Set((indexed || []).map((i: any) => i.entity_id));
-    const unindexedCards: CardToIndex[] = allCards
-      .filter((c: any) => !indexedSet.has(c.id))
-      .slice(0, batchSize);
-
-    let cardResult = { processed: 0, embedded: 0, skipped: 0, errors: 0 };
-    if (unindexedCards.length > 0) {
-      cardResult = await indexCardBatch(supabase, unindexedCards);
-    }
-
-    const remainingCards = allCards.filter((c: any) => !indexedSet.has(c.id)).length - unindexedCards.length;
-
-    // Board summaries (only on last batch or if no cards left)
+    // Generate board summaries with remaining time
     let summariesGenerated = 0;
-    let summaryErrors = 0;
-    if (!body.skipSummaries && unindexedCards.length === 0) {
+    if (Date.now() - startTime < TIME_LIMIT) {
       const { data: boards } = await supabase
         .from('boards')
         .select('id, name')
@@ -96,31 +91,40 @@ export async function POST(request: Request) {
 
       if (boards) {
         for (const board of boards) {
-          // Check time limit - leave 30s buffer
-          if (Date.now() - startTime > 260_000) break;
+          if (Date.now() - startTime > TIME_LIMIT) break;
           try {
             const result = await generateBoardSummary(supabase, board.id);
             if (result) summariesGenerated++;
-            else summaryErrors++;
           } catch {
-            summaryErrors++;
+            // continue with next board
           }
         }
       }
     }
 
+    // Check how many remain
+    const { count: totalCards } = await supabase
+      .from('cards')
+      .select('id', { count: 'exact', head: true });
+    const { count: indexedCount } = await supabase
+      .from('knowledge_index_state')
+      .select('entity_id', { count: 'exact', head: true })
+      .eq('entity_type', 'card')
+      .eq('status', 'indexed');
+
+    const remaining = (totalCards || 0) - (indexedCount || 0);
     const duration = Date.now() - startTime;
-    console.log(`[bootstrap-knowledge] Batch done: ${cardResult.embedded} cards embedded, ${summariesGenerated} summaries in ${duration}ms`);
+
+    console.log(`[bootstrap] Done: ${totalEmbedded} embedded in ${batches} batches, ${summariesGenerated} summaries (${Math.round(duration / 1000)}s)`);
 
     return NextResponse.json({
-      message: remainingCards > 0 ? 'Batch complete, call again for more' : 'Bootstrap complete',
-      total_cards: allCards.length,
-      indexed_this_batch: cardResult.embedded,
-      skipped: cardResult.skipped,
-      errors: cardResult.errors,
-      remaining: Math.max(0, remainingCards),
+      message: remaining > 0 ? 'Time limit reached, run again for more' : 'Bootstrap complete',
+      batches,
+      total_embedded: totalEmbedded,
+      total_skipped: totalSkipped,
+      total_errors: totalErrors,
       summaries_generated: summariesGenerated,
-      summary_errors: summaryErrors,
+      remaining,
       duration_ms: duration,
     });
   } catch (err: any) {
