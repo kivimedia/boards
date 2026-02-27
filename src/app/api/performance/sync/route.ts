@@ -21,15 +21,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Check admin role
+  // Check admin role or allowed user (e.g. Devi)
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, display_name')
     .eq('id', user.id)
     .single();
 
-  if (profile?.role !== 'admin') {
-    return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+  const isAdmin = profile?.role === 'admin';
+  const isAllowedUser = profile?.display_name?.toLowerCase().includes('devi');
+  if (!isAdmin && !isAllowedUser) {
+    return NextResponse.json({ error: 'Access denied' }, { status: 403 });
   }
 
   const body = await request.json().catch(() => ({}));

@@ -12,19 +12,22 @@ export default async function PerformancePage() {
     redirect('/login');
   }
 
-  // Check if user is admin for sync controls
+  // Check if user is admin or allowed to sync (e.g. Devi)
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, display_name')
     .eq('id', user.id)
     .single();
+
+  const isAdmin = profile?.role === 'admin';
+  const canSync = isAdmin || profile?.display_name?.toLowerCase().includes('devi');
 
   return (
     <div className="flex h-screen overflow-hidden">
       <SidebarWithBoards />
       <main className="flex-1 flex flex-col overflow-hidden">
         <Header title="Performance Hub" />
-        <PerformanceHubContent isAdmin={profile?.role === 'admin'} />
+        <PerformanceHubContent isAdmin={isAdmin} canSync={!!canSync} />
       </main>
     </div>
   );

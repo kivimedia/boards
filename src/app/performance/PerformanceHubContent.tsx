@@ -21,9 +21,10 @@ interface DashboardData {
 
 interface PerformanceHubContentProps {
   isAdmin: boolean;
+  canSync?: boolean;
 }
 
-export default function PerformanceHubContent({ isAdmin }: PerformanceHubContentProps) {
+export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceHubContentProps) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -130,7 +131,7 @@ export default function PerformanceHubContent({ isAdmin }: PerformanceHubContent
               </p>
             )}
           </div>
-          {isAdmin && (
+          {(canSync || isAdmin) && (
             <button
               onClick={triggerSync}
               disabled={syncing}
