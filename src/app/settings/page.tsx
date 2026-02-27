@@ -190,6 +190,34 @@ export default async function SettingsPage() {
                 </Link>
               )}
 
+              {/* AI Knowledge Card */}
+              {featureAccess.ai_config && (
+                <Link
+                  href="/settings/ai-knowledge"
+                  className="group block bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 hover:border-electric/30 p-6 transition-all duration-200 hover:shadow-lg"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-electric/10 flex items-center justify-center shrink-0 group-hover:bg-electric/20 transition-colors">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-electric">
+                        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-navy dark:text-slate-100 font-heading font-semibold text-base mb-1">
+                        AI Knowledge
+                      </h3>
+                      <p className="text-navy/50 font-body text-sm leading-relaxed">
+                        Monitor AI indexing status, card coverage, board summaries, and trigger manual sync.
+                      </p>
+                    </div>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-navy/20 group-hover:text-electric transition-colors mt-1 shrink-0">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </div>
+                </Link>
+              )}
+
               {/* Agent Skills Card */}
               {userIsAdmin && (
                 <Link
