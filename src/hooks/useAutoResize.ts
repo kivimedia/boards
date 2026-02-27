@@ -28,15 +28,18 @@ export function useAutoResize(
     if (!el) return;
     
     // Reset height to auto to get accurate scrollHeight
-    el.style.height = 'auto';
+    // Use a small positive value instead of auto to force recalculation
+    el.style.height = '1px';
+    // Force browser to recalculate layout
     const scrollHeight = el.scrollHeight;
     
-    // Only update if height actually changed (optimization to reduce reflows)
-    const newHeight = Math.max(scrollHeight, 120); // minimum 120px (min-h-[120px])
-    if (lastHeightRef.current !== newHeight) {
-      el.style.height = `${newHeight}px`;
-      lastHeightRef.current = newHeight;
-    }
+    // Calculate minimum height (120px is min-h-[120px] equivalent)
+    const newHeight = Math.max(scrollHeight, 120);
+    
+    // Always update if we're resizing (don't cache when formatting changes)
+    // This ensures bold/italic formatting triggers proper expansion
+    el.style.height = `${newHeight}px`;
+    lastHeightRef.current = newHeight;
   }, [ref]);
 
   const debouncedResize = useCallback(() => {
