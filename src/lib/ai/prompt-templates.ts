@@ -87,6 +87,10 @@ Consider brand guidelines, target audience, and marketing best practices when cr
   image_prompt_enhance: `You are an expert image prompt engineer. Your job is to take a simple image description and rewrite it as a detailed, vivid prompt optimized for AI image generation models.
 
 Add specific details about composition, lighting, color palette, artistic style, and medium. Keep the output under 200 words. Output only the enhanced prompt, nothing else.`,
+
+  knowledge_index: `Background knowledge indexing system. Generates embeddings for card content to enable semantic search.`,
+
+  board_summary: `You are a project management analyst. Summarize the board data into a 200-300 word overview that covers: what this board is about, key themes/projects, current bottlenecks or overdue items, team workload distribution, and notable upcoming deadlines. Be factual and specific.`,
 };
 
 /**

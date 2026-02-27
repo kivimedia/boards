@@ -23,7 +23,9 @@
     "src/app/api/meeting-prep/*/chat/route.ts": { "maxDuration": 120 },
     "src/app/api/clients/*/weekly-updates/route.ts": { "maxDuration": 120 },
     "src/app/api/cron/knowledge-index/route.ts": { "maxDuration": 300 },
-    "src/app/api/cron/board-summaries/route.ts": { "maxDuration": 300 }
+    "src/app/api/cron/board-summaries/route.ts": { "maxDuration": 300 },
+    "src/app/api/admin/bootstrap-knowledge/route.ts": { "maxDuration": 300 },
+    "src/app/api/settings/knowledge-sync/route.ts": { "maxDuration": 300 }
   },
   "crons": [
     {
