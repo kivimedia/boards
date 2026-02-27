@@ -366,6 +366,25 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
                   ref={editTextareaRef}
                   value={editTextUndo.value}
                   onChange={(e) => editTextUndo.setValue(e.target.value)}
+                  onPaste={(e) => {
+                    // Allow paste - insert as plain text
+                    const text = e.clipboardData.getData('text/plain');
+                    if (text) {
+                      e.preventDefault();
+                      const ta = editTextareaRef.current;
+                      if (!ta) return;
+                      
+                      const start = ta.selectionStart ?? 0;
+                      const end = ta.selectionEnd ?? 0;
+                      const newText = editTextUndo.value.slice(0, start) + text + editTextUndo.value.slice(end);
+                      editTextUndo.setValue(newText);
+                      
+                      requestAnimationFrame(() => {
+                        ta.focus();
+                        ta.setSelectionRange(start + text.length, start + text.length);
+                      });
+                    }
+                  }}
                   className="w-full p-2.5 rounded-b-lg rounded-t-none bg-cream dark:bg-navy border border-electric/30 border-t-0 text-sm text-navy dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-electric/30 resize-none overflow-hidden font-body min-h-[76px]"
                   rows={1}
                   autoFocus
