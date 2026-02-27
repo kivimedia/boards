@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getAuthContext, errorResponse } from '@/lib/api-helpers';
 import { createAnthropicClient } from '@/lib/ai/providers';
+import { searchKnowledge } from '@/lib/ai/knowledge-indexer';
 
 export const maxDuration = 60;
 
@@ -108,8 +109,7 @@ export async function POST(
       for (const c of comments) {
         const who = (c as any).user?.display_name || 'Unknown';
         const date = new Date(c.created_at).toLocaleDateString();
-        const text = c.content.length > 300 ? c.content.slice(0, 300) + '...' : c.content;
-        context += `- [${date}] ${who}: ${text}\n`;
+        context += `- [${date}] ${who}: ${c.content}\n`;
       }
     }
 
@@ -136,14 +136,49 @@ export async function POST(
 
     context += `\nCreated: ${card.created_at}\nUpdated: ${card.updated_at}\n`;
 
-    const systemPrompt = `You are a helpful card assistant for a project management tool called Kivi Media. You have full context about a single card including its title, description, comments, checklists, attachments, labels, and assignees.
+    // Enrich with board summary and related cards from knowledge base
+    if (boardId) {
+      try {
+        // Board summary for broader context
+        const { data: boardSummary } = await supabase
+          .from('board_summaries')
+          .select('summary_text')
+          .eq('board_id', boardId)
+          .single();
+        if (boardSummary?.summary_text) {
+          context += `\n=== Board Overview ===\n${boardSummary.summary_text}\n`;
+        }
+
+        // Related cards via semantic search
+        const cardText = `${card.title} ${card.description || ''}`.slice(0, 500);
+        const related = await searchKnowledge(supabase, cardText, {
+          boardId,
+          limit: 5,
+          threshold: 0.6,
+          excludeSourceId: params.id,
+          sourceTypes: ['card'],
+        });
+        if (related.length > 0) {
+          context += `\n=== Related Cards on This Board ===\n`;
+          for (const r of related) {
+            context += `- ${r.title}: ${r.content.slice(0, 300)}\n`;
+          }
+        }
+      } catch {
+        // Best-effort enrichment
+      }
+    }
+
+    const systemPrompt = `You are a helpful card assistant for a project management tool called Kivi Media. You have DEEP context about this specific card including its full title, description, ALL comments (not truncated), checklists, attachments, labels, and assignees. You also have the board overview and related cards for broader context.
 
 Answer the user's question about this card concisely and helpfully. You can:
 - Summarize the card's status, progress, and activity
 - Answer questions about comments, checklists, or attachments
+- Reference specific links, URLs, or files mentioned in comments or descriptions
 - Suggest next steps or improvements
 - Help draft comment replies or descriptions
 - Analyze the card's history and progress
+- Relate this card to other work on the board
 
 You MUST respond with a valid JSON object:
 {
@@ -163,7 +198,7 @@ IMPORTANT: Your entire response must be valid JSON.`;
 
           const stream = client.messages.stream({
             model: 'claude-sonnet-4-20250514',
-            max_tokens: 1024,
+            max_tokens: 2048,
             system: systemPrompt,
             messages: [
               {

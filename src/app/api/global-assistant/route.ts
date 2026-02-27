@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getAuthContext, errorResponse } from '@/lib/api-helpers';
 import { createAnthropicClient } from '@/lib/ai/providers';
+import { searchKnowledge } from '@/lib/ai/knowledge-indexer';
 
 export const maxDuration = 60;
 
@@ -100,11 +101,46 @@ export async function POST(request: NextRequest) {
       lines.push(`- "${card.title}" in ${boardName}${listName ? ` > ${listName}` : ''} (priority: ${card.priority || 'none'}${card.due_date ? `, due: ${card.due_date}` : ''})`);
     }
 
-    const context = lines.join('\n');
+    // Fetch pre-computed board summaries
+    const { data: boardSummaries } = await supabase
+      .from('board_summaries')
+      .select('board_id, summary_text, stats, key_themes');
 
-    const systemPrompt = `You are a helpful project management assistant for Kivi Media. You have access to the user's boards, cards, assignments, and team data across ALL their boards.
+    if (boardSummaries && boardSummaries.length > 0) {
+      lines.push(`\n=== Board Summaries (AI-generated overviews) ===`);
+      for (const bs of boardSummaries) {
+        const boardName = boards.find((b: any) => b.id === bs.board_id)?.name || 'Unknown Board';
+        lines.push(`\n## ${boardName}`);
+        lines.push(bs.summary_text);
+        if (bs.key_themes?.length > 0) {
+          lines.push(`Key themes: ${bs.key_themes.join(', ')}`);
+        }
+      }
+    }
 
-Answer the user's question based on the data provided. Be concise and specific. Use the actual data to provide accurate answers.
+    // Semantic search for cards most relevant to the user's question
+    let semanticResults = '';
+    try {
+      const searchResults = await searchKnowledge(supabase, body.query.trim(), {
+        limit: 8,
+        threshold: 0.6,
+      });
+      if (searchResults.length > 0) {
+        semanticResults = `\n=== Most Relevant Cards for This Question (from knowledge base) ===\n\n${searchResults
+          .map((r) => `### ${r.title} (${r.metadata?.board_name || 'Unknown board'})\n${r.content.slice(0, 600)}`)
+          .join('\n\n')}\n`;
+      }
+    } catch {
+      // Semantic search is best-effort
+    }
+
+    const context = lines.join('\n') + semanticResults;
+
+    const systemPrompt = `You are a helpful project management assistant for Kivi Media. You have deep knowledge of ALL boards across the workspace, including AI-generated summaries and semantically relevant card details.
+
+You have board-level summaries that describe each board's themes, bottlenecks, and key items. You also have semantic search results showing the most relevant cards to the user's question - these may contain specific details like links, descriptions, and comments.
+
+Answer the user's question based on the data provided. Be concise and specific. Use the actual data to provide accurate answers. If a card description or comment contains a link (Figma, Google Doc, URL, etc.), include it in your response.
 
 You MUST respond with a valid JSON object with this exact structure:
 {
@@ -129,7 +165,7 @@ Rules:
 
           const stream = client.messages.stream({
             model: 'claude-sonnet-4-20250514',
-            max_tokens: 1024,
+            max_tokens: 2048,
             system: systemPrompt,
             messages: [
               {

@@ -84,6 +84,8 @@ const DEFAULT_CONFIGS: Record<AIActivity, { provider: AIProvider; model_id: stri
   web_research: { provider: 'anthropic', model_id: 'claude-sonnet-4-5-20250929', temperature: 0.3, max_tokens: 8192 },
   replicate_generate: { provider: 'replicate', model_id: 'flux-1.1-pro', temperature: 0.8, max_tokens: 1024 },
   image_prompt_enhance: { provider: 'anthropic', model_id: 'claude-haiku-4-5-20251001', temperature: 0.7, max_tokens: 1024 },
+  knowledge_index: { provider: 'openai', model_id: 'text-embedding-3-small', temperature: 0, max_tokens: 0 },
+  board_summary: { provider: 'anthropic', model_id: 'claude-haiku-4-5-20251001', temperature: 0.3, max_tokens: 600 },
 };
 
 /**
@@ -142,4 +144,6 @@ export const ACTIVITY_LABELS: Record<AIActivity, string> = {
   web_research: 'Web Research',
   replicate_generate: 'Replicate Generate (FLUX)',
   image_prompt_enhance: 'Image Prompt Enhance',
+  knowledge_index: 'Knowledge Indexing',
+  board_summary: 'Board Summary',
 };
