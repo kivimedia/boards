@@ -24,12 +24,12 @@ export async function POST(request: Request) {
   // Check admin role or allowed user (e.g. Devi)
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, display_name')
+    .select('role')
     .eq('id', user.id)
     .single();
 
   const isAdmin = profile?.role === 'admin';
-  const isAllowedUser = profile?.display_name?.toLowerCase().includes('devi');
+  const isAllowedUser = user.email === 'devi@dailycookie.co';
   if (!isAdmin && !isAllowedUser) {
     return NextResponse.json({ error: 'Access denied' }, { status: 403 });
   }

@@ -15,12 +15,12 @@ export default async function PerformancePage() {
   // Check if user is admin or allowed to sync (e.g. Devi)
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, display_name')
+    .select('role')
     .eq('id', user.id)
     .single();
 
   const isAdmin = profile?.role === 'admin';
-  const canSync = isAdmin || profile?.display_name?.toLowerCase().includes('devi');
+  const canSync = isAdmin || user.email === 'devi@dailycookie.co';
 
   return (
     <div className="flex h-screen overflow-hidden">
