@@ -38,6 +38,27 @@ export default function MentionInput({ onSubmit }: MentionInputProps) {
     setLoading(false);
   };
 
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    // Allow paste but insert as plain text to preserve formatting intention
+    const text = e.clipboardData.getData('text/plain');
+    if (text) {
+      e.preventDefault();
+      const ta = mention.textareaRef.current;
+      if (!ta) return;
+      
+      const start = ta.selectionStart ?? 0;
+      const end = ta.selectionEnd ?? 0;
+      const newText = contentUndo.value.slice(0, start) + text + contentUndo.value.slice(end);
+      contentUndo.setValue(newText);
+      
+      // Move cursor after pasted text
+      requestAnimationFrame(() => {
+        ta.focus();
+        ta.setSelectionRange(start + text.length, start + text.length);
+      });
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Mention navigation handled first
     if (mention.handleKeyDown(e)) return;
@@ -129,6 +150,7 @@ export default function MentionInput({ onSubmit }: MentionInputProps) {
               value={contentUndo.value}
               onChange={mention.handleInput}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
               placeholder="Write a comment... Use @ to mention someone"
               className="w-full p-3 rounded-b-xl rounded-t-none bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 border-t-0 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-none overflow-hidden font-body min-h-[76px]"
               rows={1}
