@@ -49,7 +49,7 @@ export default function Header({ title, backHref, children }: HeaderProps) {
         )}
       </div>
       {children && (
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 max-w-xl mx-auto">
           {children}
         </div>
       )}
