@@ -17,8 +17,8 @@ export default function Header({ title, backHref, children }: HeaderProps) {
   const { toggleMobileSidebar } = useAppStore();
 
   return (
-    <header className="h-14 bg-cream/80 dark:bg-navy-light/80 backdrop-blur-md border-b border-cream-dark dark:border-slate-700 flex items-center justify-between px-4 sm:px-6 shrink-0">
-      <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+    <header className="h-14 bg-cream/80 dark:bg-navy-light/80 backdrop-blur-md border-b border-cream-dark dark:border-slate-700 flex items-center px-4 sm:px-6 shrink-0 gap-3 sm:gap-4">
+      <div className="flex items-center gap-3 sm:gap-4 min-w-0 shrink-0">
         {/* Hamburger — visible only on mobile */}
         <button
           onClick={toggleMobileSidebar}
@@ -48,10 +48,14 @@ export default function Header({ title, backHref, children }: HeaderProps) {
           </h1>
         )}
       </div>
-      <div className="flex items-center gap-2 sm:gap-3">
+      {children && (
+        <div className="flex-1 min-w-0">
+          {children}
+        </div>
+      )}
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
         <ThemeToggle />
         <NotificationCenter />
-        {children}
       </div>
     </header>
   );
