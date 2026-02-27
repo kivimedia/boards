@@ -2612,7 +2612,7 @@ export interface ProductivityReportFile {
 // ============================================================================
 
 export type AgentSkillCategory = 'content' | 'creative' | 'strategy' | 'seo' | 'meta';
-export type AgentSkillPack = 'skills' | 'creative' | 'custom';
+export type AgentSkillPack = 'skills' | 'creative' | 'custom' | 'seo_team';
 export type AgentQualityTier = 'genuinely_smart' | 'solid' | 'has_potential' | 'placeholder' | 'tool_dependent';
 export type AgentTriggerType = 'manual' | 'automation_rule' | 'card_event' | 'schedule' | 'chained';
 export type AgentExecutionStatus = 'running' | 'success' | 'failed' | 'cancelled' | 'pending_confirmation';
@@ -3203,5 +3203,158 @@ export interface MeetingChatMessage {
   content: string;
   timestamp: string;
   user_id?: string;
+}
+
+// ============================================================================
+// VPS JOB TYPES
+// ============================================================================
+
+export type VpsJobType = 'agent:standalone' | 'agent:chain' | 'agent:team' | 'pipeline:seo' | 'pipeline:scout' | 'cron';
+export type VpsJobStatus = 'pending' | 'queued' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
+
+export interface VpsJob {
+  id: string;
+  job_type: VpsJobType;
+  status: VpsJobStatus;
+  priority: number;
+
+  payload: Record<string, unknown>;
+  user_id: string;
+  board_id: string | null;
+  card_id: string | null;
+  client_id: string | null;
+
+  current_step: number;
+  total_steps: number;
+  progress_message: string | null;
+  progress_data: Record<string, unknown> | null;
+
+  output: Record<string, unknown> | null;
+  output_preview: string | null;
+  error_message: string | null;
+
+  cost_usd: number;
+  tokens_used: number;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================================================
+// SEO PIPELINE TYPES
+// ============================================================================
+
+export type SeoPipelineStatus =
+  | 'planning'
+  | 'writing'
+  | 'humanizing'
+  | 'scoring'
+  | 'awaiting_approval_1'
+  | 'publishing'
+  | 'visual_qa'
+  | 'awaiting_approval_2'
+  | 'published'
+  | 'failed'
+  | 'scrapped';
+
+export type SeoGateDecision = 'approve' | 'revise' | 'scrap';
+
+export interface SeoTeamConfig {
+  id: string;
+  client_id: string | null;
+  site_url: string;
+  site_name: string;
+
+  wp_credentials: {
+    username: string;
+    app_password: string;
+  } | null;
+  slack_credentials: {
+    bot_token: string;
+    channel_id: string;
+  } | null;
+  google_credentials: {
+    search_console: Record<string, unknown>;
+    analytics: Record<string, unknown>;
+  } | null;
+
+  config: {
+    models?: Record<string, string>;
+    quality_thresholds?: { min_qc_score: number; max_iterations: number };
+    schedule?: { posts_per_week: number; publish_days: string[]; publish_time: string };
+    content_targets?: string[];
+  };
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SeoPipelineRun {
+  id: string;
+  team_config_id: string | null;
+  vps_job_id: string | null;
+  post_id: string | null;
+
+  status: SeoPipelineStatus;
+  current_phase: number;
+  phase_results: Record<string, unknown>;
+  artifacts: Record<string, unknown>;
+  error_log: Array<{ phase: string; error: string; timestamp: string }>;
+
+  topic: string | null;
+  silo: string | null;
+  assignment: string | null;
+
+  final_content: string | null;
+  humanized_content: string | null;
+  wp_post_id: number | null;
+  wp_preview_url: string | null;
+  wp_live_url: string | null;
+
+  qc_score: number | null;
+  value_score: number | null;
+  visual_qa_score: number | null;
+  total_cost_usd: number;
+  agent_costs: Record<string, number>;
+
+  gate1_decision: SeoGateDecision | null;
+  gate1_feedback: string | null;
+  gate1_decided_by: string | null;
+  gate1_decided_at: string | null;
+  gate2_decision: SeoGateDecision | null;
+  gate2_feedback: string | null;
+  gate2_decided_by: string | null;
+  gate2_decided_at: string | null;
+
+  created_at: string;
+  updated_at: string;
+  published_at: string | null;
+
+  // Joined
+  team_config?: SeoTeamConfig;
+  vps_job?: VpsJob;
+}
+
+export interface SeoAgentCall {
+  id: string;
+  pipeline_run_id: string;
+  agent_name: string;
+  phase: string;
+
+  model_used: string | null;
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+  duration_ms: number;
+
+  iteration: number;
+  input_preview: string | null;
+  output_preview: string | null;
+  status: 'success' | 'failed' | 'timeout';
+  error_message: string | null;
+
+  created_at: string;
 }
 
