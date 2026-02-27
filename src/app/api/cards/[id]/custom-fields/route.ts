@@ -5,13 +5,39 @@ interface Params {
   params: { id: string };
 }
 
-export async function GET(_request: NextRequest, { params }: Params) {
+export async function GET(request: NextRequest, { params }: Params) {
   const auth = await getAuthContext();
   if (!auth.ok) return auth.response;
 
   const { supabase } = auth.ctx;
   const cardId = params.id;
+  const { searchParams } = new URL(request.url);
+  const boardId = searchParams.get('boardId');
 
+  // If boardId provided, return both definitions and values
+  if (boardId) {
+    const [defsResult, valsResult] = await Promise.all([
+      supabase
+        .from('custom_field_definitions')
+        .select('*')
+        .eq('board_id', boardId)
+        .order('position', { ascending: true }),
+      supabase
+        .from('custom_field_values')
+        .select('*, definition:custom_field_definitions(*)')
+        .eq('card_id', cardId),
+    ]);
+
+    if (defsResult.error) return errorResponse(defsResult.error.message, 500);
+    if (valsResult.error) return errorResponse(valsResult.error.message, 500);
+
+    return successResponse({
+      definitions: defsResult.data || [],
+      values: valsResult.data || [],
+    });
+  }
+
+  // Legacy: return just values
   const { data, error } = await supabase
     .from('custom_field_values')
     .select('*, definition:custom_field_definitions(*)')
