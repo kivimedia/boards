@@ -57,9 +57,10 @@ export function useAutoResize(
   // useLayoutEffect ensures we resize BEFORE the browser paints, so there's
   // no visible flash of the wrong height — even when the textarea first
   // appears already filled (edit-comment open with existing text).
+  // CRITICAL: Include `value` in deps so textarea expands as user types
   useLayoutEffect(() => {
     resize();
-  }, [resize]);
+  }, [value, resize]);
 
   // Also listen for user typing with debounce to avoid jank on long comments
   useEffect(() => {
