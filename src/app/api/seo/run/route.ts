@@ -44,8 +44,8 @@ export async function POST(request: NextRequest) {
     .insert({
       job_type: 'pipeline:seo',
       status: 'pending',
-      created_by: userId,
-      metadata: { team_config_id, topic, silo: silo || null },
+      user_id: userId,
+      payload: { team_config_id, topic, silo: silo || null },
     })
     .select()
     .single();
@@ -62,7 +62,6 @@ export async function POST(request: NextRequest) {
       silo: silo?.trim() || null,
       assignment: assignment || null,
       status: 'pending',
-      started_by: userId,
     })
     .select()
     .single();
