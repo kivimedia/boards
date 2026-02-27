@@ -311,12 +311,12 @@ export default function GlobalSearchBar() {
   const currentModeConfig = modeConfig[currentMode];
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className="relative w-full">
       <div className={`
-        flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all
+        flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all w-full
         ${focused
-          ? 'w-full sm:w-[320px] md:w-[420px] bg-white dark:bg-dark-surface border-electric/40 shadow-sm ring-2 ring-electric/10'
-          : 'w-full sm:w-[200px] md:w-[280px] bg-white/80 dark:bg-dark-surface/80 border-cream-dark dark:border-slate-700 hover:border-electric/30'
+          ? 'bg-white dark:bg-dark-surface border-electric/40 shadow-sm ring-2 ring-electric/10'
+          : 'bg-white/80 dark:bg-dark-surface/80 border-cream-dark dark:border-slate-700 hover:border-electric/30'
         }
       `}>
         <svg className="w-4 h-4 text-navy/30 dark:text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
