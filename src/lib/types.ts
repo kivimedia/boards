@@ -967,7 +967,9 @@ export type AIActivity =
   | 'agent_standalone_execution'
   | 'web_research'
   | 'replicate_generate'
-  | 'image_prompt_enhance';
+  | 'image_prompt_enhance'
+  | 'knowledge_index'
+  | 'board_summary';
 
 export type AIUsageStatus = 'success' | 'error' | 'cancelled' | 'budget_blocked' | 'rate_limited';
 

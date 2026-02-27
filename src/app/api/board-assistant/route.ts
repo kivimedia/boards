@@ -3,6 +3,7 @@ import { getAuthContext, errorResponse } from '@/lib/api-helpers';
 import { gatherBoardContext, boardContextToText } from '@/lib/board-context';
 import { validateChartData } from '@/lib/ai/chart-validator';
 import { createAnthropicClient } from '@/lib/ai/providers';
+import { searchKnowledge } from '@/lib/ai/knowledge-indexer';
 
 export const maxDuration = 60;
 
@@ -46,7 +47,27 @@ export async function POST(request: NextRequest) {
       return errorResponse('Board not found', 404);
     }
 
-    const context = boardContextToText(boardCtx);
+    const boardText = boardContextToText(boardCtx);
+
+    // Semantic search for cards most relevant to this query
+    let semanticContext = '';
+    try {
+      const searchResults = await searchKnowledge(supabase, query, {
+        boardId: board_id,
+        limit: 10,
+        threshold: 0.6,
+        sourceTypes: ['card'],
+      });
+      if (searchResults.length > 0) {
+        semanticContext = `\n=== Most Relevant Cards for This Question (from knowledge base) ===\n\n${searchResults
+          .map((r) => `### ${r.title} (relevance: ${(r.similarity * 100).toFixed(0)}%)\n${r.content}`)
+          .join('\n\n')}\n\n`;
+      }
+    } catch {
+      // Semantic search is best-effort - continue without it
+    }
+
+    const context = semanticContext + boardText;
 
     // Call Claude API using stored key from settings
     const client = await createAnthropicClient(supabase);
