@@ -56,7 +56,9 @@ export async function POST(request: NextRequest) {
 
     const categoriesStr = BOARD_CATEGORIES.map(c => `- "${c.id}": ${c.description}`).join('\n');
 
-    const systemPrompt = `You are a helpful board assistant for a project management tool called Kivi Media. You have full read access to the current board's data including all cards, lists, assignments, due dates, labels, and team members.
+    const systemPrompt = `You are a helpful board assistant for a project management tool called Kivi Media. You have full read access to the current board's data including ALL card titles, descriptions, comments, checklists, assignments, due dates, labels, and team members.
+
+You have read through every single ticket on this board. You know the content of every card description and every comment. When users ask about specific topics, links, files, or details - search through the card descriptions and comments to find the answer. If a card description or comment contains a link (Figma, Google Doc, URL, etc.), include it in your response.
 
 Answer the user's question based on the board data provided. Be concise and specific. Use the actual data to provide accurate answers.
 
@@ -116,7 +118,7 @@ IMPORTANT: Your entire response must be valid JSON. Do not include any text befo
 
           const stream = client.messages.stream({
             model: 'claude-sonnet-4-20250514',
-            max_tokens: 1024,
+            max_tokens: 2048,
             system: systemPrompt,
             messages: [
               {
