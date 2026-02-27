@@ -7,13 +7,27 @@ import { SupabaseClient } from '@supabase/supabase-js';
 export interface BoardContextCard {
   id: string;
   title: string;
+  description: string;
   list_id: string;
   list_name: string;
   priority: string;
   due_date: string | null;
   assignee_names: string[];
   labels: string[];
+  comments: BoardContextComment[];
+  checklists: BoardContextChecklist[];
   is_archived: boolean;
+}
+
+export interface BoardContextComment {
+  author: string;
+  text: string;
+  created_at: string;
+}
+
+export interface BoardContextChecklist {
+  title: string;
+  items: { text: string; checked: boolean }[];
 }
 
 export interface BoardContextMember {
@@ -115,6 +129,69 @@ export async function gatherBoardContext(
     }
   }
 
+  // Fetch comments for cards (most recent per card, up to 3 each)
+  const commentMap: Record<string, BoardContextComment[]> = {};
+  if (cardIds.length > 0) {
+    const { data: comments } = await supabase
+      .from('comments')
+      .select('card_id, content, created_at, user:profiles(display_name)')
+      .in('card_id', cardIds.slice(0, 200))
+      .order('created_at', { ascending: false })
+      .limit(600);
+
+    if (comments) {
+      for (const c of comments) {
+        const cid = c.card_id;
+        if (!commentMap[cid]) commentMap[cid] = [];
+        if (commentMap[cid].length < 3) {
+          commentMap[cid].push({
+            author: (c as any).user?.display_name || 'Unknown',
+            text: typeof c.content === 'string' ? c.content.slice(0, 500) : '',
+            created_at: c.created_at,
+          });
+        }
+      }
+    }
+  }
+
+  // Fetch checklists and items for cards
+  const checklistMap: Record<string, BoardContextChecklist[]> = {};
+  if (cardIds.length > 0) {
+    const { data: checklists } = await supabase
+      .from('checklists')
+      .select('id, card_id, title')
+      .in('card_id', cardIds.slice(0, 200));
+
+    if (checklists && checklists.length > 0) {
+      const clIds = checklists.map((cl: any) => cl.id);
+      const { data: items } = await supabase
+        .from('checklist_items')
+        .select('checklist_id, content, is_checked')
+        .in('checklist_id', clIds)
+        .order('position');
+
+      const itemsByChecklist: Record<string, { text: string; checked: boolean }[]> = {};
+      if (items) {
+        for (const item of items) {
+          if (!itemsByChecklist[item.checklist_id]) itemsByChecklist[item.checklist_id] = [];
+          itemsByChecklist[item.checklist_id].push({
+            text: item.content,
+            checked: item.is_checked,
+          });
+        }
+      }
+
+      for (const cl of checklists) {
+        const cid = cl.card_id;
+        if (!checklistMap[cid]) checklistMap[cid] = [];
+        checklistMap[cid].push({
+          title: cl.title,
+          items: itemsByChecklist[cl.id] || [],
+        });
+      }
+    }
+  }
+
   // Fetch board members with profiles
   const { data: members } = await supabase
     .from('board_members')
@@ -133,12 +210,15 @@ export async function gatherBoardContext(
     .map((p: any) => ({
       id: p.card.id,
       title: p.card.title,
+      description: typeof p.card.description === 'string' ? p.card.description.slice(0, 800) : '',
       list_id: p.list_id,
       list_name: listNameMap.get(p.list_id) || 'Unknown',
       priority: p.card.priority || 'none',
       due_date: p.card.due_date,
       assignee_names: assigneeMap[p.card.id] || [],
       labels: cardLabelMap[p.card.id] || [],
+      comments: commentMap[p.card.id] || [],
+      checklists: checklistMap[p.card.id] || [],
       is_archived: false,
     }));
 
@@ -171,19 +251,40 @@ export async function gatherBoardContext(
 
 /**
  * Converts BoardContext into a text summary for AI system prompts.
+ * Includes full card data: descriptions, comments, and checklists.
  */
 export function boardContextToText(ctx: BoardContext): string {
   let text = `Board: ${ctx.board.title}\n`;
-  text += `Lists: ${ctx.lists.map((l) => l.title).join(', ')}\n`;
+  text += `Lists: ${ctx.lists.map((l) => `${l.title} (${l.card_count} cards)`).join(', ')}\n`;
   text += `Labels: ${ctx.labels.map((l) => `${l.name} (${l.color})`).join(', ')}\n`;
   text += `Team members: ${ctx.members.map((m) => `${m.name} (${m.role})`).join(', ')}\n\n`;
 
-  text += `Cards (${ctx.cards.length} shown):\n`;
+  text += `=== All Cards (${ctx.cards.length}) ===\n\n`;
   for (const c of ctx.cards) {
     const assigneeStr = c.assignee_names.length > 0 ? ` | Assigned: ${c.assignee_names.join(', ')}` : '';
     const dueStr = c.due_date ? ` | Due: ${c.due_date}` : '';
     const priorityStr = c.priority !== 'none' ? ` | Priority: ${c.priority}` : '';
-    text += `- [${c.list_name}] ${c.title}${priorityStr}${dueStr}${assigneeStr}\n`;
+    const labelStr = c.labels.length > 0 ? ` | Labels: ${c.labels.join(', ')}` : '';
+    text += `## [${c.list_name}] ${c.title}${priorityStr}${dueStr}${assigneeStr}${labelStr}\n`;
+
+    if (c.description) {
+      text += `Description: ${c.description}\n`;
+    }
+
+    if (c.checklists.length > 0) {
+      for (const cl of c.checklists) {
+        text += `Checklist "${cl.title}": ${cl.items.map((i) => `${i.checked ? '[x]' : '[ ]'} ${i.text}`).join(', ')}\n`;
+      }
+    }
+
+    if (c.comments.length > 0) {
+      text += `Comments:\n`;
+      for (const cm of c.comments) {
+        text += `  - ${cm.author} (${cm.created_at.slice(0, 10)}): ${cm.text}\n`;
+      }
+    }
+
+    text += '\n';
   }
 
   return text;

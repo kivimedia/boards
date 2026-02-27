@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import SidebarWithBoards from '@/components/layout/SidebarWithBoards';
 import Header from '@/components/layout/Header';
 import CrossBoardDashboard from '@/components/dashboard/CrossBoardDashboard';
+import DashboardSearchBar from '@/components/dashboard/DashboardSearchBar';
 
 export default async function DashboardPage() {
   const supabase = createServerSupabaseClient();
@@ -16,7 +17,9 @@ export default async function DashboardPage() {
     <div className="flex h-screen overflow-hidden">
       <SidebarWithBoards />
       <main className="flex-1 flex flex-col overflow-hidden">
-        <Header title="Dashboard" />
+        <Header title="Dashboard">
+          <DashboardSearchBar />
+        </Header>
         <CrossBoardDashboard />
       </main>
     </div>
