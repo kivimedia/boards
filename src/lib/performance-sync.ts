@@ -81,18 +81,43 @@ async function fetchTabData(
   const data = await resp.json();
   const rowData = data.sheets?.[0]?.data?.[0]?.rowData || [];
 
+  // Known header keywords to detect which row is the actual header
+  const HEADER_KEYWORDS = ['client', 'date', 'meeting', 'watched', 'link', 'video', 'fathom', 'action', 'notes', 'status', 'update', 'sanity', 'check', 'ticket', 'attachments', 'comment'];
+
+  function looksLikeHeaderRow(values: Array<{ formattedValue?: string }>): boolean {
+    const cellTexts = values.map(v => (v.formattedValue || '').toLowerCase().trim()).filter(Boolean);
+    if (cellTexts.length === 0) return false;
+    const matches = cellTexts.filter(t => HEADER_KEYWORDS.some(kw => t.includes(kw)));
+    return matches.length >= 2;
+  }
+
   const headers: string[] = [];
   const rows: Record<string, string>[] = [];
+
+  // Auto-detect header row: check row 0 first, fall back to row 1
+  let headerRowIndex = 0;
+  if (rowData.length > 1) {
+    const row0Values = rowData[0].values || [];
+    if (!looksLikeHeaderRow(row0Values)) {
+      const row1Values = rowData[1]?.values || [];
+      if (looksLikeHeaderRow(row1Values)) {
+        headerRowIndex = 1;
+      }
+    }
+  }
 
   for (let r = 0; r < rowData.length; r++) {
     const values = rowData[r].values || [];
 
-    if (r === 0) {
+    if (r === headerRowIndex) {
       for (let c = 0; c < values.length; c++) {
         headers[c] = values[c].formattedValue || `col_${c}`;
       }
       continue;
     }
+
+    // Skip rows before the header row
+    if (r < headerRowIndex) continue;
 
     const rowObj: Record<string, string> = {};
     let hasContent = false;
