@@ -133,26 +133,26 @@ export default function TeamsDashboard() {
   const pendingApprovals = runs.filter(r => r.status.startsWith('awaiting_'));
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-navy dark:text-white font-heading">Agent Teams</h1>
-          <p className="text-sm text-navy/50 dark:text-slate-400 mt-1 font-body">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl md:text-2xl font-bold text-navy dark:text-white font-heading">Agent Teams</h1>
+          <p className="text-xs md:text-sm text-navy/50 dark:text-slate-400 mt-1 font-body">
             Reusable multi-phase AI pipelines
           </p>
         </div>
         <button
           onClick={() => setShowNewRun(true)}
           disabled={templates.length === 0}
-          className="px-4 py-2 text-sm font-semibold text-white bg-electric rounded-lg hover:bg-electric-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-body"
+          className="shrink-0 px-4 py-2 text-sm font-semibold text-white bg-electric rounded-lg hover:bg-electric-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-body"
         >
           + New Run
         </button>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         {[
           { label: 'Templates', value: templates.length, color: 'text-electric' },
           { label: 'Active Runs', value: activeRuns.length, color: 'text-blue-600' },
@@ -208,12 +208,12 @@ export default function TeamsDashboard() {
                   {t.phases.length} phases
                 </span>
               </div>
-              <p className="text-xs text-navy/50 dark:text-slate-400 font-body mb-3">{t.description}</p>
-              <div className="flex items-center gap-1">
+              <p className="text-xs text-navy/50 dark:text-slate-400 font-body mb-3 line-clamp-2">{t.description}</p>
+              <div className="flex items-center gap-1 flex-wrap">
                 {t.phases.map((phase, i) => (
                   <div key={i} className="flex items-center gap-1">
                     <div
-                      className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                      className={`px-1.5 md:px-2 py-0.5 rounded text-[9px] md:text-[10px] font-medium whitespace-nowrap ${
                         phase.is_gate
                           ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
                           : 'bg-cream dark:bg-dark-surface text-navy/60 dark:text-slate-400'
@@ -223,7 +223,7 @@ export default function TeamsDashboard() {
                       {phase.name}
                     </div>
                     {i < t.phases.length - 1 && (
-                      <span className="text-navy/20 dark:text-slate-600 text-[10px]">→</span>
+                      <span className="text-navy/20 dark:text-slate-600 text-[10px] hidden sm:inline">→</span>
                     )}
                   </div>
                 ))}
@@ -255,10 +255,10 @@ export default function TeamsDashboard() {
               <Link
                 key={run.id}
                 href={`/teams/runs/${run.id}`}
-                className="flex items-center justify-between p-4 bg-white dark:bg-dark-card rounded-xl border border-cream-dark dark:border-slate-700 hover:border-electric dark:hover:border-electric transition-colors"
+                className="flex items-center justify-between p-3 md:p-4 bg-white dark:bg-dark-card rounded-xl border border-cream-dark dark:border-slate-700 hover:border-electric dark:hover:border-electric transition-colors"
               >
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 md:gap-3 flex-wrap">
                     <p className="text-sm font-semibold text-navy dark:text-white truncate font-heading">
                       {run.template?.name || 'Unknown'}
                     </p>
@@ -268,7 +268,7 @@ export default function TeamsDashboard() {
                     {new Date(run.created_at).toLocaleDateString()} - Phase {run.current_phase + 1}
                   </p>
                 </div>
-                <div className="text-right ml-4">
+                <div className="text-right ml-3 shrink-0">
                   {run.total_cost_usd > 0 && (
                     <p className="text-xs text-navy/40 dark:text-slate-500 font-body">
                       ${run.total_cost_usd.toFixed(2)}
@@ -283,8 +283,8 @@ export default function TeamsDashboard() {
 
       {/* New Run Modal */}
       {showNewRun && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowNewRun(false)}>
-          <div className="bg-white dark:bg-dark-card rounded-xl p-6 w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowNewRun(false)}>
+          <div className="bg-white dark:bg-dark-card rounded-xl p-5 md:p-6 w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-navy dark:text-white mb-4 font-heading">Start Team Run</h2>
             <div className="space-y-4">
               <div>

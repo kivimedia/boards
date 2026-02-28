@@ -109,26 +109,26 @@ export default function SeoDashboard() {
   const totalCost = runs.reduce((sum, r) => sum + (r.total_cost_usd || 0), 0);
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-navy dark:text-white font-heading">SEO Pipeline</h1>
-          <p className="text-sm text-navy/50 dark:text-slate-400 mt-1 font-body">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl md:text-2xl font-bold text-navy dark:text-white font-heading">SEO Pipeline</h1>
+          <p className="text-xs md:text-sm text-navy/50 dark:text-slate-400 mt-1 font-body">
             Manage automated blog post production
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 md:gap-3 shrink-0">
           <Link
             href="/settings/seo"
-            className="px-4 py-2 text-sm font-medium text-navy/60 dark:text-slate-400 bg-cream dark:bg-dark-surface rounded-lg hover:bg-cream-dark dark:hover:bg-slate-700 transition-colors font-body"
+            className="px-3 md:px-4 py-2 text-xs md:text-sm font-medium text-navy/60 dark:text-slate-400 bg-cream dark:bg-dark-surface rounded-lg hover:bg-cream-dark dark:hover:bg-slate-700 transition-colors font-body"
           >
             Settings
           </Link>
           <button
             onClick={() => setShowNewRun(true)}
             disabled={configs.length === 0}
-            className="px-4 py-2 text-sm font-semibold text-white bg-electric rounded-lg hover:bg-electric-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-body"
+            className="px-3 md:px-4 py-2 text-xs md:text-sm font-semibold text-white bg-electric rounded-lg hover:bg-electric-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-body"
           >
             + New Run
           </button>
@@ -136,7 +136,7 @@ export default function SeoDashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         {[
           { label: 'Active Runs', value: activeRuns.length, color: 'text-electric' },
           { label: 'Pending Approvals', value: pendingApprovals.length, color: 'text-yellow-600' },
@@ -177,7 +177,7 @@ export default function SeoDashboard() {
       )}
 
       {/* Filter */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 -mb-1">
         {['all', 'planning', 'writing', 'published', 'failed'].map(f => (
           <button
             key={f}
@@ -245,8 +245,8 @@ export default function SeoDashboard() {
 
       {/* New Run Modal */}
       {showNewRun && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowNewRun(false)}>
-          <div className="bg-white dark:bg-dark-card rounded-xl p-6 w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowNewRun(false)}>
+          <div className="bg-white dark:bg-dark-card rounded-xl p-5 md:p-6 w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-navy dark:text-white mb-4 font-heading">Start New SEO Run</h2>
             <div className="space-y-4">
               <div>
