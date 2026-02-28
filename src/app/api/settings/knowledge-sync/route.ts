@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     let summaryErrors = 0;
 
     if (syncType === 'cards' || syncType === 'all') {
-      const cards = await findCardsNeedingReindex(supabase, 50);
+      const cards = await findCardsNeedingReindex(supabase, 100);
       if (cards.length > 0) {
         cardResult = await indexCardBatch(supabase, cards);
       }

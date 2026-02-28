@@ -26,7 +26,7 @@ export async function GET(request: Request) {
 
   try {
     // Find cards that need indexing
-    const cards = await findCardsNeedingReindex(supabase, 50);
+    const cards = await findCardsNeedingReindex(supabase, 200);
 
     if (cards.length === 0) {
       return NextResponse.json({
