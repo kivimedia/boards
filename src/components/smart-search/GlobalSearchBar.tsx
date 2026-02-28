@@ -8,11 +8,11 @@ import AiBotResponse from './AiBotResponse';
 import type { AiAssistantResponse } from '@/lib/types';
 
 const PLACEHOLDERS = [
-  'Search cards, boards, people...',
-  'Try: What are my overdue tasks?',
-  'Try: Show workload across boards',
-  'Try: Who is assigned the most cards?',
-  'Search or ask AI anything...',
+  'Search or ask AI...',
+  'What are my overdue tasks?',
+  'Show workload across boards',
+  'Who is assigned most cards?',
+  'Search cards, boards...',
 ];
 
 interface SearchResultItem {
