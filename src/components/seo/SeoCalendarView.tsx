@@ -1,0 +1,506 @@
+'use client';
+
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import Link from 'next/link';
+import type { SeoCalendar, SeoCalendarItem, SeoTeamConfig } from '@/lib/types';
+import SeoCalendarItemEditor from './SeoCalendarItemEditor';
+
+// Deterministic silo colors
+const SILO_COLORS = [
+  { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-300 dark:border-blue-700' },
+  { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-700 dark:text-purple-300', border: 'border-purple-300 dark:border-purple-700' },
+  { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-300 dark:border-amber-700' },
+  { bg: 'bg-cyan-100 dark:bg-cyan-900/30', text: 'text-cyan-700 dark:text-cyan-300', border: 'border-cyan-300 dark:border-cyan-700' },
+  { bg: 'bg-rose-100 dark:bg-rose-900/30', text: 'text-rose-700 dark:text-rose-300', border: 'border-rose-300 dark:border-rose-700' },
+  { bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-700 dark:text-emerald-300', border: 'border-emerald-300 dark:border-emerald-700' },
+  { bg: 'bg-indigo-100 dark:bg-indigo-900/30', text: 'text-indigo-700 dark:text-indigo-300', border: 'border-indigo-300 dark:border-indigo-700' },
+  { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-300', border: 'border-orange-300 dark:border-orange-700' },
+];
+
+function getSiloColor(silo: string | null, siloList: string[]) {
+  if (!silo) return SILO_COLORS[0];
+  const idx = siloList.indexOf(silo);
+  return SILO_COLORS[(idx >= 0 ? idx : 0) % SILO_COLORS.length];
+}
+
+function getMonthDays(monthOffset: number): Date[] {
+  const today = new Date();
+  const targetMonth = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
+  const firstDay = new Date(targetMonth);
+  firstDay.setDate(firstDay.getDate() - firstDay.getDay()); // Back to Sunday
+  const days: Date[] = [];
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(firstDay);
+    d.setDate(firstDay.getDate() + i);
+    days.push(d);
+  }
+  return days;
+}
+
+function isSameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function isSameMonth(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+}
+
+function dateKey(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+interface Props {
+  configs: SeoTeamConfig[];
+}
+
+export default function SeoCalendarView({ configs }: Props) {
+  const [calendars, setCalendars] = useState<SeoCalendar[]>([]);
+  const [selectedCalendarId, setSelectedCalendarId] = useState<string | null>(null);
+  const [items, setItems] = useState<SeoCalendarItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [monthOffset, setMonthOffset] = useState(0);
+  const [selectedConfigId, setSelectedConfigId] = useState<string>(configs[0]?.id || '');
+  const [editingItem, setEditingItem] = useState<SeoCalendarItem | null>(null);
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [launching, setLaunching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const today = new Date();
+  const days = getMonthDays(monthOffset);
+  const referenceMonth = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
+
+  const selectedConfig = configs.find(c => c.id === selectedConfigId);
+  const silos: string[] = selectedConfig?.config?.content_targets || [];
+
+  // Fetch calendars for selected config
+  const fetchCalendars = useCallback(async () => {
+    if (!selectedConfigId) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/seo/calendars?team_config_id=${selectedConfigId}`);
+      if (res.ok) {
+        const data = await res.json();
+        const cals: SeoCalendar[] = data.data || [];
+        setCalendars(cals);
+        if (cals.length > 0 && !selectedCalendarId) {
+          setSelectedCalendarId(cals[0].id);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch calendars:', err);
+    }
+    setLoading(false);
+  }, [selectedConfigId, selectedCalendarId]);
+
+  // Fetch items for selected calendar
+  const fetchItems = useCallback(async () => {
+    if (!selectedCalendarId) { setItems([]); return; }
+    try {
+      const res = await fetch(`/api/seo/calendars/${selectedCalendarId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setItems(data.data?.items || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch items:', err);
+    }
+  }, [selectedCalendarId]);
+
+  useEffect(() => { fetchCalendars(); }, [fetchCalendars]);
+  useEffect(() => { fetchItems(); }, [fetchItems]);
+
+  // Group items by date
+  const itemsByDate = useMemo(() => {
+    const map: Record<string, SeoCalendarItem[]> = {};
+    for (const item of items) {
+      const key = item.scheduled_date;
+      if (!map[key]) map[key] = [];
+      map[key].push(item);
+    }
+    return map;
+  }, [items]);
+
+  // Generate calendar
+  const handleGenerate = async () => {
+    if (!selectedConfigId) return;
+    setGenerating(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/seo/calendars/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ team_config_id: selectedConfigId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const cal = data.data?.calendar;
+        if (cal) {
+          setCalendars(prev => [cal, ...prev]);
+          setSelectedCalendarId(cal.id);
+        }
+      } else {
+        setError(data.error || 'Failed to generate calendar');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate calendar');
+    }
+    setGenerating(false);
+  };
+
+  // Launch selected items
+  const handleLaunchSelected = async () => {
+    if (!selectedCalendarId || selectedItems.size === 0) return;
+    setLaunching(true);
+    try {
+      const res = await fetch(`/api/seo/calendars/${selectedCalendarId}/launch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_ids: Array.from(selectedItems) }),
+      });
+      if (res.ok) {
+        setSelectedItems(new Set());
+        fetchItems();
+      }
+    } catch (err) {
+      console.error('Failed to launch items:', err);
+    }
+    setLaunching(false);
+  };
+
+  // Skip selected items
+  const handleSkipSelected = async () => {
+    if (!selectedCalendarId || selectedItems.size === 0) return;
+    for (const itemId of Array.from(selectedItems)) {
+      await fetch(`/api/seo/calendars/${selectedCalendarId}/items/${itemId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'skipped' }),
+      });
+    }
+    setSelectedItems(new Set());
+    fetchItems();
+  };
+
+  // Toggle item selection
+  const toggleSelect = (itemId: string) => {
+    setSelectedItems(prev => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
+  };
+
+  // Handle item update from editor
+  const handleItemSaved = () => {
+    setEditingItem(null);
+    fetchItems();
+  };
+
+  // Handle drag (move item to new date)
+  const handleDrop = async (itemId: string, newDate: string) => {
+    if (!selectedCalendarId) return;
+    // Optimistic update
+    setItems(prev => prev.map(i => i.id === itemId ? { ...i, scheduled_date: newDate } : i));
+    await fetch(`/api/seo/calendars/${selectedCalendarId}/items/${itemId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scheduled_date: newDate }),
+    });
+  };
+
+  // Drag state
+  const [draggedItem, setDraggedItem] = useState<string | null>(null);
+
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  // Stats
+  const plannedCount = items.filter(i => i.status === 'planned').length;
+  const launchedCount = items.filter(i => i.status === 'launched').length;
+  const skippedCount = items.filter(i => i.status === 'skipped').length;
+
+  return (
+    <div className="space-y-4">
+      {/* Controls row */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+        {/* Site selector */}
+        {configs.length > 1 && (
+          <select
+            value={selectedConfigId}
+            onChange={e => {
+              setSelectedConfigId(e.target.value);
+              setSelectedCalendarId(null);
+              setItems([]);
+            }}
+            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-cream dark:bg-dark-surface text-navy/60 dark:text-slate-400 border border-cream-dark dark:border-slate-700 font-body"
+          >
+            {configs.map(c => (
+              <option key={c.id} value={c.id}>
+                {c.site_name}{c.client ? ` (${c.client.name})` : ''}
+              </option>
+            ))}
+          </select>
+        )}
+
+        {/* Calendar selector */}
+        {calendars.length > 0 && (
+          <select
+            value={selectedCalendarId || ''}
+            onChange={e => setSelectedCalendarId(e.target.value)}
+            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-cream dark:bg-dark-surface text-navy/60 dark:text-slate-400 border border-cream-dark dark:border-slate-700 font-body"
+          >
+            {calendars.map(c => (
+              <option key={c.id} value={c.id}>
+                {c.name} ({c.items_count} posts)
+              </option>
+            ))}
+          </select>
+        )}
+
+        {/* Generate button */}
+        <button
+          onClick={handleGenerate}
+          disabled={generating || !selectedConfigId}
+          className="px-4 py-1.5 text-xs font-semibold text-white bg-electric rounded-lg hover:bg-electric-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-body flex items-center gap-2"
+        >
+          {generating ? (
+            <>
+              <svg className="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              Generating...
+            </>
+          ) : (
+            '+ Generate Calendar'
+          )}
+        </button>
+
+        {/* Month navigation - pushed right */}
+        <div className="flex items-center gap-2 sm:ml-auto">
+          <button
+            onClick={() => setMonthOffset(p => p - 1)}
+            className="p-1.5 rounded-lg hover:bg-cream dark:hover:bg-dark-surface transition-colors text-navy/60 dark:text-slate-400"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+          </button>
+          <span className="text-sm font-semibold text-navy dark:text-white min-w-[140px] text-center font-heading">
+            {referenceMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
+          </span>
+          <button
+            onClick={() => setMonthOffset(p => p + 1)}
+            className="p-1.5 rounded-lg hover:bg-cream dark:hover:bg-dark-surface transition-colors text-navy/60 dark:text-slate-400"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          </button>
+          <button
+            onClick={() => setMonthOffset(0)}
+            className="px-2 py-1 text-xs font-medium rounded bg-cream dark:bg-dark-surface text-navy/60 dark:text-slate-400 hover:bg-cream-dark dark:hover:bg-slate-700 transition-colors font-body"
+          >
+            Today
+          </button>
+        </div>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-lg p-3 text-sm text-red-700 dark:text-red-300 font-body">
+          {error}
+          <button onClick={() => setError(null)} className="ml-2 text-red-500 hover:text-red-700 dark:hover:text-red-200">&times;</button>
+        </div>
+      )}
+
+      {/* Stats bar */}
+      {items.length > 0 && (
+        <div className="flex items-center gap-4 text-xs font-body text-navy/50 dark:text-slate-400">
+          <span>{items.length} total posts</span>
+          <span className="text-blue-600 dark:text-blue-400">{plannedCount} planned</span>
+          <span className="text-green-600 dark:text-green-400">{launchedCount} launched</span>
+          {skippedCount > 0 && <span className="text-gray-400">{skippedCount} skipped</span>}
+          {/* Silo legend */}
+          <div className="flex items-center gap-2 ml-auto flex-wrap">
+            {silos.map((silo, idx) => {
+              const color = SILO_COLORS[idx % SILO_COLORS.length];
+              return (
+                <span key={silo} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${color.bg} ${color.text}`}>
+                  {silo}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!loading && items.length === 0 && !generating && (
+        <div className="text-center py-16">
+          <div className="text-4xl mb-3 opacity-50">&#128197;</div>
+          <p className="text-navy/40 dark:text-slate-500 font-body mb-2">No calendar yet</p>
+          <p className="text-sm text-navy/30 dark:text-slate-600 font-body">
+            Generate one to plan your content strategy across {silos.length > 0 ? silos.length : 'your'} silos.
+          </p>
+        </div>
+      )}
+
+      {/* Loading */}
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <svg className="animate-spin h-6 w-6 text-electric" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+        </div>
+      )}
+
+      {/* Month grid */}
+      {items.length > 0 && (
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-cream-dark dark:border-slate-700 overflow-hidden">
+          {/* Day headers */}
+          <div className="grid grid-cols-7 border-b border-cream-dark dark:border-slate-700">
+            {dayNames.map(d => (
+              <div key={d} className="px-2 py-2 text-center text-xs font-semibold text-navy/50 dark:text-slate-400 font-heading">
+                {d}
+              </div>
+            ))}
+          </div>
+
+          {/* Day cells - 6 weeks */}
+          <div className="grid grid-cols-7">
+            {days.map((day, idx) => {
+              const key = dateKey(day);
+              const dayItems = itemsByDate[key] || [];
+              const isToday = isSameDay(day, today);
+              const isCurrentMonth = isSameMonth(day, referenceMonth);
+
+              return (
+                <div
+                  key={idx}
+                  className={`min-h-[90px] md:min-h-[110px] p-1 border-b border-r border-cream-dark dark:border-slate-700 transition-colors ${
+                    !isCurrentMonth ? 'bg-cream/50 dark:bg-dark-surface/30' : ''
+                  } ${draggedItem ? 'hover:bg-electric/5 dark:hover:bg-electric/10' : ''}`}
+                  onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+                  onDrop={e => {
+                    e.preventDefault();
+                    const itemId = e.dataTransfer.getData('text/plain');
+                    if (itemId) handleDrop(itemId, key);
+                    setDraggedItem(null);
+                  }}
+                >
+                  {/* Date number */}
+                  <div className={`text-xs font-medium mb-1 px-0.5 ${
+                    isToday
+                      ? 'text-white bg-electric rounded-full w-5 h-5 flex items-center justify-center'
+                      : isCurrentMonth
+                        ? 'text-navy/60 dark:text-slate-400'
+                        : 'text-navy/20 dark:text-slate-600'
+                  }`}>
+                    {day.getDate()}
+                  </div>
+
+                  {/* Items */}
+                  <div className="space-y-0.5">
+                    {dayItems.map(item => {
+                      const siloColor = getSiloColor(item.silo, silos);
+                      const isSelected = selectedItems.has(item.id);
+                      const isLaunched = item.status === 'launched';
+                      const isSkipped = item.status === 'skipped';
+                      const isDraggable = item.status === 'planned';
+
+                      return (
+                        <div
+                          key={item.id}
+                          draggable={isDraggable}
+                          onDragStart={e => {
+                            e.dataTransfer.setData('text/plain', item.id);
+                            setDraggedItem(item.id);
+                          }}
+                          onDragEnd={() => setDraggedItem(null)}
+                          className={`group relative rounded px-1.5 py-1 text-[10px] md:text-[11px] leading-tight cursor-pointer border transition-all ${
+                            siloColor.bg
+                          } ${siloColor.text} ${siloColor.border} ${
+                            isSelected ? 'ring-2 ring-electric ring-offset-1 dark:ring-offset-dark-card' : ''
+                          } ${isLaunched ? 'opacity-80' : ''} ${isSkipped ? 'opacity-40 line-through' : ''} ${
+                            isDraggable ? 'hover:shadow-sm' : ''
+                          }`}
+                          onClick={e => {
+                            if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                              e.preventDefault();
+                              if (item.status === 'planned') toggleSelect(item.id);
+                            } else {
+                              setEditingItem(item);
+                            }
+                          }}
+                        >
+                          <span className="line-clamp-2 font-medium">{item.topic}</span>
+                          {/* Status indicators */}
+                          {isLaunched && (
+                            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-green-500 rounded-full flex items-center justify-center text-white text-[8px]">
+                              &#10003;
+                            </span>
+                          )}
+                          {/* Checkbox overlay on hover for planned items */}
+                          {isDraggable && (
+                            <button
+                              onClick={e => { e.stopPropagation(); toggleSelect(item.id); }}
+                              className={`absolute -top-1 -left-1 w-3.5 h-3.5 rounded border flex items-center justify-center text-[8px] transition-opacity ${
+                                isSelected
+                                  ? 'bg-electric border-electric text-white opacity-100'
+                                  : 'bg-white dark:bg-dark-card border-gray-300 dark:border-slate-600 opacity-0 group-hover:opacity-100'
+                              }`}
+                            >
+                              {isSelected && '&#10003;'}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Batch actions bar */}
+      {selectedItems.size > 0 && (
+        <div className="sticky bottom-4 mx-auto w-fit bg-navy dark:bg-slate-800 text-white rounded-xl px-5 py-3 flex items-center gap-4 shadow-xl z-20">
+          <span className="text-sm font-medium font-body">
+            {selectedItems.size} item{selectedItems.size > 1 ? 's' : ''} selected
+          </span>
+          <button
+            onClick={handleLaunchSelected}
+            disabled={launching}
+            className="px-4 py-1.5 text-xs font-semibold bg-electric rounded-lg hover:bg-electric-dark transition-colors disabled:opacity-50 font-body"
+          >
+            {launching ? 'Launching...' : 'Launch Selected'}
+          </button>
+          <button
+            onClick={handleSkipSelected}
+            className="px-4 py-1.5 text-xs font-semibold bg-gray-600 rounded-lg hover:bg-gray-500 transition-colors font-body"
+          >
+            Skip Selected
+          </button>
+          <button
+            onClick={() => setSelectedItems(new Set())}
+            className="text-xs text-white/60 hover:text-white transition-colors font-body"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
+      {/* Editor panel */}
+      {editingItem && selectedCalendarId && (
+        <SeoCalendarItemEditor
+          item={editingItem}
+          calendarId={selectedCalendarId}
+          silos={silos}
+          onClose={() => setEditingItem(null)}
+          onSaved={handleItemSaved}
+        />
+      )}
+    </div>
+  );
+}

@@ -3376,6 +3376,51 @@ export interface SeoReviewAttachment {
   url?: string;
 }
 
+// ---------------------------------------------------------------------------
+// SEO Content Calendar
+// ---------------------------------------------------------------------------
+
+export type SeoCalendarStatus = 'draft' | 'active' | 'archived';
+export type SeoCalendarItemStatus = 'planned' | 'launched' | 'skipped';
+
+export interface SeoCalendar {
+  id: string;
+  team_config_id: string;
+  client_id: string | null;
+  name: string;
+  status: SeoCalendarStatus;
+  date_range_start: string;
+  date_range_end: string;
+  generation_prompt: string | null;
+  generation_model: string | null;
+  generation_cost_usd: number;
+  items_count: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  team_config?: SeoTeamConfig;
+  items?: SeoCalendarItem[];
+}
+
+export interface SeoCalendarItem {
+  id: string;
+  calendar_id: string;
+  team_config_id: string;
+  topic: string;
+  silo: string | null;
+  keywords: string[];
+  outline_notes: string | null;
+  target_word_count: number;
+  scheduled_date: string;
+  sort_order: number;
+  status: SeoCalendarItemStatus;
+  run_id: string | null;
+  launched_at: string | null;
+  created_at: string;
+  updated_at: string;
+  run?: SeoPipelineRun;
+}
+
 export interface SeoAgentCall {
   id: string;
   pipeline_run_id: string;

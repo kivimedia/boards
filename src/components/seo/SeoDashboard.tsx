@@ -4,6 +4,9 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import type { SeoPipelineRun, SeoTeamConfig } from '@/lib/types';
+import SeoCalendarView from './SeoCalendarView';
+
+type DashboardTab = 'runs' | 'calendar';
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
@@ -41,6 +44,7 @@ export default function SeoDashboard() {
   const [newRunSilo, setNewRunSilo] = useState('');
   const [newRunConfigId, setNewRunConfigId] = useState('');
   const [starting, setStarting] = useState(false);
+  const [activeTab, setActiveTab] = useState<DashboardTab>('runs');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -142,6 +146,31 @@ export default function SeoDashboard() {
           </button>
         </div>
       </div>
+
+      {/* Tab bar */}
+      <div className="flex items-center gap-1 border-b border-cream-dark dark:border-slate-700 -mx-4 md:-mx-6 px-4 md:px-6">
+        {(['runs', 'calendar'] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors font-heading ${
+              activeTab === tab
+                ? 'border-electric text-electric'
+                : 'border-transparent text-navy/40 dark:text-slate-500 hover:text-navy/60 dark:hover:text-slate-300'
+            }`}
+          >
+            {tab === 'runs' ? 'Runs' : 'Calendar'}
+          </button>
+        ))}
+      </div>
+
+      {/* Calendar tab */}
+      {activeTab === 'calendar' && (
+        <SeoCalendarView configs={configs} />
+      )}
+
+      {/* Runs tab */}
+      {activeTab === 'runs' && (<>
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
@@ -272,6 +301,8 @@ export default function SeoDashboard() {
           ))}
         </div>
       )}
+
+      </>)}
 
       {/* New Run Modal */}
       {showNewRun && (
