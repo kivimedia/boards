@@ -7,9 +7,12 @@ import { processSeoJob, type SeoJobData } from './workers/seo-pipeline.js';
 import { processAgentStandaloneJob, type AgentStandaloneJobData } from './workers/agent-standalone.js';
 import { processAgentChainJob, type AgentChainJobData } from './workers/agent-chain.js';
 import { processAgentTeamJob, type AgentTeamJobData } from './workers/agent-team.js';
+import { processPageForgeJob, type PageForgeJobData } from './workers/worker-pageforge.js';
 import { startGateWatcher } from './watchers/gate-watcher.js';
+import { startPageForgeGateWatcher } from './watchers/pageforge-gate-watcher.js';
 import { startAgentConfirmationWatcher } from './watchers/agent-confirmation-watcher.js';
 import { PHASE_ORDER } from './shared/seo-pipeline.js';
+import { PAGEFORGE_PHASE_ORDER } from './shared/pageforge-pipeline.js';
 
 // === BullMQ Setup ===
 
@@ -43,6 +46,13 @@ const teamWorker = new Worker<AgentTeamJobData>('agent-team', processAgentTeamJo
   concurrency: 2,
 });
 
+// PageForge
+const pageforgeQueue = new Queue<PageForgeJobData>('pageforge', { connection });
+const pageforgeWorker = new Worker<PageForgeJobData>('pageforge', processPageForgeJob, {
+  connection: createRedisConnection(),
+  concurrency: 1,
+});
+
 // Worker event handlers
 seoWorker.on('completed', (job) => console.log(`[bullmq] SEO job ${job.id} completed`));
 seoWorker.on('failed', (job, error) => console.error(`[bullmq] SEO job ${job?.id} failed:`, error.message));
@@ -55,6 +65,9 @@ chainWorker.on('failed', (job, error) => console.error(`[bullmq] Chain job ${job
 
 teamWorker.on('completed', (job) => console.log(`[bullmq] Team job ${job.id} completed`));
 teamWorker.on('failed', (job, error) => console.error(`[bullmq] Team job ${job?.id} failed:`, error.message));
+
+pageforgeWorker.on('completed', (job) => console.log(`[bullmq] PageForge job ${job.id} completed`));
+pageforgeWorker.on('failed', (job, error) => console.error(`[bullmq] PageForge job ${job?.id} failed:`, error.message));
 
 // === Supabase Realtime: New job detection ===
 
@@ -144,6 +157,21 @@ supabase
         } else {
           console.warn(`[realtime] No team_run_id in payload for team job ${jobId}`);
         }
+      } else if (jobType === 'pipeline:pageforge') {
+        const buildId = jobPayload?.build_id as string | undefined;
+        if (buildId) {
+          await pageforgeQueue.add('pageforge-run', {
+            vps_job_id: jobId,
+            build_id: buildId,
+            resume_from_phase: (jobPayload?.resume_from_phase as number) || 0,
+          }, {
+            attempts: 2,
+            backoff: { type: 'exponential', delay: 30000 },
+          });
+          console.log(`[realtime] Enqueued pageforge job ${jobId} -> build ${buildId}`);
+        } else {
+          console.warn(`[realtime] No build_id in payload for pageforge job ${jobId}`);
+        }
       }
 
       // Mark as queued
@@ -160,6 +188,7 @@ supabase
 // === Watchers ===
 
 startGateWatcher(seoQueue);
+startPageForgeGateWatcher(pageforgeQueue);
 startAgentConfirmationWatcher(agentQueue);
 
 // === Startup Recovery ===
@@ -276,6 +305,82 @@ async function recoverOrphanedJobs(): Promise<void> {
       }
     }
   }
+
+  // Recover pending/queued PageForge jobs
+  const { data: pendingPageforgeJobs } = await supabase
+    .from('vps_jobs')
+    .select('id, job_type, payload')
+    .in('status', ['pending', 'queued'])
+    .eq('job_type', 'pipeline:pageforge');
+
+  if (pendingPageforgeJobs?.length) {
+    console.log(`[recovery] Found ${pendingPageforgeJobs.length} orphaned PageForge jobs`);
+    for (const job of pendingPageforgeJobs) {
+      const jobPayload = job.payload as Record<string, unknown> | null;
+      const buildId = jobPayload?.build_id as string | undefined;
+      if (buildId) {
+        await pageforgeQueue.add('pageforge-recover', {
+          vps_job_id: job.id,
+          build_id: buildId,
+          resume_from_phase: (jobPayload?.resume_from_phase as number) || 0,
+        });
+        console.log(`[recovery] Re-enqueued PageForge job ${job.id}`);
+      }
+    }
+  }
+
+  // Recover paused PageForge jobs with gate decisions
+  const { data: pausedPageforgeJobs } = await supabase
+    .from('vps_jobs')
+    .select('id, payload')
+    .eq('status', 'paused')
+    .eq('job_type', 'pipeline:pageforge');
+
+  if (pausedPageforgeJobs?.length) {
+    for (const job of pausedPageforgeJobs) {
+      const jobPayload = job.payload as Record<string, unknown> | null;
+      const buildId = jobPayload?.build_id as string | undefined;
+      if (!buildId) continue;
+
+      const { data: build } = await supabase
+        .from('pageforge_builds')
+        .select('id, status, dev_gate_decision, am_gate_decision, current_phase')
+        .eq('id', buildId)
+        .single();
+
+      if (!build) continue;
+
+      // Dev gate approved - resume from next phase
+      if (build.status === 'developer_review_gate' && build.dev_gate_decision === 'approve') {
+        const nextPhase = PAGEFORGE_PHASE_ORDER.indexOf('developer_review_gate') + 1;
+        await pageforgeQueue.add('pageforge-recover-gate', {
+          vps_job_id: job.id,
+          build_id: buildId,
+          resume_from_phase: nextPhase,
+        });
+        console.log(`[recovery] Resuming PageForge job ${job.id} after dev gate approval`);
+      }
+
+      // AM gate approved - mark complete
+      if (build.status === 'am_signoff_gate' && build.am_gate_decision === 'approve') {
+        await supabase.from('vps_jobs').update({
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+        }).eq('id', job.id);
+        console.log(`[recovery] PageForge job ${job.id} AM approved - marked complete`);
+      }
+
+      // Dev gate revision - restart from markup_generation
+      if (build.dev_gate_decision === 'revise') {
+        await pageforgeQueue.add('pageforge-recover-revise', {
+          vps_job_id: job.id,
+          build_id: buildId,
+          resume_from_phase: PAGEFORGE_PHASE_ORDER.indexOf('markup_generation'),
+        });
+        console.log(`[recovery] Resuming PageForge job ${job.id} for dev gate revision`);
+      }
+    }
+  }
 }
 
 recoverOrphanedJobs().catch((err) => {
@@ -291,6 +396,7 @@ async function shutdown(signal: string): Promise<void> {
     agentWorker.close(),
     chainWorker.close(),
     teamWorker.close(),
+    pageforgeWorker.close(),
   ]);
   connection.disconnect();
   process.exit(0);
@@ -304,4 +410,4 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 console.log('[km-worker] Started successfully');
 console.log(`[km-worker] Redis: ${config.redisUrl}`);
 console.log(`[km-worker] Supabase: ${config.supabaseUrl}`);
-console.log(`[km-worker] Workers: SEO (${config.workerConcurrency}), Agent (2), Chain (1), Team (2)`);
+console.log(`[km-worker] Workers: SEO (${config.workerConcurrency}), Agent (2), Chain (1), Team (2), PageForge (1)`);
