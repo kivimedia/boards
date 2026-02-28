@@ -84,9 +84,35 @@ export default function TeamsDashboard() {
   const defaultCustomModels = MODEL_PROFILES.find(p => p.id === 'cost_optimized')!.models;
   const [customModels, setCustomModels] = useState<Record<string, string>>({ ...defaultCustomModels });
 
+  // Figma files combobox
+  const [figmaFiles, setFigmaFiles] = useState<Array<{ key: string; name: string; thumbnail_url: string | null; last_modified: string; project_name: string }>>([]);
+  const [figmaFilesLoading, setFigmaFilesLoading] = useState(false);
+  const [figmaSearch, setFigmaSearch] = useState('');
+  const [showFigmaDropdown, setShowFigmaDropdown] = useState(false);
+
   // Derived: is the selected template PageForge?
   const selectedTemplate = templates.find(t => t.id === selectedTemplateId);
   const isPageForge = selectedTemplate?.slug === 'pageforge';
+
+  // Fetch Figma files when PF site profile changes
+  useEffect(() => {
+    if (!isPageForge || !selectedSiteConfigId) {
+      setFigmaFiles([]);
+      return;
+    }
+    let cancelled = false;
+    async function loadFiles() {
+      setFigmaFilesLoading(true);
+      try {
+        const res = await fetch(`/api/pageforge/figma/files?siteProfileId=${selectedSiteConfigId}`);
+        const json = await res.json();
+        if (!cancelled && json.files) setFigmaFiles(json.files);
+      } catch { /* silent */ }
+      finally { if (!cancelled) setFigmaFilesLoading(false); }
+    }
+    loadFiles();
+    return () => { cancelled = true; };
+  }, [isPageForge, selectedSiteConfigId]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -214,6 +240,8 @@ export default function TeamsDashboard() {
         setNewRunTopic('');
         setNewRunSilo('');
         setFigmaFileKey('');
+        setFigmaSearch('');
+        setShowFigmaDropdown(false);
         setPageTitle('');
         setPageSlug('');
         setModelProfile('cost_optimized');
@@ -491,15 +519,67 @@ export default function TeamsDashboard() {
                       className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 font-body"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1 font-heading">Figma File Key</label>
-                    <input
-                      type="text"
-                      value={figmaFileKey}
-                      onChange={e => setFigmaFileKey(e.target.value)}
-                      placeholder="e.g., abc123XYZ..."
-                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 font-body"
-                    />
+                  <div className="relative">
+                    <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1 font-heading">Figma File</label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={figmaSearch || figmaFileKey}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setFigmaSearch(val);
+                          setFigmaFileKey(val);
+                          setShowFigmaDropdown(true);
+                        }}
+                        onFocus={() => { if (figmaFiles.length > 0) setShowFigmaDropdown(true); }}
+                        placeholder={figmaFilesLoading ? 'Loading Figma files...' : figmaFiles.length > 0 ? 'Search or pick a Figma file...' : 'Paste file key or Figma URL'}
+                        className="w-full px-3 py-2 pr-8 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 font-body"
+                      />
+                      {figmaFilesLoading && (
+                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-electric/30 border-t-electric rounded-full animate-spin" />
+                      )}
+                      {!figmaFilesLoading && figmaFiles.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowFigmaDropdown(!showFigmaDropdown)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-navy/30 dark:text-slate-500 hover:text-navy/60 dark:hover:text-slate-300"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                        </button>
+                      )}
+                    </div>
+                    {showFigmaDropdown && figmaFiles.length > 0 && (
+                      <div className="absolute z-50 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface shadow-lg">
+                        {(figmaSearch
+                          ? figmaFiles.filter(f => f.name.toLowerCase().includes(figmaSearch.toLowerCase()) || f.project_name.toLowerCase().includes(figmaSearch.toLowerCase()))
+                          : figmaFiles
+                        ).map((file) => (
+                          <button
+                            key={file.key}
+                            type="button"
+                            onClick={() => {
+                              setFigmaFileKey(file.key);
+                              setFigmaSearch(file.name);
+                              setShowFigmaDropdown(false);
+                            }}
+                            className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-cream dark:hover:bg-slate-700 transition-colors"
+                          >
+                            {file.thumbnail_url && (
+                              <img src={file.thumbnail_url} alt="" className="w-8 h-8 rounded object-cover shrink-0 bg-cream-dark dark:bg-slate-800" />
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-navy dark:text-slate-200 truncate font-body">{file.name}</p>
+                              <p className="text-[10px] text-navy/40 dark:text-slate-500 truncate">{file.project_name} - {new Date(file.last_modified).toLocaleDateString()}</p>
+                            </div>
+                          </button>
+                        ))}
+                        {figmaSearch && figmaFiles.filter(f => f.name.toLowerCase().includes(figmaSearch.toLowerCase())).length === 0 && (
+                          <div className="px-3 py-3">
+                            <p className="text-xs text-navy/40 dark:text-slate-500">No matching files. You can paste a file key directly.</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1 font-heading">Page Slug (optional)</label>

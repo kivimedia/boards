@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthContext, errorResponse } from '@/lib/api-helpers';
 
+interface FigmaFileEntry {
+  key: string;
+  name: string;
+  thumbnail_url: string | null;
+  last_modified: string;
+  project_name: string;
+}
+
 /**
  * GET /api/pageforge/figma/files
- * List recent Figma files for a site profile's team.
+ * List Figma files from the site profile's team projects.
  * Query: ?siteProfileId=xxx
+ * Returns: { files: FigmaFileEntry[] }
  */
 export async function GET(request: NextRequest) {
   const auth = await getAuthContext();
@@ -27,26 +36,64 @@ export async function GET(request: NextRequest) {
     return errorResponse('Figma token not configured for this site');
   }
 
+  const headers = { 'X-Figma-Token': site.figma_personal_token };
+
   try {
-    const { createFigmaClient } = await import('@/lib/integrations/figma-client');
-    const client = createFigmaClient(site.figma_personal_token);
-
-    // Fetch team projects or recent files
     const teamId = site.figma_team_id;
-    if (teamId) {
-      const res = await fetch(`https://api.figma.com/v1/teams/${teamId}/projects`, {
-        headers: client.headers,
-        signal: AbortSignal.timeout(10000),
+    if (!teamId) {
+      return NextResponse.json({
+        files: [],
+        message: 'Set figma_team_id on the site profile to list team files',
       });
+    }
 
-      if (res.ok) {
+    // 1. Fetch team projects
+    const projRes = await fetch(`https://api.figma.com/v1/teams/${teamId}/projects`, {
+      headers,
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!projRes.ok) {
+      return errorResponse(`Figma team projects failed: ${projRes.status}`, 502);
+    }
+
+    const projData = await projRes.json();
+    const projects: Array<{ id: string; name: string }> = projData.projects || [];
+
+    // 2. Fetch files for each project (parallel, max 10 projects)
+    const allFiles: FigmaFileEntry[] = [];
+    const projectBatch = projects.slice(0, 10);
+
+    const fileResults = await Promise.allSettled(
+      projectBatch.map(async (project) => {
+        const res = await fetch(`https://api.figma.com/v1/projects/${project.id}/files`, {
+          headers,
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!res.ok) return [];
         const data = await res.json();
-        return NextResponse.json({ projects: data.projects || [] });
+        return (data.files || []).map((f: any) => ({
+          key: f.key,
+          name: f.name,
+          thumbnail_url: f.thumbnail_url || null,
+          last_modified: f.last_modified,
+          project_name: project.name,
+        }));
+      }),
+    );
+
+    for (const result of fileResults) {
+      if (result.status === 'fulfilled') {
+        allFiles.push(...result.value);
       }
     }
 
-    // Fallback: return empty if no team
-    return NextResponse.json({ projects: [], message: 'Set figma_team_id for team file listing' });
+    // Sort by last_modified descending (most recent first)
+    allFiles.sort(
+      (a, b) => new Date(b.last_modified).getTime() - new Date(a.last_modified).getTime(),
+    );
+
+    return NextResponse.json({ files: allFiles });
   } catch (err) {
     return errorResponse(err instanceof Error ? err.message : 'Figma API error', 500);
   }
