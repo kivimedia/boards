@@ -106,6 +106,34 @@ export async function processPageForgeJob(job: Job<PageForgeJobData>): Promise<v
       await updateJobProgress(vps_job_id, {
         progress_message: `Completed: ${phase}`,
       });
+
+      // Update board sub-task if mapped
+      try {
+        const { data: buildForSubtask } = await supabase
+          .from('pageforge_builds')
+          .select('artifacts')
+          .eq('id', build_id)
+          .single();
+        const subtaskMap = (buildForSubtask?.artifacts as any)?.board_subtask_map;
+        if (subtaskMap && subtaskMap[phase]) {
+          const cardId = subtaskMap[phase];
+          const { data: card } = await supabase
+            .from('cards')
+            .select('description')
+            .eq('id', cardId)
+            .single();
+          if (card) {
+            await supabase
+              .from('cards')
+              .update({
+                description: (card.description || '') + '\n\nCompleted at ' + new Date().toISOString(),
+              })
+              .eq('id', cardId);
+          }
+        }
+      } catch (e) {
+        // Non-fatal - don't fail the build over board updates
+      }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       console.error(`[pageforge] Phase ${phase} failed:`, errorMsg);
@@ -262,6 +290,31 @@ async function executePhase(
               figmaWarnings.push(`Low auto-layout usage (${autoLayoutCount}/${totalFrameCount} frames). Absolute positioning may cause poor responsive output.`);
             }
           }
+
+          // Font detection - check for non-standard fonts
+          const COMMON_WEB_FONTS = new Set([
+            'Arial', 'Helvetica', 'Times New Roman', 'Georgia', 'Verdana',
+            'Courier New', 'Impact', 'Comic Sans MS', 'Trebuchet MS',
+            'Palatino Linotype', 'Lucida Sans', 'Tahoma',
+            'Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat',
+            'Poppins', 'Raleway', 'Oswald', 'Source Sans Pro',
+            'Nunito', 'Playfair Display', 'PT Sans', 'Merriweather', 'Rubik',
+          ]);
+          const usedFonts = new Set<string>();
+          function collectFonts(node: any) {
+            if (node.type === 'TEXT' && node.style?.fontFamily) {
+              usedFonts.add(node.style.fontFamily);
+            }
+            if (node.children) {
+              for (const child of node.children) collectFonts(child);
+            }
+          }
+          for (const page of pages) collectFonts(page);
+          const nonStandardFonts = Array.from(usedFonts).filter(f => !COMMON_WEB_FONTS.has(f));
+          if (nonStandardFonts.length > 0) {
+            figmaWarnings.push(`Non-standard fonts detected: ${nonStandardFonts.join(', ')}. Ensure these are available on the WordPress site or use Google Fonts.`);
+          }
+          preflightResults.figma_fonts = { used: Array.from(usedFonts), nonStandard: nonStandardFonts };
 
           // Store warnings in preflight results
           preflightResults.figma_scan = {
@@ -459,6 +512,33 @@ async function executePhase(
       for (const url of imageUrls) {
         if (url.includes('placeholder') || url.includes('via.placeholder') || url.includes('placehold.it') || url.includes('picsum.photos')) {
           warnings.push(`Placeholder image detected: ${url}`);
+        }
+      }
+
+      // b2. Image dimension validation - check for oversized images
+      const imgDimPattern = /src="([^"]+\.(jpg|jpeg|png|gif|webp|svg))"/gi;
+      let imgDimMatch;
+      const imageFileUrls: string[] = [];
+      while ((imgDimMatch = imgDimPattern.exec(markup)) !== null) {
+        const url = imgDimMatch[1];
+        if (url.startsWith('http')) {
+          imageFileUrls.push(url);
+        }
+      }
+      const MAX_IMAGE_SIZE = 4194304; // 4MB
+      for (const imgUrl of imageFileUrls) {
+        try {
+          const headRes = await fetch(imgUrl, {
+            method: 'HEAD',
+            signal: AbortSignal.timeout(5000),
+          });
+          const contentLength = headRes.headers.get('content-length');
+          if (contentLength && parseInt(contentLength, 10) > MAX_IMAGE_SIZE) {
+            const sizeMB = (parseInt(contentLength, 10) / (1024 * 1024)).toFixed(1);
+            warnings.push(`Oversized image (${sizeMB}MB): ${imgUrl}. Images should be under 4MB for web performance.`);
+          }
+        } catch {
+          // HEAD request failed - skip this image (best-effort check)
         }
       }
 

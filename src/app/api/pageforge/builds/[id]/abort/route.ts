@@ -68,12 +68,34 @@ export async function POST(request: NextRequest, { params }: Params) {
     })
     .eq('id', params.id);
 
-  // 3. If a WP draft page was created, note it for cleanup
-  // (actual WP page deletion would need WP credentials, which the API route
-  //  doesn't have access to - flag it for the VPS worker to clean up)
+  // 3. If a WP draft page was created, try to delete it
   let wpCleanupNote = '';
-  if (build.wp_page_id) {
-    wpCleanupNote = `Note: WP draft page (ID: ${build.wp_page_id}) may need manual cleanup.`;
+  if (build.wp_page_id && build.site_profile_id) {
+    try {
+      const { data: profile } = await auth.ctx.supabase
+        .from('pageforge_site_profiles')
+        .select('wp_rest_url, wp_username, wp_app_password')
+        .eq('id', build.site_profile_id)
+        .single();
+
+      if (profile?.wp_rest_url && profile?.wp_username && profile?.wp_app_password) {
+        const wpUrl = `${profile.wp_rest_url}/pages/${build.wp_page_id}?force=true`;
+        const auth64 = Buffer.from(`${profile.wp_username}:${profile.wp_app_password}`).toString('base64');
+        const wpRes = await fetch(wpUrl, {
+          method: 'DELETE',
+          headers: { Authorization: `Basic ${auth64}` },
+        });
+        if (wpRes.ok) {
+          wpCleanupNote = `WP draft page (ID: ${build.wp_page_id}) was deleted.`;
+        } else {
+          wpCleanupNote = `Failed to delete WP draft page (ID: ${build.wp_page_id}). Status: ${wpRes.status}. May need manual cleanup.`;
+        }
+      } else {
+        wpCleanupNote = `WP draft page (ID: ${build.wp_page_id}) may need manual cleanup (missing credentials).`;
+      }
+    } catch (err) {
+      wpCleanupNote = `WP draft page (ID: ${build.wp_page_id}) may need manual cleanup. Error: ${(err as Error).message}`;
+    }
   }
 
   return NextResponse.json({

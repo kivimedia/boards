@@ -41,6 +41,7 @@ const STATUS_COLORS: Record<string, string> = {
   completed: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
   failed: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
   scrapped: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
+  cancelled: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -61,6 +62,7 @@ export default function TeamsDashboard() {
   const [runs, setRuns] = useState<TeamRun[]>([]);
   const [clients, setClients] = useState<ClientItem[]>([]);
   const [siteConfigs, setSiteConfigs] = useState<SeoTeamConfig[]>([]);
+  const [pfSiteProfiles, setPfSiteProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [clientFilter, setClientFilter] = useState<string>('all');
 
@@ -72,6 +74,16 @@ export default function TeamsDashboard() {
   const [newRunTopic, setNewRunTopic] = useState('');
   const [newRunSilo, setNewRunSilo] = useState('');
   const [starting, setStarting] = useState(false);
+
+  // PageForge-specific fields
+  const [figmaFileKey, setFigmaFileKey] = useState('');
+  const [pageTitle, setPageTitle] = useState('');
+  const [pageSlug, setPageSlug] = useState('');
+  const [modelProfile, setModelProfile] = useState('cost_optimized');
+
+  // Derived: is the selected template PageForge?
+  const selectedTemplate = templates.find(t => t.id === selectedTemplateId);
+  const isPageForge = selectedTemplate?.slug === 'pageforge';
 
   const fetchData = useCallback(async () => {
     try {
@@ -103,6 +115,17 @@ export default function TeamsDashboard() {
         const json = await configsRes.json();
         setSiteConfigs(json.data || []);
       }
+
+      // Fetch PageForge site profiles
+      try {
+        const pfSitesRes = await fetch('/api/pageforge/sites');
+        if (pfSitesRes.ok) {
+          const json = await pfSitesRes.json();
+          setPfSiteProfiles(json.sites || []);
+        }
+      } catch {
+        // PageForge sites endpoint may not exist yet
+      }
     } catch (err) {
       console.error('Failed to fetch teams data:', err);
     }
@@ -113,7 +136,7 @@ export default function TeamsDashboard() {
     fetchData();
   }, [fetchData]);
 
-  // Realtime updates for runs
+  // Realtime updates for runs (agent_team_runs + pageforge_builds)
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase
@@ -121,6 +144,11 @@ export default function TeamsDashboard() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'agent_team_runs' },
+        () => { fetchData(); }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'pageforge_builds' },
         () => { fetchData(); }
       )
       .subscribe();
@@ -134,28 +162,54 @@ export default function TeamsDashboard() {
     : siteConfigs;
 
   const handleStartRun = async () => {
-    if (!selectedTemplateId || !newRunTopic.trim()) return;
+    if (!selectedTemplateId) return;
+
+    // Validate required fields based on template type
+    if (isPageForge) {
+      if (!pageTitle.trim() || !figmaFileKey.trim()) return;
+    } else {
+      if (!newRunTopic.trim()) return;
+    }
+
     setStarting(true);
 
     try {
+      const payload = isPageForge
+        ? {
+            template_id: selectedTemplateId,
+            client_id: selectedClientId || undefined,
+            site_config_id: selectedSiteConfigId || undefined,
+            input_data: {
+              figma_file_key: figmaFileKey.trim(),
+              page_title: pageTitle.trim(),
+              page_slug: pageSlug.trim() || undefined,
+              model_profile: modelProfile,
+            },
+          }
+        : {
+            template_id: selectedTemplateId,
+            client_id: selectedClientId || undefined,
+            site_config_id: selectedSiteConfigId || undefined,
+            input_data: {
+              topic: newRunTopic.trim(),
+              silo: newRunSilo.trim() || undefined,
+            },
+          };
+
       const res = await fetch('/api/teams/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          template_id: selectedTemplateId,
-          client_id: selectedClientId || undefined,
-          site_config_id: selectedSiteConfigId || undefined,
-          input_data: {
-            topic: newRunTopic.trim(),
-            silo: newRunSilo.trim() || undefined,
-          },
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
         setShowNewRun(false);
         setNewRunTopic('');
         setNewRunSilo('');
+        setFigmaFileKey('');
+        setPageTitle('');
+        setPageSlug('');
+        setModelProfile('cost_optimized');
         setSelectedClientId('');
         setSelectedSiteConfigId('');
         fetchData();
@@ -229,7 +283,7 @@ export default function TeamsDashboard() {
             {pendingApprovals.map(run => (
               <Link
                 key={run.id}
-                href={`/teams/runs/${run.id}`}
+                href={run.template?.slug === 'pageforge' ? `/pageforge/builds/${run.id}` : `/teams/runs/${run.id}`}
                 className="flex items-center justify-between p-3 bg-white dark:bg-dark-card rounded-lg hover:bg-cream dark:hover:bg-slate-700 transition-colors"
               >
                 <div className="min-w-0">
@@ -309,7 +363,7 @@ export default function TeamsDashboard() {
             {runs.map(run => (
               <Link
                 key={run.id}
-                href={`/teams/runs/${run.id}`}
+                href={run.template?.slug === 'pageforge' ? `/pageforge/builds/${run.id}` : `/teams/runs/${run.id}`}
                 className="flex items-center justify-between p-3 md:p-4 bg-white dark:bg-dark-card rounded-xl border border-cream-dark dark:border-slate-700 hover:border-electric dark:hover:border-electric transition-colors"
               >
                 <div className="flex-1 min-w-0">
@@ -377,43 +431,132 @@ export default function TeamsDashboard() {
                   ))}
                 </select>
               </div>
-              {filteredSiteConfigs.length > 0 && (
-                <div>
-                  <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1 font-heading">Target Site</label>
-                  <select
-                    value={selectedSiteConfigId}
-                    onChange={e => setSelectedSiteConfigId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 font-body"
-                  >
-                    <option value="">Select a site...</option>
-                    {filteredSiteConfigs.map(c => (
-                      <option key={c.id} value={c.id}>
-                        {c.site_name} ({c.site_url})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {/* Target Site - shows PageForge site profiles or SEO configs depending on template */}
+              {isPageForge ? (
+                pfSiteProfiles.length > 0 && (
+                  <div>
+                    <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1 font-heading">Site Profile</label>
+                    <select
+                      value={selectedSiteConfigId}
+                      onChange={e => setSelectedSiteConfigId(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 font-body"
+                    >
+                      <option value="">Select a site profile...</option>
+                      {pfSiteProfiles.map((p: any) => (
+                        <option key={p.id} value={p.id}>
+                          {p.site_name} ({p.site_url})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )
+              ) : (
+                filteredSiteConfigs.length > 0 && (
+                  <div>
+                    <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1 font-heading">Target Site</label>
+                    <select
+                      value={selectedSiteConfigId}
+                      onChange={e => setSelectedSiteConfigId(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 font-body"
+                    >
+                      <option value="">Select a site...</option>
+                      {filteredSiteConfigs.map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.site_name} ({c.site_url})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )
               )}
-              <div>
-                <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1 font-heading">Topic</label>
-                <input
-                  type="text"
-                  value={newRunTopic}
-                  onChange={e => setNewRunTopic(e.target.value)}
-                  placeholder="e.g., Best practices for local SEO in 2026"
-                  className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 font-body"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1 font-heading">Silo (optional)</label>
-                <input
-                  type="text"
-                  value={newRunSilo}
-                  onChange={e => setNewRunSilo(e.target.value)}
-                  placeholder="e.g., Local SEO"
-                  className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 font-body"
-                />
-              </div>
+
+              {/* PageForge-specific fields */}
+              {isPageForge ? (
+                <>
+                  <div>
+                    <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1 font-heading">Page Title</label>
+                    <input
+                      type="text"
+                      value={pageTitle}
+                      onChange={e => setPageTitle(e.target.value)}
+                      placeholder="e.g., About Us"
+                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 font-body"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1 font-heading">Figma File Key</label>
+                    <input
+                      type="text"
+                      value={figmaFileKey}
+                      onChange={e => setFigmaFileKey(e.target.value)}
+                      placeholder="e.g., abc123XYZ..."
+                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 font-body"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1 font-heading">Page Slug (optional)</label>
+                    <input
+                      type="text"
+                      value={pageSlug}
+                      onChange={e => setPageSlug(e.target.value)}
+                      placeholder="e.g., about-us"
+                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 font-body"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1 font-heading">Model Profile</label>
+                    <div className="flex gap-2">
+                      {[
+                        { value: 'cost_optimized', label: 'Cost-Optimized' },
+                        { value: 'quality_first', label: 'Quality-First' },
+                        { value: 'budget', label: 'Budget' },
+                      ].map(opt => (
+                        <label
+                          key={opt.value}
+                          className={`flex-1 text-center px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-colors border ${
+                            modelProfile === opt.value
+                              ? 'bg-electric text-white border-electric'
+                              : 'bg-white dark:bg-dark-surface text-navy/60 dark:text-slate-400 border-cream-dark dark:border-slate-700 hover:border-electric/50'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="modelProfile"
+                            value={opt.value}
+                            checked={modelProfile === opt.value}
+                            onChange={e => setModelProfile(e.target.value)}
+                            className="sr-only"
+                          />
+                          {opt.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1 font-heading">Topic</label>
+                    <input
+                      type="text"
+                      value={newRunTopic}
+                      onChange={e => setNewRunTopic(e.target.value)}
+                      placeholder="e.g., Best practices for local SEO in 2026"
+                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 font-body"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1 font-heading">Silo (optional)</label>
+                    <input
+                      type="text"
+                      value={newRunSilo}
+                      onChange={e => setNewRunSilo(e.target.value)}
+                      placeholder="e.g., Local SEO"
+                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 font-body"
+                    />
+                  </div>
+                </>
+              )}
               <div className="flex justify-end gap-3 pt-2">
                 <button
                   onClick={() => setShowNewRun(false)}
@@ -423,7 +566,7 @@ export default function TeamsDashboard() {
                 </button>
                 <button
                   onClick={handleStartRun}
-                  disabled={starting || !selectedTemplateId || !newRunTopic.trim()}
+                  disabled={starting || !selectedTemplateId || (isPageForge ? (!pageTitle.trim() || !figmaFileKey.trim()) : !newRunTopic.trim())}
                   className="px-4 py-2 text-sm font-semibold text-white bg-electric rounded-lg hover:bg-electric-dark transition-colors disabled:opacity-50 font-body"
                 >
                   {starting ? 'Starting...' : 'Start Run'}
