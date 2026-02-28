@@ -14,6 +14,7 @@ interface ConfigForm {
   min_qc_score: number;
   max_iterations: number;
   posts_per_week: number;
+  content_silos: string[];
 }
 
 const EMPTY_FORM: ConfigForm = {
@@ -27,6 +28,7 @@ const EMPTY_FORM: ConfigForm = {
   min_qc_score: 70,
   max_iterations: 3,
   posts_per_week: 2,
+  content_silos: [],
 };
 
 export default function SeoSettings() {
@@ -37,6 +39,7 @@ export default function SeoSettings() {
   const [form, setForm] = useState<ConfigForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [newSilo, setNewSilo] = useState('');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -77,7 +80,9 @@ export default function SeoSettings() {
       min_qc_score: config.config?.quality_thresholds?.min_qc_score || 70,
       max_iterations: config.config?.quality_thresholds?.max_iterations || 3,
       posts_per_week: config.config?.schedule?.posts_per_week || 2,
+      content_silos: config.config?.content_targets || [],
     });
+    setNewSilo('');
     setShowForm(true);
   };
 
@@ -105,6 +110,7 @@ export default function SeoSettings() {
           schedule: {
             posts_per_week: form.posts_per_week,
           },
+          content_targets: form.content_silos,
         },
       };
 
@@ -184,6 +190,15 @@ export default function SeoSettings() {
                     </span>
                     <span>{config.is_active ? '● Active' : '○ Inactive'}</span>
                   </div>
+                  {config.config?.content_targets && config.config.content_targets.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {config.config.content_targets.map((silo, idx) => (
+                        <span key={idx} className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-electric/10 text-electric dark:bg-electric/20 dark:text-blue-300 font-body">
+                          {silo}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <button
                   onClick={() => handleEdit(config)}
@@ -255,6 +270,66 @@ export default function SeoSettings() {
                     <label className="block text-xs text-navy/50 dark:text-slate-400 mb-1 font-body">Channel ID</label>
                     <input type="text" value={form.slack_channel_id} onChange={e => setForm(f => ({ ...f, slack_channel_id: e.target.value }))} placeholder="C0123456789" className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm font-body" />
                   </div>
+                </div>
+              </div>
+
+              {/* Content Silos */}
+              <div className="border-t border-cream-dark dark:border-slate-700 pt-4">
+                <h3 className="text-sm font-semibold text-navy dark:text-white mb-2 font-heading">Content Silos</h3>
+                <p className="text-xs text-navy/40 dark:text-slate-500 mb-3 font-body">
+                  Define topic silos for organized content planning. These appear as options when starting new runs.
+                </p>
+                {form.content_silos.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {form.content_silos.map((silo, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-electric/10 text-electric dark:bg-electric/20 dark:text-blue-300 font-body"
+                      >
+                        {silo}
+                        <button
+                          type="button"
+                          onClick={() => setForm(f => ({ ...f, content_silos: f.content_silos.filter((_, i) => i !== idx) }))}
+                          className="text-electric/60 hover:text-electric dark:text-blue-400 dark:hover:text-blue-200 ml-0.5"
+                        >
+                          x
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newSilo}
+                    onChange={e => setNewSilo(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && newSilo.trim()) {
+                        e.preventDefault();
+                        const val = newSilo.trim();
+                        if (!form.content_silos.includes(val)) {
+                          setForm(f => ({ ...f, content_silos: [...f.content_silos, val] }));
+                        }
+                        setNewSilo('');
+                      }
+                    }}
+                    placeholder="e.g., Stage Rentals, Event Planning, Local SEO"
+                    className="flex-1 px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm font-body"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const val = newSilo.trim();
+                      if (val && !form.content_silos.includes(val)) {
+                        setForm(f => ({ ...f, content_silos: [...f.content_silos, val] }));
+                      }
+                      setNewSilo('');
+                    }}
+                    disabled={!newSilo.trim()}
+                    className="px-3 py-2 text-xs font-semibold text-electric bg-electric/10 rounded-lg hover:bg-electric/20 transition-colors disabled:opacity-40 font-body"
+                  >
+                    Add
+                  </button>
                 </div>
               </div>
 

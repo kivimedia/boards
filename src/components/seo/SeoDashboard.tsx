@@ -283,7 +283,7 @@ export default function SeoDashboard() {
                 <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1 font-heading">Site Config</label>
                 <select
                   value={newRunConfigId}
-                  onChange={e => setNewRunConfigId(e.target.value)}
+                  onChange={e => { setNewRunConfigId(e.target.value); setNewRunSilo(''); }}
                   className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 font-body"
                 >
                   <option value="">Select a site...</option>
@@ -306,13 +306,48 @@ export default function SeoDashboard() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1 font-heading">Silo (optional)</label>
-                <input
-                  type="text"
-                  value={newRunSilo}
-                  onChange={e => setNewRunSilo(e.target.value)}
-                  placeholder="e.g., Local SEO"
-                  className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 font-body"
-                />
+                {(() => {
+                  const selectedConfig = configs.find(c => c.id === newRunConfigId);
+                  const silos = selectedConfig?.config?.content_targets || [];
+                  if (silos.length > 0) {
+                    return (
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap gap-2">
+                          {silos.map(silo => (
+                            <button
+                              key={silo}
+                              type="button"
+                              onClick={() => setNewRunSilo(newRunSilo === silo ? '' : silo)}
+                              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors font-body ${
+                                newRunSilo === silo
+                                  ? 'bg-electric text-white'
+                                  : 'bg-electric/10 text-electric dark:bg-electric/20 dark:text-blue-300 hover:bg-electric/20 dark:hover:bg-electric/30'
+                              }`}
+                            >
+                              {silo}
+                            </button>
+                          ))}
+                        </div>
+                        <input
+                          type="text"
+                          value={newRunSilo}
+                          onChange={e => setNewRunSilo(e.target.value)}
+                          placeholder="Or type a custom silo"
+                          className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 font-body"
+                        />
+                      </div>
+                    );
+                  }
+                  return (
+                    <input
+                      type="text"
+                      value={newRunSilo}
+                      onChange={e => setNewRunSilo(e.target.value)}
+                      placeholder="e.g., Local SEO"
+                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 font-body"
+                    />
+                  );
+                })()}
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button
