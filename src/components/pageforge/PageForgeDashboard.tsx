@@ -150,7 +150,7 @@ export default function PageForgeDashboard() {
     try {
       const res = await fetch('/api/pageforge/builds');
       const json = await res.json();
-      if (json.data) setBuilds(json.data);
+      if (json.builds) setBuilds(json.builds);
     } catch (err) {
       console.error('Failed to fetch builds:', err);
       setError('Failed to load builds');
@@ -161,7 +161,7 @@ export default function PageForgeDashboard() {
     try {
       const res = await fetch('/api/pageforge/sites');
       const json = await res.json();
-      if (json.data) setSites(json.data);
+      if (json.sites) setSites(json.sites);
     } catch (err) {
       console.error('Failed to fetch sites:', err);
     }
@@ -439,271 +439,306 @@ export default function PageForgeDashboard() {
 
       {/* New Build Modal */}
       {showNewBuildModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/60">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-modal w-full max-w-lg mx-4 p-6 space-y-5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-navy dark:text-slate-100 font-heading">
-                New Build
-              </h2>
-              <button
-                onClick={() => setShowNewBuildModal(false)}
-                className="text-navy/30 dark:text-slate-600 hover:text-navy/60 dark:hover:text-slate-300 text-xl leading-none"
-              >
-                x
-              </button>
-            </div>
-
-            {/* Site profile selector */}
-            <div>
-              <label className="block text-xs font-semibold text-navy/60 dark:text-slate-400 mb-1">
-                Site Profile
-              </label>
-              <select
-                value={newBuild.site_profile_id}
-                onChange={(e) =>
-                  setNewBuild((prev) => ({ ...prev, site_profile_id: e.target.value }))
-                }
-                className="w-full rounded-lg border border-navy/10 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm text-navy dark:text-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-electric/40"
-              >
-                <option value="">Select a site...</option>
-                {sites.map((site) => (
-                  <option key={site.id} value={site.id}>
-                    {site.site_name} ({site.page_builder})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Figma File - Combobox */}
-            <div className="relative">
-              <label className="block text-xs font-semibold text-navy/60 dark:text-slate-400 mb-1">
-                Figma File
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={figmaSearch || newBuild.figma_file_key}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setFigmaSearch(val);
-                    setNewBuild((prev) => ({ ...prev, figma_file_key: val }));
-                    setShowFigmaDropdown(true);
-                  }}
-                  onFocus={() => { if (figmaFiles.length > 0) setShowFigmaDropdown(true); }}
-                  placeholder={figmaFilesLoading ? 'Loading Figma files...' : figmaFiles.length > 0 ? 'Search or pick a Figma file...' : 'Paste file key or Figma URL'}
-                  className="w-full rounded-lg border border-navy/10 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm text-navy dark:text-slate-200 px-3 py-2 pr-8 focus:outline-none focus:ring-2 focus:ring-electric/40"
-                />
-                {figmaFilesLoading && (
-                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-electric/30 border-t-electric rounded-full animate-spin" />
-                )}
-                {!figmaFilesLoading && figmaFiles.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setShowFigmaDropdown(!showFigmaDropdown)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-navy/30 dark:text-slate-500 hover:text-navy/60 dark:hover:text-slate-300"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                  </button>
-                )}
-              </div>
-              {/* Dropdown */}
-              {showFigmaDropdown && filteredFigmaFiles.length > 0 && (
-                <div className="absolute z-50 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-navy/10 dark:border-slate-600 bg-white dark:bg-slate-700 shadow-lg">
-                  {filteredFigmaFiles.map((file) => (
-                    <button
-                      key={file.key}
-                      type="button"
-                      onClick={() => {
-                        setNewBuild((prev) => ({ ...prev, figma_file_key: file.key }));
-                        setFigmaSearch(file.name);
-                        setShowFigmaDropdown(false);
-                      }}
-                      className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-navy/5 dark:hover:bg-slate-600 transition-colors"
-                    >
-                      {file.thumbnail_url && (
-                        <img
-                          src={file.thumbnail_url}
-                          alt=""
-                          className="w-8 h-8 rounded object-cover shrink-0 bg-navy/5 dark:bg-slate-800"
-                        />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-navy dark:text-slate-200 truncate">
-                          {file.name}
-                        </p>
-                        <p className="text-[10px] text-navy/40 dark:text-slate-500 truncate">
-                          {file.project_name} - {new Date(file.last_modified).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {showFigmaDropdown && figmaFiles.length > 0 && filteredFigmaFiles.length === 0 && (
-                <div className="absolute z-50 mt-1 w-full rounded-lg border border-navy/10 dark:border-slate-600 bg-white dark:bg-slate-700 shadow-lg px-3 py-3">
-                  <p className="text-xs text-navy/40 dark:text-slate-500">No matching files. You can paste a file key directly.</p>
-                </div>
-              )}
-            </div>
-
-            {/* Page title */}
-            <div>
-              <label className="block text-xs font-semibold text-navy/60 dark:text-slate-400 mb-1">
-                Page Title
-              </label>
-              <input
-                type="text"
-                value={newBuild.page_title}
-                onChange={(e) =>
-                  setNewBuild((prev) => ({ ...prev, page_title: e.target.value }))
-                }
-                placeholder="e.g. About Us"
-                className="w-full rounded-lg border border-navy/10 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm text-navy dark:text-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-electric/40"
-              />
-            </div>
-
-            {/* Page slug */}
-            <div>
-              <label className="block text-xs font-semibold text-navy/60 dark:text-slate-400 mb-1">
-                Page Slug (optional)
-              </label>
-              <input
-                type="text"
-                value={newBuild.page_slug}
-                onChange={(e) =>
-                  setNewBuild((prev) => ({ ...prev, page_slug: e.target.value }))
-                }
-                placeholder="e.g. about-us"
-                className="w-full rounded-lg border border-navy/10 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm text-navy dark:text-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-electric/40"
-              />
-            </div>
-
-            {/* Model Profile Selector */}
-            <div>
-              <label className="block text-xs font-semibold text-navy/60 dark:text-slate-400 mb-2">
-                Model Profile
-              </label>
-              <div className="space-y-2">
-                {MODEL_PROFILES.map((profile) => (
-                  <label
-                    key={profile.id}
-                    className={`flex items-center justify-between rounded-lg border px-3 py-2.5 cursor-pointer transition-all ${
-                      newBuild.model_profile === profile.id
-                        ? 'border-electric ring-2 ring-electric/20 bg-electric/5 dark:bg-electric/10'
-                        : 'border-navy/10 dark:border-slate-600 hover:border-navy/20 dark:hover:border-slate-500'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="radio"
-                        name="model_profile"
-                        value={profile.id}
-                        checked={newBuild.model_profile === profile.id}
-                        onChange={(e) =>
-                          setNewBuild((prev) => ({ ...prev, model_profile: e.target.value }))
-                        }
-                        className="sr-only"
-                      />
-                      <div
-                        className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                          newBuild.model_profile === profile.id
-                            ? 'border-electric'
-                            : 'border-navy/20 dark:border-slate-500'
-                        }`}
-                      >
-                        {newBuild.model_profile === profile.id && (
-                          <div className="w-2 h-2 rounded-full bg-electric" />
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-navy dark:text-slate-200">
-                          {profile.label}
-                        </p>
-                        <p className="text-xs text-navy/40 dark:text-slate-500">
-                          {profile.description}
-                        </p>
-                      </div>
-                    </div>
-                    <span className="text-xs font-medium text-navy/50 dark:text-slate-400 whitespace-nowrap ml-3">
-                      {profile.estimatedCost}
-                    </span>
-                  </label>
-                ))}
-              </div>
-              {/* Custom per-agent model picker */}
-              {newBuild.model_profile === 'custom' && (
-                <div className="mt-3 rounded-lg border border-navy/10 dark:border-slate-600 bg-navy/[0.02] dark:bg-slate-700/30 p-3 space-y-2.5">
-                  <p className="text-[10px] font-semibold text-navy/40 dark:text-slate-500 uppercase">
-                    Per-Agent Model Selection
-                  </p>
-                  {AGENT_ROLES.map((role) => (
-                    <div key={role.key} className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold text-navy dark:text-slate-200">
-                          {role.label}
-                        </p>
-                        <p className="text-[10px] text-navy/40 dark:text-slate-500 truncate">
-                          {role.description}
-                        </p>
-                      </div>
-                      <select
-                        value={newBuild.customModels[role.key] || ''}
-                        onChange={(e) =>
-                          setNewBuild((prev) => ({
-                            ...prev,
-                            customModels: { ...prev.customModels, [role.key]: e.target.value },
-                          }))
-                        }
-                        className="shrink-0 w-44 rounded-md border border-navy/10 dark:border-slate-600 bg-white dark:bg-slate-700 text-xs text-navy dark:text-slate-200 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-electric/40"
-                      >
-                        {AVAILABLE_MODELS.map((model) => (
-                          <option key={model.id} value={model.id}>
-                            {model.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Advanced Options */}
-            <details className="group">
-              <summary className="text-xs font-semibold text-navy/40 dark:text-slate-500 cursor-pointer hover:text-navy/60 dark:hover:text-slate-300">
-                Advanced Options
-              </summary>
-              <div className="mt-3 space-y-3 pl-1">
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-[2vh] sm:pt-[5vh] md:pt-[10vh] px-2 sm:px-4">
+          <div className="fixed inset-0 bg-navy/60 backdrop-blur-sm dark:bg-black/70" onClick={() => setShowNewBuildModal(false)} />
+          <div className="relative bg-white dark:bg-dark-surface rounded-2xl shadow-modal w-full max-w-lg max-h-[92vh] sm:max-h-[88vh] md:max-h-[80vh] overflow-y-auto">
+            {/* Header */}
+            <div className="sticky top-0 z-10 bg-white dark:bg-dark-surface px-6 pt-5 pb-4 border-b border-cream-dark dark:border-slate-700 rounded-t-2xl">
+              <div className="flex items-center justify-between">
                 <div>
-                  <label className="block text-xs font-semibold text-navy/60 dark:text-slate-400 mb-1">
-                    Board List ID (optional - creates tracking tasks)
+                  <h2 className="text-lg font-bold text-navy dark:text-slate-100 font-heading">
+                    New Build
+                  </h2>
+                  <p className="text-xs text-navy/40 dark:text-slate-500 font-body mt-0.5">
+                    Create a Figma-to-WordPress page build
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowNewBuildModal(false)}
+                  className="text-navy/30 dark:text-slate-600 hover:text-navy/60 dark:hover:text-slate-300 transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="px-6 py-5 space-y-5">
+              {/* Site profile selector */}
+              <div>
+                <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1.5 font-heading">
+                  Site Profile
+                </label>
+                {sites.length === 0 ? (
+                  <div className="rounded-lg border border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5">
+                    <p className="text-xs text-amber-700 dark:text-amber-300 font-body">
+                      No site profiles found. Go to the <button onClick={() => { setShowNewBuildModal(false); setActiveTab('sites'); }} className="underline font-semibold hover:text-amber-900 dark:hover:text-amber-100">Sites tab</button> to create one first.
+                    </p>
+                  </div>
+                ) : (
+                  <select
+                    value={newBuild.site_profile_id}
+                    onChange={(e) =>
+                      setNewBuild((prev) => ({ ...prev, site_profile_id: e.target.value }))
+                    }
+                    className="w-full rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 px-3 py-2.5 font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric"
+                  >
+                    <option value="">Select a site...</option>
+                    {sites.map((site) => (
+                      <option key={site.id} value={site.id}>
+                        {site.site_name} ({site.page_builder})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Figma File - Combobox */}
+              <div className="relative">
+                <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1.5 font-heading">
+                  Figma File
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={figmaSearch || newBuild.figma_file_key}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFigmaSearch(val);
+                      setNewBuild((prev) => ({ ...prev, figma_file_key: val }));
+                      setShowFigmaDropdown(true);
+                    }}
+                    onFocus={() => { if (figmaFiles.length > 0) setShowFigmaDropdown(true); }}
+                    placeholder={figmaFilesLoading ? 'Loading Figma files...' : figmaFiles.length > 0 ? 'Search or pick a Figma file...' : 'Paste file key or Figma URL'}
+                    className="w-full rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 px-3 py-2.5 pr-8 font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric placeholder:text-navy/30 dark:placeholder:text-slate-500"
+                  />
+                  {figmaFilesLoading && (
+                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-electric/30 border-t-electric rounded-full animate-spin" />
+                  )}
+                  {!figmaFilesLoading && figmaFiles.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowFigmaDropdown(!showFigmaDropdown)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-navy/30 dark:text-slate-500 hover:text-navy/60 dark:hover:text-slate-300 transition-colors"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                    </button>
+                  )}
+                </div>
+                {/* Dropdown */}
+                {showFigmaDropdown && filteredFigmaFiles.length > 0 && (
+                  <div className="absolute z-50 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface shadow-lg">
+                    {filteredFigmaFiles.map((file) => (
+                      <button
+                        key={file.key}
+                        type="button"
+                        onClick={() => {
+                          setNewBuild((prev) => ({ ...prev, figma_file_key: file.key }));
+                          setFigmaSearch(file.name);
+                          setShowFigmaDropdown(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-cream dark:hover:bg-slate-800 transition-colors border-b border-cream-dark/30 dark:border-slate-700/30 last:border-b-0"
+                      >
+                        {file.thumbnail_url ? (
+                          <img
+                            src={file.thumbnail_url}
+                            alt=""
+                            className="w-10 h-10 rounded-lg object-cover shrink-0 bg-cream dark:bg-slate-800"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-lg bg-cream dark:bg-slate-800 flex items-center justify-center shrink-0">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-navy/20 dark:text-slate-600"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-navy dark:text-slate-100 font-body truncate">
+                            {file.name}
+                          </p>
+                          <p className="text-[10px] text-navy/40 dark:text-slate-500 font-body truncate">
+                            {file.project_name} - {new Date(file.last_modified).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {showFigmaDropdown && figmaFiles.length > 0 && filteredFigmaFiles.length === 0 && (
+                  <div className="absolute z-50 mt-1 w-full rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface shadow-lg px-3 py-3">
+                    <p className="text-xs text-navy/40 dark:text-slate-500 font-body">No matching files. You can paste a file key directly.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Page title + slug row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1.5 font-heading">
+                    Page Title
                   </label>
                   <input
                     type="text"
-                    value={newBuild.board_list_id}
-                    onChange={(e) => setNewBuild(prev => ({ ...prev, board_list_id: e.target.value }))}
-                    placeholder="Paste a board list UUID to create sub-tasks"
-                    className="w-full rounded-lg border border-navy/10 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm text-navy dark:text-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-electric/40"
+                    value={newBuild.page_title}
+                    onChange={(e) =>
+                      setNewBuild((prev) => ({ ...prev, page_title: e.target.value }))
+                    }
+                    placeholder="e.g. About Us"
+                    className="w-full rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 px-3 py-2.5 font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric placeholder:text-navy/30 dark:placeholder:text-slate-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1.5 font-heading">
+                    Page Slug <span className="font-normal text-navy/30 dark:text-slate-600">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={newBuild.page_slug}
+                    onChange={(e) =>
+                      setNewBuild((prev) => ({ ...prev, page_slug: e.target.value }))
+                    }
+                    placeholder="e.g. about-us"
+                    className="w-full rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 px-3 py-2.5 font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric placeholder:text-navy/30 dark:placeholder:text-slate-500"
                   />
                 </div>
               </div>
-            </details>
 
-            {/* Actions */}
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                onClick={() => setShowNewBuildModal(false)}
-                className="px-4 py-2 text-sm font-semibold text-navy/60 dark:text-slate-400 hover:text-navy dark:hover:text-slate-200 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateBuild}
-                disabled={creating || !newBuild.site_profile_id || !newBuild.figma_file_key || !newBuild.page_title}
-                className="px-5 py-2 text-sm font-semibold text-white bg-electric hover:bg-electric-bright rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {creating ? 'Creating...' : 'Create Build'}
-              </button>
+              {/* Model Profile Selector */}
+              <div>
+                <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-2 font-heading">
+                  Model Profile
+                </label>
+                <div className="space-y-2">
+                  {MODEL_PROFILES.map((profile) => (
+                    <label
+                      key={profile.id}
+                      className={`flex items-center justify-between rounded-xl border px-4 py-3 cursor-pointer transition-all ${
+                        newBuild.model_profile === profile.id
+                          ? 'border-electric ring-2 ring-electric/20 bg-electric/5 dark:bg-electric/10'
+                          : 'border-cream-dark dark:border-slate-700 hover:border-navy/20 dark:hover:border-slate-500 hover:bg-cream/30 dark:hover:bg-slate-800/30'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="radio"
+                          name="model_profile"
+                          value={profile.id}
+                          checked={newBuild.model_profile === profile.id}
+                          onChange={(e) =>
+                            setNewBuild((prev) => ({ ...prev, model_profile: e.target.value }))
+                          }
+                          className="sr-only"
+                        />
+                        <div
+                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                            newBuild.model_profile === profile.id
+                              ? 'border-electric'
+                              : 'border-navy/20 dark:border-slate-500'
+                          }`}
+                        >
+                          {newBuild.model_profile === profile.id && (
+                            <div className="w-2 h-2 rounded-full bg-electric" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-navy dark:text-slate-100 font-heading">
+                            {profile.label}
+                          </p>
+                          <p className="text-xs text-navy/40 dark:text-slate-500 font-body">
+                            {profile.description}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-xs font-semibold text-navy/40 dark:text-slate-500 whitespace-nowrap ml-3 font-heading">
+                        {profile.estimatedCost}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                {/* Custom per-agent model picker */}
+                {newBuild.model_profile === 'custom' && (
+                  <div className="mt-3 rounded-xl border border-cream-dark dark:border-slate-700 bg-cream/50 dark:bg-dark-surface/50 p-4 space-y-3">
+                    <p className="text-[10px] font-semibold text-navy/40 dark:text-slate-500 uppercase font-heading tracking-wider">
+                      Per-Agent Model Selection
+                    </p>
+                    {AGENT_ROLES.map((role) => (
+                      <div key={role.key} className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-navy dark:text-slate-200 font-heading">
+                            {role.label}
+                          </p>
+                          <p className="text-[10px] text-navy/40 dark:text-slate-500 truncate font-body">
+                            {role.description}
+                          </p>
+                        </div>
+                        <select
+                          value={newBuild.customModels[role.key] || ''}
+                          onChange={(e) =>
+                            setNewBuild((prev) => ({
+                              ...prev,
+                              customModels: { ...prev.customModels, [role.key]: e.target.value },
+                            }))
+                          }
+                          className="shrink-0 w-44 rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-xs text-navy dark:text-slate-100 px-2 py-1.5 font-body focus:outline-none focus:ring-2 focus:ring-electric/30"
+                        >
+                          {AVAILABLE_MODELS.map((model) => (
+                            <option key={model.id} value={model.id}>
+                              {model.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Advanced Options */}
+              <details className="group">
+                <summary className="text-xs font-semibold text-navy/40 dark:text-slate-500 cursor-pointer hover:text-navy/60 dark:hover:text-slate-300 font-heading transition-colors select-none">
+                  <span className="inline-flex items-center gap-1.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-transform group-open:rotate-90"><path d="m9 18 6-6-6-6"/></svg>
+                    Advanced Options
+                  </span>
+                </summary>
+                <div className="mt-3 space-y-3 rounded-xl border border-cream-dark dark:border-slate-700 bg-cream/30 dark:bg-dark-surface/50 p-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1.5 font-heading">
+                      Board List ID <span className="font-normal text-navy/30 dark:text-slate-600">(creates tracking tasks)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newBuild.board_list_id}
+                      onChange={(e) => setNewBuild(prev => ({ ...prev, board_list_id: e.target.value }))}
+                      placeholder="Paste a board list UUID"
+                      className="w-full rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 px-3 py-2.5 font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric placeholder:text-navy/30 dark:placeholder:text-slate-500"
+                    />
+                  </div>
+                </div>
+              </details>
+            </div>
+
+            {/* Footer actions - sticky */}
+            <div className="sticky bottom-0 bg-white dark:bg-dark-surface px-6 py-4 border-t border-cream-dark dark:border-slate-700 rounded-b-2xl">
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setShowNewBuildModal(false)}
+                  className="px-4 py-2.5 text-sm font-semibold text-navy/60 dark:text-slate-400 hover:text-navy dark:hover:text-slate-200 transition-colors font-heading"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateBuild}
+                  disabled={creating || !newBuild.site_profile_id || !newBuild.figma_file_key || !newBuild.page_title}
+                  className="px-5 py-2.5 text-sm font-semibold text-white bg-electric hover:bg-electric-bright rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-heading"
+                >
+                  {creating ? (
+                    <span className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Creating...
+                    </span>
+                  ) : (
+                    'Create Build'
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
