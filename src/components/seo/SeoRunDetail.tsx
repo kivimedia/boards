@@ -177,6 +177,7 @@ export default function SeoRunDetail({ runId }: Props) {
   const [agentCalls, setAgentCalls] = useState<SeoAgentCall[]>([]);
   const [feedbackHistory, setFeedbackHistory] = useState<SeoPhaseFeedback[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Review panel state
   const [feedbackText, setFeedbackText] = useState('');
@@ -201,6 +202,12 @@ export default function SeoRunDetail({ runId }: Props) {
         const data = await runRes.json();
         setRun(data.data?.run || null);
         setAgentCalls(data.data?.agent_calls || []);
+        setFetchError(null);
+      } else {
+        const errData = await runRes.json().catch(() => ({}));
+        const msg = errData?.error || `Error ${runRes.status}`;
+        console.error('[SeoRunDetail] Fetch failed:', runRes.status, msg);
+        setFetchError(msg);
       }
       if (feedbackRes.ok) {
         const fbData = await feedbackRes.json();
@@ -208,6 +215,7 @@ export default function SeoRunDetail({ runId }: Props) {
       }
     } catch (err) {
       console.error('Failed to fetch run:', err);
+      setFetchError(err instanceof Error ? err.message : 'Network error');
     }
     setLoading(false);
   }, [runId]);
@@ -309,8 +317,15 @@ export default function SeoRunDetail({ runId }: Props) {
   if (!run) {
     return (
       <div className="p-6 text-center">
-        <p className="text-navy/40 dark:text-slate-500 font-body">Run not found</p>
-        <Link href="/seo" className="text-sm text-electric hover:underline mt-2 inline-block font-body">Back to dashboard</Link>
+        <p className="text-navy/40 dark:text-slate-500 font-body">
+          {fetchError === 'Unauthorized' ? 'Session expired - please refresh the page' : fetchError || 'Run not found'}
+        </p>
+        {fetchError === 'Unauthorized' && (
+          <button onClick={() => window.location.reload()} className="text-sm bg-electric text-white px-3 py-1 rounded mt-2 font-body">
+            Refresh
+          </button>
+        )}
+        <Link href="/seo" className="text-sm text-electric hover:underline mt-2 inline-block font-body ml-3">Back to dashboard</Link>
       </div>
     );
   }
