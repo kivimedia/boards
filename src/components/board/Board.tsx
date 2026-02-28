@@ -292,13 +292,67 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
   };
 
   const [draggingListType, setDraggingListType] = useState(false);
+  const isDraggingRef = useRef(false);
+  const scrollRafRef = useRef<number | null>(null);
+
+  // Auto-scroll the board when dragging near edges
+  useEffect(() => {
+    if (!isDraggingRef.current) return;
+
+    const EDGE_SIZE = 120; // px from edge to start scrolling
+    const MAX_SPEED = 20;  // max px per frame
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (!isDraggingRef.current || !panRef.current) return;
+
+      const container = panRef.current;
+      const rect = container.getBoundingClientRect();
+      const x = e.clientX;
+
+      // Cancel any pending scroll
+      if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
+
+      const distFromLeft = x - rect.left;
+      const distFromRight = rect.right - x;
+
+      let scrollDelta = 0;
+      if (distFromRight < EDGE_SIZE && distFromRight > 0) {
+        // Near right edge - scroll right
+        scrollDelta = Math.round(MAX_SPEED * (1 - distFromRight / EDGE_SIZE));
+      } else if (distFromLeft < EDGE_SIZE && distFromLeft > 0) {
+        // Near left edge - scroll left
+        scrollDelta = -Math.round(MAX_SPEED * (1 - distFromLeft / EDGE_SIZE));
+      }
+
+      if (scrollDelta !== 0) {
+        const tick = () => {
+          if (!isDraggingRef.current || !panRef.current) return;
+          panRef.current.scrollLeft += scrollDelta;
+          scrollRafRef.current = requestAnimationFrame(tick);
+        };
+        scrollRafRef.current = requestAnimationFrame(tick);
+      }
+    };
+
+    window.addEventListener('mousemove', onMouseMove, { passive: true });
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
+    };
+  });
 
   const handleDragStart = useCallback((start: { type: string }) => {
+    isDraggingRef.current = true;
     if (start.type === 'list') setDraggingListType(true);
   }, []);
 
   const wrappedDragEnd = useCallback(
     (result: DropResult) => {
+      isDraggingRef.current = false;
+      if (scrollRafRef.current) {
+        cancelAnimationFrame(scrollRafRef.current);
+        scrollRafRef.current = null;
+      }
       setDraggingListType(false);
       handleDragEnd(result);
     },

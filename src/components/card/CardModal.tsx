@@ -260,9 +260,20 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
         return;
       }
 
-      const { data } = await res.json();
+      const responseText = await res.text();
+      const responseKB = (responseText.length / 1024).toFixed(1);
+      const json = JSON.parse(responseText);
+      const data = json.data;
       const tNetwork = performance.now() - t0;
       timingsRef.current['API fetch (details)'] = tNetwork;
+
+      // Performance diagnostic
+      const commentCount = data.comments?.length || 0;
+      const profileCount = data.profiles?.length || 0;
+      const serverTiming = res.headers.get('Server-Timing') || '';
+      console.log(
+        `[CardModal perf] ${responseKB}KB payload | ${commentCount} comments | ${profileCount} profiles | ${tNetwork.toFixed(0)}ms network | server: ${serverTiming}`
+      );
 
       const cardData = data.card;
       if (!cardData) {
