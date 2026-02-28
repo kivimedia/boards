@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import type { SeoTeamConfig } from '@/lib/types';
 
 interface TeamTemplate {
   id: string;
@@ -20,9 +21,18 @@ interface TeamRun {
   status: string;
   current_phase: number;
   total_cost_usd: number;
+  client_id: string | null;
+  site_config_id: string | null;
   input_data: Record<string, unknown>;
   created_at: string;
   template: { id: string; slug: string; name: string; icon: string } | null;
+  client: { id: string; name: string } | null;
+  site_config: { id: string; site_name: string; site_url: string } | null;
+}
+
+interface ClientItem {
+  id: string;
+  name: string;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -49,17 +59,31 @@ function StatusBadge({ status }: { status: string }) {
 export default function TeamsDashboard() {
   const [templates, setTemplates] = useState<TeamTemplate[]>([]);
   const [runs, setRuns] = useState<TeamRun[]>([]);
+  const [clients, setClients] = useState<ClientItem[]>([]);
+  const [siteConfigs, setSiteConfigs] = useState<SeoTeamConfig[]>([]);
   const [loading, setLoading] = useState(true);
+  const [clientFilter, setClientFilter] = useState<string>('all');
+
+  // New Run modal state
   const [showNewRun, setShowNewRun] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
-  const [inputDataText, setInputDataText] = useState('{\n  "topic": "",\n  "silo": ""\n}');
+  const [selectedClientId, setSelectedClientId] = useState('');
+  const [selectedSiteConfigId, setSelectedSiteConfigId] = useState('');
+  const [newRunTopic, setNewRunTopic] = useState('');
+  const [newRunSilo, setNewRunSilo] = useState('');
   const [starting, setStarting] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
-      const [templatesRes, runsRes] = await Promise.all([
+      const params = new URLSearchParams();
+      if (clientFilter !== 'all') params.set('client_id', clientFilter);
+      const runsQs = params.toString();
+
+      const [templatesRes, runsRes, clientsRes, configsRes] = await Promise.all([
         fetch('/api/teams'),
-        fetch('/api/teams/runs'),
+        fetch(`/api/teams/runs${runsQs ? `?${runsQs}` : ''}`),
+        fetch('/api/clients?limit=100'),
+        fetch('/api/seo/configs'),
       ]);
 
       if (templatesRes.ok) {
@@ -70,11 +94,20 @@ export default function TeamsDashboard() {
         const json = await runsRes.json();
         setRuns(json.data || []);
       }
+      if (clientsRes.ok) {
+        const json = await clientsRes.json();
+        const list = json.data?.clients || json.data || [];
+        setClients(list.map((c: ClientItem) => ({ id: c.id, name: c.name })));
+      }
+      if (configsRes.ok) {
+        const json = await configsRes.json();
+        setSiteConfigs(json.data || []);
+      }
     } catch (err) {
       console.error('Failed to fetch teams data:', err);
     }
     setLoading(false);
-  }, []);
+  }, [clientFilter]);
 
   useEffect(() => {
     fetchData();
@@ -95,32 +128,36 @@ export default function TeamsDashboard() {
     return () => { supabase.removeChannel(channel); };
   }, [fetchData]);
 
+  // Filter site configs by selected client in the modal
+  const filteredSiteConfigs = selectedClientId
+    ? siteConfigs.filter(c => c.client_id === selectedClientId)
+    : siteConfigs;
+
   const handleStartRun = async () => {
-    if (!selectedTemplateId) return;
+    if (!selectedTemplateId || !newRunTopic.trim()) return;
     setStarting(true);
 
     try {
-      let inputData: Record<string, unknown>;
-      try {
-        inputData = JSON.parse(inputDataText);
-      } catch {
-        alert('Invalid JSON in input data');
-        setStarting(false);
-        return;
-      }
-
       const res = await fetch('/api/teams/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           template_id: selectedTemplateId,
-          input_data: inputData,
+          client_id: selectedClientId || undefined,
+          site_config_id: selectedSiteConfigId || undefined,
+          input_data: {
+            topic: newRunTopic.trim(),
+            silo: newRunSilo.trim() || undefined,
+          },
         }),
       });
 
       if (res.ok) {
         setShowNewRun(false);
-        setInputDataText('{\n  "topic": "",\n  "silo": ""\n}');
+        setNewRunTopic('');
+        setNewRunSilo('');
+        setSelectedClientId('');
+        setSelectedSiteConfigId('');
         fetchData();
       }
     } catch (err) {
@@ -166,6 +203,22 @@ export default function TeamsDashboard() {
         ))}
       </div>
 
+      {/* Client Filter */}
+      {clients.length > 1 && (
+        <div className="flex items-center gap-3">
+          <select
+            value={clientFilter}
+            onChange={e => setClientFilter(e.target.value)}
+            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-cream dark:bg-dark-surface text-navy/60 dark:text-slate-400 border border-cream-dark dark:border-slate-700 font-body"
+          >
+            <option value="all">All Clients</option>
+            {clients.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Pending Approvals */}
       {pendingApprovals.length > 0 && (
         <div className="bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded-xl p-4">
@@ -179,12 +232,14 @@ export default function TeamsDashboard() {
                 href={`/teams/runs/${run.id}`}
                 className="flex items-center justify-between p-3 bg-white dark:bg-dark-card rounded-lg hover:bg-cream dark:hover:bg-slate-700 transition-colors"
               >
-                <div>
-                  <p className="text-sm font-semibold text-navy dark:text-white font-heading">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-navy dark:text-white font-heading truncate">
                     {run.template?.name || 'Unknown Template'}
                   </p>
                   <p className="text-xs text-navy/50 dark:text-slate-400 font-body">
-                    {JSON.stringify(run.input_data).slice(0, 80)}
+                    {run.client?.name && <span className="mr-2">{run.client.name}</span>}
+                    {run.site_config?.site_name && <span className="mr-2">- {run.site_config.site_name}</span>}
+                    {(run.input_data as { topic?: string })?.topic || ''}
                   </p>
                 </div>
                 <StatusBadge status={run.status} />
@@ -223,7 +278,7 @@ export default function TeamsDashboard() {
                       {phase.name}
                     </div>
                     {i < t.phases.length - 1 && (
-                      <span className="text-navy/20 dark:text-slate-600 text-[10px] hidden sm:inline">→</span>
+                      <span className="text-navy/20 dark:text-slate-600 text-[10px] hidden sm:inline">&rarr;</span>
                     )}
                   </div>
                 ))}
@@ -265,7 +320,16 @@ export default function TeamsDashboard() {
                     <StatusBadge status={run.status} />
                   </div>
                   <p className="text-xs text-navy/40 dark:text-slate-500 mt-1 font-body">
-                    {new Date(run.created_at).toLocaleDateString()} - Phase {run.current_phase + 1}
+                    {run.client?.name && (
+                      <span className="mr-2 text-navy/50 dark:text-slate-400">{run.client.name}</span>
+                    )}
+                    {run.site_config?.site_name && (
+                      <span className="mr-2">{run.site_config.site_name}</span>
+                    )}
+                    {(run.input_data as { topic?: string })?.topic && (
+                      <span className="mr-2">- {(run.input_data as { topic?: string }).topic}</span>
+                    )}
+                    <span>{new Date(run.created_at).toLocaleDateString()} - Phase {run.current_phase + 1}</span>
                   </p>
                 </div>
                 <div className="text-right ml-3 shrink-0">
@@ -301,12 +365,53 @@ export default function TeamsDashboard() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1 font-heading">Input Data (JSON)</label>
-                <textarea
-                  value={inputDataText}
-                  onChange={e => setInputDataText(e.target.value)}
-                  rows={5}
-                  className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 font-mono font-body"
+                <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1 font-heading">Client</label>
+                <select
+                  value={selectedClientId}
+                  onChange={e => { setSelectedClientId(e.target.value); setSelectedSiteConfigId(''); }}
+                  className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 font-body"
+                >
+                  <option value="">Select a client...</option>
+                  {clients.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              {filteredSiteConfigs.length > 0 && (
+                <div>
+                  <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1 font-heading">Target Site</label>
+                  <select
+                    value={selectedSiteConfigId}
+                    onChange={e => setSelectedSiteConfigId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 font-body"
+                  >
+                    <option value="">Select a site...</option>
+                    {filteredSiteConfigs.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.site_name} ({c.site_url})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1 font-heading">Topic</label>
+                <input
+                  type="text"
+                  value={newRunTopic}
+                  onChange={e => setNewRunTopic(e.target.value)}
+                  placeholder="e.g., Best practices for local SEO in 2026"
+                  className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 font-body"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1 font-heading">Silo (optional)</label>
+                <input
+                  type="text"
+                  value={newRunSilo}
+                  onChange={e => setNewRunSilo(e.target.value)}
+                  placeholder="e.g., Local SEO"
+                  className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 font-body"
                 />
               </div>
               <div className="flex justify-end gap-3 pt-2">
@@ -318,7 +423,7 @@ export default function TeamsDashboard() {
                 </button>
                 <button
                   onClick={handleStartRun}
-                  disabled={starting || !selectedTemplateId}
+                  disabled={starting || !selectedTemplateId || !newRunTopic.trim()}
                   className="px-4 py-2 text-sm font-semibold text-white bg-electric rounded-lg hover:bg-electric-dark transition-colors disabled:opacity-50 font-body"
                 >
                   {starting ? 'Starting...' : 'Start Run'}

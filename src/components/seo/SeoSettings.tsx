@@ -171,7 +171,10 @@ export default function SeoSettings() {
               <div className="flex items-start justify-between">
                 <div>
                   <h3 className="text-base font-bold text-navy dark:text-white font-heading">{config.site_name}</h3>
-                  <p className="text-sm text-navy/50 dark:text-slate-400 font-body">{config.site_url}</p>
+                  <p className="text-sm text-navy/50 dark:text-slate-400 font-body">
+                    {config.site_url}
+                    {config.client && <span className="ml-2 text-navy/40 dark:text-slate-500">- {config.client.name}</span>}
+                  </p>
                   <div className="flex items-center gap-4 mt-2 text-xs text-navy/40 dark:text-slate-500 font-body">
                     <span className={config.wp_credentials ? 'text-green-600' : 'text-navy/30'}>
                       {config.wp_credentials ? '✓ WordPress' : '✗ WordPress'}

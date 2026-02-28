@@ -16,7 +16,7 @@ export async function GET(
 
   const { data: run, error } = await supabase
     .from('agent_team_runs')
-    .select('*, template:agent_team_templates(*)')
+    .select('*, template:agent_team_templates(*), client:clients(id, name), site_config:seo_team_configs(id, site_name, site_url)')
     .eq('id', id)
     .single();
 

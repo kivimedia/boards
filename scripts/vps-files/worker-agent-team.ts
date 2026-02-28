@@ -57,6 +57,20 @@ export async function processAgentTeamJob(
     const phases: TemplatePhase[] = template.phases as TemplatePhase[];
     if (!phases?.length) throw new Error('Template has no phases defined');
 
+    // Load site config if present (for WP credentials, site URL, etc.)
+    let siteConfig: Record<string, unknown> | null = null;
+    if (teamRun.site_config_id) {
+      const { data: cfg } = await supabase
+        .from('seo_team_configs')
+        .select('*')
+        .eq('id', teamRun.site_config_id)
+        .single();
+      if (cfg) {
+        siteConfig = cfg;
+        console.log(`[agent-team] Loaded site config: ${cfg.site_name} (${cfg.site_url})`);
+      }
+    }
+
     const startPhase = resume_from_phase ?? 0;
     const client = getAnthropicClient();
     const phaseResults = { ...(teamRun.phase_results as Record<string, unknown>) };
@@ -125,6 +139,20 @@ export async function processAgentTeamJob(
 
       if (inputData) {
         contextParts.push(`## Input Data\n${JSON.stringify(inputData, null, 2)}`);
+      }
+
+      // Include site config for phases that need it (publishing, etc.)
+      if (siteConfig) {
+        const siteInfo: Record<string, unknown> = {
+          site_name: siteConfig.site_name,
+          site_url: siteConfig.site_url,
+        };
+        // Only include credentials for publishing-related phases
+        if (phase.name.includes('publish') || phase.skill_slug?.includes('publisher')) {
+          siteInfo.wp_credentials = siteConfig.wp_credentials;
+          siteInfo.wp_api_endpoint = (siteConfig.config as Record<string, unknown>)?.wp_api_endpoint;
+        }
+        contextParts.push(`## Target Site\n${JSON.stringify(siteInfo, null, 2)}`);
       }
 
       // Include relevant previous phase outputs

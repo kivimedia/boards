@@ -20,6 +20,8 @@ export async function POST(request: NextRequest) {
     template_id: string;
     input_data: Record<string, unknown>;
     config?: Record<string, unknown>;
+    client_id?: string;
+    site_config_id?: string;
   };
 
   try {
@@ -50,6 +52,8 @@ export async function POST(request: NextRequest) {
       template_id: body.template_id,
       config: body.config || {},
       input_data: body.input_data,
+      client_id: body.client_id || null,
+      site_config_id: body.site_config_id || null,
       status: 'pending',
       created_by: userId,
     })
@@ -65,9 +69,11 @@ export async function POST(request: NextRequest) {
       job_type: 'agent_team',
       status: 'pending',
       user_id: userId,
+      client_id: body.client_id || null,
       payload: {
         team_run_id: run.id,
         template_slug: template.slug,
+        site_config_id: body.site_config_id || null,
       },
     })
     .select()
