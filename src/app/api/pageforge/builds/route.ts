@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
   if (!auth.ok) return auth.response;
 
   const body = await request.json();
-  const { siteProfileId, figmaFileKey, figmaNodeIds, pageTitle, pageSlug, model_profile: modelProfile, custom_models: customModels, boardListId } = body;
+  const { siteProfileId, figmaFileKey, figmaNodeIds, pageTitle, pageSlug, page_builder: pageBuilder, model_profile: modelProfile, custom_models: customModels, boardListId } = body;
 
   if (!siteProfileId || !figmaFileKey || !pageTitle) {
     return errorResponse('siteProfileId, figmaFileKey, and pageTitle are required');
@@ -64,15 +64,20 @@ export async function POST(request: NextRequest) {
     }
   );
 
-  // Store model_profile and custom_models in the build artifacts JSONB
+  // Store model_profile, custom_models, and page_builder override in the build
+  const updatePayload: Record<string, unknown> = {
+    artifacts: {
+      model_profile: modelProfile || 'cost_optimized',
+      custom_models: customModels || null,
+    },
+  };
+  // Allow overriding the page builder per-build
+  if (pageBuilder && pageBuilder !== siteProfile.page_builder) {
+    updatePayload.page_builder = pageBuilder;
+  }
   await auth.ctx.supabase
     .from('pageforge_builds')
-    .update({
-      artifacts: {
-        model_profile: modelProfile || 'cost_optimized',
-        custom_models: customModels || null,
-      },
-    })
+    .update(updatePayload)
     .eq('id', build.id);
 
   // Create VPS job for the build
@@ -83,6 +88,7 @@ export async function POST(request: NextRequest) {
       build_id: build.id,
       site_profile_id: siteProfileId,
       model_profile: modelProfile || 'cost_optimized',
+      page_builder: pageBuilder || siteProfile.page_builder,
     },
     created_by: auth.ctx.userId,
   });

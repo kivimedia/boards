@@ -52,11 +52,18 @@ interface DashboardStats {
   avgCost: number;
 }
 
+const PAGE_BUILDERS = [
+  { id: 'gutenberg', label: 'Gutenberg', description: 'WordPress native block editor' },
+  { id: 'divi5', label: 'Divi 5', description: 'Elegant Themes Divi 5 builder' },
+  { id: 'divi4', label: 'Divi 4', description: 'Elegant Themes Divi 4 (legacy)' },
+] as const;
+
 interface NewBuildForm {
   site_profile_id: string;
   figma_file_key: string;
   page_title: string;
   page_slug: string;
+  page_builder: string;
   model_profile: string;
   board_list_id: string;
   customModels: Record<string, string>;
@@ -87,6 +94,7 @@ export default function PageForgeDashboard() {
     figma_file_key: '',
     page_title: '',
     page_slug: '',
+    page_builder: '',
     model_profile: 'cost_optimized',
     board_list_id: '',
     customModels: { ...defaultCustomModels },
@@ -203,7 +211,7 @@ export default function PageForgeDashboard() {
       });
       if (!res.ok) throw new Error('Create failed');
       setShowNewBuildModal(false);
-      setNewBuild({ site_profile_id: '', figma_file_key: '', page_title: '', page_slug: '', model_profile: 'cost_optimized', board_list_id: '', customModels: { ...defaultCustomModels } });
+      setNewBuild({ site_profile_id: '', figma_file_key: '', page_title: '', page_slug: '', page_builder: '', model_profile: 'cost_optimized', board_list_id: '', customModels: { ...defaultCustomModels } });
       setFigmaSearch('');
       setShowFigmaDropdown(false);
       await fetchBuilds();
@@ -477,15 +485,21 @@ export default function PageForgeDashboard() {
                 ) : (
                   <select
                     value={newBuild.site_profile_id}
-                    onChange={(e) =>
-                      setNewBuild((prev) => ({ ...prev, site_profile_id: e.target.value }))
-                    }
+                    onChange={(e) => {
+                      const siteId = e.target.value;
+                      const selectedSite = sites.find(s => s.id === siteId);
+                      setNewBuild((prev) => ({
+                        ...prev,
+                        site_profile_id: siteId,
+                        page_builder: selectedSite?.page_builder || prev.page_builder,
+                      }));
+                    }}
                     className="w-full rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 px-3 py-2.5 font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric"
                   >
                     <option value="">Select a site...</option>
                     {sites.map((site) => (
                       <option key={site.id} value={site.id}>
-                        {site.site_name} ({site.page_builder})
+                        {site.site_name}
                       </option>
                     ))}
                   </select>
@@ -567,6 +581,42 @@ export default function PageForgeDashboard() {
                   </div>
                 )}
               </div>
+
+              {/* Page Builder */}
+              {newBuild.site_profile_id && (
+                <div>
+                  <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-2 font-heading">
+                    Page Builder
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {PAGE_BUILDERS.map((builder) => (
+                      <label
+                        key={builder.id}
+                        className={`flex flex-col items-center rounded-xl border px-3 py-3 cursor-pointer transition-all text-center ${
+                          newBuild.page_builder === builder.id
+                            ? 'border-electric ring-2 ring-electric/20 bg-electric/5 dark:bg-electric/10'
+                            : 'border-cream-dark dark:border-slate-700 hover:border-navy/20 dark:hover:border-slate-500 hover:bg-cream/30 dark:hover:bg-slate-800/30'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="page_builder"
+                          value={builder.id}
+                          checked={newBuild.page_builder === builder.id}
+                          onChange={(e) => setNewBuild((prev) => ({ ...prev, page_builder: e.target.value }))}
+                          className="sr-only"
+                        />
+                        <p className="text-sm font-semibold text-navy dark:text-slate-100 font-heading">
+                          {builder.label}
+                        </p>
+                        <p className="text-[10px] text-navy/40 dark:text-slate-500 font-body mt-0.5">
+                          {builder.description}
+                        </p>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Page title + slug row */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
