@@ -319,15 +319,13 @@ export async function getBurndownData(
   startDate: string,
   endDate: string
 ): Promise<{ date: string; remaining: number; ideal: number }[]> {
-  // Get all cards placed on the board
-  const { data: placements } = await supabase
+  // Count cards on the board (head:true avoids 1,000-row limit)
+  const { count: totalCards } = await supabase
     .from('card_placements')
-    .select('card_id')
+    .select('card_id', { count: 'exact', head: true })
     .eq('board_id', boardId);
 
-  if (!placements) return [];
-
-  const cardIds = placements.map((p: { card_id: string }) => p.card_id);
+  if (!totalCards) return [];
 
   // Get activity logs for card completions in the date range
   const { data: activities } = await supabase
@@ -337,9 +335,8 @@ export async function getBurndownData(
     .eq('event_type', 'card_completed')
     .gte('created_at', startDate)
     .lte('created_at', endDate)
-    .order('created_at', { ascending: true });
-
-  const totalCards = cardIds.length;
+    .order('created_at', { ascending: true })
+    .limit(5000);
   const start = new Date(startDate);
   const end = new Date(endDate);
   const totalDays = Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));

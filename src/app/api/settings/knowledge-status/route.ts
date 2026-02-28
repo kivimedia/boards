@@ -29,7 +29,7 @@ export async function GET() {
       supabase.from('knowledge_index_state').select('id', { count: 'exact', head: true }).eq('entity_type', 'card').eq('status', 'pending'),
       supabase.from('knowledge_index_state').select('id', { count: 'exact', head: true }).eq('entity_type', 'card').eq('status', 'error'),
       supabase.from('knowledge_embeddings').select('id', { count: 'exact', head: true }).eq('is_active', true),
-      supabase.from('board_summaries').select('board_id, generated_at, key_themes').order('generated_at', { ascending: false }),
+      supabase.from('board_summaries').select('board_id, generated_at, key_themes').order('generated_at', { ascending: false }).limit(100),
       supabase.from('knowledge_index_state').select('entity_id, error_message, last_indexed_at').eq('status', 'error').limit(10),
       supabase.from('knowledge_embeddings').select('indexed_at').eq('is_active', true).order('indexed_at', { ascending: false }).limit(1),
     ]);
