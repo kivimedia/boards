@@ -61,7 +61,6 @@ interface NewBuildForm {
   site_profile_id: string;
   figma_file_key: string;
   page_title: string;
-  page_slug: string;
   page_builder: string;
   model_profile: string;
   customModels: Record<string, string>;
@@ -123,7 +122,6 @@ export default function PageForgeDashboard() {
     site_profile_id: '',
     figma_file_key: '',
     page_title: '',
-    page_slug: '',
     page_builder: '',
     model_profile: 'cost_optimized',
     customModels: { ...defaultCustomModels },
@@ -304,7 +302,6 @@ export default function PageForgeDashboard() {
         siteProfileId: newBuild.site_profile_id,
         figmaFileKey: newBuild.figma_file_key,
         pageTitle: newBuild.page_title,
-        pageSlug: newBuild.page_slug || undefined,
         page_builder: newBuild.page_builder || undefined,
         model_profile: newBuild.model_profile,
         trackOnBoard: trackOnBoard || undefined,
@@ -322,7 +319,7 @@ export default function PageForgeDashboard() {
         throw new Error(errBody?.error || errBody?.message || `Create failed (${res.status})`);
       }
       setShowNewBuildModal(false);
-      setNewBuild({ site_profile_id: '', figma_file_key: '', page_title: '', page_slug: '', page_builder: '', model_profile: 'cost_optimized', customModels: { ...defaultCustomModels } });
+      setNewBuild({ site_profile_id: '', figma_file_key: '', page_title: '', page_builder: '', model_profile: 'cost_optimized', customModels: { ...defaultCustomModels } });
       setFigmaSearch('');
       setFigmaSelectedName('');
       setShowFigmaDropdown(false);
@@ -1002,36 +999,20 @@ export default function PageForgeDashboard() {
                     </div>
                   )}
 
-                  {/* Page title + slug row */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1.5 font-heading">
-                        Page Title
-                      </label>
-                      <input
-                        type="text"
-                        value={newBuild.page_title}
-                        onChange={(e) =>
-                          setNewBuild((prev) => ({ ...prev, page_title: e.target.value }))
-                        }
-                        placeholder="e.g. About Us"
-                        className="w-full rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 px-3 py-2.5 font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric placeholder:text-navy/30 dark:placeholder:text-slate-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1.5 font-heading">
-                        Page Slug <span className="font-normal text-navy/30 dark:text-slate-600">(optional)</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={newBuild.page_slug}
-                        onChange={(e) =>
-                          setNewBuild((prev) => ({ ...prev, page_slug: e.target.value }))
-                        }
-                        placeholder="e.g. about-us"
-                        className="w-full rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 px-3 py-2.5 font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric placeholder:text-navy/30 dark:placeholder:text-slate-500"
-                      />
-                    </div>
+                  {/* Page title */}
+                  <div>
+                    <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1.5 font-heading">
+                      Page Title
+                    </label>
+                    <input
+                      type="text"
+                      value={newBuild.page_title}
+                      onChange={(e) =>
+                        setNewBuild((prev) => ({ ...prev, page_title: e.target.value }))
+                      }
+                      placeholder="e.g. About Us"
+                      className="w-full rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 px-3 py-2.5 font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric placeholder:text-navy/30 dark:placeholder:text-slate-500"
+                    />
                   </div>
 
                   {/* Model Profile Selector */}
