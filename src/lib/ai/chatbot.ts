@@ -282,14 +282,20 @@ export async function buildGlobalContext(
     .from('clients')
     .select('id, name');
 
-  const { data: clientCards } = await supabase
-    .from('cards')
-    .select('client_id')
-    .not('client_id', 'is', null);
-
+  // Count cards per client using individual count queries to avoid 1,000-row default limit
   const cardCountByClient: Record<string, number> = {};
-  for (const c of (clientCards || []) as { client_id: string }[]) {
-    if (c.client_id) cardCountByClient[c.client_id] = (cardCountByClient[c.client_id] || 0) + 1;
+  if (clients && clients.length > 0) {
+    const countPromises = (clients as { id: string; name: string }[]).map(async (c) => {
+      const { count } = await supabase
+        .from('cards')
+        .select('id', { count: 'exact', head: true })
+        .eq('client_id', c.id);
+      return { id: c.id, count: count || 0 };
+    });
+    const counts = await Promise.all(countPromises);
+    for (const { id, count } of counts) {
+      cardCountByClient[id] = count;
+    }
   }
 
   const clientsSummary: ChatClientSummary[] = (clients || []).map((c: { id: string; name: string }) => ({

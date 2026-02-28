@@ -149,7 +149,8 @@ export async function loadBoardWithAllData(
       .from('card_placements')
       .select('*, cards(*)')
       .eq('board_id', boardId)
-      .order('position', { ascending: true }),
+      .order('position', { ascending: true })
+      .limit(5000),
     supabase.from('labels').select('*').eq('board_id', boardId),
     supabase
       .from('card_labels')
@@ -174,8 +175,8 @@ export async function loadBoardWithAllData(
 
   if (cardIds.length > 0) {
     const [clRes, aRes] = await Promise.all([
-      supabase.from('card_labels').select('*').in('card_id', cardIds),
-      supabase.from('card_assignees').select('*, profiles(*)').in('card_id', cardIds),
+      supabase.from('card_labels').select('*').in('card_id', cardIds).limit(5000),
+      supabase.from('card_assignees').select('*, profiles(*)').in('card_id', cardIds).limit(5000),
     ]);
     cardLabels = (clRes.data as Record<string, unknown>[]) ?? [];
     assignees = (aRes.data as Record<string, unknown>[]) ?? [];

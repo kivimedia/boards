@@ -104,7 +104,9 @@ export async function POST(request: NextRequest) {
     // Fetch pre-computed board summaries
     const { data: boardSummaries } = await supabase
       .from('board_summaries')
-      .select('board_id, summary_text, stats, key_themes');
+      .select('board_id, summary_text, stats, key_themes')
+      .order('generated_at', { ascending: false })
+      .limit(100);
 
     if (boardSummaries && boardSummaries.length > 0) {
       lines.push(`\n=== Board Summaries (AI-generated overviews) ===`);
