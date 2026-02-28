@@ -49,12 +49,14 @@ export default function Header({ title, backHref, children }: HeaderProps) {
         )}
       </div>
       {children && (
-        <div className="hidden sm:flex flex-1 min-w-0 max-w-xl mx-auto">
+        <div className="flex-1 min-w-0 max-w-xl mx-auto">
           {children}
         </div>
       )}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-        <ThemeToggle />
+        <div className="hidden sm:block">
+          <ThemeToggle />
+        </div>
         <NotificationCenter />
       </div>
     </header>
