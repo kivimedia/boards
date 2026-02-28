@@ -54,12 +54,21 @@ async function handleGateDecision(
   decision: string
 ): Promise<void> {
   const runId = run.id as string;
-  const vpsJobId = run.vps_job_id as string;
 
   console.log(`[gate-watcher] ${gate} decision: ${decision} for run ${runId}`);
 
+  // Look up the vps_job that references this pipeline run via payload->pipeline_run_id
+  const { data: vpsJob } = await supabase
+    .from('vps_jobs')
+    .select('id')
+    .eq('job_type', 'seo')
+    .filter('payload->>pipeline_run_id', 'eq', runId)
+    .single();
+
+  const vpsJobId = vpsJob?.id as string | undefined;
+
   if (!vpsJobId) {
-    console.warn(`[gate-watcher] No vps_job_id for run ${runId}, skipping`);
+    console.warn(`[gate-watcher] No vps_job found for run ${runId}, skipping`);
     return;
   }
 

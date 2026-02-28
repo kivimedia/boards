@@ -3,64 +3,220 @@ import { supabase } from '../lib/supabase.js';
 import { getAnthropicClient } from '../lib/anthropic.js';
 import { markJobRunning, markJobPaused, markJobComplete, markJobFailed, updateJobProgress } from '../lib/job-reporter.js';
 import { runPhase, PHASE_ORDER, getTeamConfig } from '../shared/seo-pipeline.js';
-import type { SeoPipelineRun } from '../shared/types.js';
+import { PHASE_SYSTEM_PROMPTS, PHASE_MODELS } from '../shared/seo-prompts.js';
+import type { SeoPipelineRun, SeoTeamConfig } from '../shared/types.js';
 
-// Default prompts per phase (used when agent_skills table prompts are not available)
-const PHASE_PROMPTS: Record<string, { system: string; buildUser: (run: SeoPipelineRun) => string }> = {
-  planning: {
-    system: 'You are an expert SEO strategist. Create a detailed content outline with keyword strategy, target audience analysis, and structured sections. Output as structured markdown.',
-    buildUser: (run) => `Create a detailed SEO content plan for the topic: "${run.topic}"${run.silo ? ` in the content silo: "${run.silo}"` : ''}. Include target keywords, search intent, article structure with H2/H3 headings, and key points for each section.`,
-  },
-  writing: {
-    system: 'You are an expert SEO content writer. Write high-quality, comprehensive blog articles that rank well in search engines while providing genuine value to readers.',
-    buildUser: (run) => {
+// ============================================================================
+// User Message Builders (contextual prompts per phase)
+// ============================================================================
+
+function buildUserMessage(phase: string, run: SeoPipelineRun): string {
+  switch (phase) {
+    case 'planning':
+      return [
+        'Create an SEO content plan and topic assignment for the next blog post.',
+        '',
+        'Site: orlandostagerental.com (Stages Plus)',
+        `Topic: "${run.topic}"`,
+        run.silo ? `Preferred silo: "${run.silo}"` : 'Pick the best silo for this topic.',
+        '',
+        'No Slack events are available for this post. Focus on educational/product content if no events are referenced in the topic.',
+        '',
+        'Provide your assignment in the YAML format specified in your instructions.',
+      ].join('\n');
+
+    case 'writing': {
       const outline = run.phase_results?.planning || '';
-      return `Write a complete, well-structured blog article based on this outline:\n\n${outline}\n\nTopic: "${run.topic}"\nRequirements: 1500-2500 words, natural tone, include target keywords organically, use proper heading hierarchy.`;
-    },
-  },
-  qc: {
-    system: 'You are a content quality analyst. Score content on readability, SEO optimization, accuracy, and engagement. Return a JSON object with scores and feedback.',
-    buildUser: (run) => {
-      const content = run.phase_results?.writing || '';
-      return `Analyze this article for quality. Score each category 0-100 and provide specific feedback.\n\nArticle:\n${content}\n\nReturn JSON: {"qc_score": <overall 0-100>, "readability": <score>, "seo_optimization": <score>, "accuracy": <score>, "feedback": "<specific improvements>"}`;
-    },
-  },
-  humanizing: {
-    system: 'You are an expert editor who makes AI-written content sound natural and human. Remove repetitive patterns, vary sentence structure, add personality, and ensure the content reads like it was written by an experienced writer.',
-    buildUser: (run) => {
+      return [
+        'Write a blog post based on this assignment:',
+        '',
+        outline,
+        '',
+        `Topic: "${run.topic}"`,
+        'Word count target: 1200-1500 words (regular post)',
+        '',
+        'Follow all writing rules, brand voice guidelines, and SEO requirements from your instructions.',
+        'Mark protected zones around keyword placements, internal links, and factual claims.',
+        'Output the complete blog post in markdown format with slug and meta_description at the top.',
+      ].join('\n');
+    }
+
+    case 'qc': {
+      const content = run.phase_results?.writing || run.phase_results?.humanizing || '';
+      return [
+        'Review this blog post draft for quality. Score it using your 5-dimension rubric (100 points total).',
+        '',
+        `Topic: "${run.topic}"`,
+        '',
+        'Draft:',
+        content,
+        '',
+        'Provide your review in the YAML format specified in your instructions.',
+      ].join('\n');
+    }
+
+    case 'humanizing': {
       const content = run.phase_results?.writing || '';
       const qcFeedback = run.phase_results?.qc || '';
-      return `Rewrite this article to sound more natural and human. Apply this QC feedback where applicable:\n\nQC Feedback:\n${qcFeedback}\n\nOriginal Article:\n${content}\n\nMake it engaging, varied in tone, and remove any AI-sounding patterns.`;
-    },
-  },
-  scoring: {
-    system: 'You are a content value assessor. Evaluate content uniqueness, depth, actionability, and overall value compared to existing content on similar topics. Return a JSON score.',
-    buildUser: (run) => {
+      return [
+        'Humanize this blog post draft. The draft has passed QC but needs the AI edges smoothed out.',
+        '',
+        'QC Feedback:',
+        qcFeedback,
+        '',
+        'Draft to humanize:',
+        content,
+        '',
+        'Follow your 5-pass humanization checklist. Respect all Protected Zones (<!-- PROTECTED --> tags).',
+        'Return the humanized post with your change log as specified in your instructions.',
+      ].join('\n');
+    }
+
+    case 'scoring': {
       const content = run.phase_results?.humanizing || run.phase_results?.writing || '';
-      return `Score this article on value and uniqueness. Consider: Does it provide insights not found elsewhere? Is it actionable? Would a reader bookmark it?\n\nArticle:\n${content}\n\nReturn JSON: {"value_score": <0-100>, "uniqueness": <score>, "depth": <score>, "actionability": <score>, "assessment": "<brief assessment>"}`;
-    },
-  },
-  publishing: {
-    system: 'You are a WordPress publishing assistant. Format content for WordPress publication with proper HTML, meta descriptions, and SEO tags.',
-    buildUser: (run) => {
+      return [
+        'Perform the final value scoring on this post. This is the last automated check before human approval.',
+        '',
+        `Topic: "${run.topic}"`,
+        run.silo ? `Silo: "${run.silo}"` : '',
+        '',
+        'Post to score:',
+        content,
+        '',
+        'Score using your 4-dimension rubric (100 points total).',
+        'Return your assessment in the YAML format specified in your instructions.',
+      ].join('\n');
+    }
+
+    case 'publishing': {
       const content = run.phase_results?.humanizing || run.phase_results?.writing || '';
-      return `Prepare this article for WordPress publication. Output:\n1. SEO-optimized title tag (60 chars max)\n2. Meta description (155 chars max)\n3. Article in clean HTML format\n4. Suggested categories and tags\n\nArticle:\n${content}`;
-    },
-  },
-  visual_qa: {
-    system: 'You are a visual QA reviewer. Analyze the published page for visual issues, broken formatting, and brand consistency.',
-    buildUser: (run) => {
+      return [
+        'Prepare this approved blog post for WordPress publication.',
+        '',
+        `Topic: "${run.topic}"`,
+        'Target site: orlandostagerental.com',
+        '',
+        'Post content:',
+        content,
+        '',
+        'Format the content for WordPress with:',
+        '1. SEO-optimized title tag (60 chars max)',
+        '2. Meta description (155 chars max)',
+        '3. Article in clean HTML format',
+        '4. Suggested categories and tags',
+        '5. Suggested slug',
+      ].join('\n');
+    }
+
+    case 'visual_qa': {
       const publishResult = run.phase_results?.publishing || '';
-      return `Review the published content for visual quality:\n\n${publishResult}\n\nCheck for: formatting issues, heading hierarchy, image placement, readability, mobile-friendliness concerns. Return JSON: {"visual_qa_score": <0-100>, "issues": [], "recommendations": []}`;
-    },
-  },
-};
+      return [
+        'Review the published WordPress post for visual quality.',
+        '',
+        publishResult,
+        '',
+        'Score using your 5-category rubric (100 points total).',
+        'Provide your review in the YAML format specified in your instructions.',
+        '',
+        'Note: This is a text-based review of the post structure and formatting.',
+        'Evaluate HTML/block structure, heading hierarchy, and formatting quality.',
+      ].join('\n');
+    }
+
+    default:
+      return `Process phase "${phase}" for topic: "${run.topic}"`;
+  }
+}
+
+// ============================================================================
+// WordPress Draft Publishing
+// ============================================================================
 
 export interface SeoJobData {
   vps_job_id: string;
   pipeline_run_id: string;
   resume_from_phase: number;
 }
+
+interface WpPublishResult {
+  success: boolean;
+  post_id?: number;
+  edit_url?: string;
+  preview_url?: string;
+  error?: string;
+}
+
+async function publishToWordPress(
+  teamConfig: SeoTeamConfig,
+  aiOutput: string,
+  topic: string
+): Promise<WpPublishResult> {
+  const apiEndpoint = teamConfig.config?.wp_api_endpoint;
+  const apiToken = teamConfig.config?.wp_api_token;
+
+  if (!apiEndpoint || !apiToken) {
+    console.warn('[wp] No WP API endpoint/token in team config, skipping real publish');
+    return { success: false, error: 'No WordPress API credentials configured' };
+  }
+
+  // Parse the AI publishing output to extract title, content, meta description
+  let title = topic;
+  let content = aiOutput;
+  let metaDescription = '';
+  let slug = '';
+
+  // Try to extract structured parts from AI output
+  const titleMatch = aiOutput.match(/(?:title\s*(?:tag)?)\s*[:=]\s*["']?(.+?)["']?\s*$/im);
+  if (titleMatch) title = titleMatch[1].trim();
+
+  const metaMatch = aiOutput.match(/(?:meta\s*description)\s*[:=]\s*["']?(.+?)["']?\s*$/im);
+  if (metaMatch) metaDescription = metaMatch[1].trim();
+
+  // Extract HTML content block (between ```html ... ``` or after "Article:" / "Content:")
+  const htmlBlockMatch = aiOutput.match(/```html\s*\n([\s\S]*?)\n```/);
+  if (htmlBlockMatch) {
+    content = htmlBlockMatch[1].trim();
+  } else {
+    // Try to find content after a heading like "Article" or "HTML"
+    const contentSectionMatch = aiOutput.match(/(?:article|content|html)[:\s]*\n([\s\S]+?)(?=\n(?:suggested|categories|tags)[:\s]|\n```|$)/i);
+    if (contentSectionMatch) {
+      content = contentSectionMatch[1].trim();
+    }
+  }
+
+  // Generate slug from title
+  slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+  const url = `${apiEndpoint}?token=${encodeURIComponent(apiToken)}`;
+
+  console.log(`[wp] Publishing draft: "${title}" to ${apiEndpoint}`);
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title,
+      content,
+      slug,
+      meta_description: metaDescription,
+      excerpt: metaDescription || title,
+    }),
+  });
+
+  const result = await response.json() as WpPublishResult;
+
+  if (!response.ok || !result.success) {
+    console.error(`[wp] Publish failed:`, result.error || response.statusText);
+    return { success: false, error: result.error || `HTTP ${response.status}` };
+  }
+
+  console.log(`[wp] Draft created: post_id=${result.post_id}, edit_url=${result.edit_url}`);
+  return result;
+}
+
+// ============================================================================
+// Main Pipeline Processor
+// ============================================================================
 
 export async function processSeoJob(job: Job<SeoJobData>): Promise<{ paused_at?: string; completed?: boolean }> {
   const { vps_job_id, pipeline_run_id, resume_from_phase } = job.data;
@@ -116,9 +272,9 @@ export async function processSeoJob(job: Job<SeoJobData>): Promise<{ paused_at?:
 
       console.log(`[seo] Running phase ${phase} for run ${pipeline_run_id}`);
 
-      // Build phase config
-      const phasePrompt = PHASE_PROMPTS[phase];
-      if (!phasePrompt) {
+      // Get full system prompt for this phase (loaded from SKILL.md files)
+      const systemPrompt = PHASE_SYSTEM_PROMPTS[phase];
+      if (!systemPrompt) {
         console.warn(`[seo] No prompt config for phase ${phase}, skipping`);
         continue;
       }
@@ -133,14 +289,51 @@ export async function processSeoJob(job: Job<SeoJobData>): Promise<{ paused_at?:
       const runForPrompt = (currentRun || run) as SeoPipelineRun;
 
       const result = await runPhase(supabase, pipeline_run_id, phase, {
-        systemPrompt: phasePrompt.system,
-        userMessage: phasePrompt.buildUser(runForPrompt),
+        systemPrompt,
+        userMessage: buildUserMessage(phase, runForPrompt),
+        model: PHASE_MODELS[phase],
         agentName: `seo_${phase}`,
         anthropicClient: anthropic,
       });
 
       totalCost += result.agentResult.costUsd;
       totalTokens += result.agentResult.inputTokens + result.agentResult.outputTokens;
+
+      // After publishing AI phase, actually publish to WordPress as draft
+      if (phase === 'publishing' && teamConfig) {
+        await updateJobProgress(vps_job_id, {
+          progress_message: 'Publishing draft to WordPress...',
+        });
+
+        const wpResult = await publishToWordPress(
+          teamConfig,
+          result.agentResult.text,
+          runForPrompt.topic
+        );
+
+        if (wpResult.success) {
+          // Store WP post info in pipeline run artifacts
+          await supabase
+            .from('seo_pipeline_runs')
+            .update({
+              artifacts: {
+                ...(runForPrompt.artifacts || {}),
+                publishing: {
+                  ...(runForPrompt.artifacts?.publishing || {}),
+                  wp_post_id: wpResult.post_id,
+                  wp_edit_url: wpResult.edit_url,
+                  wp_preview_url: wpResult.preview_url,
+                },
+              },
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', pipeline_run_id);
+
+          console.log(`[seo] WordPress draft created: post ${wpResult.post_id}`);
+        } else {
+          console.warn(`[seo] WordPress publish failed: ${wpResult.error} - continuing pipeline`);
+        }
+      }
 
       await updateJobProgress(vps_job_id, {
         cost_usd: totalCost,

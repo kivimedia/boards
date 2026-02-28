@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
 import type { SeoPipelineRun, SeoTeamConfig } from '@/lib/types';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -61,8 +62,21 @@ export default function SeoDashboard() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 15000);
-    return () => clearInterval(interval);
+  }, [fetchData]);
+
+  // Supabase Realtime subscription for live updates
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel('seo-dashboard-runs')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'seo_pipeline_runs' },
+        () => { fetchData(); }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [fetchData]);
 
   const handleStartRun = async () => {

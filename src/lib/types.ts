@@ -3282,6 +3282,8 @@ export interface SeoTeamConfig {
   } | null;
 
   config: {
+    wp_api_endpoint?: string;
+    wp_api_token?: string;
     models?: Record<string, string>;
     quality_thresholds?: { min_qc_score: number; max_iterations: number };
     schedule?: { posts_per_week: number; publish_days: string[]; publish_time: string };
