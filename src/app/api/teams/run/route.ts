@@ -45,6 +45,72 @@ export async function POST(request: NextRequest) {
 
   if (tErr || !template) return errorResponse('Template not found', 404);
 
+  // PageForge builds use their own table and VPS job type
+  if (template.slug === 'pageforge') {
+    const { figma_file_key, page_title, page_slug, model_profile } = body.input_data as any;
+    if (!figma_file_key || !page_title) {
+      return errorResponse('figma_file_key and page_title are required for PageForge', 400);
+    }
+
+    // Fetch site profile to get page_builder
+    const { data: siteProfile } = await supabase
+      .from('pageforge_site_profiles')
+      .select('page_builder')
+      .eq('id', body.site_config_id || '')
+      .single();
+
+    // Create pageforge_build
+    const { data: build, error: buildErr } = await supabase
+      .from('pageforge_builds')
+      .insert({
+        site_profile_id: body.site_config_id || null,
+        client_id: body.client_id || null,
+        figma_file_key: figma_file_key,
+        figma_node_ids: [],
+        page_title,
+        page_slug: page_slug || null,
+        page_builder: siteProfile?.page_builder || 'gutenberg',
+        status: 'pending',
+        current_phase: 'pending',
+        phase_results: {},
+        artifacts: { model_profile: model_profile || 'cost_optimized' },
+        error_log: [],
+        total_cost_usd: 0,
+        agent_costs: {},
+        created_by: userId,
+      })
+      .select()
+      .single();
+
+    if (buildErr) return errorResponse(buildErr.message, 500);
+
+    // Create VPS job
+    const { data: job, error: jobErr } = await supabase
+      .from('vps_jobs')
+      .insert({
+        job_type: 'pipeline:pageforge',
+        status: 'queued',
+        payload: {
+          build_id: build.id,
+          site_profile_id: body.site_config_id || null,
+          model_profile: model_profile || 'cost_optimized',
+        },
+        created_by: userId,
+      })
+      .select()
+      .single();
+
+    if (jobErr) return errorResponse(jobErr.message, 500);
+
+    // Link VPS job to build
+    await supabase
+      .from('pageforge_builds')
+      .update({ vps_job_id: job.id })
+      .eq('id', build.id);
+
+    return successResponse({ run_id: build.id, job_id: job.id, template_name: template.name, is_pageforge: true }, 201);
+  }
+
   // Create the team run
   const { data: run, error: runErr } = await supabase
     .from('agent_team_runs')
