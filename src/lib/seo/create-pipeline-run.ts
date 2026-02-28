@@ -21,7 +21,12 @@ export async function createPipelineRun(
       status: 'pending',
       user_id: userId,
       client_id: clientId,
-      payload: { team_config_id: teamConfigId, topic, silo: silo || null },
+      payload: {
+        team_config_id: teamConfigId,
+        topic,
+        silo: silo || null,
+        ...(assignment ? { assignment } : {}),
+      },
     })
     .select()
     .single();
