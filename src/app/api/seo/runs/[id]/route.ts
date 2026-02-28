@@ -37,7 +37,7 @@ export async function GET(
   const { data: agentCalls, error: callsErr } = await supabase
     .from('seo_agent_calls')
     .select('*')
-    .eq('run_id', id)
+    .eq('pipeline_run_id', id)
     .order('created_at', { ascending: true });
 
   if (callsErr) return errorResponse(callsErr.message, 500);
