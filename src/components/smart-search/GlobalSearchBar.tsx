@@ -279,6 +279,9 @@ export default function GlobalSearchBar() {
       e.preventDefault();
       if (effectiveMode === 'ai') {
         submitAi();
+      } else if (effectiveMode === 'search' && query.trim()) {
+        // Trigger search immediately on Enter
+        doKeywordSearch(query.trim());
       }
     } else if (e.key === 'Escape') {
       setFocused(false);
