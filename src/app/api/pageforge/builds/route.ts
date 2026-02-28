@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
   if (!auth.ok) return auth.response;
 
   const body = await request.json();
-  const { siteProfileId, figmaFileKey, figmaNodeIds, pageTitle, pageSlug, page_builder: pageBuilder, model_profile: modelProfile, custom_models: customModels, boardListId } = body;
+  const { siteProfileId, figmaFileKey, figmaNodeIds, pageTitle, pageSlug, page_builder: pageBuilder, model_profile: modelProfile, custom_models: customModels, boardListId, trackOnBoard } = body;
 
   if (!siteProfileId || !figmaFileKey || !pageTitle) {
     return errorResponse('siteProfileId, figmaFileKey, and pageTitle are required');
@@ -94,13 +94,14 @@ export async function POST(request: NextRequest) {
   });
 
   // Optionally create board sub-tasks
-  if (boardListId) {
+  const resolvedListId = boardListId || (trackOnBoard ? await resolveClientBoardList(auth.ctx.supabase, siteProfile) : null);
+  if (resolvedListId) {
     try {
       const { createBuildSubTasks } = await import('@/lib/ai/pageforge/build-tasks');
       await createBuildSubTasks(auth.ctx.supabase, {
         buildId: build.id,
         pageTitle,
-        listId: boardListId,
+        listId: resolvedListId,
         createdBy: auth.ctx.userId,
       });
     } catch (err) {
@@ -110,4 +111,37 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({ build }, { status: 201 });
+}
+
+/**
+ * Resolve the first list of the client's linked board.
+ * Returns null if no client, no board, or no lists found.
+ */
+async function resolveClientBoardList(
+  supabase: Parameters<typeof createBuild>[0],
+  siteProfile: { client_id: string | null }
+): Promise<string | null> {
+  if (!siteProfile.client_id) return null;
+  try {
+    // Find client's active board
+    const { data: clientBoards } = await supabase
+      .from('client_boards')
+      .select('board_id')
+      .eq('client_id', siteProfile.client_id)
+      .eq('is_active', true)
+      .limit(1)
+      .single();
+    if (!clientBoards?.board_id) return null;
+    // Find first list in that board
+    const { data: firstList } = await supabase
+      .from('lists')
+      .select('id')
+      .eq('board_id', clientBoards.board_id)
+      .order('position', { ascending: true })
+      .limit(1)
+      .single();
+    return firstList?.id || null;
+  } catch {
+    return null;
+  }
 }
