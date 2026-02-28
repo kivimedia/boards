@@ -97,6 +97,9 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
   const [gateAction, setGateAction] = useState<PageForgeGateDecision | null>(null);
   const [gateFeedback, setGateFeedback] = useState('');
   const [submittingGate, setSubmittingGate] = useState(false);
+  const [showAbortConfirm, setShowAbortConfirm] = useState(false);
+  const [abortReason, setAbortReason] = useState('');
+  const [aborting, setAborting] = useState(false);
 
   // ------- Fetch build -------
   const fetchBuild = useCallback(async () => {
@@ -157,6 +160,27 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
     }
   };
 
+  // ------- Abort handler -------
+  const handleAbort = async () => {
+    setAborting(true);
+    try {
+      const res = await fetch(`/api/pageforge/builds/${buildId}/abort`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: abortReason || 'Manual abort' }),
+      });
+      if (!res.ok) throw new Error('Abort failed');
+      setShowAbortConfirm(false);
+      setAbortReason('');
+      await fetchBuild();
+    } catch (err) {
+      console.error('Abort error:', err);
+      setError('Failed to abort build');
+    } finally {
+      setAborting(false);
+    }
+  };
+
   // ------- Loading / Error -------
   if (loading) {
     return (
@@ -177,6 +201,7 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
   if (!build) return null;
 
   const isAtGate = GATE_STATUSES.includes(build.status);
+  const isActive = !['published', 'failed', 'cancelled'].includes(build.status);
   const artifacts = (build.artifacts ?? {}) as Record<string, string>;
 
   // Screenshot URLs from artifacts
@@ -240,6 +265,54 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
             >
               Live Page
             </a>
+          )}
+          {isActive && (
+            <div className="relative">
+              <button
+                onClick={() => setShowAbortConfirm(!showAbortConfirm)}
+                className="px-3 py-1.5 text-xs font-semibold border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center gap-1.5"
+              >
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                  <rect x="4" y="4" width="16" height="16" rx="2" />
+                </svg>
+                Abort Build
+              </button>
+              {showAbortConfirm && (
+                <div className="absolute right-0 top-full mt-2 w-72 bg-white dark:bg-slate-800 rounded-xl border border-navy/10 dark:border-slate-700 shadow-lg p-4 z-50">
+                  <p className="text-sm font-semibold text-navy dark:text-slate-200 mb-2">
+                    Abort this build?
+                  </p>
+                  <p className="text-xs text-navy/40 dark:text-slate-500 mb-3">
+                    This will cancel the build and any active VPS jobs. This action cannot be undone.
+                  </p>
+                  <textarea
+                    value={abortReason}
+                    onChange={(e) => setAbortReason(e.target.value)}
+                    placeholder="Reason for aborting (optional)..."
+                    rows={2}
+                    className="w-full rounded-lg border border-navy/10 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm text-navy dark:text-slate-200 px-3 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-red-400/40 resize-none"
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleAbort}
+                      disabled={aborting}
+                      className="px-3 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      {aborting ? 'Aborting...' : 'Confirm Abort'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowAbortConfirm(false);
+                        setAbortReason('');
+                      }}
+                      className="px-3 py-1.5 text-xs font-semibold text-navy/60 dark:text-slate-400 hover:text-navy dark:hover:text-slate-200 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -669,6 +742,27 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
                     <p className="text-xs text-red-700 dark:text-red-300 font-mono break-all">
                       {entry.error}
                     </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Preflight Warnings */}
+          {(build.artifacts as any)?.preflight?.figma_warnings?.length > 0 && (
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-yellow-200 dark:border-yellow-800/40 p-4">
+              <h2 className="text-sm font-semibold text-yellow-700 dark:text-yellow-400 mb-3">
+                Figma Pre-Flight Warnings
+              </h2>
+              <div className="space-y-2">
+                {((build.artifacts as any).preflight.figma_warnings as string[]).map((warning: string, idx: number) => (
+                  <div key={idx} className="flex items-start gap-2">
+                    <span className="text-yellow-500 shrink-0 mt-0.5">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                      </svg>
+                    </span>
+                    <p className="text-xs text-yellow-700 dark:text-yellow-300">{warning}</p>
                   </div>
                 ))}
               </div>

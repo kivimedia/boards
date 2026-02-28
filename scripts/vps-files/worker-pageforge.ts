@@ -198,11 +198,92 @@ async function executePhase(
       if (!build.figma_file_key) errors.push('Missing figma_file_key');
       if (!build.page_title) errors.push('Missing page_title');
 
+      // --- Figma file pre-flight scan ---
+      const preflightResults: Record<string, any> = {};
+      if (build.figma_file_key && siteProfile.figma_personal_token) {
+        try {
+          const figmaClient = createFigmaClient(siteProfile.figma_personal_token);
+          const figmaFile = await figmaGetFile(figmaClient, build.figma_file_key);
+          const pages = figmaFile.document.children || [];
+
+          const figmaWarnings: string[] = [];
+
+          // Check if file has any pages
+          if (pages.length === 0) {
+            figmaWarnings.push('Figma file has no pages');
+          }
+
+          // Check first page for frames
+          const firstPage = pages[0];
+          if (firstPage) {
+            const frames = (firstPage.children || []).filter(
+              (n: any) => n.type === 'FRAME' && n.visible !== false
+            );
+
+            if (frames.length === 0) {
+              figmaWarnings.push('No visible frames found on the first page');
+            }
+
+            // Check for mobile frame (width ~375px)
+            const hasMobileFrame = frames.some((f: any) => {
+              const w = f.absoluteBoundingBox?.width || 0;
+              return w >= 320 && w <= 430; // mobile range
+            });
+            if (!hasMobileFrame && frames.length > 0) {
+              figmaWarnings.push('No mobile frame detected (320-430px width). Responsive output may be poor.');
+            }
+
+            // Check for desktop frame (width ~1440px)
+            const hasDesktopFrame = frames.some((f: any) => {
+              const w = f.absoluteBoundingBox?.width || 0;
+              return w >= 1200 && w <= 1920;
+            });
+            if (!hasDesktopFrame && frames.length > 0) {
+              figmaWarnings.push('No desktop frame detected (1200-1920px width).');
+            }
+
+            // Check for auto-layout usage (indicates well-structured design)
+            let autoLayoutCount = 0;
+            let totalFrameCount = 0;
+            function countAutoLayout(node: any) {
+              if (node.type === 'FRAME' || node.type === 'COMPONENT') {
+                totalFrameCount++;
+                if (node.layoutMode === 'HORIZONTAL' || node.layoutMode === 'VERTICAL') {
+                  autoLayoutCount++;
+                }
+              }
+              if (node.children) {
+                for (const child of node.children) countAutoLayout(child);
+              }
+            }
+            for (const frame of frames) countAutoLayout(frame);
+
+            if (totalFrameCount > 5 && autoLayoutCount / totalFrameCount < 0.3) {
+              figmaWarnings.push(`Low auto-layout usage (${autoLayoutCount}/${totalFrameCount} frames). Absolute positioning may cause poor responsive output.`);
+            }
+          }
+
+          // Store warnings in preflight results
+          preflightResults.figma_scan = {
+            file_name: figmaFile.name,
+            page_count: pages.length,
+            warnings: figmaWarnings,
+            last_modified: figmaFile.lastModified,
+          };
+
+          if (figmaWarnings.length > 0) {
+            preflightResults.figma_warnings = figmaWarnings;
+          }
+        } catch (figmaScanErr) {
+          preflightResults.figma_scan_error = figmaScanErr instanceof Error ? figmaScanErr.message : String(figmaScanErr);
+        }
+      }
+
       const passed = errors.length === 0;
       if (!passed) throw new Error(`Preflight failed: ${errors.join(', ')}`);
 
-      await updateBuildArtifacts(supabase, buildId, 'preflight', { passed, checks, errors });
-      console.log(`[pageforge] Preflight passed: ${checks.length} checks`);
+      await updateBuildArtifacts(supabase, buildId, 'preflight', { passed, checks, errors, ...preflightResults });
+      console.log(`[pageforge] Preflight passed: ${checks.length} checks${preflightResults.figma_warnings ? `, ${preflightResults.figma_warnings.length} Figma warnings` : ''}`);
       break;
     }
 
@@ -345,6 +426,49 @@ async function executePhase(
       const unclosed = findUnclosedTags(markup);
       if (unclosed.length > 0) warnings.push(`Unclosed tags: ${unclosed.join(', ')}`);
       if (markup.trim().length < 50) errors.push('Markup too short');
+
+      // --- Enhanced checks (PRD 9.1) ---
+
+      // a. Lorem ipsum / placeholder text detection
+      const loremPatterns = [
+        /lorem\s+ipsum/i,
+        /dolor\s+sit\s+amet/i,
+        /consectetur\s+adipiscing/i,
+        /placeholder\s+text/i,
+        /your\s+text\s+here/i,
+        /insert\s+text/i,
+        /sample\s+text/i,
+      ];
+      const placeholderFound: string[] = [];
+      for (const pattern of loremPatterns) {
+        if (pattern.test(markup)) {
+          placeholderFound.push(pattern.source);
+        }
+      }
+      if (placeholderFound.length > 0) {
+        warnings.push(`Placeholder text detected: ${placeholderFound.join(', ')}. Real content must be in the Figma file.`);
+      }
+
+      // b. Image validation - flag placeholder image services
+      const imgSrcPattern = /src=["']([^"']+)["']/gi;
+      let imgMatch;
+      const imageUrls: string[] = [];
+      while ((imgMatch = imgSrcPattern.exec(markup)) !== null) {
+        imageUrls.push(imgMatch[1]);
+      }
+      for (const url of imageUrls) {
+        if (url.includes('placeholder') || url.includes('via.placeholder') || url.includes('placehold.it') || url.includes('picsum.photos')) {
+          warnings.push(`Placeholder image detected: ${url}`);
+        }
+      }
+
+      // c. Mobile style presence check
+      if (builder === 'gutenberg') {
+        const hasResponsiveClasses = /wp-block-(columns|group|cover)/.test(markup) || /is-stacked-on-mobile/.test(markup);
+        if (!hasResponsiveClasses && markup.length > 2000) {
+          warnings.push('No responsive/mobile classes detected in markup. Page may not be mobile-friendly.');
+        }
+      }
 
       const valid = errors.length === 0;
       await updateBuildArtifacts(supabase, buildId, 'markup_validation', { valid, errors, warnings });

@@ -7,6 +7,7 @@ import type {
   PageForgeBuildStatus,
   PageForgeBuilderType,
 } from '@/lib/types';
+import { MODEL_PROFILES } from '@/lib/ai/pageforge-pipeline';
 
 // ---------------------------------------------------------------------------
 // Status badge config
@@ -34,6 +35,13 @@ function humanStatus(status: PageForgeBuildStatus): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function isCredentialStale(createdAt: string): boolean {
+  const created = new Date(createdAt);
+  const now = new Date();
+  const diffDays = Math.floor((now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+  return diffDays > 90;
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -49,6 +57,8 @@ interface NewBuildForm {
   figma_file_key: string;
   page_title: string;
   page_slug: string;
+  model_profile: string;
+  board_list_id: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -67,6 +77,8 @@ export default function PageForgeDashboard() {
     figma_file_key: '',
     page_title: '',
     page_slug: '',
+    model_profile: 'cost_optimized',
+    board_list_id: '',
   });
 
   // Derived stats
@@ -132,11 +144,14 @@ export default function PageForgeDashboard() {
       const res = await fetch('/api/pageforge/builds', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newBuild),
+        body: JSON.stringify({
+          ...newBuild,
+          boardListId: newBuild.board_list_id || undefined,
+        }),
       });
       if (!res.ok) throw new Error('Create failed');
       setShowNewBuildModal(false);
-      setNewBuild({ site_profile_id: '', figma_file_key: '', page_title: '', page_slug: '' });
+      setNewBuild({ site_profile_id: '', figma_file_key: '', page_title: '', page_slug: '', model_profile: 'cost_optimized', board_list_id: '' });
       await fetchBuilds();
     } catch (err) {
       console.error('Failed to create build:', err);
@@ -337,9 +352,16 @@ export default function PageForgeDashboard() {
                   <h3 className="text-sm font-semibold text-navy dark:text-slate-200 truncate">
                     {site.site_name}
                   </h3>
-                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-navy/5 dark:bg-slate-700 text-navy/40 dark:text-slate-500">
-                    {site.page_builder}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {isCredentialStale(site.created_at) && (
+                      <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300">
+                        Rotate Creds
+                      </span>
+                    )}
+                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-navy/5 dark:bg-slate-700 text-navy/40 dark:text-slate-500">
+                      {site.page_builder}
+                    </span>
+                  </div>
                 </div>
                 <p className="text-xs text-navy/40 dark:text-slate-500 truncate">
                   {site.site_url}
@@ -448,6 +470,81 @@ export default function PageForgeDashboard() {
                 className="w-full rounded-lg border border-navy/10 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm text-navy dark:text-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-electric/40"
               />
             </div>
+
+            {/* Model Profile Selector */}
+            <div>
+              <label className="block text-xs font-semibold text-navy/60 dark:text-slate-400 mb-2">
+                Model Profile
+              </label>
+              <div className="space-y-2">
+                {MODEL_PROFILES.map((profile) => (
+                  <label
+                    key={profile.id}
+                    className={`flex items-center justify-between rounded-lg border px-3 py-2.5 cursor-pointer transition-all ${
+                      newBuild.model_profile === profile.id
+                        ? 'border-electric ring-2 ring-electric/20 bg-electric/5 dark:bg-electric/10'
+                        : 'border-navy/10 dark:border-slate-600 hover:border-navy/20 dark:hover:border-slate-500'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="radio"
+                        name="model_profile"
+                        value={profile.id}
+                        checked={newBuild.model_profile === profile.id}
+                        onChange={(e) =>
+                          setNewBuild((prev) => ({ ...prev, model_profile: e.target.value }))
+                        }
+                        className="sr-only"
+                      />
+                      <div
+                        className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                          newBuild.model_profile === profile.id
+                            ? 'border-electric'
+                            : 'border-navy/20 dark:border-slate-500'
+                        }`}
+                      >
+                        {newBuild.model_profile === profile.id && (
+                          <div className="w-2 h-2 rounded-full bg-electric" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-navy dark:text-slate-200">
+                          {profile.label}
+                        </p>
+                        <p className="text-xs text-navy/40 dark:text-slate-500">
+                          {profile.description}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-xs font-medium text-navy/50 dark:text-slate-400 whitespace-nowrap ml-3">
+                      {profile.estimatedCost}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Advanced Options */}
+            <details className="group">
+              <summary className="text-xs font-semibold text-navy/40 dark:text-slate-500 cursor-pointer hover:text-navy/60 dark:hover:text-slate-300">
+                Advanced Options
+              </summary>
+              <div className="mt-3 space-y-3 pl-1">
+                <div>
+                  <label className="block text-xs font-semibold text-navy/60 dark:text-slate-400 mb-1">
+                    Board List ID (optional - creates tracking tasks)
+                  </label>
+                  <input
+                    type="text"
+                    value={newBuild.board_list_id}
+                    onChange={(e) => setNewBuild(prev => ({ ...prev, board_list_id: e.target.value }))}
+                    placeholder="Paste a board list UUID to create sub-tasks"
+                    className="w-full rounded-lg border border-navy/10 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm text-navy dark:text-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-electric/40"
+                  />
+                </div>
+              </div>
+            </details>
 
             {/* Actions */}
             <div className="flex items-center justify-end gap-3 pt-2">

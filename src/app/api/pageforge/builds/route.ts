@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
   if (!auth.ok) return auth.response;
 
   const body = await request.json();
-  const { siteProfileId, figmaFileKey, figmaNodeIds, pageTitle, pageSlug } = body;
+  const { siteProfileId, figmaFileKey, figmaNodeIds, pageTitle, pageSlug, model_profile: modelProfile, boardListId } = body;
 
   if (!siteProfileId || !figmaFileKey || !pageTitle) {
     return errorResponse('siteProfileId, figmaFileKey, and pageTitle are required');
@@ -64,6 +64,12 @@ export async function POST(request: NextRequest) {
     }
   );
 
+  // Store model_profile in the build artifacts JSONB
+  await auth.ctx.supabase
+    .from('pageforge_builds')
+    .update({ artifacts: { model_profile: modelProfile || 'cost_optimized' } })
+    .eq('id', build.id);
+
   // Create VPS job for the build
   await auth.ctx.supabase.from('vps_jobs').insert({
     job_type: 'pipeline:pageforge',
@@ -71,9 +77,26 @@ export async function POST(request: NextRequest) {
     payload: {
       build_id: build.id,
       site_profile_id: siteProfileId,
+      model_profile: modelProfile || 'cost_optimized',
     },
     created_by: auth.ctx.userId,
   });
+
+  // Optionally create board sub-tasks
+  if (boardListId) {
+    try {
+      const { createBuildSubTasks } = await import('@/lib/ai/pageforge/build-tasks');
+      await createBuildSubTasks(auth.ctx.supabase, {
+        buildId: build.id,
+        pageTitle,
+        listId: boardListId,
+        createdBy: auth.ctx.userId,
+      });
+    } catch (err) {
+      console.error('Failed to create build sub-tasks:', err);
+      // Non-fatal - build continues without board tasks
+    }
+  }
 
   return NextResponse.json({ build }, { status: 201 });
 }
