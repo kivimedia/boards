@@ -1,20 +1,18 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { findCardsNeedingReindex, indexCardBatch, generateBoardSummary, CardToIndex } from '@/lib/ai/knowledge-indexer';
+import { findCardsNeedingReindex, indexCardBatch } from '@/lib/ai/knowledge-indexer';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
 /**
  * POST /api/admin/bootstrap-knowledge
- * One-time bootstrap: indexes ALL cards and generates ALL board summaries.
- * Loops internally within the 300s Vercel limit, processing batches of 25.
- * Progress is visible via /api/settings/knowledge-status polling.
+ * Indexes unindexed cards in small batches with strict time checks.
+ * Each batch is 10 cards (~20s), with a hard stop at 250s.
  * Auth: CRON_SECRET bearer token OR authenticated admin session.
  */
 export async function POST(request: Request) {
-  // Accept either CRON_SECRET or authenticated session
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
   const hasCronAuth = cronSecret && authHeader === `Bearer ${cronSecret}`;
@@ -41,8 +39,8 @@ export async function POST(request: Request) {
   );
 
   const startTime = Date.now();
-  const TIME_LIMIT = 230_000; // 230s, leave 70s buffer for response + cleanup
-  const BATCH_SIZE = 50;
+  const HARD_STOP = 250_000; // Stop starting new batches after 250s
+  const BATCH_SIZE = 10; // Small batches (~20s each) so we never overshoot
 
   let totalEmbedded = 0;
   let totalSkipped = 0;
@@ -50,12 +48,9 @@ export async function POST(request: Request) {
   let batches = 0;
 
   try {
-    // Loop: keep finding unindexed cards and processing them until time runs out
-    while (Date.now() - startTime < TIME_LIMIT) {
-      // Use the RPC function which does a proper LEFT JOIN - no .in() overflow
+    while (Date.now() - startTime < HARD_STOP) {
       const unindexed = await findCardsNeedingReindex(supabase, BATCH_SIZE);
-
-      if (unindexed.length === 0) break; // All cards indexed
+      if (unindexed.length === 0) break;
 
       const result = await indexCardBatch(supabase, unindexed);
       totalEmbedded += result.embedded;
@@ -63,16 +58,12 @@ export async function POST(request: Request) {
       totalErrors += result.errors;
       batches++;
 
-      console.log(`[bootstrap] Batch ${batches}: ${result.embedded} embedded, ${result.skipped} skipped, ${result.errors} errors (${Math.round((Date.now() - startTime) / 1000)}s elapsed)`);
+      const elapsed = Math.round((Date.now() - startTime) / 1000);
+      console.log(`[bootstrap] Batch ${batches}: +${result.embedded} embedded, ${result.skipped} skipped, ${result.errors} errors (${elapsed}s)`);
 
-      // If entire batch was skipped/errored with nothing embedded, break to avoid infinite loop
       if (result.embedded === 0 && result.errors === 0) break;
     }
 
-    // Board summaries are handled by the separate /api/cron/board-summaries endpoint
-    const summariesGenerated = 0;
-
-    // Check how many remain
     const { count: totalCards } = await supabase
       .from('cards')
       .select('id', { count: 'exact', head: true });
@@ -83,9 +74,6 @@ export async function POST(request: Request) {
       .eq('status', 'indexed');
 
     const remaining = (totalCards || 0) - (indexedCount || 0);
-    const duration = Date.now() - startTime;
-
-    console.log(`[bootstrap] Done: ${totalEmbedded} embedded in ${batches} batches, ${summariesGenerated} summaries (${Math.round(duration / 1000)}s)`);
 
     return NextResponse.json({
       message: remaining > 0 ? 'Time limit reached, run again for more' : 'Bootstrap complete',
@@ -93,9 +81,8 @@ export async function POST(request: Request) {
       total_embedded: totalEmbedded,
       total_skipped: totalSkipped,
       total_errors: totalErrors,
-      summaries_generated: summariesGenerated,
       remaining,
-      duration_ms: duration,
+      duration_ms: Date.now() - startTime,
     });
   } catch (err: any) {
     console.error('[bootstrap-knowledge] Error:', err);
