@@ -42,17 +42,13 @@ export default function CreateBoardModal({ isOpen, onClose }: CreateBoardModalPr
       return;
     }
 
-    // Create default lists
+    // Create default lists + labels in parallel
     const config = BOARD_TYPE_CONFIG[type];
     const lists = config.defaultLists.map((listName, index) => ({
       board_id: board.id,
       name: listName,
       position: index,
     }));
-
-    await supabase.from('lists').insert(lists);
-
-    // Create default labels
     const defaultLabels = [
       { name: 'Urgent', color: '#ef4444', board_id: board.id },
       { name: 'Bug', color: '#f59e0b', board_id: board.id },
@@ -60,12 +56,22 @@ export default function CreateBoardModal({ isOpen, onClose }: CreateBoardModalPr
       { name: 'Done', color: '#10b981', board_id: board.id },
     ];
 
-    await supabase.from('labels').insert(defaultLabels);
+    await Promise.all([
+      supabase.from('lists').insert(lists),
+      supabase.from('labels').insert(defaultLabels),
+    ]);
 
-    // Create custom field definitions from board type config
+    // Navigate immediately - board page fetches its own data
+    setName('');
+    setType('dev');
+    setLoading(false);
+    onClose();
+    router.push(`/board/${slugify(board.name)}`);
+
+    // Set up custom fields + automation rules in background (non-blocking)
     const defaultCustomFields = config.defaultCustomFields;
     if (defaultCustomFields && defaultCustomFields.length > 0) {
-      const fieldCreationPromises = defaultCustomFields.map((field, index) =>
+      Promise.all(defaultCustomFields.map((field, index) =>
         fetch(`/api/boards/${board.id}/custom-fields`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -77,15 +83,11 @@ export default function CreateBoardModal({ isOpen, onClose }: CreateBoardModalPr
             position: index,
           }),
         })
-      );
-
-      await Promise.all(fieldCreationPromises);
+      )).catch(() => {});
     }
-
-    // Create default automation rules
     const defaultRules = getDefaultAutomationRules(type);
     if (defaultRules.length > 0) {
-      const ruleCreationPromises = defaultRules.map((rule, index) =>
+      Promise.all(defaultRules.map((rule, index) =>
         fetch(`/api/boards/${board.id}/automation`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -98,17 +100,8 @@ export default function CreateBoardModal({ isOpen, onClose }: CreateBoardModalPr
             execution_order: index,
           }),
         })
-      );
-
-      await Promise.all(ruleCreationPromises);
+      )).catch(() => {});
     }
-
-    setName('');
-    setType('dev');
-    setLoading(false);
-    onClose();
-    router.push(`/board/${slugify(board.name)}`);
-    router.refresh();
   };
 
   return (
