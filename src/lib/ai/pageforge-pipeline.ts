@@ -101,7 +101,38 @@ export const MODEL_PROFILES: PageForgeModelProfile[] = [
       seo: 'gemini-2.5-flash',
     },
   },
+  {
+    id: 'custom',
+    label: 'Custom',
+    description: 'Choose models per agent - full control',
+    estimatedCost: 'Varies',
+    models: {
+      orchestrator: 'gemini-2.5-flash',
+      builder: 'claude-sonnet-4-5-20250929',
+      vqa: 'gemini-2.5-pro',
+      qa: 'gemini-2.5-flash',
+      seo: 'gemini-2.5-flash',
+    },
+  },
 ];
+
+export const AVAILABLE_MODELS = [
+  { id: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5', provider: 'anthropic' },
+  { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5', provider: 'anthropic' },
+  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', provider: 'google' },
+  { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', provider: 'google' },
+  { id: 'gpt-4.1', label: 'GPT-4.1', provider: 'openai' },
+  { id: 'gpt-4.1-mini', label: 'GPT-4.1 Mini', provider: 'openai' },
+  { id: 'gpt-4.1-nano', label: 'GPT-4.1 Nano', provider: 'openai' },
+] as const;
+
+export const AGENT_ROLES = [
+  { key: 'orchestrator', label: 'Orchestrator', description: 'Preflight checks & report generation' },
+  { key: 'builder', label: 'Builder', description: 'Figma analysis, markup generation, deployment' },
+  { key: 'vqa', label: 'VQA', description: 'Visual quality assurance & screenshot comparison' },
+  { key: 'qa', label: 'QA', description: 'Functional testing, Lighthouse, accessibility' },
+  { key: 'seo', label: 'SEO', description: 'Yoast config, meta tags, heading hierarchy' },
+] as const;
 
 export const PAGEFORGE_PHASE_ORDER: string[] = [
   'preflight',
@@ -157,6 +188,26 @@ const PHASE_TO_ACTIVITY: Record<string, AIActivity> = {
 };
 
 const GATE_PHASES = new Set(['developer_review_gate', 'am_signoff_gate']);
+
+// Map AI activities to agent role keys for custom model resolution
+const ACTIVITY_TO_ROLE: Record<string, string> = {
+  pageforge_orchestrator: 'orchestrator',
+  pageforge_builder: 'builder',
+  pageforge_vqa: 'vqa',
+  pageforge_qa: 'qa',
+  pageforge_seo: 'seo',
+};
+
+// Reverse lookup: model ID -> provider
+function providerForModel(modelId: string): AIProvider {
+  const model = AVAILABLE_MODELS.find(m => m.id === modelId);
+  if (model) return model.provider as AIProvider;
+  // Fallback heuristics
+  if (modelId.startsWith('claude')) return 'anthropic';
+  if (modelId.startsWith('gemini')) return 'google';
+  if (modelId.startsWith('gpt')) return 'openai';
+  return 'google';
+}
 
 // ============================================================================
 // CREATE BUILD
@@ -231,10 +282,43 @@ export async function callPageForgeAgent(
   const startTime = Date.now();
   const activity = options?.activity || PHASE_TO_ACTIVITY[phase] || 'pageforge_builder';
 
-  // Resolve model config
-  const config = await resolveModelWithFallback(supabase, activity);
-  const provider = config.provider as AIProvider;
-  const modelId = config.model_id;
+  // Resolve model config - check for custom model overrides first
+  let config = await resolveModelWithFallback(supabase, activity);
+  let provider = config.provider as AIProvider;
+  let modelId = config.model_id;
+
+  // Custom model override: if the build uses 'custom' profile, apply per-agent model
+  try {
+    const { data: buildData } = await supabase
+      .from('pageforge_builds')
+      .select('artifacts')
+      .eq('id', buildId)
+      .single();
+
+    if (buildData?.artifacts) {
+      const artifacts = buildData.artifacts as Record<string, unknown>;
+      const customModels = artifacts.custom_models as Record<string, string> | null;
+      const modelProfile = artifacts.model_profile as string | undefined;
+
+      if (modelProfile === 'custom' && customModels) {
+        const role = ACTIVITY_TO_ROLE[activity];
+        if (role && customModels[role]) {
+          modelId = customModels[role];
+          provider = providerForModel(modelId);
+        }
+      } else if (modelProfile && modelProfile !== 'custom') {
+        // Use the selected preset profile's model for this agent role
+        const profile = MODEL_PROFILES.find(p => p.id === modelProfile);
+        const role = ACTIVITY_TO_ROLE[activity] as keyof PageForgeModelProfile['models'] | undefined;
+        if (profile && role && profile.models[role]) {
+          modelId = profile.models[role];
+          provider = providerForModel(modelId);
+        }
+      }
+    }
+  } catch {
+    // Non-fatal - fall back to default model resolution
+  }
 
   // Get iteration count
   const { count: existingCalls } = await supabase

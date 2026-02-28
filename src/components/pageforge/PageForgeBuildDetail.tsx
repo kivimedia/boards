@@ -7,6 +7,9 @@ import type {
   PageForgeBuildStatus,
   PageForgeGateDecision,
   PageForgeAgentCall,
+  PageForgePreviewToken,
+  PageForgeNamingIssue,
+  PageForgeDesignerFixRequest,
 } from '@/lib/types';
 
 // ---------------------------------------------------------------------------
@@ -100,6 +103,19 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
   const [showAbortConfirm, setShowAbortConfirm] = useState(false);
   const [abortReason, setAbortReason] = useState('');
   const [aborting, setAborting] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [previewTokens, setPreviewTokens] = useState<PageForgePreviewToken[]>([]);
+  const [creatingToken, setCreatingToken] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState(false);
+
+  // Naming issues state
+  const [selectedNamingIssues, setSelectedNamingIssues] = useState<Set<string>>(new Set());
+  const [designerFeedback, setDesignerFeedback] = useState('');
+  const [submittingDesignerRequest, setSubmittingDesignerRequest] = useState(false);
+  const [showDesignerReportModal, setShowDesignerReportModal] = useState(false);
+  const [designerReportMarkdown, setDesignerReportMarkdown] = useState('');
+  const [copiedReport, setCopiedReport] = useState(false);
+  const [resolvingDesignerRequest, setResolvingDesignerRequest] = useState(false);
 
   // ------- Fetch build -------
   const fetchBuild = useCallback(async () => {
@@ -179,6 +195,136 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
     } finally {
       setAborting(false);
     }
+  };
+
+  // ------- Share Preview handlers -------
+  const fetchPreviewTokens = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/pageforge/builds/${buildId}/preview`);
+      const json = await res.json();
+      if (json.data?.tokens) {
+        setPreviewTokens(json.data.tokens);
+      }
+    } catch (err) {
+      console.error('Failed to fetch preview tokens:', err);
+    }
+  }, [buildId]);
+
+  const handleCreateToken = async () => {
+    setCreatingToken(true);
+    try {
+      const res = await fetch(`/api/pageforge/builds/${buildId}/preview`, {
+        method: 'POST',
+      });
+      if (!res.ok) throw new Error('Failed to create token');
+      await fetchPreviewTokens();
+    } catch (err) {
+      console.error('Create token error:', err);
+      setError('Failed to create preview link');
+    } finally {
+      setCreatingToken(false);
+    }
+  };
+
+  const handleRevokeToken = async (tokenId: string) => {
+    try {
+      const res = await fetch(`/api/pageforge/builds/${buildId}/preview`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token_id: tokenId }),
+      });
+      if (!res.ok) throw new Error('Failed to revoke token');
+      await fetchPreviewTokens();
+    } catch (err) {
+      console.error('Revoke token error:', err);
+    }
+  };
+
+  const handleShareClick = async () => {
+    setShowShareModal(true);
+    await fetchPreviewTokens();
+  };
+
+  const copyPreviewUrl = (token: string) => {
+    const url = `${window.location.origin}/pageforge/preview/${token}`;
+    navigator.clipboard.writeText(url);
+    setCopiedUrl(true);
+    setTimeout(() => setCopiedUrl(false), 2000);
+  };
+
+  // ------- Designer Fix Request handlers -------
+  const namingIssues: PageForgeNamingIssue[] =
+    ((build?.artifacts as any)?.preflight?.figma_naming?.issues as PageForgeNamingIssue[]) || [];
+  const designerFixRequest: PageForgeDesignerFixRequest | null =
+    ((build?.artifacts as any)?.designer_fix_request as PageForgeDesignerFixRequest) || null;
+
+  const toggleNamingIssue = (nodeId: string) => {
+    setSelectedNamingIssues((prev) => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) {
+        next.delete(nodeId);
+      } else {
+        next.add(nodeId);
+      }
+      return next;
+    });
+  };
+
+  const toggleAllNamingIssues = () => {
+    if (selectedNamingIssues.size === namingIssues.length) {
+      setSelectedNamingIssues(new Set());
+    } else {
+      setSelectedNamingIssues(new Set(namingIssues.map((i) => i.nodeId)));
+    }
+  };
+
+  const handleSubmitDesignerRequest = async () => {
+    if (selectedNamingIssues.size === 0) return;
+    setSubmittingDesignerRequest(true);
+    try {
+      const res = await fetch(`/api/pageforge/builds/${buildId}/designer-request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          issues: Array.from(selectedNamingIssues),
+          feedback: designerFeedback || '',
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to create designer fix request');
+      setDesignerReportMarkdown(json.data?.markdown_report || '');
+      setShowDesignerReportModal(true);
+      setSelectedNamingIssues(new Set());
+      setDesignerFeedback('');
+      await fetchBuild();
+    } catch (err) {
+      console.error('Designer request error:', err);
+      setError('Failed to create designer fix request');
+    } finally {
+      setSubmittingDesignerRequest(false);
+    }
+  };
+
+  const handleResolveDesignerRequest = async () => {
+    setResolvingDesignerRequest(true);
+    try {
+      const res = await fetch(`/api/pageforge/builds/${buildId}/designer-request`, {
+        method: 'PATCH',
+      });
+      if (!res.ok) throw new Error('Failed to resolve designer fix request');
+      await fetchBuild();
+    } catch (err) {
+      console.error('Resolve designer request error:', err);
+      setError('Failed to resolve designer fix request');
+    } finally {
+      setResolvingDesignerRequest(false);
+    }
+  };
+
+  const copyReportToClipboard = () => {
+    navigator.clipboard.writeText(designerReportMarkdown);
+    setCopiedReport(true);
+    setTimeout(() => setCopiedReport(false), 2000);
   };
 
   // ------- Loading / Error -------
@@ -266,6 +412,15 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
               Live Page
             </a>
           )}
+          <button
+            onClick={handleShareClick}
+            className="px-3 py-1.5 text-xs font-semibold border border-electric/30 text-electric hover:bg-electric/10 rounded-lg transition-colors flex items-center gap-1.5"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+            </svg>
+            Share Preview
+          </button>
           {isActive && (
             <div className="relative">
               <button
@@ -321,6 +476,95 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-4 py-3">
           <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
+        </div>
+      )}
+
+      {/* Share Preview Modal */}
+      {showShareModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowShareModal(false)}>
+          <div
+            className="bg-white dark:bg-slate-800 rounded-xl border border-navy/10 dark:border-slate-700 shadow-xl w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-navy/5 dark:border-slate-700">
+              <h3 className="text-sm font-semibold text-navy dark:text-slate-200">Share Preview Link</h3>
+              <button
+                onClick={() => setShowShareModal(false)}
+                className="text-navy/30 dark:text-slate-500 hover:text-navy dark:hover:text-slate-200 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="px-5 py-4 space-y-4">
+              <p className="text-xs text-navy/40 dark:text-slate-500">
+                Generate a shareable link so clients can view the build status, scores, and screenshots without logging in. Links expire after 7 days.
+              </p>
+
+              {/* Existing tokens */}
+              {previewTokens.length > 0 && (
+                <div className="space-y-2">
+                  {previewTokens.map((pt) => (
+                    <div
+                      key={pt.id}
+                      className="bg-navy/[0.02] dark:bg-slate-700/50 rounded-lg border border-navy/5 dark:border-slate-600 px-3 py-2.5"
+                    >
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <input
+                          type="text"
+                          readOnly
+                          value={`${typeof window !== 'undefined' ? window.location.origin : ''}/pageforge/preview/${pt.token}`}
+                          className="flex-1 text-[11px] font-mono bg-transparent text-navy/60 dark:text-slate-400 outline-none truncate"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-navy/30 dark:text-slate-500">
+                          Expires {new Date(pt.expires_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => copyPreviewUrl(pt.token)}
+                            className="text-[10px] font-semibold text-electric hover:text-electric-bright transition-colors"
+                          >
+                            {copiedUrl ? 'Copied!' : 'Copy Link'}
+                          </button>
+                          <button
+                            onClick={() => handleRevokeToken(pt.id)}
+                            className="text-[10px] font-semibold text-red-500 hover:text-red-400 transition-colors"
+                          >
+                            Revoke
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Create new token */}
+              <button
+                onClick={handleCreateToken}
+                disabled={creatingToken}
+                className="w-full px-4 py-2.5 text-sm font-semibold text-white bg-electric hover:bg-electric-bright rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {creatingToken ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Generate New Link
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -765,6 +1009,199 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
                     <p className="text-xs text-yellow-700 dark:text-yellow-300">{warning}</p>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Figma Naming Issues */}
+          {namingIssues.length > 0 && (
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-amber-200 dark:border-amber-800/40 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+                  Figma Naming Issues
+                </h2>
+                <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
+                  {namingIssues.length}
+                </span>
+              </div>
+              <div className="overflow-x-auto max-h-72 overflow-y-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-navy/5 dark:border-slate-700">
+                      <th className="px-2 py-2 text-[10px] font-semibold text-navy/40 dark:text-slate-500 uppercase w-8">
+                        <input
+                          type="checkbox"
+                          checked={selectedNamingIssues.size === namingIssues.length && namingIssues.length > 0}
+                          onChange={toggleAllNamingIssues}
+                          className="rounded border-navy/20 dark:border-slate-600 text-electric focus:ring-electric/40"
+                        />
+                      </th>
+                      <th className="px-2 py-2 text-[10px] font-semibold text-navy/40 dark:text-slate-500 uppercase">
+                        Layer Name
+                      </th>
+                      <th className="px-2 py-2 text-[10px] font-semibold text-navy/40 dark:text-slate-500 uppercase">
+                        Type
+                      </th>
+                      <th className="px-2 py-2 text-[10px] font-semibold text-navy/40 dark:text-slate-500 uppercase">
+                        Issue
+                      </th>
+                      <th className="px-2 py-2 text-[10px] font-semibold text-navy/40 dark:text-slate-500 uppercase">
+                        Suggested Fix
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-navy/5 dark:divide-slate-700">
+                    {namingIssues.map((issue) => (
+                      <tr key={issue.nodeId} className="hover:bg-navy/[0.02] dark:hover:bg-slate-700/30">
+                        <td className="px-2 py-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedNamingIssues.has(issue.nodeId)}
+                            onChange={() => toggleNamingIssue(issue.nodeId)}
+                            className="rounded border-navy/20 dark:border-slate-600 text-electric focus:ring-electric/40"
+                          />
+                        </td>
+                        <td className="px-2 py-2 text-xs text-navy dark:text-slate-200 font-mono">
+                          {issue.nodeName}
+                        </td>
+                        <td className="px-2 py-2 text-[10px] text-navy/40 dark:text-slate-500 capitalize">
+                          {issue.nodeType.toLowerCase().replace(/_/g, ' ')}
+                        </td>
+                        <td className="px-2 py-2 text-xs text-amber-700 dark:text-amber-400">
+                          {issue.issue}
+                        </td>
+                        <td className="px-2 py-2 text-xs text-navy/60 dark:text-slate-400">
+                          {issue.suggested}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-4 space-y-3 border-t border-navy/5 dark:border-slate-700 pt-4">
+                <textarea
+                  value={designerFeedback}
+                  onChange={(e) => setDesignerFeedback(e.target.value)}
+                  placeholder="Optional feedback for the designer..."
+                  rows={2}
+                  className="w-full rounded-lg border border-navy/10 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm text-navy dark:text-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400/40 resize-none"
+                />
+                <button
+                  onClick={handleSubmitDesignerRequest}
+                  disabled={selectedNamingIssues.size === 0 || submittingDesignerRequest}
+                  className="px-4 py-2 text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {submittingDesignerRequest ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      Generate Designer Fix Request
+                      {selectedNamingIssues.size > 0 && (
+                        <span className="px-1.5 py-0.5 text-[10px] bg-white/20 rounded">
+                          {selectedNamingIssues.size}
+                        </span>
+                      )}
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Designer Fix Request Status */}
+          {designerFixRequest && (
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-navy/5 dark:border-slate-700 p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-sm font-semibold text-navy dark:text-slate-200">
+                    Designer Fix Request
+                  </h2>
+                  <span
+                    className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                      designerFixRequest.status === 'resolved'
+                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                        : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
+                    }`}
+                  >
+                    {designerFixRequest.status === 'resolved' ? 'Resolved' : 'Fix Requested'}
+                  </span>
+                </div>
+                <span className="text-[10px] text-navy/30 dark:text-slate-600">
+                  {new Date(designerFixRequest.requested_at).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
+              </div>
+              <p className="text-xs text-navy/40 dark:text-slate-500 mt-2">
+                {designerFixRequest.issues.length} issue{designerFixRequest.issues.length !== 1 ? 's' : ''} reported
+                {designerFixRequest.feedback ? ` - "${designerFixRequest.feedback}"` : ''}
+              </p>
+              {designerFixRequest.status === 'pending' && (
+                <button
+                  onClick={handleResolveDesignerRequest}
+                  disabled={resolvingDesignerRequest}
+                  className="mt-3 px-3 py-1.5 text-xs font-semibold text-green-700 dark:text-green-400 border border-green-300 dark:border-green-700 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {resolvingDesignerRequest ? 'Resolving...' : 'Mark as Resolved'}
+                </button>
+              )}
+              {designerFixRequest.resolved_at && (
+                <p className="text-[10px] text-navy/30 dark:text-slate-600 mt-2">
+                  Resolved {new Date(designerFixRequest.resolved_at).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Designer Report Modal */}
+          {showDesignerReportModal && (
+            <div
+              className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+              onClick={() => setShowDesignerReportModal(false)}
+            >
+              <div
+                className="bg-white dark:bg-slate-800 rounded-xl border border-navy/10 dark:border-slate-700 shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between px-5 py-4 border-b border-navy/5 dark:border-slate-700 shrink-0">
+                  <h3 className="text-sm font-semibold text-navy dark:text-slate-200">
+                    Designer Fix Request Report
+                  </h3>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={copyReportToClipboard}
+                      className="px-3 py-1.5 text-xs font-semibold text-electric hover:text-electric-bright border border-electric/30 hover:bg-electric/10 rounded-lg transition-colors"
+                    >
+                      {copiedReport ? 'Copied!' : 'Copy to Clipboard'}
+                    </button>
+                    <button
+                      onClick={() => setShowDesignerReportModal(false)}
+                      className="text-navy/30 dark:text-slate-500 hover:text-navy dark:hover:text-slate-200 transition-colors"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <div className="px-5 py-4 overflow-y-auto flex-1">
+                  <pre className="whitespace-pre-wrap text-xs text-navy/80 dark:text-slate-300 font-mono leading-relaxed">
+                    {designerReportMarkdown}
+                  </pre>
+                </div>
               </div>
             </div>
           )}

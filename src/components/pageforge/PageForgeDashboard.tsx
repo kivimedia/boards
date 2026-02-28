@@ -7,7 +7,7 @@ import type {
   PageForgeBuildStatus,
   PageForgeBuilderType,
 } from '@/lib/types';
-import { MODEL_PROFILES } from '@/lib/ai/pageforge-pipeline';
+import { MODEL_PROFILES, AVAILABLE_MODELS, AGENT_ROLES } from '@/lib/ai/pageforge-pipeline';
 
 // ---------------------------------------------------------------------------
 // Status badge config
@@ -59,6 +59,7 @@ interface NewBuildForm {
   page_slug: string;
   model_profile: string;
   board_list_id: string;
+  customModels: Record<string, string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -72,6 +73,7 @@ export default function PageForgeDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [showNewBuildModal, setShowNewBuildModal] = useState(false);
   const [creating, setCreating] = useState(false);
+  const defaultCustomModels = MODEL_PROFILES.find(p => p.id === 'cost_optimized')!.models;
   const [newBuild, setNewBuild] = useState<NewBuildForm>({
     site_profile_id: '',
     figma_file_key: '',
@@ -79,6 +81,7 @@ export default function PageForgeDashboard() {
     page_slug: '',
     model_profile: 'cost_optimized',
     board_list_id: '',
+    customModels: { ...defaultCustomModels },
   });
 
   // Derived stats
@@ -141,17 +144,22 @@ export default function PageForgeDashboard() {
     if (!newBuild.site_profile_id || !newBuild.figma_file_key || !newBuild.page_title) return;
     setCreating(true);
     try {
+      const payload: Record<string, unknown> = {
+        ...newBuild,
+        boardListId: newBuild.board_list_id || undefined,
+      };
+      if (newBuild.model_profile === 'custom') {
+        payload.custom_models = newBuild.customModels;
+      }
+      delete payload.customModels;
       const res = await fetch('/api/pageforge/builds', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...newBuild,
-          boardListId: newBuild.board_list_id || undefined,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error('Create failed');
       setShowNewBuildModal(false);
-      setNewBuild({ site_profile_id: '', figma_file_key: '', page_title: '', page_slug: '', model_profile: 'cost_optimized', board_list_id: '' });
+      setNewBuild({ site_profile_id: '', figma_file_key: '', page_title: '', page_slug: '', model_profile: 'cost_optimized', board_list_id: '', customModels: { ...defaultCustomModels } });
       await fetchBuilds();
     } catch (err) {
       console.error('Failed to create build:', err);
@@ -523,6 +531,42 @@ export default function PageForgeDashboard() {
                   </label>
                 ))}
               </div>
+              {/* Custom per-agent model picker */}
+              {newBuild.model_profile === 'custom' && (
+                <div className="mt-3 rounded-lg border border-navy/10 dark:border-slate-600 bg-navy/[0.02] dark:bg-slate-700/30 p-3 space-y-2.5">
+                  <p className="text-[10px] font-semibold text-navy/40 dark:text-slate-500 uppercase">
+                    Per-Agent Model Selection
+                  </p>
+                  {AGENT_ROLES.map((role) => (
+                    <div key={role.key} className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-navy dark:text-slate-200">
+                          {role.label}
+                        </p>
+                        <p className="text-[10px] text-navy/40 dark:text-slate-500 truncate">
+                          {role.description}
+                        </p>
+                      </div>
+                      <select
+                        value={newBuild.customModels[role.key] || ''}
+                        onChange={(e) =>
+                          setNewBuild((prev) => ({
+                            ...prev,
+                            customModels: { ...prev.customModels, [role.key]: e.target.value },
+                          }))
+                        }
+                        className="shrink-0 w-44 rounded-md border border-navy/10 dark:border-slate-600 bg-white dark:bg-slate-700 text-xs text-navy dark:text-slate-200 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-electric/40"
+                      >
+                        {AVAILABLE_MODELS.map((model) => (
+                          <option key={model.id} value={model.id}>
+                            {model.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Advanced Options */}

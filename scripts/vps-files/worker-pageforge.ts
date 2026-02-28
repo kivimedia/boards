@@ -316,6 +316,103 @@ async function executePhase(
           }
           preflightResults.figma_fonts = { used: Array.from(usedFonts), nonStandard: nonStandardFonts };
 
+          // Figma naming convention check
+          const NAMING_RULES = {
+            topLevelFrame: /^[A-Z][a-zA-Z0-9]+$/,
+            sectionFrame: /^[A-Z][a-zA-Z0-9]+(\/[A-Z][a-zA-Z0-9]+)*$/,
+            badPatterns: [
+              { pattern: /^Frame\s*\d*$/i, reason: 'Generic "Frame" name - should describe the section' },
+              { pattern: /^Group\s*\d*$/i, reason: 'Generic "Group" name - should describe the content' },
+              { pattern: /^Rectangle\s*\d*$/i, reason: 'Generic shape name - should be renamed' },
+              { pattern: /^Component\s*\d*$/i, reason: 'Generic component name - needs descriptive name' },
+              { pattern: /^Vector\s*\d*$/i, reason: 'Generic vector name - should describe the element' },
+              { pattern: /^\d+$/i, reason: 'Numeric-only name - needs descriptive label' },
+              { pattern: /^image\s*\d*$/i, reason: 'Generic image name - describe the image content' },
+              { pattern: /^Untitled/i, reason: 'Untitled element - needs a proper name' },
+            ],
+          };
+
+          interface NamingIssue {
+            nodeId: string;
+            nodeName: string;
+            nodeType: string;
+            depth: number;
+            issue: string;
+            suggested: string;
+          }
+
+          const namingIssues: NamingIssue[] = [];
+          let totalNamingNodesChecked = 0;
+
+          function checkNaming(node: any, depth: number) {
+            if (!node) return;
+
+            const checkableTypes = ['FRAME', 'COMPONENT', 'COMPONENT_SET', 'INSTANCE', 'GROUP'];
+
+            if (checkableTypes.includes(node.type)) {
+              totalNamingNodesChecked++;
+
+              // Check bad patterns
+              let matched = false;
+              for (const { pattern, reason } of NAMING_RULES.badPatterns) {
+                if (pattern.test(node.name)) {
+                  namingIssues.push({
+                    nodeId: node.id,
+                    nodeName: node.name,
+                    nodeType: node.type,
+                    depth,
+                    issue: reason,
+                    suggested: 'Rename to describe its purpose (e.g., "HeroSection", "FeatureCard")',
+                  });
+                  matched = true;
+                  break;
+                }
+              }
+
+              // Check top-level frames for PascalCase
+              if (!matched && depth === 1 && node.type === 'FRAME') {
+                if (!NAMING_RULES.topLevelFrame.test(node.name)) {
+                  namingIssues.push({
+                    nodeId: node.id,
+                    nodeName: node.name,
+                    nodeType: node.type,
+                    depth,
+                    issue: 'Top-level frame should use PascalCase naming',
+                    suggested: node.name
+                      .replace(/[\s\-_]+(.)/g, (_: string, c: string) => c.toUpperCase())
+                      .replace(/^(.)/, (_: string, c: string) => c.toUpperCase()),
+                  });
+                }
+              }
+            }
+
+            // Recurse children (max depth 4 to avoid noise)
+            if (node.children && depth < 4) {
+              for (const child of node.children) {
+                checkNaming(child, depth + 1);
+              }
+            }
+          }
+
+          // Walk all pages for naming issues
+          for (const page of pages) {
+            if (page.children) {
+              for (const frame of page.children) {
+                checkNaming(frame, 1);
+              }
+            }
+          }
+
+          preflightResults.figma_naming = {
+            status: namingIssues.length === 0 ? 'pass' : 'warn',
+            issues: namingIssues,
+            total_checked: totalNamingNodesChecked,
+          };
+
+          if (namingIssues.length > 0) {
+            figmaWarnings.push(`Found ${namingIssues.length} Figma naming convention issues. Consider requesting a designer fix before proceeding.`);
+          }
+
           // Store warnings in preflight results
           preflightResults.figma_scan = {
             file_name: figmaFile.name,
