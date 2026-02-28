@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { indexCardBatch, generateBoardSummary, CardToIndex } from '@/lib/ai/knowledge-indexer';
+import { findCardsNeedingReindex, indexCardBatch, generateBoardSummary, CardToIndex } from '@/lib/ai/knowledge-indexer';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
 
   const startTime = Date.now();
   const TIME_LIMIT = 260_000; // 260s, leave 40s buffer
-  const BATCH_SIZE = 25;
+  const BATCH_SIZE = 50;
 
   let totalEmbedded = 0;
   let totalSkipped = 0;
@@ -52,23 +52,8 @@ export async function POST(request: Request) {
   try {
     // Loop: keep finding unindexed cards and processing them until time runs out
     while (Date.now() - startTime < TIME_LIMIT) {
-      const { data: allCards } = await supabase
-        .from('cards')
-        .select('id, updated_at')
-        .order('updated_at', { ascending: false });
-
-      if (!allCards || allCards.length === 0) break;
-
-      const { data: indexed } = await supabase
-        .from('knowledge_index_state')
-        .select('entity_id')
-        .eq('entity_type', 'card')
-        .in('entity_id', allCards.map((c: any) => c.id));
-
-      const indexedSet = new Set((indexed || []).map((i: any) => i.entity_id));
-      const unindexed: CardToIndex[] = allCards
-        .filter((c: any) => !indexedSet.has(c.id))
-        .slice(0, BATCH_SIZE);
+      // Use the RPC function which does a proper LEFT JOIN - no .in() overflow
+      const unindexed = await findCardsNeedingReindex(supabase, BATCH_SIZE);
 
       if (unindexed.length === 0) break; // All cards indexed
 
@@ -78,7 +63,10 @@ export async function POST(request: Request) {
       totalErrors += result.errors;
       batches++;
 
-      console.log(`[bootstrap] Batch ${batches}: ${result.embedded} embedded, ${result.skipped} skipped (${Math.round((Date.now() - startTime) / 1000)}s elapsed)`);
+      console.log(`[bootstrap] Batch ${batches}: ${result.embedded} embedded, ${result.skipped} skipped, ${result.errors} errors (${Math.round((Date.now() - startTime) / 1000)}s elapsed)`);
+
+      // If entire batch was skipped/errored with nothing embedded, break to avoid infinite loop
+      if (result.embedded === 0 && result.errors === 0) break;
     }
 
     // Generate board summaries with remaining time

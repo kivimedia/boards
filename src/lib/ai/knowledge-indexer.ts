@@ -58,47 +58,48 @@ export async function findCardsNeedingReindex(
   const { data, error } = await supabase.rpc('find_cards_needing_reindex', { p_limit: limit });
 
   if (error || !data) {
-    // Fallback: simple query for cards not yet indexed
-    const { data: fallback } = await supabase
-      .from('cards')
-      .select('id, updated_at')
-      .order('updated_at', { ascending: false })
-      .limit(limit);
+    console.warn('[knowledge-indexer] RPC find_cards_needing_reindex failed, using fallback:', error?.message);
 
-    if (!fallback) return [];
-
-    // Filter to cards not in knowledge_index_state
-    const cardIds = fallback.map((c: any) => c.id);
-    const { data: indexed } = await supabase
+    // Fallback: fetch all indexed card IDs, then find cards NOT in that set
+    // Fetch indexed card IDs in batches to avoid .in() overflow
+    const { data: indexedRows } = await supabase
       .from('knowledge_index_state')
-      .select('entity_id')
-      .eq('entity_type', 'card')
-      .in('entity_id', cardIds);
+      .select('entity_id, last_indexed_at, status')
+      .eq('entity_type', 'card');
 
-    const indexedSet = new Set((indexed || []).map((i: any) => i.entity_id));
-    const unindexed = fallback.filter((c: any) => !indexedSet.has(c.id));
-
-    // Also check for cards updated after their last index
-    const needsUpdate: CardToIndex[] = [];
-    if (indexed && indexed.length > 0) {
-      const { data: stale } = await supabase
-        .from('knowledge_index_state')
-        .select('entity_id, last_indexed_at')
-        .eq('entity_type', 'card')
-        .in('entity_id', cardIds);
-
-      if (stale) {
-        const staleMap = new Map(stale.map((s: any) => [s.entity_id, s.last_indexed_at]));
-        for (const c of fallback) {
-          const lastIndexed = staleMap.get(c.id);
-          if (lastIndexed && new Date(c.updated_at) > new Date(lastIndexed)) {
-            needsUpdate.push(c);
-          }
-        }
-      }
+    const indexedMap = new Map<string, { last_indexed_at: string; status: string }>();
+    for (const row of (indexedRows || []) as any[]) {
+      indexedMap.set(row.entity_id, { last_indexed_at: row.last_indexed_at, status: row.status });
     }
 
-    return [...unindexed, ...needsUpdate].slice(0, limit);
+    // Fetch cards in pages until we have enough unindexed ones
+    const results: CardToIndex[] = [];
+    let offset = 0;
+    const PAGE_SIZE = 500;
+
+    while (results.length < limit) {
+      const { data: page } = await supabase
+        .from('cards')
+        .select('id, updated_at')
+        .order('updated_at', { ascending: false })
+        .range(offset, offset + PAGE_SIZE - 1);
+
+      if (!page || page.length === 0) break;
+
+      for (const card of page) {
+        const indexed = indexedMap.get(card.id);
+        if (!indexed || indexed.status === 'error' || new Date(card.updated_at) > new Date(indexed.last_indexed_at)) {
+          results.push(card);
+          if (results.length >= limit) break;
+        }
+      }
+
+      offset += PAGE_SIZE;
+      // Safety: don't scan more than 20k cards in fallback
+      if (offset > 20000) break;
+    }
+
+    return results;
   }
 
   return data;
