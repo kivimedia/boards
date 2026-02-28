@@ -3248,7 +3248,9 @@ export interface VpsJob {
 // ============================================================================
 
 export type SeoPipelineStatus =
+  | 'pending'
   | 'planning'
+  | 'awaiting_plan_review'
   | 'writing'
   | 'humanizing'
   | 'scoring'
@@ -3336,6 +3338,10 @@ export interface SeoPipelineRun {
   gate2_decided_by: string | null;
   gate2_decided_at: string | null;
 
+  plan_review_round: number;
+  plan_review_decision: string | null;
+  plan_review_feedback: string | null;
+
   created_at: string;
   updated_at: string;
   published_at: string | null;
@@ -3343,6 +3349,31 @@ export interface SeoPipelineRun {
   // Joined
   team_config?: SeoTeamConfig;
   vps_job?: VpsJob;
+}
+
+export interface SeoPhaseFeedback {
+  id: string;
+  run_id: string;
+  phase: string;
+  round: number;
+  feedback_text: string | null;
+  decision: 'approve' | 'revise' | 'scrap';
+  decided_by: string | null;
+  created_at: string;
+  attachments?: SeoReviewAttachment[];
+}
+
+export interface SeoReviewAttachment {
+  id: string;
+  feedback_id: string | null;
+  run_id: string;
+  file_name: string;
+  file_size: number;
+  mime_type: string;
+  storage_path: string;
+  uploaded_by: string | null;
+  created_at: string;
+  url?: string;
 }
 
 export interface SeoAgentCall {

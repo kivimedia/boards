@@ -18,6 +18,7 @@ const PREVIEW_LENGTH = 500;
 
 const PHASE_TO_STATUS: Record<string, SeoPipelineStatus> = {
   planning: 'planning',
+  plan_review: 'awaiting_plan_review',
   writing: 'writing',
   qc: 'scoring',
   humanizing: 'humanizing',
@@ -29,7 +30,7 @@ const PHASE_TO_STATUS: Record<string, SeoPipelineStatus> = {
 };
 
 export const PHASE_ORDER: string[] = [
-  'planning', 'writing', 'qc', 'humanizing', 'scoring',
+  'planning', 'plan_review', 'writing', 'qc', 'humanizing', 'scoring',
   'gate1', 'publishing', 'visual_qa', 'gate2',
 ];
 
@@ -181,7 +182,7 @@ export async function runPhase(
   if (!PHASE_ORDER.includes(phase)) {
     throw new Error(`Unknown phase: ${phase}. Valid: ${PHASE_ORDER.join(', ')}`);
   }
-  if (phase === 'gate1' || phase === 'gate2') {
+  if (phase === 'gate1' || phase === 'gate2' || phase === 'plan_review') {
     throw new Error(`Gate phases (${phase}) require human input. Use submitGateDecision() instead.`);
   }
 
