@@ -8,10 +8,11 @@ import EmojiPicker from './EmojiPicker';
 interface CommentReactionsProps {
   commentId: string;
   cardId: string;
+  initialReactions?: CommentReaction[];
 }
 
-export default function CommentReactions({ commentId, cardId }: CommentReactionsProps) {
-  const [reactions, setReactions] = useState<CommentReaction[]>([]);
+export default function CommentReactions({ commentId, cardId, initialReactions }: CommentReactionsProps) {
+  const [reactions, setReactions] = useState<CommentReaction[]>(initialReactions || []);
   const [showPicker, setShowPicker] = useState(false);
   const { user } = useAuth();
 
@@ -26,9 +27,12 @@ export default function CommentReactions({ commentId, cardId }: CommentReactions
     }
   }, [cardId, commentId]);
 
+  // Only fetch on mount if no initial data was provided
   useEffect(() => {
-    fetchReactions();
-  }, [fetchReactions]);
+    if (!initialReactions) {
+      fetchReactions();
+    }
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSelect = async (emoji: string) => {
     if (!user) return;

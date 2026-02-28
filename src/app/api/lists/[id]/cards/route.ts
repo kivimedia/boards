@@ -72,10 +72,12 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   let title: string;
   let assigneeIds: string[] = [];
+  let insertAtPosition: number | null = null;
   try {
     const body = await request.json();
     title = (body.title || '').trim();
     assigneeIds = Array.isArray(body.assignee_ids) ? body.assignee_ids : [];
+    if (typeof body.position === 'number') insertAtPosition = body.position;
   } catch {
     return errorResponse('Invalid request body');
   }
@@ -102,18 +104,42 @@ export async function POST(request: NextRequest, { params }: Params) {
     return errorResponse(cardError?.message || 'Failed to create card', 500);
   }
 
-  // Compute safe position server-side (bypasses RLS for renumbering)
-  const position = await safeNextPositionServer(listId, supabase);
+  // Compute position: use explicit position if given, otherwise append at end
+  let position: number;
+  if (insertAtPosition !== null) {
+    // Renumber all placements to create a clean gap at the requested position
+    const db = getAdminClient() ?? supabase;
+    const { data: allPlacements } = await db
+      .from('card_placements')
+      .select('id, position')
+      .eq('list_id', listId)
+      .order('position', { ascending: true });
+    if (allPlacements) {
+      let idx = 0;
+      for (const p of allPlacements) {
+        if (idx === insertAtPosition) idx++; // skip the target slot
+        if (p.position !== idx) {
+          await db.from('card_placements').update({ position: idx }).eq('id', p.id);
+        }
+        idx++;
+      }
+    }
+    position = insertAtPosition;
+  } else {
+    position = await safeNextPositionServer(listId, supabase);
+  }
 
   // Place the card in the list
-  const { error: placementError } = await supabase
+  const { data: placement, error: placementError } = await supabase
     .from('card_placements')
-    .insert({ card_id: card.id, list_id: listId, position, is_mirror: false });
+    .insert({ card_id: card.id, list_id: listId, position, is_mirror: false })
+    .select('id')
+    .single();
 
-  if (placementError) {
-    // Card was created but placement failed — attempt cleanup
+  if (placementError || !placement) {
+    // Card was created but placement failed - attempt cleanup
     await supabase.from('cards').delete().eq('id', card.id);
-    return errorResponse(`Failed to place card: ${placementError.message}`, 500);
+    return errorResponse(`Failed to place card: ${placementError?.message || 'unknown'}`, 500);
   }
 
   // Create assignees and send notifications (non-blocking)
@@ -150,5 +176,5 @@ export async function POST(request: NextRequest, { params }: Params) {
     })().catch(() => {});
   }
 
-  return successResponse(card, 201);
+  return successResponse({ ...card, placement_id: placement.id, position }, 201);
 }

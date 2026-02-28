@@ -5,6 +5,7 @@ import { Droppable, Draggable } from '@hello-pangea/dnd';
 import { createClient } from '@/lib/supabase/client';
 import { ListWithCards, BoardFilter } from '@/lib/types';
 import BoardCard from './BoardCard';
+import CardInsertButton from './CardInsertButton';
 import Button from '@/components/ui/Button';
 import ListMenu from './ListMenu';
 
@@ -23,6 +24,7 @@ interface BoardListProps {
   allLists: { id: string; name: string }[];
   onCardClick: (cardId: string) => void;
   onRefresh: () => void;
+  onCardCreated?: (listId: string, card: any) => void;
   selectedCards?: Set<string>;
   toggleCardSelection?: (cardId: string, shiftKey?: boolean) => void;
   filter?: BoardFilter;
@@ -57,7 +59,7 @@ function matchesFilter(placement: any, filter: BoardFilter | undefined): boolean
   return true;
 }
 
-export default function BoardList({ list, index, boardId, boardName, allLists, onCardClick, onRefresh, selectedCards, toggleCardSelection, filter, isLoadingCards, isDraggingList }: BoardListProps) {
+export default function BoardList({ list, index, boardId, boardName, allLists, onCardClick, onRefresh, onCardCreated, selectedCards, toggleCardSelection, filter, isLoadingCards, isDraggingList }: BoardListProps) {
   const [isAddingCard, setIsAddingCard] = useState(false);
   const [newCardTitle, setNewCardTitle] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
@@ -83,15 +85,17 @@ export default function BoardList({ list, index, boardId, boardName, allLists, o
   const hasMore = filteredCards.length > visibleCount;
   const hiddenCount = filteredCards.length - visibleCount;
 
-  const handleAddCard = async () => {
+  const handleAddCard = async (atPosition?: number) => {
     if (!newCardTitle.trim()) return;
     setLoading(true);
     try {
-      // Use server API — bypasses client-side RLS on card_placements
+      const body: Record<string, any> = { title: newCardTitle.trim() };
+      if (typeof atPosition === 'number') body.position = atPosition;
+
       const res = await fetch(`/api/lists/${list.id}/cards`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: newCardTitle.trim() }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {
@@ -100,13 +104,39 @@ export default function BoardList({ list, index, boardId, boardName, allLists, o
         return;
       }
 
+      const { data: newCard } = await res.json();
       setNewCardTitle('');
       setIsAddingCard(false);
-      onRefresh();
+
+      // Optimistic update: add card to cache immediately
+      if (newCard && onCardCreated) {
+        onCardCreated(list.id, newCard);
+      } else {
+        onRefresh();
+      }
     } catch (err) {
       console.error('[AddCard] Unexpected error:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleInsertCard = async (title: string, atPosition: number) => {
+    try {
+      const res = await fetch(`/api/lists/${list.id}/cards`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, position: atPosition }),
+      });
+      if (!res.ok) return;
+      const { data: newCard } = await res.json();
+      if (newCard && onCardCreated) {
+        onCardCreated(list.id, newCard);
+      } else {
+        onRefresh();
+      }
+    } catch (err) {
+      console.error('[InsertCard] Error:', err);
     }
   };
 
@@ -192,26 +222,33 @@ export default function BoardList({ list, index, boardId, boardName, allLists, o
                   </>
                 ) : (
                   visibleCards.map((placement, cardIndex) => (
-                    <BoardCard
-                      key={placement.id}
-                      card={placement.card}
-                      placement_id={placement.id}
-                      index={cardIndex}
-                      labels={placement.labels || []}
-                      assignees={placement.assignees || []}
-                      is_mirror={placement.is_mirror}
-                      onClick={() => onCardClick(placement.card.id)}
-                      selected={selectedCards?.has(placement.card.id)}
-                      onToggleSelect={toggleCardSelection}
-                      comment_count={placement.comment_count || 0}
-                      attachment_count={placement.attachment_count || 0}
-                      checklist_total={placement.checklist_total || 0}
-                      checklist_done={placement.checklist_done || 0}
-                      cover_image_url={placement.cover_image_url || null}
-                      boardId={boardId}
-                      boardName={boardName}
-                      onRefresh={onRefresh}
-                    />
+                    <div key={placement.id}>
+                      {cardIndex === 0 && !snapshot.isDraggingOver && (
+                        <CardInsertButton onInsert={(title) => handleInsertCard(title, 0)} />
+                      )}
+                      <BoardCard
+                        card={placement.card}
+                        placement_id={placement.id}
+                        index={cardIndex}
+                        labels={placement.labels || []}
+                        assignees={placement.assignees || []}
+                        is_mirror={placement.is_mirror}
+                        onClick={() => onCardClick(placement.card.id)}
+                        selected={selectedCards?.has(placement.card.id)}
+                        onToggleSelect={toggleCardSelection}
+                        comment_count={placement.comment_count || 0}
+                        attachment_count={placement.attachment_count || 0}
+                        checklist_total={placement.checklist_total || 0}
+                        checklist_done={placement.checklist_done || 0}
+                        cover_image_url={placement.cover_image_url || null}
+                        boardId={boardId}
+                        boardName={boardName}
+                        onRefresh={onRefresh}
+                      />
+                      {!snapshot.isDraggingOver && (
+                        <CardInsertButton onInsert={(title) => handleInsertCard(title, cardIndex + 1)} />
+                      )}
+                    </div>
                   ))
                 )}
                 {provided.placeholder}
@@ -248,7 +285,7 @@ export default function BoardList({ list, index, boardId, boardName, allLists, o
                 }}
               />
               <div className="flex gap-2 mt-2">
-                <Button size="sm" onClick={handleAddCard} loading={loading}>
+                <Button size="sm" onClick={() => handleAddCard()} loading={loading}>
                   Add Card
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => setIsAddingCard(false)}>
