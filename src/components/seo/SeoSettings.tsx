@@ -40,6 +40,8 @@ export default function SeoSettings() {
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newSilo, setNewSilo] = useState('');
+  const [suggestingSilos, setSuggestingSilos] = useState(false);
+  const [suggestedSilos, setSuggestedSilos] = useState<string[]>([]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -134,6 +136,33 @@ export default function SeoSettings() {
       console.error('Failed to save config:', err);
     }
     setSaving(false);
+  };
+
+  const handleSuggestSilos = async () => {
+    if (!form.site_url.trim() || !form.site_name.trim()) return;
+    setSuggestingSilos(true);
+    setSuggestedSilos([]);
+    try {
+      const res = await fetch('/api/seo/configs/suggest-silos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          site_url: form.site_url.trim(),
+          site_name: form.site_name.trim(),
+          existing_silos: form.content_silos.length > 0 ? form.content_silos : undefined,
+        }),
+      });
+      if (res.ok) {
+        const { data } = await res.json();
+        setSuggestedSilos(data?.silos || []);
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to get suggestions');
+      }
+    } catch {
+      alert('Failed to get silo suggestions');
+    }
+    setSuggestingSilos(false);
   };
 
   if (loading) {
@@ -331,6 +360,66 @@ export default function SeoSettings() {
                     Add
                   </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={handleSuggestSilos}
+                  disabled={suggestingSilos || !form.site_url.trim() || !form.site_name.trim()}
+                  className="mt-2 w-full px-3 py-2 text-xs font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors disabled:opacity-40 font-body flex items-center justify-center gap-2"
+                >
+                  {suggestingSilos ? (
+                    <>
+                      <svg className="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Analyzing site...
+                    </>
+                  ) : (
+                    <>Suggest Silos with AI</>
+                  )}
+                </button>
+                {suggestedSilos.length > 0 && (
+                  <div className="mt-3 p-3 bg-purple-50 dark:bg-purple-900/10 border border-purple-200 dark:border-purple-800 rounded-lg">
+                    <p className="text-xs font-semibold text-purple-700 dark:text-purple-300 mb-2 font-heading">AI Suggestions - click to add</p>
+                    <div className="flex flex-wrap gap-2">
+                      {suggestedSilos.map((silo, idx) => {
+                        const alreadyAdded = form.content_silos.includes(silo);
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            disabled={alreadyAdded}
+                            onClick={() => {
+                              if (!alreadyAdded) {
+                                setForm(f => ({ ...f, content_silos: [...f.content_silos, silo] }));
+                              }
+                            }}
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors font-body ${
+                              alreadyAdded
+                                ? 'bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400 cursor-default'
+                                : 'bg-white dark:bg-dark-surface text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700 hover:bg-purple-100 dark:hover:bg-purple-900/30 cursor-pointer'
+                            }`}
+                          >
+                            {alreadyAdded ? '✓ ' : '+ '}{silo}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newOnes = suggestedSilos.filter(s => !form.content_silos.includes(s));
+                        if (newOnes.length > 0) {
+                          setForm(f => ({ ...f, content_silos: [...f.content_silos, ...newOnes] }));
+                        }
+                      }}
+                      disabled={suggestedSilos.every(s => form.content_silos.includes(s))}
+                      className="mt-2 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-200 font-medium font-body disabled:opacity-40"
+                    >
+                      Add all suggestions
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Quality */}
