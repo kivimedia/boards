@@ -10,10 +10,16 @@ import type { SeoPipelineRun, SeoTeamConfig } from '../shared/types.js';
 // User Message Builders (contextual prompts per phase)
 // ============================================================================
 
-function buildUserMessage(phase: string, run: SeoPipelineRun): string {
+interface BuildMessageOpts {
+  feedback?: string;
+  referenceImageUrls?: string[];
+  previousPlan?: string;
+}
+
+function buildUserMessage(phase: string, run: SeoPipelineRun, opts?: BuildMessageOpts): string {
   switch (phase) {
-    case 'planning':
-      return [
+    case 'planning': {
+      const parts = [
         'Create an SEO content plan and topic assignment for the next blog post.',
         '',
         'Site: orlandostagerental.com (Stages Plus)',
@@ -21,9 +27,24 @@ function buildUserMessage(phase: string, run: SeoPipelineRun): string {
         run.silo ? `Preferred silo: "${run.silo}"` : 'Pick the best silo for this topic.',
         '',
         'No Slack events are available for this post. Focus on educational/product content if no events are referenced in the topic.',
-        '',
-        'Provide your assignment in the YAML format specified in your instructions.',
-      ].join('\n');
+      ];
+
+      // Include feedback from previous review round
+      if (opts?.previousPlan) {
+        parts.push('', '--- PREVIOUS PLAN (needs revision) ---', opts.previousPlan);
+      }
+      if (opts?.feedback) {
+        parts.push('', '--- REVIEWER FEEDBACK (address all points) ---', opts.feedback);
+      }
+      if (opts?.referenceImageUrls?.length) {
+        parts.push('', '--- REFERENCE IMAGES ---');
+        parts.push('The reviewer attached reference images. Incorporate visual direction from these in your plan.');
+        opts.referenceImageUrls.forEach((url, i) => parts.push(`Image ${i + 1}: ${url}`));
+      }
+
+      parts.push('', 'Provide your assignment in the YAML format specified in your instructions.');
+      return parts.join('\n');
+    }
 
     case 'writing': {
       const outline = run.phase_results?.planning || '';
@@ -136,6 +157,9 @@ export interface SeoJobData {
   vps_job_id: string;
   pipeline_run_id: string;
   resume_from_phase: number;
+  feedback?: string;
+  reference_image_urls?: string[];
+  regenerate?: boolean;
 }
 
 interface WpPublishResult {
@@ -219,7 +243,7 @@ async function publishToWordPress(
 // ============================================================================
 
 export async function processSeoJob(job: Job<SeoJobData>): Promise<{ paused_at?: string; completed?: boolean }> {
-  const { vps_job_id, pipeline_run_id, resume_from_phase } = job.data;
+  const { vps_job_id, pipeline_run_id, resume_from_phase, feedback, reference_image_urls, regenerate } = job.data;
 
   console.log(`[seo] Processing job ${vps_job_id}, run ${pipeline_run_id}, from phase ${resume_from_phase}`);
 
@@ -251,9 +275,9 @@ export async function processSeoJob(job: Job<SeoJobData>): Promise<{ paused_at?:
       const phase = PHASE_ORDER[i];
 
       // Gate phases - pause and exit
-      if (phase === 'gate1' || phase === 'gate2') {
-        const gateNum = phase === 'gate1' ? '1' : '2';
-        await markJobPaused(vps_job_id, `Waiting for gate ${gateNum} approval`);
+      if (phase === 'gate1' || phase === 'gate2' || phase === 'plan_review') {
+        const gateLabel = phase === 'plan_review' ? 'plan review' : phase === 'gate1' ? 'gate 1' : 'gate 2';
+        await markJobPaused(vps_job_id, `Waiting for ${gateLabel} approval`);
         await updateJobProgress(vps_job_id, {
           current_step: i,
           total_steps: PHASE_ORDER.length,
@@ -288,9 +312,19 @@ export async function processSeoJob(job: Job<SeoJobData>): Promise<{ paused_at?:
 
       const runForPrompt = (currentRun || run) as SeoPipelineRun;
 
+      // Build message opts - inject feedback for planning regeneration
+      const messageOpts: BuildMessageOpts | undefined =
+        phase === 'planning' && regenerate && feedback
+          ? {
+              feedback,
+              referenceImageUrls: reference_image_urls,
+              previousPlan: runForPrompt.phase_results?.planning ? String(runForPrompt.phase_results.planning) : undefined,
+            }
+          : undefined;
+
       const result = await runPhase(supabase, pipeline_run_id, phase, {
         systemPrompt,
-        userMessage: buildUserMessage(phase, runForPrompt),
+        userMessage: buildUserMessage(phase, runForPrompt, messageOpts),
         model: PHASE_MODELS[phase],
         agentName: `seo_${phase}`,
         anthropicClient: anthropic,
