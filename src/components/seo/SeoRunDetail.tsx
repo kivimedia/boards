@@ -411,12 +411,14 @@ export default function SeoRunDetail({ runId }: Props) {
                       ? 'bg-green-100 dark:bg-green-900/30 text-green-600'
                       : isFailed
                         ? 'bg-red-100 dark:bg-red-900/30 text-red-500'
-                        : 'bg-cream dark:bg-dark-surface text-navy/30 dark:text-slate-600'
+                        : 'bg-gray-100 dark:bg-slate-700 text-navy/50 dark:text-slate-400'
                 }`}>
                   {isComplete ? '✓' : phase.icon}
                 </div>
                 <span className={`text-[10px] mt-1 text-center font-body leading-tight ${
-                  isActive ? 'text-electric font-semibold' : 'text-navy/30 dark:text-slate-600'
+                  isActive ? 'text-electric font-semibold'
+                    : isComplete ? 'text-green-600 dark:text-green-400 font-medium'
+                    : 'text-navy/50 dark:text-slate-400'
                 }`}>
                   {phase.label}
                 </span>
