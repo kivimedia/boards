@@ -76,9 +76,9 @@ export default function VpsJobProgress({ state }: VpsJobProgressProps) {
 
       {/* Chain Steps */}
       {chainSteps.length > 1 && (
-        <div className="px-4 py-2 border-b border-cream-dark dark:border-slate-700">
+        <div className="px-3 md:px-4 py-2 border-b border-cream-dark dark:border-slate-700">
           <p className="text-xs font-semibold text-navy/60 dark:text-slate-300 mb-2 font-heading">Chain Progress</p>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 overflow-x-auto pb-1">
             {chainSteps.map((step, i) => (
               <div key={i} className="flex items-center gap-1">
                 <div
@@ -132,16 +132,16 @@ export default function VpsJobProgress({ state }: VpsJobProgressProps) {
 
       {/* Tool Call Log */}
       {toolCalls.length > 0 && (
-        <div className="px-4 py-2 border-b border-cream-dark dark:border-slate-700">
+        <div className="px-3 md:px-4 py-2 border-b border-cream-dark dark:border-slate-700">
           <p className="text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1 font-heading">
             Tool Calls ({toolCalls.length})
           </p>
           <div className="space-y-1 max-h-32 overflow-y-auto">
             {toolCalls.map((tc, i) => (
-              <div key={i} className="flex items-center gap-2 text-xs font-body">
-                <span className={`w-1.5 h-1.5 rounded-full ${tc.success ? 'bg-green-500' : 'bg-red-500'}`} />
-                <span className="text-navy/60 dark:text-slate-400 font-mono">{tc.name}</span>
-                <span className="text-navy/40 dark:text-slate-500 truncate">{tc.result.slice(0, 80)}</span>
+              <div key={i} className="flex items-center gap-2 text-xs font-body min-w-0">
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${tc.success ? 'bg-green-500' : 'bg-red-500'}`} />
+                <span className="text-navy/60 dark:text-slate-400 font-mono shrink-0">{tc.name}</span>
+                <span className="text-navy/40 dark:text-slate-500 truncate">{tc.result.slice(0, 60)}</span>
               </div>
             ))}
           </div>
@@ -177,7 +177,7 @@ export default function VpsJobProgress({ state }: VpsJobProgressProps) {
 
       {/* Cost Info (on completion) */}
       {isComplete && job.output && (
-        <div className="px-4 py-2 border-t border-cream-dark dark:border-slate-700 flex items-center gap-4 text-xs text-navy/40 dark:text-slate-500 font-body">
+        <div className="px-3 md:px-4 py-2 border-t border-cream-dark dark:border-slate-700 flex items-center gap-3 md:gap-4 text-xs text-navy/40 dark:text-slate-500 font-body flex-wrap">
           {(job.output as any).cost_usd != null && (
             <span>Cost: ${((job.output as any).cost_usd as number).toFixed(4)}</span>
           )}

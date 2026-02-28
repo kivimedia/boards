@@ -90,11 +90,11 @@ export default function SeoRunDetail({ runId }: Props) {
   const isAwaitingGate2 = run.status === 'awaiting_approval_2';
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-4 md:space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-bold text-navy dark:text-white font-heading">{run.topic || 'Untitled Run'}</h1>
-        <div className="flex items-center gap-4 mt-2 text-sm text-navy/50 dark:text-slate-400 font-body">
+        <h1 className="text-lg md:text-xl font-bold text-navy dark:text-white font-heading">{run.topic || 'Untitled Run'}</h1>
+        <div className="flex items-center gap-3 md:gap-4 mt-2 text-xs md:text-sm text-navy/50 dark:text-slate-400 font-body flex-wrap">
           {run.silo && <span>Silo: {run.silo}</span>}
           <span>Created: {new Date(run.created_at).toLocaleString()}</span>
           {run.total_cost_usd > 0 && <span>Cost: ${run.total_cost_usd.toFixed(2)}</span>}
@@ -104,15 +104,15 @@ export default function SeoRunDetail({ runId }: Props) {
       {/* Phase Timeline */}
       <div className="bg-white dark:bg-dark-card rounded-xl p-4 border border-cream-dark dark:border-slate-700">
         <h2 className="text-sm font-semibold text-navy/60 dark:text-slate-300 mb-3 font-heading">Pipeline Progress</h2>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 overflow-x-auto pb-2 -mb-2">
           {PHASES.map((phase, i) => {
             const isActive = phase.key === run.status;
             const isComplete = i < currentPhaseIndex;
             const isFailed = run.status === 'failed';
             return (
-              <div key={phase.key} className="flex-1 flex flex-col items-center">
+              <div key={phase.key} className="flex-1 min-w-[3rem] flex flex-col items-center">
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${
+                  className={`w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center text-xs md:text-sm ${
                     isActive
                       ? 'bg-electric text-white ring-2 ring-electric/30'
                       : isComplete
@@ -135,7 +135,7 @@ export default function SeoRunDetail({ runId }: Props) {
 
       {/* Scores */}
       {(run.qc_score != null || run.value_score != null || run.visual_qa_score != null) && (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 gap-2 md:gap-4">
           {[
             { label: 'QC Score', value: run.qc_score, color: 'text-green-600' },
             { label: 'Value Score', value: run.value_score, color: 'text-cyan-600' },
@@ -143,7 +143,7 @@ export default function SeoRunDetail({ runId }: Props) {
           ].map(score => (
             <div key={score.label} className="bg-white dark:bg-dark-card rounded-xl p-4 border border-cream-dark dark:border-slate-700 text-center">
               <p className="text-xs text-navy/50 dark:text-slate-400 font-body">{score.label}</p>
-              <p className={`text-3xl font-bold mt-1 font-heading ${score.value != null ? score.color : 'text-navy/20'}`}>
+              <p className={`text-2xl md:text-3xl font-bold mt-1 font-heading ${score.value != null ? score.color : 'text-navy/20'}`}>
                 {score.value != null ? score.value : '-'}
               </p>
             </div>
@@ -153,7 +153,7 @@ export default function SeoRunDetail({ runId }: Props) {
 
       {/* Gate Approval */}
       {(isAwaitingGate1 || isAwaitingGate2) && (
-        <div className="bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded-xl p-5">
+        <div className="bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded-xl p-4 md:p-5">
           <h2 className="text-base font-bold text-yellow-800 dark:text-yellow-300 mb-2 font-heading">
             {isAwaitingGate1 ? 'Gate 1: Content Review' : 'Gate 2: Published Post Review'}
           </h2>
@@ -209,7 +209,7 @@ export default function SeoRunDetail({ runId }: Props) {
 
       {/* WordPress Link */}
       {run.wp_preview_url && (
-        <div className="bg-white dark:bg-dark-card rounded-xl p-4 border border-cream-dark dark:border-slate-700 flex items-center justify-between">
+        <div className="bg-white dark:bg-dark-card rounded-xl p-4 border border-cream-dark dark:border-slate-700 flex items-center justify-between gap-3 flex-wrap">
           <div>
             <p className="text-sm font-semibold text-navy dark:text-white font-heading">WordPress Post</p>
             <p className="text-xs text-navy/50 dark:text-slate-400 font-body">Post ID: {run.wp_post_id}</p>
@@ -237,19 +237,19 @@ export default function SeoRunDetail({ runId }: Props) {
           </h2>
           <div className="space-y-2">
             {agentCalls.map(call => (
-              <div key={call.id} className="flex items-center justify-between p-3 bg-cream dark:bg-dark-surface rounded-lg">
-                <div>
-                  <p className="text-sm font-semibold text-navy dark:text-white font-heading">{call.agent_name}</p>
-                  <p className="text-xs text-navy/40 dark:text-slate-500 font-body">
-                    Phase: {call.phase} - Iteration {call.iteration} - {call.model_used || 'unknown model'}
+              <div key={call.id} className="flex items-center justify-between gap-2 p-3 bg-cream dark:bg-dark-surface rounded-lg">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-navy dark:text-white font-heading truncate">{call.agent_name}</p>
+                  <p className="text-xs text-navy/40 dark:text-slate-500 font-body truncate">
+                    Phase: {call.phase} - Iter {call.iteration} - {call.model_used || 'unknown'}
                   </p>
                 </div>
-                <div className="text-right">
+                <div className="text-right shrink-0">
                   <p className="text-xs text-navy/50 dark:text-slate-400 font-body">
-                    {call.input_tokens + call.output_tokens} tokens
+                    {call.input_tokens + call.output_tokens} tok
                   </p>
                   <p className="text-xs text-navy/40 dark:text-slate-500 font-body">
-                    ${call.cost_usd.toFixed(4)} - {(call.duration_ms / 1000).toFixed(1)}s
+                    ${call.cost_usd.toFixed(4)}
                   </p>
                 </div>
               </div>

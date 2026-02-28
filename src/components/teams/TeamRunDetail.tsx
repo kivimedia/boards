@@ -168,26 +168,26 @@ export default function TeamRunDetail({ runId }: Props) {
   const artifacts = run.artifacts as Record<string, unknown> | null;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl font-bold text-navy dark:text-white font-heading">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 md:gap-3 flex-wrap">
+            <h1 className="text-lg md:text-xl font-bold text-navy dark:text-white font-heading">
               {run.template?.name || 'Unknown Template'}
             </h1>
             <StatusBadge status={run.status} />
           </div>
-          <div className="flex items-center gap-4 mt-2 text-sm text-navy/50 dark:text-slate-400 font-body">
+          <div className="flex items-center gap-3 md:gap-4 mt-2 text-xs md:text-sm text-navy/50 dark:text-slate-400 font-body flex-wrap">
             <span>Created: {new Date(run.created_at).toLocaleString()}</span>
             {run.total_cost_usd > 0 && <span>Cost: ${run.total_cost_usd.toFixed(2)}</span>}
           </div>
         </div>
         <Link
           href="/teams"
-          className="px-3 py-1.5 text-xs font-medium text-navy/60 dark:text-slate-400 bg-cream dark:bg-dark-surface rounded-lg hover:bg-cream-dark dark:hover:bg-slate-700 transition-colors font-body"
+          className="shrink-0 px-3 py-1.5 text-xs font-medium text-navy/60 dark:text-slate-400 bg-cream dark:bg-dark-surface rounded-lg hover:bg-cream-dark dark:hover:bg-slate-700 transition-colors font-body"
         >
-          Back to Teams
+          Back
         </Link>
       </div>
 
@@ -209,13 +209,13 @@ export default function TeamRunDetail({ runId }: Props) {
       {/* Phase Timeline */}
       <div className="bg-white dark:bg-dark-card rounded-xl p-4 border border-cream-dark dark:border-slate-700">
         <h2 className="text-sm font-semibold text-navy/60 dark:text-slate-300 mb-4 font-heading">Pipeline Progress</h2>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 overflow-x-auto pb-2 -mb-2">
           {phases.map((phase, i) => {
             const status = getPhaseStatus(phase, i);
             return (
-              <div key={i} className="flex-1 flex flex-col items-center">
+              <div key={i} className="flex-1 min-w-[3rem] flex flex-col items-center">
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                  className={`w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center text-[10px] md:text-xs font-bold ${
                     status === 'active'
                       ? 'bg-electric text-white ring-2 ring-electric/30 animate-pulse'
                       : status === 'completed'
@@ -246,7 +246,7 @@ export default function TeamRunDetail({ runId }: Props) {
 
       {/* Gate Approval */}
       {isAwaiting && currentGateName && (
-        <div className="bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded-xl p-5">
+        <div className="bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded-xl p-4 md:p-5">
           <h2 className="text-base font-bold text-yellow-800 dark:text-yellow-300 mb-2 font-heading">
             Gate: {currentGateName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
           </h2>
@@ -260,25 +260,25 @@ export default function TeamRunDetail({ runId }: Props) {
             rows={3}
             className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-yellow-200 dark:border-yellow-800 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 mb-3 font-body"
           />
-          <div className="flex gap-3">
+          <div className="flex gap-2 md:gap-3 flex-wrap">
             <button
               onClick={() => handleGateDecision(currentGateName, 'approve')}
               disabled={approving}
-              className="px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 font-body"
+              className="px-3 md:px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 font-body"
             >
               Approve
             </button>
             <button
               onClick={() => handleGateDecision(currentGateName, 'revise')}
               disabled={approving}
-              className="px-4 py-2 text-sm font-semibold text-yellow-700 bg-yellow-100 rounded-lg hover:bg-yellow-200 transition-colors disabled:opacity-50 font-body"
+              className="px-3 md:px-4 py-2 text-sm font-semibold text-yellow-700 bg-yellow-100 rounded-lg hover:bg-yellow-200 transition-colors disabled:opacity-50 font-body"
             >
               Revise
             </button>
             <button
               onClick={() => handleGateDecision(currentGateName, 'scrap')}
               disabled={approving}
-              className="px-4 py-2 text-sm font-semibold text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50 font-body"
+              className="px-3 md:px-4 py-2 text-sm font-semibold text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50 font-body"
             >
               Scrap
             </button>
