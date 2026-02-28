@@ -243,6 +243,35 @@ export default async function SettingsPage() {
                 </Link>
               )}
 
+              {/* SEO Pipeline Card */}
+              <Link
+                href="/settings/seo"
+                className="group block bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 hover:border-electric/30 p-6 transition-all duration-200 hover:shadow-lg"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-electric/10 flex items-center justify-center shrink-0 group-hover:bg-electric/20 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-electric">
+                      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                      <polyline points="14 2 14 8 20 8" />
+                      <path d="M16 13H8" />
+                      <path d="M16 17H8" />
+                      <path d="M10 9H8" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-navy dark:text-slate-100 font-heading font-semibold text-base mb-1">
+                      SEO Pipeline
+                    </h3>
+                    <p className="text-navy/50 font-body text-sm leading-relaxed">
+                      Configure SEO content pipeline, WordPress credentials, and quality thresholds.
+                    </p>
+                  </div>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-navy/20 group-hover:text-electric transition-colors mt-1 shrink-0">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </div>
+              </Link>
+
               {/* Board Maintenance Card */}
               <Link
                 href="/settings/board-maintenance"

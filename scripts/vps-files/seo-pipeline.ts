@@ -13,7 +13,7 @@ import type {
 // Key change: anthropicClient is REQUIRED (no DB key fallback)
 
 const DEFAULT_MODEL = 'claude-sonnet-4-20250514';
-const DEFAULT_MAX_TOKENS = 4096;
+const DEFAULT_MAX_TOKENS = 8192;
 const PREVIEW_LENGTH = 500;
 
 const PHASE_TO_STATUS: Record<string, SeoPipelineStatus> = {

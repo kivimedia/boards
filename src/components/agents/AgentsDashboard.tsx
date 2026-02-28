@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import type { AgentSkill, AgentQualityTier } from '@/lib/types';
+import { useVpsAgentJob } from '@/hooks/useVpsAgentJob';
+import VpsJobProgress from '@/components/agents/VpsJobProgress';
 
 const TIER_CONFIG: Record<AgentQualityTier, { label: string; color: string; bg: string; emoji: string }> = {
   genuinely_smart: { label: 'Smart', color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-100 dark:bg-emerald-900/30', emoji: '' },
@@ -35,7 +37,9 @@ export default function AgentsDashboard() {
   const [toolCalls, setToolCalls] = useState<{ name: string; input: Record<string, unknown>; result?: string; success?: boolean; status: string }[]>([]);
   const [confirmation, setConfirmation] = useState<{ tool_call_id: string; name: string; input: Record<string, unknown>; message: string } | null>(null);
   const [executionId, setExecutionId] = useState<string | null>(null);
+  const [useVps, setUseVps] = useState(false);
   const outputRef = useRef<HTMLDivElement>(null);
+  const vpsState = useVpsAgentJob();
 
   useEffect(() => {
     fetchSkills();
@@ -64,6 +68,23 @@ export default function AgentsDashboard() {
 
   const runAgent = async () => {
     if (!selectedSkill || !prompt.trim()) return;
+
+    // VPS path: create background job and let VpsJobProgress handle the rest
+    if (useVps) {
+      setRunning(true);
+      setOutput('');
+      setError(null);
+      const jobId = await vpsState.startJob({
+        skill_id: selectedSkill.id,
+        input_message: prompt.trim(),
+        board_id: selectedBoardId || undefined,
+      });
+      if (!jobId) {
+        setError('Failed to start VPS job');
+      }
+      setRunning(false);
+      return;
+    }
 
     setRunning(true);
     setOutput('');
@@ -304,31 +325,49 @@ export default function AgentsDashboard() {
                     className="w-full px-3 py-2 text-sm rounded-lg border border-navy/10 dark:border-slate-600 bg-cream dark:bg-slate-900 text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-electric/30 resize-none"
                   />
                 </div>
-                <button
-                  onClick={runAgent}
-                  disabled={running || !prompt.trim()}
-                  className="px-5 py-2.5 text-sm font-semibold rounded-lg bg-electric text-white hover:bg-electric/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                >
-                  {running ? (
-                    <>
-                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Running...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M8 5v14l11-7z" />
-                      </svg>
-                      Run Agent
-                    </>
-                  )}
-                </button>
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={runAgent}
+                    disabled={running || !prompt.trim()}
+                    className="px-5 py-2.5 text-sm font-semibold rounded-lg bg-electric text-white hover:bg-electric/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                  >
+                    {running ? (
+                      <>
+                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        {useVps ? 'Starting...' : 'Running...'}
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                        Run Agent
+                      </>
+                    )}
+                  </button>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={useVps}
+                      onChange={(e) => setUseVps(e.target.checked)}
+                      className="w-4 h-4 rounded border-navy/20 dark:border-slate-600 text-electric focus:ring-electric/30"
+                    />
+                    <span className="text-xs text-navy/50 dark:text-slate-400">
+                      VPS (background)
+                    </span>
+                  </label>
+                </div>
               </div>
             )}
           </div>
 
-          {/* Output section */}
-          {(output || error || toolCalls.length > 0) && (
+          {/* VPS Job Progress */}
+          {useVps && vpsState.job && (
+            <VpsJobProgress state={vpsState} />
+          )}
+
+          {/* Output section (SSE path) */}
+          {!useVps && (output || error || toolCalls.length > 0) && (
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-navy/5 dark:border-slate-700 p-5">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold text-navy dark:text-slate-100">
