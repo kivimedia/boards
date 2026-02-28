@@ -522,7 +522,7 @@ export default function SeoCalendarView({ configs }: Props) {
             disabled={launching}
             className="px-4 py-1.5 text-xs font-semibold bg-electric rounded-lg hover:bg-electric-dark transition-colors disabled:opacity-50 font-body"
           >
-            {launching ? 'Launching...' : 'Launch Selected'}
+            {launching ? 'Sending...' : 'Send to Writing Agent'}
           </button>
           <button
             onClick={handleSkipSelected}
