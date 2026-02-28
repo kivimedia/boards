@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import { AVAILABLE_MODELS, AGENT_ROLES, MODEL_PROFILES } from '@/lib/ai/pageforge-pipeline';
 import type { SeoTeamConfig } from '@/lib/types';
 
 interface TeamTemplate {
@@ -80,6 +81,8 @@ export default function TeamsDashboard() {
   const [pageTitle, setPageTitle] = useState('');
   const [pageSlug, setPageSlug] = useState('');
   const [modelProfile, setModelProfile] = useState('cost_optimized');
+  const defaultCustomModels = MODEL_PROFILES.find(p => p.id === 'cost_optimized')!.models;
+  const [customModels, setCustomModels] = useState<Record<string, string>>({ ...defaultCustomModels });
 
   // Derived: is the selected template PageForge?
   const selectedTemplate = templates.find(t => t.id === selectedTemplateId);
@@ -174,17 +177,21 @@ export default function TeamsDashboard() {
     setStarting(true);
 
     try {
+      const pageForgeInputData: Record<string, unknown> = {
+        figma_file_key: figmaFileKey.trim(),
+        page_title: pageTitle.trim(),
+        page_slug: pageSlug.trim() || undefined,
+        model_profile: modelProfile,
+      };
+      if (modelProfile === 'custom') {
+        pageForgeInputData.custom_models = customModels;
+      }
       const payload = isPageForge
         ? {
             template_id: selectedTemplateId,
             client_id: selectedClientId || undefined,
             site_config_id: selectedSiteConfigId || undefined,
-            input_data: {
-              figma_file_key: figmaFileKey.trim(),
-              page_title: pageTitle.trim(),
-              page_slug: pageSlug.trim() || undefined,
-              model_profile: modelProfile,
-            },
+            input_data: pageForgeInputData,
           }
         : {
             template_id: selectedTemplateId,
@@ -210,6 +217,7 @@ export default function TeamsDashboard() {
         setPageTitle('');
         setPageSlug('');
         setModelProfile('cost_optimized');
+        setCustomModels({ ...defaultCustomModels });
         setSelectedClientId('');
         setSelectedSiteConfigId('');
         fetchData();
@@ -505,11 +513,12 @@ export default function TeamsDashboard() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1 font-heading">Model Profile</label>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
                       {[
                         { value: 'cost_optimized', label: 'Cost-Optimized' },
                         { value: 'quality_first', label: 'Quality-First' },
                         { value: 'budget', label: 'Budget' },
+                        { value: 'custom', label: 'Custom' },
                       ].map(opt => (
                         <label
                           key={opt.value}
@@ -531,6 +540,39 @@ export default function TeamsDashboard() {
                         </label>
                       ))}
                     </div>
+                    {/* Custom per-agent model picker */}
+                    {modelProfile === 'custom' && (
+                      <div className="mt-3 rounded-lg border border-cream-dark dark:border-slate-700 bg-cream/50 dark:bg-dark-surface/50 p-3 space-y-2.5">
+                        <p className="text-[10px] font-semibold text-navy/40 dark:text-slate-500 uppercase font-heading">
+                          Per-Agent Model Selection
+                        </p>
+                        {AGENT_ROLES.map((role) => (
+                          <div key={role.key} className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-navy dark:text-slate-200 font-heading">
+                                {role.label}
+                              </p>
+                              <p className="text-[10px] text-navy/40 dark:text-slate-500 truncate font-body">
+                                {role.description}
+                              </p>
+                            </div>
+                            <select
+                              value={customModels[role.key] || ''}
+                              onChange={(e) =>
+                                setCustomModels((prev) => ({ ...prev, [role.key]: e.target.value }))
+                              }
+                              className="shrink-0 w-44 rounded-md border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-xs text-navy dark:text-slate-200 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-electric/40 font-body"
+                            >
+                              {AVAILABLE_MODELS.map((model) => (
+                                <option key={model.id} value={model.id}>
+                                  {model.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </>
               ) : (

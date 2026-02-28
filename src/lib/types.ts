@@ -3623,3 +3623,31 @@ export interface PageForgeBuildPhase {
   created_at: string;
 }
 
+export interface PageForgePreviewToken {
+  id: string;
+  build_id: string;
+  token: string;
+  created_by: string | null;
+  expires_at: string;
+  is_revoked: boolean;
+  created_at: string;
+}
+
+export interface PageForgeNamingIssue {
+  nodeId: string;
+  nodeName: string;
+  nodeType: string;
+  depth: number;
+  issue: string;
+  suggested: string;
+}
+
+export interface PageForgeDesignerFixRequest {
+  requested_at: string;
+  requested_by: string;
+  feedback: string;
+  issues: PageForgeNamingIssue[];
+  status: 'pending' | 'resolved';
+  resolved_at?: string;
+}
+

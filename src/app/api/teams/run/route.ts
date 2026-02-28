@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
 
   // PageForge builds use their own table and VPS job type
   if (template.slug === 'pageforge') {
-    const { figma_file_key, page_title, page_slug, model_profile } = body.input_data as any;
+    const { figma_file_key, page_title, page_slug, model_profile, custom_models } = body.input_data as any;
     if (!figma_file_key || !page_title) {
       return errorResponse('figma_file_key and page_title are required for PageForge', 400);
     }
@@ -73,7 +73,10 @@ export async function POST(request: NextRequest) {
         status: 'pending',
         current_phase: 'pending',
         phase_results: {},
-        artifacts: { model_profile: model_profile || 'cost_optimized' },
+        artifacts: {
+          model_profile: model_profile || 'cost_optimized',
+          custom_models: custom_models || null,
+        },
         error_log: [],
         total_cost_usd: 0,
         agent_costs: {},

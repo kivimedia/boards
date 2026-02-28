@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
   if (!auth.ok) return auth.response;
 
   const body = await request.json();
-  const { siteProfileId, figmaFileKey, figmaNodeIds, pageTitle, pageSlug, model_profile: modelProfile, boardListId } = body;
+  const { siteProfileId, figmaFileKey, figmaNodeIds, pageTitle, pageSlug, model_profile: modelProfile, custom_models: customModels, boardListId } = body;
 
   if (!siteProfileId || !figmaFileKey || !pageTitle) {
     return errorResponse('siteProfileId, figmaFileKey, and pageTitle are required');
@@ -64,10 +64,15 @@ export async function POST(request: NextRequest) {
     }
   );
 
-  // Store model_profile in the build artifacts JSONB
+  // Store model_profile and custom_models in the build artifacts JSONB
   await auth.ctx.supabase
     .from('pageforge_builds')
-    .update({ artifacts: { model_profile: modelProfile || 'cost_optimized' } })
+    .update({
+      artifacts: {
+        model_profile: modelProfile || 'cost_optimized',
+        custom_models: customModels || null,
+      },
+    })
     .eq('id', build.id);
 
   // Create VPS job for the build
