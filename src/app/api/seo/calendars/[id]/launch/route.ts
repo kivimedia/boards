@@ -36,12 +36,26 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   for (const item of items) {
     try {
+      // Build assignment with images + context for the writing agent
+      const itemImages = Array.isArray(item.images) ? item.images : [];
+      const assignment: Record<string, unknown> = {};
+      if (item.outline_notes) assignment.outline_notes = item.outline_notes;
+      if (item.keywords?.length) assignment.keywords = item.keywords;
+      if (itemImages.length > 0) {
+        assignment.images = itemImages.map((img: { url: string; filename: string; context: string | null }) => ({
+          url: img.url,
+          filename: img.filename,
+          context: img.context,
+        }));
+      }
+
       const { run, jobId } = await createPipelineRun(supabase, {
         userId,
         teamConfigId: item.team_config_id,
         clientId: item.calendar?.client_id || null,
         topic: item.topic,
         silo: item.silo,
+        assignment: Object.keys(assignment).length > 0 ? assignment : null,
       });
 
       await supabase

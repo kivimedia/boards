@@ -3416,9 +3416,18 @@ export interface SeoCalendarItem {
   status: SeoCalendarItemStatus;
   run_id: string | null;
   launched_at: string | null;
+  images: SeoCalendarItemImage[];
   created_at: string;
   updated_at: string;
   run?: SeoPipelineRun;
+}
+
+export interface SeoCalendarItemImage {
+  storage_path: string;
+  url: string;
+  filename: string;
+  context: string | null;
+  mime_type: string;
 }
 
 export interface SeoAgentCall {
