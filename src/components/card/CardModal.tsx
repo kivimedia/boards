@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
-import { Card, Label, Profile, Comment, CardPriority, CardSize, AIReviewResult, AIQAResult, BoardType, CustomFieldValue } from '@/lib/types';
+import { Card, Label, Profile, Comment, CommentReaction, CardPriority, CardSize, AIReviewResult, AIQAResult, BoardType, CustomFieldValue } from '@/lib/types';
 import { useAuth } from '@/hooks/useAuth';
 import { useAutoResize } from '@/hooks/useAutoResize';
 import { useProfilingStore } from '@/stores/profiling-store';
@@ -111,6 +111,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
   const [assignees, setAssignees] = useState<Profile[]>([]);
   const [allProfiles, setAllProfiles] = useState<Profile[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
+  const [reactionsMap, setReactionsMap] = useState<Record<string, CommentReaction[]>>({});
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [showAssigneePicker, setShowAssigneePicker] = useState(false);
   const [title, setTitle] = useState('');
@@ -302,6 +303,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
       setAssignees(data.assignees || []);
       setAllProfiles(data.profiles || []);
       setComments(data.comments || []);
+      setReactionsMap(data.reactions || {});
 
       // Report profiling
       const totalMs = performance.now() - t0;
@@ -414,6 +416,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
       setAssignees(data.assignees || []);
       setAllProfiles(data.profiles || []);
       setComments(data.comments || []);
+      setReactionsMap(data.reactions || {});
     } catch (err) {
       console.error('[CardModal] Refresh error:', err);
     }
@@ -1043,6 +1046,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                     cardId={cardId}
                     boardId={boardId}
                     comments={comments}
+                    reactionsMap={reactionsMap}
                     onRefresh={fetchCardDetails}
                     onCommentAdded={(comment) => {
                       setComments((prev) => {

@@ -5,7 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import remarkMentions from '@/lib/remark-mentions';
-import { Comment } from '@/lib/types';
+import { Comment, CommentReaction } from '@/lib/types';
 import Avatar from '@/components/ui/Avatar';
 import Button from '@/components/ui/Button';
 import CommentReactions from './CommentReactions';
@@ -67,9 +67,12 @@ function linkifyContent(text: string, showFullLinks = false) {
   );
 }
 
+const COMMENTS_PAGE_SIZE = 20;
+
 interface CardCommentsProps {
   cardId: string;
   comments: Comment[];
+  reactionsMap?: Record<string, CommentReaction[]>;
   onRefresh: () => void;
   onCommentAdded?: (comment: Comment) => void;
   boardId?: string;
@@ -77,7 +80,7 @@ interface CardCommentsProps {
   isAdmin?: boolean;
 }
 
-export default function CardComments({ cardId, comments, onRefresh, onCommentAdded, boardId, currentUserId, isAdmin }: CardCommentsProps) {
+export default function CardComments({ cardId, comments, reactionsMap, onRefresh, onCommentAdded, boardId, currentUserId, isAdmin }: CardCommentsProps) {
   // Undo/Redo for new comment
   const newCommentUndo = useUndoRedo('');
   const [replyText, setReplyText] = useState('');
@@ -85,6 +88,7 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
   const [loading, setLoading] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
+  const [visibleCount, setVisibleCount] = useState(COMMENTS_PAGE_SIZE);
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   // Undo/Redo for edit text
   const editTextUndo = useUndoRedo('');
@@ -436,7 +440,7 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
               </div>
             )}
             <div className="flex items-center gap-2 mt-1">
-              <CommentReactions commentId={comment.id} cardId={cardId} />
+              <CommentReactions commentId={comment.id} cardId={cardId} initialReactions={reactionsMap?.[comment.id]} />
               {!isReply && (
                 <button
                   onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
@@ -554,8 +558,17 @@ export default function CardComments({ cardId, comments, onRefresh, onCommentAdd
       </div>
 
       <div ref={commentsContainerRef} className="space-y-4 divide-y divide-cream-dark dark:divide-slate-700/50 [&>*:not(:first-child)]:pt-4">
-        {topLevel.map((comment) => renderComment(comment))}
+        {topLevel.slice(0, visibleCount).map((comment) => renderComment(comment))}
       </div>
+
+      {topLevel.length > visibleCount && (
+        <button
+          onClick={() => setVisibleCount((prev) => prev + COMMENTS_PAGE_SIZE)}
+          className="mt-3 w-full py-2 text-sm text-electric hover:text-electric/80 font-medium font-body transition-colors"
+        >
+          Show more comments ({topLevel.length - visibleCount} remaining)
+        </button>
+      )}
     </div>
   );
 }

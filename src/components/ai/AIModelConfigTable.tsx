@@ -49,6 +49,11 @@ const DEFAULTS: Record<AIActivity, { provider: AIProvider; model_id: string; tem
   image_prompt_enhance: { provider: 'anthropic', model_id: 'claude-haiku-4-5-20251001', temperature: 0.7, max_tokens: 1024 },
   knowledge_index: { provider: 'openai', model_id: 'text-embedding-3-small', temperature: 0, max_tokens: 0 },
   board_summary: { provider: 'anthropic', model_id: 'claude-haiku-4-5-20251001', temperature: 0.3, max_tokens: 600 },
+  pageforge_orchestrator: { provider: 'anthropic', model_id: 'claude-sonnet-4-5-20250929', temperature: 0.3, max_tokens: 8192 },
+  pageforge_builder: { provider: 'anthropic', model_id: 'claude-sonnet-4-5-20250929', temperature: 0.4, max_tokens: 8192 },
+  pageforge_vqa: { provider: 'anthropic', model_id: 'claude-sonnet-4-5-20250929', temperature: 0.2, max_tokens: 4096 },
+  pageforge_qa: { provider: 'anthropic', model_id: 'claude-sonnet-4-5-20250929', temperature: 0.2, max_tokens: 4096 },
+  pageforge_seo: { provider: 'anthropic', model_id: 'claude-haiku-4-5-20251001', temperature: 0.3, max_tokens: 4096 },
 };
 
 function isDefaultConfig(config: AIModelConfig): boolean {

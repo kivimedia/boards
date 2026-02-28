@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { DragDropContext, Droppable, DropResult, BeforeCapture } from '@hello-pangea/dnd';
 import { useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
@@ -8,6 +8,7 @@ import { BoardWithLists, BoardFilter } from '@/lib/types';
 import BoardList from './BoardList';
 import CardModal from '@/components/card/CardModal';
 import BulkSelectToolbar from './BulkSelectToolbar';
+import ListInsertButton from './ListInsertButton';
 import Button from '@/components/ui/Button';
 import { useBoardPan } from '@/hooks/useBoardPan';
 
@@ -263,6 +264,43 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
     [board, supabase, queryClient]
   );
 
+  // Optimistic card creation: insert into cache immediately so card appears instantly
+  const handleCardCreated = useCallback((listId: string, newCard: any) => {
+    const currentBoard = queryClient.getQueryData(['board', board.id]) as BoardWithLists | undefined;
+    if (!currentBoard) { onRefresh(); return; }
+
+    const updatedLists = currentBoard.lists.map((l) => {
+      if (l.id !== listId) return l;
+      const position = newCard.position ?? l.cards.length;
+      const newPlacement = {
+        id: newCard.placement_id || `temp-${newCard.id}`,
+        card_id: newCard.id,
+        list_id: listId,
+        position,
+        is_mirror: false,
+        card: {
+          id: newCard.id,
+          title: newCard.title,
+          description: '',
+          priority: newCard.priority || null,
+          due_date: newCard.due_date || null,
+          created_at: newCard.created_at || new Date().toISOString(),
+          updated_at: newCard.updated_at || new Date().toISOString(),
+        },
+        labels: [],
+        assignees: [],
+        comment_count: 0,
+        attachment_count: 0,
+        checklist_total: 0,
+        checklist_done: 0,
+        cover_image_url: null,
+      };
+      return { ...l, cards: [...l.cards, newPlacement] };
+    });
+
+    queryClient.setQueryData(['board', board.id], { ...currentBoard, lists: updatedLists });
+  }, [board.id, queryClient, onRefresh]);
+
   const handleAddList = async () => {
     if (!newListName.trim()) return;
 
@@ -288,6 +326,27 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
 
     setNewListName('');
     setIsAddingList(false);
+    onRefresh();
+  };
+
+  const handleInsertList = async (name: string, atPosition: number) => {
+    // Renumber existing lists to open a gap at atPosition
+    const sorted = [...board.lists].sort((a, b) => a.position - b.position);
+    let idx = 0;
+    for (const l of sorted) {
+      if (idx === atPosition) idx++;
+      if (l.position !== idx) {
+        await supabase.from('lists').update({ position: idx }).eq('id', l.id);
+      }
+      idx++;
+    }
+
+    await supabase.from('lists').insert({
+      board_id: board.id,
+      name: name.trim(),
+      position: atPosition,
+    });
+
     onRefresh();
   };
 
@@ -373,21 +432,29 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
               className="flex-1 flex gap-3 overflow-x-auto p-3 sm:p-6 pb-20 sm:pb-24 scrollbar-thin items-start"
             >
               {sortedLists.map((list, index) => (
-                <BoardList
-                  key={list.id}
-                  list={list}
-                  index={index}
-                  boardId={board.id}
-                  boardName={board.name}
-                  allLists={sortedLists.map((l) => ({ id: l.id, name: l.name }))}
-                  onCardClick={setSelectedCardId}
-                  onRefresh={onRefresh}
-                  selectedCards={selectedCards}
-                  toggleCardSelection={toggleCardSelection}
-                  filter={filter}
-                  isLoadingCards={isLoadingCards}
-                  isDraggingList={draggingListType}
-                />
+                <React.Fragment key={list.id}>
+                  {index === 0 && !draggingListType && (
+                    <ListInsertButton onInsert={(name) => handleInsertList(name, 0)} />
+                  )}
+                  <BoardList
+                    list={list}
+                    index={index}
+                    boardId={board.id}
+                    boardName={board.name}
+                    allLists={sortedLists.map((l) => ({ id: l.id, name: l.name }))}
+                    onCardClick={setSelectedCardId}
+                    onRefresh={onRefresh}
+                    onCardCreated={handleCardCreated}
+                    selectedCards={selectedCards}
+                    toggleCardSelection={toggleCardSelection}
+                    filter={filter}
+                    isLoadingCards={isLoadingCards}
+                    isDraggingList={draggingListType}
+                  />
+                  {!draggingListType && (
+                    <ListInsertButton onInsert={(name) => handleInsertList(name, index + 1)} />
+                  )}
+                </React.Fragment>
               ))}
               {provided.placeholder}
 

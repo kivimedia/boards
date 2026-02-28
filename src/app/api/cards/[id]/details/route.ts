@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getAuthContext, errorResponse } from '@/lib/api-helpers';
+import { getReactionsForComments } from '@/lib/comment-reactions';
 
 function getAdminClient() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -77,6 +78,12 @@ export async function GET(request: NextRequest, { params }: Params) {
     profile: profilesMap.get(c.user_id) || null,
   }));
 
+  // Batch-fetch all reactions for all comments in ONE query (instead of N per-comment fetches)
+  const commentIds = commentsWithProfiles.map((c: any) => c.id);
+  const reactionsMap = commentIds.length > 0
+    ? await getReactionsForComments(db, commentIds)
+    : {};
+
   const total = performance.now() - t0;
 
   // Check if current user is admin (ziv@dailycookie.co)
@@ -102,6 +109,7 @@ export async function GET(request: NextRequest, { params }: Params) {
     assignees: (assigneesResult.data || []).map((a: any) => profilesMap.get(a.user_id)).filter(Boolean),
     profiles: profilesResult.data || [],
     comments: commentsWithProfiles,
+    reactions: reactionsMap,
     signedCoverUrl,
   };
 
