@@ -27,13 +27,13 @@ export default function CreateBoardModal({ isOpen, onClose }: CreateBoardModalPr
     e.preventDefault();
     setLoading(true);
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    // Use cached session (no network call) instead of getUser() which hits auth server
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return;
 
-    // Create board
     const { data: board, error } = await supabase
       .from('boards')
-      .insert({ name, type, created_by: user.id })
+      .insert({ name, type, created_by: session.user.id })
       .select()
       .single();
 
@@ -42,7 +42,15 @@ export default function CreateBoardModal({ isOpen, onClose }: CreateBoardModalPr
       return;
     }
 
-    // Create default lists + labels in parallel
+    // Navigate immediately - board page will load lists as they appear
+    const boardSlug = slugify(board.name);
+    setName('');
+    setType('dev');
+    setLoading(false);
+    onClose();
+    router.push(`/board/${boardSlug}`);
+
+    // Everything below runs in background after navigation starts
     const config = BOARD_TYPE_CONFIG[type];
     const lists = config.defaultLists.map((listName, index) => ({
       board_id: board.id,
@@ -56,22 +64,15 @@ export default function CreateBoardModal({ isOpen, onClose }: CreateBoardModalPr
       { name: 'Done', color: '#10b981', board_id: board.id },
     ];
 
-    await Promise.all([
+    // Insert lists + labels + custom fields + automation all in parallel
+    const bgTasks: PromiseLike<unknown>[] = [
       supabase.from('lists').insert(lists),
       supabase.from('labels').insert(defaultLabels),
-    ]);
+    ];
 
-    // Navigate immediately - board page fetches its own data
-    setName('');
-    setType('dev');
-    setLoading(false);
-    onClose();
-    router.push(`/board/${slugify(board.name)}`);
-
-    // Set up custom fields + automation rules in background (non-blocking)
     const defaultCustomFields = config.defaultCustomFields;
     if (defaultCustomFields && defaultCustomFields.length > 0) {
-      Promise.all(defaultCustomFields.map((field, index) =>
+      bgTasks.push(...defaultCustomFields.map((field, index) =>
         fetch(`/api/boards/${board.id}/custom-fields`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -83,11 +84,11 @@ export default function CreateBoardModal({ isOpen, onClose }: CreateBoardModalPr
             position: index,
           }),
         })
-      )).catch(() => {});
+      ));
     }
     const defaultRules = getDefaultAutomationRules(type);
     if (defaultRules.length > 0) {
-      Promise.all(defaultRules.map((rule, index) =>
+      bgTasks.push(...defaultRules.map((rule, index) =>
         fetch(`/api/boards/${board.id}/automation`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -100,8 +101,9 @@ export default function CreateBoardModal({ isOpen, onClose }: CreateBoardModalPr
             execution_order: index,
           }),
         })
-      )).catch(() => {});
+      ));
     }
+    Promise.all(bgTasks).catch(() => {});
   };
 
   return (
