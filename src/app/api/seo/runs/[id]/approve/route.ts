@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getAuthContext, successResponse, errorResponse, parseBody } from '@/lib/api-helpers';
 
-type Params = { params: { id: string } };
+type Params = { params: Promise<{ id: string }> };
 
 interface ApproveBody {
   gate: 1 | 2;
@@ -40,7 +40,7 @@ export async function POST(
   }
 
   const { supabase, userId } = auth.ctx;
-  const { id } = params;
+  const { id } = await params;
 
   // Verify the run exists
   const { data: run, error: runErr } = await supabase
