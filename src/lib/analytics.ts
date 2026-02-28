@@ -336,7 +336,7 @@ export async function getBurndownData(
     .gte('created_at', startDate)
     .lte('created_at', endDate)
     .order('created_at', { ascending: true })
-    .limit(5000);
+    .limit(50000);
   const start = new Date(startDate);
   const end = new Date(endDate);
   const totalDays = Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
