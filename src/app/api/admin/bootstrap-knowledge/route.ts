@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   );
 
   const startTime = Date.now();
-  const TIME_LIMIT = 260_000; // 260s, leave 40s buffer
+  const TIME_LIMIT = 230_000; // 230s, leave 70s buffer for response + cleanup
   const BATCH_SIZE = 50;
 
   let totalEmbedded = 0;
@@ -69,26 +69,8 @@ export async function POST(request: Request) {
       if (result.embedded === 0 && result.errors === 0) break;
     }
 
-    // Generate board summaries with remaining time
-    let summariesGenerated = 0;
-    if (Date.now() - startTime < TIME_LIMIT) {
-      const { data: boards } = await supabase
-        .from('boards')
-        .select('id, name')
-        .eq('is_archived', false);
-
-      if (boards) {
-        for (const board of boards) {
-          if (Date.now() - startTime > TIME_LIMIT) break;
-          try {
-            const result = await generateBoardSummary(supabase, board.id);
-            if (result) summariesGenerated++;
-          } catch {
-            // continue with next board
-          }
-        }
-      }
-    }
+    // Board summaries are handled by the separate /api/cron/board-summaries endpoint
+    const summariesGenerated = 0;
 
     // Check how many remain
     const { count: totalCards } = await supabase
