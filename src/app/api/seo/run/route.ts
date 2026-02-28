@@ -70,5 +70,11 @@ export async function POST(request: NextRequest) {
 
   if (runErr) return errorResponse(runErr.message, 500);
 
+  // Update job payload with the pipeline_run_id so the VPS worker can find it
+  await supabase
+    .from('vps_jobs')
+    .update({ payload: { ...job.payload, pipeline_run_id: run.id } })
+    .eq('id', job.id);
+
   return successResponse({ run, job_id: job.id }, 201);
 }
