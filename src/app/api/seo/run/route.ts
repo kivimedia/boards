@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { getAuthContext, successResponse, errorResponse, parseBody } from '@/lib/api-helpers';
+import { createPipelineRun } from '@/lib/seo/create-pipeline-run';
 
 interface StartRunBody {
   team_config_id: string;
@@ -38,43 +39,17 @@ export async function POST(request: NextRequest) {
     return errorResponse('Team config not found', 404);
   }
 
-  // Create the VPS job entry
-  const { data: job, error: jobErr } = await supabase
-    .from('vps_jobs')
-    .insert({
-      job_type: 'pipeline:seo',
-      status: 'pending',
-      user_id: userId,
-      client_id: configCheck.client_id || null,
-      payload: { team_config_id, topic, silo: silo || null },
-    })
-    .select()
-    .single();
-
-  if (jobErr) return errorResponse(jobErr.message, 500);
-
-  // Create the SEO pipeline run linked to the job
-  const { data: run, error: runErr } = await supabase
-    .from('seo_pipeline_runs')
-    .insert({
-      vps_job_id: job.id,
-      team_config_id: team_config_id.trim(),
-      client_id: configCheck.client_id || null,
+  try {
+    const { run, jobId } = await createPipelineRun(supabase, {
+      userId,
+      teamConfigId: team_config_id.trim(),
+      clientId: configCheck.client_id || null,
       topic: topic.trim(),
       silo: silo?.trim() || null,
       assignment: assignment || null,
-      status: 'pending',
-    })
-    .select()
-    .single();
-
-  if (runErr) return errorResponse(runErr.message, 500);
-
-  // Update job payload with the pipeline_run_id so the VPS worker can find it
-  await supabase
-    .from('vps_jobs')
-    .update({ payload: { ...job.payload, pipeline_run_id: run.id } })
-    .eq('id', job.id);
-
-  return successResponse({ run, job_id: job.id }, 201);
+    });
+    return successResponse({ run, job_id: jobId }, 201);
+  } catch (err) {
+    return errorResponse(err instanceof Error ? err.message : 'Failed to create run', 500);
+  }
 }
