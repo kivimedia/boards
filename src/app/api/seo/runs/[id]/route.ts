@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getAuthContext, successResponse, errorResponse } from '@/lib/api-helpers';
 
-type Params = { params: { id: string } };
+type Params = { params: Promise<{ id: string }> };
 
 /**
  * GET /api/seo/runs/[id]
@@ -16,12 +16,12 @@ export async function GET(
   if (!auth.ok) return auth.response;
 
   const { supabase } = auth.ctx;
-  const { id } = params;
+  const { id } = await params;
 
-  // Fetch the pipeline run
+  // Fetch the pipeline run with team config
   const { data: run, error: runErr } = await supabase
     .from('seo_pipeline_runs')
-    .select('*')
+    .select('*, team_config:seo_team_configs(id, site_name, site_url, client:clients(id, name))')
     .eq('id', id)
     .single();
 
