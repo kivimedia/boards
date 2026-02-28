@@ -969,7 +969,12 @@ export type AIActivity =
   | 'replicate_generate'
   | 'image_prompt_enhance'
   | 'knowledge_index'
-  | 'board_summary';
+  | 'board_summary'
+  | 'pageforge_orchestrator'
+  | 'pageforge_builder'
+  | 'pageforge_vqa'
+  | 'pageforge_qa'
+  | 'pageforge_seo';
 
 export type AIUsageStatus = 'success' | 'error' | 'cancelled' | 'budget_blocked' | 'rate_limited';
 
@@ -3211,7 +3216,7 @@ export interface MeetingChatMessage {
 // VPS JOB TYPES
 // ============================================================================
 
-export type VpsJobType = 'agent:standalone' | 'agent:chain' | 'agent:team' | 'pipeline:seo' | 'pipeline:scout' | 'cron';
+export type VpsJobType = 'agent:standalone' | 'agent:chain' | 'agent:team' | 'pipeline:seo' | 'pipeline:scout' | 'pipeline:pageforge' | 'cron';
 export type VpsJobStatus = 'pending' | 'queued' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
 
 export interface VpsJob {
@@ -3446,6 +3451,173 @@ export interface SeoAgentCall {
   input_preview: string | null;
   output_preview: string | null;
   status: 'success' | 'failed' | 'timeout';
+  error_message: string | null;
+
+  created_at: string;
+}
+
+// ---------------------------------------------------------------------------
+// PageForge - Figma-to-WordPress Build System
+// ---------------------------------------------------------------------------
+
+export type PageForgeBuilderType = 'gutenberg' | 'divi5' | 'divi4';
+
+export type PageForgeBuildStatus =
+  | 'pending'
+  | 'preflight'
+  | 'figma_analysis'
+  | 'section_classification'
+  | 'markup_generation'
+  | 'markup_validation'
+  | 'deploy_draft'
+  | 'image_optimization'
+  | 'vqa_capture'
+  | 'vqa_comparison'
+  | 'vqa_fix_loop'
+  | 'functional_qa'
+  | 'seo_config'
+  | 'report_generation'
+  | 'developer_review_gate'
+  | 'am_signoff_gate'
+  | 'published'
+  | 'failed'
+  | 'cancelled';
+
+export type PageForgeGateDecision = 'approve' | 'revise' | 'cancel';
+
+export interface PageForgeSiteProfile {
+  id: string;
+  client_id: string | null;
+  site_name: string;
+  site_url: string;
+
+  wp_rest_url: string;
+  wp_username: string | null;
+  wp_app_password: string | null;
+
+  wp_ssh_host: string | null;
+  wp_ssh_user: string | null;
+  wp_ssh_key_path: string | null;
+
+  figma_personal_token: string | null;
+  figma_team_id: string | null;
+
+  page_builder: PageForgeBuilderType;
+  theme_name: string | null;
+  theme_css_url: string | null;
+  global_css: string | null;
+
+  yoast_enabled: boolean;
+  vqa_pass_threshold: number;
+  lighthouse_min_score: number;
+  max_vqa_fix_loops: number;
+
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+
+  // Joined
+  client?: { id: string; name: string } | null;
+}
+
+export interface PageForgeBuild {
+  id: string;
+  site_profile_id: string;
+  vps_job_id: string | null;
+  client_id: string | null;
+
+  figma_file_key: string;
+  figma_node_ids: string[];
+  page_title: string;
+  page_slug: string | null;
+  page_builder: PageForgeBuilderType;
+
+  status: PageForgeBuildStatus;
+  current_phase: number;
+  phase_results: Record<string, unknown>;
+  artifacts: Record<string, unknown>;
+  error_log: Array<{ phase: string; error: string; timestamp: string }>;
+
+  wp_page_id: number | null;
+  wp_draft_url: string | null;
+  wp_preview_url: string | null;
+  wp_live_url: string | null;
+
+  vqa_score_desktop: number | null;
+  vqa_score_tablet: number | null;
+  vqa_score_mobile: number | null;
+  vqa_score_overall: number | null;
+
+  lighthouse_performance: number | null;
+  lighthouse_accessibility: number | null;
+  lighthouse_best_practices: number | null;
+  lighthouse_seo: number | null;
+
+  qa_checks_passed: number;
+  qa_checks_failed: number;
+  qa_checks_total: number;
+
+  total_cost_usd: number;
+  agent_costs: Record<string, number>;
+
+  dev_gate_decision: PageForgeGateDecision | null;
+  dev_gate_feedback: string | null;
+  dev_gate_decided_by: string | null;
+  dev_gate_decided_at: string | null;
+
+  am_gate_decision: PageForgeGateDecision | null;
+  am_gate_feedback: string | null;
+  am_gate_decided_by: string | null;
+  am_gate_decided_at: string | null;
+
+  vqa_fix_iteration: number;
+
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  published_at: string | null;
+
+  // Joined
+  site_profile?: PageForgeSiteProfile;
+  vps_job?: VpsJob;
+}
+
+export interface PageForgeAgentCall {
+  id: string;
+  build_id: string;
+  agent_name: string;
+  phase: string;
+
+  model_used: string | null;
+  provider: string | null;
+
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+  duration_ms: number;
+  iteration: number;
+
+  input_preview: string | null;
+  output_preview: string | null;
+  status: 'success' | 'failed' | 'timeout';
+  error_message: string | null;
+
+  created_at: string;
+}
+
+export interface PageForgeBuildPhase {
+  id: string;
+  build_id: string;
+  phase_name: string;
+  phase_index: number;
+
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  started_at: string | null;
+  completed_at: string | null;
+  duration_ms: number | null;
+
+  result: Record<string, unknown> | null;
+  artifacts: Record<string, unknown> | null;
   error_message: string | null;
 
   created_at: string;

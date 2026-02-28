@@ -1,0 +1,745 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import type {
+  PageForgeBuild,
+  PageForgeBuildPhase,
+  PageForgeBuildStatus,
+  PageForgeGateDecision,
+  PageForgeAgentCall,
+} from '@/lib/types';
+
+// ---------------------------------------------------------------------------
+// Phase definitions (order matters)
+// ---------------------------------------------------------------------------
+const PHASE_NAMES: string[] = [
+  'Preflight',
+  'Figma Analysis',
+  'Section Classification',
+  'Markup Generation',
+  'Markup Validation',
+  'Deploy Draft',
+  'Image Optimization',
+  'VQA Capture',
+  'VQA Comparison',
+  'VQA Fix Loop',
+  'Functional QA',
+  'SEO Config',
+  'Report Generation',
+  'Developer Review Gate',
+  'AM Sign-off Gate',
+];
+
+const GATE_STATUSES: PageForgeBuildStatus[] = [
+  'developer_review_gate',
+  'am_signoff_gate',
+];
+
+const IN_PROGRESS_STATUSES: PageForgeBuildStatus[] = [
+  'pending',
+  'preflight',
+  'figma_analysis',
+  'section_classification',
+  'markup_generation',
+  'markup_validation',
+  'deploy_draft',
+  'image_optimization',
+  'vqa_capture',
+  'vqa_comparison',
+  'vqa_fix_loop',
+  'functional_qa',
+  'seo_config',
+  'report_generation',
+  'developer_review_gate',
+  'am_signoff_gate',
+];
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+function humanStatus(status: string): string {
+  return status
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function lighthouseColor(score: number | null): string {
+  if (score == null) return 'border-navy/10 text-navy/30 dark:border-slate-700 dark:text-slate-600';
+  if (score >= 90) return 'border-green-500 text-green-700 dark:text-green-400';
+  if (score >= 50) return 'border-yellow-500 text-yellow-700 dark:text-yellow-400';
+  return 'border-red-500 text-red-700 dark:text-red-400';
+}
+
+function vqaBarColor(score: number | null): string {
+  if (score == null) return 'bg-navy/10 dark:bg-slate-700';
+  if (score >= 90) return 'bg-green-500';
+  if (score >= 70) return 'bg-yellow-500';
+  return 'bg-red-500';
+}
+
+// ---------------------------------------------------------------------------
+// Props
+// ---------------------------------------------------------------------------
+interface PageForgeBuildDetailProps {
+  buildId: string;
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailProps) {
+  const [build, setBuild] = useState<PageForgeBuild | null>(null);
+  const [phases, setPhases] = useState<PageForgeBuildPhase[]>([]);
+  const [agentCalls, setAgentCalls] = useState<PageForgeAgentCall[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [screenshotTab, setScreenshotTab] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+  const [gateAction, setGateAction] = useState<PageForgeGateDecision | null>(null);
+  const [gateFeedback, setGateFeedback] = useState('');
+  const [submittingGate, setSubmittingGate] = useState(false);
+
+  // ------- Fetch build -------
+  const fetchBuild = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/pageforge/builds/${buildId}`);
+      const json = await res.json();
+      if (json.data) {
+        setBuild(json.data.build ?? json.data);
+        if (json.data.phases) setPhases(json.data.phases);
+        if (json.data.agent_calls) setAgentCalls(json.data.agent_calls);
+      }
+    } catch (err) {
+      console.error('Failed to fetch build:', err);
+      setError('Failed to load build details');
+    }
+  }, [buildId]);
+
+  useEffect(() => {
+    async function init() {
+      setLoading(true);
+      await fetchBuild();
+      setLoading(false);
+    }
+    init();
+  }, [fetchBuild]);
+
+  // Auto-refresh every 5s when in progress
+  useEffect(() => {
+    if (!build) return;
+    const isActive = IN_PROGRESS_STATUSES.includes(build.status);
+    if (!isActive) return;
+    const interval = setInterval(fetchBuild, 5_000);
+    return () => clearInterval(interval);
+  }, [build, fetchBuild]);
+
+  // ------- Gate submission -------
+  const handleGateSubmit = async () => {
+    if (!gateAction) return;
+    setSubmittingGate(true);
+    try {
+      const res = await fetch(`/api/pageforge/builds/${buildId}/gate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          decision: gateAction,
+          feedback: gateFeedback || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error('Gate submit failed');
+      setGateAction(null);
+      setGateFeedback('');
+      await fetchBuild();
+    } catch (err) {
+      console.error('Gate submit error:', err);
+      setError('Failed to submit gate decision');
+    } finally {
+      setSubmittingGate(false);
+    }
+  };
+
+  // ------- Loading / Error -------
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="w-8 h-8 border-2 border-electric/30 border-t-electric rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (error && !build) {
+    return (
+      <div className="text-center py-20">
+        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+      </div>
+    );
+  }
+
+  if (!build) return null;
+
+  const isAtGate = GATE_STATUSES.includes(build.status);
+  const artifacts = (build.artifacts ?? {}) as Record<string, string>;
+
+  // Screenshot URLs from artifacts
+  const screenshotKeys: Record<string, { figma: string; wp: string }> = {
+    desktop: {
+      figma: artifacts.figma_screenshot_desktop ?? '',
+      wp: artifacts.wp_screenshot_desktop ?? '',
+    },
+    tablet: {
+      figma: artifacts.figma_screenshot_tablet ?? '',
+      wp: artifacts.wp_screenshot_tablet ?? '',
+    },
+    mobile: {
+      figma: artifacts.figma_screenshot_mobile ?? '',
+      wp: artifacts.wp_screenshot_mobile ?? '',
+    },
+  };
+
+  // QA items from phase_results
+  const qaResults = (build.phase_results?.functional_qa ?? {}) as Record<string, unknown>;
+  const qaItems = (qaResults.checks ?? []) as Array<{ name: string; passed: boolean; message?: string }>;
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <a
+            href="/pageforge"
+            className="text-xs text-electric hover:text-electric-bright transition-colors"
+          >
+            &larr; Back to Dashboard
+          </a>
+          <h1 className="text-2xl font-bold text-navy dark:text-slate-100 font-heading mt-1">
+            {build.page_title}
+          </h1>
+          {build.site_profile?.site_name && (
+            <p className="text-sm text-navy/40 dark:text-slate-500">
+              {build.site_profile.site_name}
+              {build.page_slug ? ` / ${build.page_slug}` : ''}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          {build.wp_draft_url && (
+            <a
+              href={build.wp_draft_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-semibold text-electric hover:text-electric-bright"
+            >
+              Draft Preview
+            </a>
+          )}
+          {build.wp_live_url && (
+            <a
+              href={build.wp_live_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 text-xs font-semibold text-white bg-success rounded-lg"
+            >
+              Live Page
+            </a>
+          )}
+        </div>
+      </div>
+
+      {/* Error banner */}
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-4 py-3">
+          <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left column: Phase timeline */}
+        <div className="lg:col-span-1">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-navy/5 dark:border-slate-700 p-4">
+            <h2 className="text-sm font-semibold text-navy dark:text-slate-200 mb-4">
+              Build Phases
+            </h2>
+            <div className="space-y-0">
+              {PHASE_NAMES.map((name, idx) => {
+                const phase = phases.find((p) => p.phase_index === idx);
+                const phaseStatus = phase?.status ?? 'pending';
+                const isCurrent = build.current_phase === idx;
+
+                return (
+                  <div key={name} className="flex items-start gap-3 relative">
+                    {/* Vertical connector line */}
+                    {idx < PHASE_NAMES.length - 1 && (
+                      <div
+                        className={`absolute left-3 top-6 w-0.5 h-full ${
+                          phaseStatus === 'completed'
+                            ? 'bg-success'
+                            : 'bg-navy/10 dark:bg-slate-700'
+                        }`}
+                      />
+                    )}
+
+                    {/* Status icon */}
+                    <div className="shrink-0 relative z-10">
+                      {phaseStatus === 'completed' ? (
+                        <div className="w-6 h-6 rounded-full bg-success flex items-center justify-center">
+                          <svg
+                            className="w-3.5 h-3.5 text-white"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={3}
+                              d="M5 13l4 4L19 7"
+                            />
+                          </svg>
+                        </div>
+                      ) : phaseStatus === 'running' || isCurrent ? (
+                        <div className="w-6 h-6 rounded-full border-2 border-electric flex items-center justify-center">
+                          <div className="w-3 h-3 border-2 border-electric/30 border-t-electric rounded-full animate-spin" />
+                        </div>
+                      ) : phaseStatus === 'failed' ? (
+                        <div className="w-6 h-6 rounded-full bg-danger flex items-center justify-center">
+                          <svg
+                            className="w-3.5 h-3.5 text-white"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={3}
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </div>
+                      ) : (
+                        <div className="w-6 h-6 rounded-full border-2 border-navy/10 dark:border-slate-700 flex items-center justify-center">
+                          <div className="w-2 h-2 rounded-full bg-navy/10 dark:bg-slate-700" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Phase info */}
+                    <div className="pb-4 min-w-0">
+                      <p
+                        className={`text-sm font-medium ${
+                          isCurrent
+                            ? 'text-electric'
+                            : phaseStatus === 'completed'
+                              ? 'text-navy dark:text-slate-200'
+                              : 'text-navy/40 dark:text-slate-500'
+                        }`}
+                      >
+                        {name}
+                      </p>
+                      {phase?.duration_ms != null && (
+                        <p className="text-[10px] text-navy/30 dark:text-slate-600 mt-0.5">
+                          {(phase.duration_ms / 1000).toFixed(1)}s
+                        </p>
+                      )}
+                      {phase?.error_message && (
+                        <p className="text-[10px] text-red-500 dark:text-red-400 mt-0.5 truncate">
+                          {phase.error_message}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Right column: Details */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* VQA Scores */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-navy/5 dark:border-slate-700 p-4">
+            <h2 className="text-sm font-semibold text-navy dark:text-slate-200 mb-4">
+              VQA Scores
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: 'Desktop', score: build.vqa_score_desktop },
+                { label: 'Tablet', score: build.vqa_score_tablet },
+                { label: 'Mobile', score: build.vqa_score_mobile },
+                { label: 'Overall', score: build.vqa_score_overall },
+              ].map((item) => (
+                <div key={item.label} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-navy/40 dark:text-slate-500">
+                      {item.label}
+                    </span>
+                    <span
+                      className={`text-sm font-bold ${
+                        item.score == null
+                          ? 'text-navy/30 dark:text-slate-600'
+                          : item.score >= 90
+                            ? 'text-success'
+                            : item.score >= 70
+                              ? 'text-warning'
+                              : 'text-danger'
+                      }`}
+                    >
+                      {item.score != null ? `${item.score}%` : '-'}
+                    </span>
+                  </div>
+                  <div className="h-2 bg-navy/5 dark:bg-slate-700 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-700 ${vqaBarColor(item.score)}`}
+                      style={{ width: `${item.score ?? 0}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+            {build.vqa_fix_iteration > 0 && (
+              <p className="text-[10px] text-navy/30 dark:text-slate-600 mt-3">
+                VQA fix iteration: {build.vqa_fix_iteration}
+              </p>
+            )}
+          </div>
+
+          {/* Screenshot comparison */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-navy/5 dark:border-slate-700 p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-navy dark:text-slate-200">
+                Screenshot Comparison
+              </h2>
+              <div className="flex gap-1">
+                {(['desktop', 'tablet', 'mobile'] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setScreenshotTab(tab)}
+                    className={`px-2.5 py-1 text-[10px] font-semibold rounded capitalize transition-colors ${
+                      screenshotTab === tab
+                        ? 'bg-electric text-white'
+                        : 'bg-navy/5 dark:bg-slate-700 text-navy/40 dark:text-slate-500 hover:text-navy/60 dark:hover:text-slate-300'
+                    }`}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <span className="text-[10px] font-semibold text-navy/40 dark:text-slate-500 uppercase mb-2 block">
+                  Figma Design
+                </span>
+                {screenshotKeys[screenshotTab]?.figma ? (
+                  <img
+                    src={screenshotKeys[screenshotTab].figma}
+                    alt={`Figma ${screenshotTab}`}
+                    className="w-full rounded-lg border border-navy/5 dark:border-slate-700 bg-navy/[0.02] dark:bg-slate-900"
+                  />
+                ) : (
+                  <div className="w-full aspect-[4/3] rounded-lg border border-dashed border-navy/10 dark:border-slate-700 flex items-center justify-center">
+                    <span className="text-xs text-navy/30 dark:text-slate-600">No screenshot</span>
+                  </div>
+                )}
+              </div>
+              <div>
+                <span className="text-[10px] font-semibold text-navy/40 dark:text-slate-500 uppercase mb-2 block">
+                  WordPress Output
+                </span>
+                {screenshotKeys[screenshotTab]?.wp ? (
+                  <img
+                    src={screenshotKeys[screenshotTab].wp}
+                    alt={`WordPress ${screenshotTab}`}
+                    className="w-full rounded-lg border border-navy/5 dark:border-slate-700 bg-navy/[0.02] dark:bg-slate-900"
+                  />
+                ) : (
+                  <div className="w-full aspect-[4/3] rounded-lg border border-dashed border-navy/10 dark:border-slate-700 flex items-center justify-center">
+                    <span className="text-xs text-navy/30 dark:text-slate-600">No screenshot</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Lighthouse scores */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-navy/5 dark:border-slate-700 p-4">
+            <h2 className="text-sm font-semibold text-navy dark:text-slate-200 mb-4">
+              Lighthouse Scores
+            </h2>
+            <div className="flex items-center gap-6 flex-wrap">
+              {[
+                { label: 'Performance', score: build.lighthouse_performance, abbr: 'P' },
+                { label: 'Accessibility', score: build.lighthouse_accessibility, abbr: 'A' },
+                { label: 'Best Practices', score: build.lighthouse_best_practices, abbr: 'BP' },
+                { label: 'SEO', score: build.lighthouse_seo, abbr: 'SEO' },
+              ].map((item) => (
+                <div key={item.abbr} className="flex flex-col items-center gap-1">
+                  <div
+                    className={`w-14 h-14 rounded-full border-4 flex items-center justify-center ${lighthouseColor(item.score)}`}
+                  >
+                    <span className="text-sm font-bold">
+                      {item.score != null ? item.score : '-'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-navy/40 dark:text-slate-500">
+                    {item.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* QA Checklist */}
+          {(build.qa_checks_total > 0 || qaItems.length > 0) && (
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-navy/5 dark:border-slate-700 p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold text-navy dark:text-slate-200">
+                  QA Checks
+                </h2>
+                <span className="text-xs text-navy/40 dark:text-slate-500">
+                  {build.qa_checks_passed}/{build.qa_checks_total} passed
+                </span>
+              </div>
+              {qaItems.length > 0 ? (
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {qaItems.map((item, idx) => (
+                    <div key={idx} className="flex items-start gap-2">
+                      <span className={`shrink-0 mt-0.5 ${item.passed ? 'text-success' : 'text-danger'}`}>
+                        {item.passed ? (
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        ) : (
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        )}
+                      </span>
+                      <div>
+                        <p className="text-sm text-navy dark:text-slate-200">{item.name}</p>
+                        {item.message && (
+                          <p className="text-xs text-navy/40 dark:text-slate-500 mt-0.5">{item.message}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 h-2 bg-navy/5 dark:bg-slate-700 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-success rounded-full transition-all duration-500"
+                      style={{
+                        width: build.qa_checks_total > 0
+                          ? `${(build.qa_checks_passed / build.qa_checks_total) * 100}%`
+                          : '0%',
+                      }}
+                    />
+                  </div>
+                  <span className="text-xs font-bold text-navy/60 dark:text-slate-400">
+                    {build.qa_checks_total > 0
+                      ? `${Math.round((build.qa_checks_passed / build.qa_checks_total) * 100)}%`
+                      : '0%'}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Cost Breakdown */}
+          {Object.keys(build.agent_costs ?? {}).length > 0 && (
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-navy/5 dark:border-slate-700 p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold text-navy dark:text-slate-200">
+                  Cost Breakdown
+                </h2>
+                <span className="text-sm font-bold text-navy dark:text-slate-100">
+                  ${build.total_cost_usd.toFixed(2)}
+                </span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-navy/5 dark:border-slate-700">
+                      <th className="px-3 py-2 text-[10px] font-semibold text-navy/40 dark:text-slate-500 uppercase">
+                        Agent
+                      </th>
+                      <th className="px-3 py-2 text-[10px] font-semibold text-navy/40 dark:text-slate-500 uppercase text-right">
+                        Cost
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-navy/5 dark:divide-slate-700">
+                    {Object.entries(build.agent_costs).map(([agent, cost]) => (
+                      <tr key={agent}>
+                        <td className="px-3 py-2 text-sm text-navy dark:text-slate-200">
+                          {agent.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                        </td>
+                        <td className="px-3 py-2 text-sm text-navy/60 dark:text-slate-400 text-right">
+                          ${Number(cost).toFixed(3)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Gate Actions */}
+          {isAtGate && (
+            <div className="bg-white dark:bg-slate-800 rounded-xl border-2 border-warning/40 dark:border-warning/20 p-5">
+              <h2 className="text-sm font-semibold text-navy dark:text-slate-200 mb-1">
+                Gate Decision Required
+              </h2>
+              <p className="text-xs text-navy/40 dark:text-slate-500 mb-4">
+                {build.status === 'developer_review_gate'
+                  ? 'Developer review - check code quality and visual accuracy before proceeding.'
+                  : 'Account Manager sign-off - confirm client requirements are met.'}
+              </p>
+
+              {/* Feedback textarea */}
+              <textarea
+                value={gateFeedback}
+                onChange={(e) => setGateFeedback(e.target.value)}
+                placeholder="Optional feedback or revision notes..."
+                rows={3}
+                className="w-full rounded-lg border border-navy/10 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm text-navy dark:text-slate-200 px-3 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-electric/40 resize-none"
+              />
+
+              {/* Action buttons */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    setGateAction('approve');
+                    handleGateSubmit();
+                  }}
+                  disabled={submittingGate}
+                  className="px-4 py-2 text-sm font-semibold text-white bg-success hover:bg-green-600 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  Approve
+                </button>
+                <button
+                  onClick={() => {
+                    setGateAction('revise');
+                    handleGateSubmit();
+                  }}
+                  disabled={submittingGate}
+                  className="px-4 py-2 text-sm font-semibold text-white bg-warning hover:bg-yellow-600 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  Revise
+                </button>
+                <button
+                  onClick={() => {
+                    setGateAction('cancel');
+                    handleGateSubmit();
+                  }}
+                  disabled={submittingGate}
+                  className="px-4 py-2 text-sm font-semibold text-white bg-danger hover:bg-red-600 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  Cancel Build
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Error Log */}
+          {build.error_log && build.error_log.length > 0 && (
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-red-200 dark:border-red-800/40 p-4">
+              <h2 className="text-sm font-semibold text-red-700 dark:text-red-400 mb-3">
+                Error Log
+              </h2>
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {build.error_log.map((entry, idx) => (
+                  <div
+                    key={idx}
+                    className="bg-red-50 dark:bg-red-900/10 rounded-lg px-3 py-2 border border-red-100 dark:border-red-900/20"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold text-red-600 dark:text-red-400">
+                        {humanStatus(entry.phase)}
+                      </span>
+                      <span className="text-[10px] text-red-400 dark:text-red-500">
+                        {new Date(entry.timestamp).toLocaleTimeString('en-US', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                        })}
+                      </span>
+                    </div>
+                    <p className="text-xs text-red-700 dark:text-red-300 font-mono break-all">
+                      {entry.error}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Agent Calls (if loaded) */}
+          {agentCalls.length > 0 && (
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-navy/5 dark:border-slate-700 p-4">
+              <h2 className="text-sm font-semibold text-navy dark:text-slate-200 mb-3">
+                Agent Calls ({agentCalls.length})
+              </h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-navy/5 dark:border-slate-700">
+                      {['Agent', 'Phase', 'Model', 'Tokens', 'Cost', 'Duration', 'Status'].map(
+                        (h) => (
+                          <th
+                            key={h}
+                            className="px-3 py-2 text-[10px] font-semibold text-navy/40 dark:text-slate-500 uppercase"
+                          >
+                            {h}
+                          </th>
+                        ),
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-navy/5 dark:divide-slate-700">
+                    {agentCalls.slice(0, 50).map((call) => (
+                      <tr key={call.id}>
+                        <td className="px-3 py-2 text-xs text-navy dark:text-slate-200">
+                          {call.agent_name}
+                        </td>
+                        <td className="px-3 py-2 text-xs text-navy/60 dark:text-slate-400">
+                          {humanStatus(call.phase)}
+                        </td>
+                        <td className="px-3 py-2 text-[10px] text-navy/40 dark:text-slate-500 font-mono">
+                          {call.model_used ?? '-'}
+                        </td>
+                        <td className="px-3 py-2 text-xs text-navy/60 dark:text-slate-400">
+                          {(call.input_tokens + call.output_tokens).toLocaleString()}
+                        </td>
+                        <td className="px-3 py-2 text-xs text-navy/60 dark:text-slate-400">
+                          ${call.cost_usd.toFixed(4)}
+                        </td>
+                        <td className="px-3 py-2 text-xs text-navy/60 dark:text-slate-400">
+                          {(call.duration_ms / 1000).toFixed(1)}s
+                        </td>
+                        <td className="px-3 py-2">
+                          <span
+                            className={`text-[10px] font-bold uppercase ${
+                              call.status === 'success'
+                                ? 'text-success'
+                                : call.status === 'failed'
+                                  ? 'text-danger'
+                                  : 'text-warning'
+                            }`}
+                          >
+                            {call.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
