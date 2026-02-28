@@ -10,6 +10,42 @@ interface FigmaFileEntry {
 }
 
 /**
+ * Fetch files for a single project with one retry on failure.
+ */
+async function fetchProjectFiles(
+  projectId: string,
+  projectName: string,
+  headers: Record<string, string>,
+): Promise<FigmaFileEntry[]> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 500));
+      const res = await fetch(`https://api.figma.com/v1/projects/${projectId}/files`, {
+        headers,
+        signal: AbortSignal.timeout(15000),
+      });
+      if (res.status === 429) {
+        // Rate limited - wait and retry
+        await new Promise((r) => setTimeout(r, 1000));
+        continue;
+      }
+      if (!res.ok) continue;
+      const data = await res.json();
+      return (data.files || []).map((f: any) => ({
+        key: f.key,
+        name: f.name,
+        thumbnail_url: f.thumbnail_url || null,
+        last_modified: f.last_modified,
+        project_name: projectName,
+      }));
+    } catch {
+      // timeout or network error - retry
+    }
+  }
+  return [];
+}
+
+/**
  * GET /api/pageforge/figma/files
  * List Figma files from the site profile's team projects.
  * Query: ?siteProfileId=xxx
@@ -60,39 +96,23 @@ export async function GET(request: NextRequest) {
     const projData = await projRes.json();
     const projects: Array<{ id: string; name: string }> = projData.projects || [];
 
-    // 2. Fetch files in batches of 10 to avoid Figma rate limits
-    const BATCH_SIZE = 10;
+    // 2. Fetch files in batches of 5 with retry to avoid Figma rate limits
+    const BATCH_SIZE = 5;
     const allFiles: FigmaFileEntry[] = [];
 
     for (let i = 0; i < projects.length; i += BATCH_SIZE) {
       const batch = projects.slice(i, i + BATCH_SIZE);
-      const batchResults = await Promise.allSettled(
-        batch.map(async (project) => {
-          const res = await fetch(`https://api.figma.com/v1/projects/${project.id}/files`, {
-            headers,
-            signal: AbortSignal.timeout(15000),
-          });
-          if (!res.ok) return [];
-          const data = await res.json();
-          return (data.files || []).map((f: any) => ({
-            key: f.key,
-            name: f.name,
-            thumbnail_url: f.thumbnail_url || null,
-            last_modified: f.last_modified,
-            project_name: project.name,
-          }));
-        }),
+      const batchResults = await Promise.all(
+        batch.map((project) => fetchProjectFiles(project.id, project.name, headers)),
       );
 
-      for (const result of batchResults) {
-        if (result.status === 'fulfilled') {
-          allFiles.push(...result.value);
-        }
+      for (const files of batchResults) {
+        allFiles.push(...files);
       }
 
-      // Small delay between batches to respect rate limits
+      // Delay between batches to respect rate limits
       if (i + BATCH_SIZE < projects.length) {
-        await new Promise((r) => setTimeout(r, 200));
+        await new Promise((r) => setTimeout(r, 300));
       }
     }
 

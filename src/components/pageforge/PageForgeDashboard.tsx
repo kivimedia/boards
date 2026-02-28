@@ -252,7 +252,9 @@ export default function PageForgeDashboard() {
 
   // ------- Create site profile (inline) -------
   const handleCreateSite = async () => {
-    if (!newSiteForm.site_name || !newSiteForm.site_url || !newSiteForm.wp_rest_url) return;
+    if (!newSiteForm.site_name || !newSiteForm.site_url) return;
+    // Ensure REST URL is set (auto-derived from site_url)
+    const restUrl = newSiteForm.wp_rest_url || `${newSiteForm.site_url.replace(/\/+$/, '')}/wp-json`;
     setCreatingSite(true);
     try {
       const res = await fetch('/api/pageforge/sites', {
@@ -261,7 +263,7 @@ export default function PageForgeDashboard() {
         body: JSON.stringify({
           siteName: newSiteForm.site_name,
           siteUrl: newSiteForm.site_url,
-          wpRestUrl: newSiteForm.wp_rest_url,
+          wpRestUrl: restUrl,
           wpUsername: newSiteForm.wp_username || undefined,
           wpAppPassword: newSiteForm.wp_app_password || undefined,
           pageBuilder: newSiteForm.page_builder,
@@ -604,74 +606,67 @@ export default function PageForgeDashboard() {
                     />
                   </div>
 
-                  {/* Site URL + WP REST URL */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1.5 font-heading">
-                        Site URL
-                      </label>
-                      <input
-                        type="text"
-                        value={newSiteForm.site_url}
-                        onChange={(e) => setNewSiteForm(prev => ({ ...prev, site_url: e.target.value }))}
-                        placeholder="https://example.com"
-                        className="w-full rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 px-3 py-2.5 font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric placeholder:text-navy/30 dark:placeholder:text-slate-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1.5 font-heading">
-                        WP REST URL
-                      </label>
-                      <input
-                        type="text"
-                        value={newSiteForm.wp_rest_url}
-                        onChange={(e) => setNewSiteForm(prev => ({ ...prev, wp_rest_url: e.target.value }))}
-                        placeholder="https://example.com/wp-json"
-                        className="w-full rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 px-3 py-2.5 font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric placeholder:text-navy/30 dark:placeholder:text-slate-500"
-                      />
-                    </div>
+                  {/* Site URL - auto-derives WP REST URL */}
+                  <div>
+                    <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1.5 font-heading">
+                      Site URL
+                    </label>
+                    <input
+                      type="text"
+                      value={newSiteForm.site_url}
+                      onChange={(e) => {
+                        const url = e.target.value;
+                        const base = url.replace(/\/+$/, '');
+                        setNewSiteForm(prev => ({
+                          ...prev,
+                          site_url: url,
+                          wp_rest_url: base ? `${base}/wp-json` : '',
+                        }));
+                      }}
+                      placeholder="https://example.com"
+                      className="w-full rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 px-3 py-2.5 font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric placeholder:text-navy/30 dark:placeholder:text-slate-500"
+                    />
+                    {newSiteForm.wp_rest_url && (
+                      <p className="text-[10px] text-navy/40 dark:text-slate-500 mt-1 font-body">
+                        REST API: {newSiteForm.wp_rest_url}
+                      </p>
+                    )}
                   </div>
 
-                  {/* Auto-fill REST URL from site URL */}
-                  {newSiteForm.site_url && !newSiteForm.wp_rest_url && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const base = newSiteForm.site_url.replace(/\/+$/, '');
-                        setNewSiteForm(prev => ({ ...prev, wp_rest_url: `${base}/wp-json` }));
-                      }}
-                      className="text-[10px] text-electric hover:text-electric-bright font-semibold transition-colors -mt-2"
-                    >
-                      Auto-fill REST URL from site URL
-                    </button>
-                  )}
-
-                  {/* WP Username + App Password */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1.5 font-heading">
-                        WP Username <span className="font-normal text-navy/30 dark:text-slate-600">(optional)</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={newSiteForm.wp_username}
-                        onChange={(e) => setNewSiteForm(prev => ({ ...prev, wp_username: e.target.value }))}
-                        placeholder="admin"
-                        className="w-full rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 px-3 py-2.5 font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric placeholder:text-navy/30 dark:placeholder:text-slate-500"
-                      />
+                  {/* WordPress API Access */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 font-heading">
+                      WordPress API Access
+                    </label>
+                    <p className="text-[10px] text-navy/40 dark:text-slate-500 font-body -mt-1">
+                      PageForge uses Application Passwords to create and edit pages via the WP REST API.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <input
+                          type="text"
+                          value={newSiteForm.wp_username}
+                          onChange={(e) => setNewSiteForm(prev => ({ ...prev, wp_username: e.target.value }))}
+                          placeholder="WordPress username"
+                          className="w-full rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 px-3 py-2.5 font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric placeholder:text-navy/30 dark:placeholder:text-slate-500"
+                        />
+                      </div>
+                      <div>
+                        <input
+                          type="password"
+                          value={newSiteForm.wp_app_password}
+                          onChange={(e) => setNewSiteForm(prev => ({ ...prev, wp_app_password: e.target.value }))}
+                          placeholder="xxxx xxxx xxxx xxxx"
+                          className="w-full rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 px-3 py-2.5 font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric placeholder:text-navy/30 dark:placeholder:text-slate-500"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1.5 font-heading">
-                        App Password <span className="font-normal text-navy/30 dark:text-slate-600">(optional)</span>
-                      </label>
-                      <input
-                        type="password"
-                        value={newSiteForm.wp_app_password}
-                        onChange={(e) => setNewSiteForm(prev => ({ ...prev, wp_app_password: e.target.value }))}
-                        placeholder="xxxx xxxx xxxx xxxx"
-                        className="w-full rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 px-3 py-2.5 font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric placeholder:text-navy/30 dark:placeholder:text-slate-500"
-                      />
-                    </div>
+                    <p className="text-[10px] text-navy/30 dark:text-slate-600 font-body">
+                      Generate at{' '}
+                      <a href="https://wordpress.org/documentation/article/application-passwords/" target="_blank" rel="noopener noreferrer" className="text-electric hover:underline">
+                        WP Admin &gt; Users &gt; Profile &gt; Application Passwords
+                      </a>
+                    </p>
                   </div>
 
                   {/* Page Builder */}
@@ -704,31 +699,39 @@ export default function PageForgeDashboard() {
                     </div>
                   </div>
 
-                  {/* Figma Token + Team ID */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1.5 font-heading">
-                        Figma Token <span className="font-normal text-navy/30 dark:text-slate-600">(optional)</span>
-                      </label>
-                      <input
-                        type="password"
-                        value={newSiteForm.figma_personal_token}
-                        onChange={(e) => setNewSiteForm(prev => ({ ...prev, figma_personal_token: e.target.value }))}
-                        placeholder="figd_..."
-                        className="w-full rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 px-3 py-2.5 font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric placeholder:text-navy/30 dark:placeholder:text-slate-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1.5 font-heading">
-                        Figma Team ID <span className="font-normal text-navy/30 dark:text-slate-600">(optional)</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={newSiteForm.figma_team_id}
-                        onChange={(e) => setNewSiteForm(prev => ({ ...prev, figma_team_id: e.target.value }))}
-                        placeholder="Team ID from Figma URL"
-                        className="w-full rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 px-3 py-2.5 font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric placeholder:text-navy/30 dark:placeholder:text-slate-500"
-                      />
+                  {/* Figma Integration */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 font-heading">
+                      Figma Integration <span className="font-normal text-navy/30 dark:text-slate-600">(optional)</span>
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <input
+                          type="password"
+                          value={newSiteForm.figma_personal_token}
+                          onChange={(e) => setNewSiteForm(prev => ({ ...prev, figma_personal_token: e.target.value }))}
+                          placeholder="Personal access token"
+                          className="w-full rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 px-3 py-2.5 font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric placeholder:text-navy/30 dark:placeholder:text-slate-500"
+                        />
+                        <p className="text-[10px] text-navy/30 dark:text-slate-600 mt-1 font-body">
+                          <a href="https://www.figma.com/developers/api#access-tokens" target="_blank" rel="noopener noreferrer" className="text-electric hover:underline">
+                            Generate token
+                          </a>{' '}
+                          in Figma Settings &gt; Personal access tokens
+                        </p>
+                      </div>
+                      <div>
+                        <input
+                          type="text"
+                          value={newSiteForm.figma_team_id}
+                          onChange={(e) => setNewSiteForm(prev => ({ ...prev, figma_team_id: e.target.value }))}
+                          placeholder="Team ID"
+                          className="w-full rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 px-3 py-2.5 font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric placeholder:text-navy/30 dark:placeholder:text-slate-500"
+                        />
+                        <p className="text-[10px] text-navy/30 dark:text-slate-600 mt-1 font-body">
+                          From your team URL: figma.com/files/team/<strong>TEAM_ID</strong>/...
+                        </p>
+                      </div>
                     </div>
                   </div>
 
@@ -761,7 +764,7 @@ export default function PageForgeDashboard() {
                     </button>
                     <button
                       onClick={handleCreateSite}
-                      disabled={creatingSite || !newSiteForm.site_name || !newSiteForm.site_url || !newSiteForm.wp_rest_url}
+                      disabled={creatingSite || !newSiteForm.site_name || !newSiteForm.site_url}
                       className="px-5 py-2.5 text-sm font-semibold text-white bg-electric hover:bg-electric-bright rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-heading"
                     >
                       {creatingSite ? (
