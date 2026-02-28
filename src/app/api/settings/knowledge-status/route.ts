@@ -16,14 +16,18 @@ export async function GET() {
   try {
     const [
       totalCardsRes,
-      indexStateRes,
+      indexedCountRes,
+      pendingCountRes,
+      errorCountRes,
       embeddingsCountRes,
       boardSummariesRes,
       errorCardsRes,
       recentEmbeddingsRes,
     ] = await Promise.all([
       supabase.from('cards').select('id', { count: 'exact', head: true }),
-      supabase.from('knowledge_index_state').select('entity_type, status', { count: 'exact' }),
+      supabase.from('knowledge_index_state').select('id', { count: 'exact', head: true }).eq('entity_type', 'card').eq('status', 'indexed'),
+      supabase.from('knowledge_index_state').select('id', { count: 'exact', head: true }).eq('entity_type', 'card').eq('status', 'pending'),
+      supabase.from('knowledge_index_state').select('id', { count: 'exact', head: true }).eq('entity_type', 'card').eq('status', 'error'),
       supabase.from('knowledge_embeddings').select('id', { count: 'exact', head: true }).eq('is_active', true),
       supabase.from('board_summaries').select('board_id, generated_at, key_themes').order('generated_at', { ascending: false }),
       supabase.from('knowledge_index_state').select('entity_id, error_message, last_indexed_at').eq('status', 'error').limit(10),
@@ -31,10 +35,9 @@ export async function GET() {
     ]);
 
     const totalCards = totalCardsRes.count || 0;
-    const indexStates = indexStateRes.data || [];
-    const indexedCards = indexStates.filter((s: any) => s.entity_type === 'card' && s.status === 'indexed').length;
-    const pendingCards = indexStates.filter((s: any) => s.entity_type === 'card' && s.status === 'pending').length;
-    const errorCards = indexStates.filter((s: any) => s.entity_type === 'card' && s.status === 'error').length;
+    const indexedCards = indexedCountRes.count || 0;
+    const pendingCards = pendingCountRes.count || 0;
+    const errorCards = errorCountRes.count || 0;
     const activeEmbeddings = embeddingsCountRes.count || 0;
     const boardSummaries = boardSummariesRes.data || [];
     const lastEmbedding = recentEmbeddingsRes.data?.[0]?.indexed_at || null;
