@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
       .from('board_summaries')
       .select('board_id, summary_text, stats, key_themes')
       .order('generated_at', { ascending: false })
-      .limit(100);
+      .limit(10000);
 
     if (boardSummaries && boardSummaries.length > 0) {
       lines.push(`\n=== Board Summaries (AI-generated overviews) ===`);
