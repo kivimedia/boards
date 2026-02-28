@@ -55,7 +55,6 @@ interface DashboardStats {
 const PAGE_BUILDERS = [
   { id: 'gutenberg', label: 'Gutenberg', description: 'WordPress native block editor' },
   { id: 'divi5', label: 'Divi 5', description: 'Elegant Themes Divi 5 builder' },
-  { id: 'divi4', label: 'Divi 4', description: 'Elegant Themes Divi 4 (legacy)' },
 ] as const;
 
 interface NewBuildForm {
@@ -588,7 +587,7 @@ export default function PageForgeDashboard() {
                   <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-2 font-heading">
                     Page Builder
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     {PAGE_BUILDERS.map((builder) => (
                       <label
                         key={builder.id}
