@@ -313,9 +313,18 @@ export default function GlobalSearchBar() {
   const currentMode = effectiveMode === 'command' ? 'search' : effectiveMode;
   const currentModeConfig = modeConfig[currentMode];
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (effectiveMode === 'ai') {
+      submitAi();
+    } else if (effectiveMode === 'search' && query.trim()) {
+      doKeywordSearch(query.trim());
+    }
+  };
+
   return (
     <div ref={containerRef} className="relative w-full">
-      <div className={`
+      <form onSubmit={handleSubmit} className={`
         flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all w-full
         ${focused
           ? 'bg-white dark:bg-dark-surface border-electric/40 shadow-sm ring-2 ring-electric/10'
@@ -371,10 +380,10 @@ export default function GlobalSearchBar() {
             <span className="text-[9px]">&#8984;</span>K
           </kbd>
         )}
-      </div>
+      </form>
 
       {showDropdown && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 rounded-xl shadow-modal z-[999] overflow-hidden">
+        <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 rounded-xl shadow-modal z-[999] overflow-hidden max-h-[60vh] overflow-y-auto">
           {currentMode === 'search' && (
             <SearchResults
               results={searchResults}
