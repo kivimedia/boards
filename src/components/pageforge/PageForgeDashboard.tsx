@@ -185,12 +185,9 @@ export default function PageForgeDashboard() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-navy dark:text-slate-100 font-heading">
-          PageForge
-        </h1>
+    <div className="p-4 sm:p-6 space-y-6">
+      {/* Action bar */}
+      <div className="flex items-center justify-end">
         <button
           onClick={() => setShowNewBuildModal(true)}
           className="px-4 py-2 text-sm font-semibold text-white bg-electric hover:bg-electric-bright rounded-lg transition-colors"
