@@ -25,7 +25,11 @@ export async function GET(
     .eq('id', id)
     .single();
 
-  if (runErr || !run) {
+  if (runErr) {
+    console.error('[seo] Run query error:', runErr.message, runErr.code, runErr.details);
+    return errorResponse('Run not found', 404);
+  }
+  if (!run) {
     return errorResponse('Run not found', 404);
   }
 
