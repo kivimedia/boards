@@ -43,6 +43,7 @@ export async function createPipelineRun(
     .from('seo_pipeline_runs')
     .insert({
       team_config_id: config.id,
+      client_id: config.client_id ?? null,
       status: 'planning' as SeoPipelineStatus,
       current_phase: 0,
       phase_results: {},

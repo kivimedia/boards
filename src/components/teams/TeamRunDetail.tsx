@@ -31,6 +31,8 @@ interface TeamRun {
   id: string;
   template_id: string;
   vps_job_id: string | null;
+  client_id: string | null;
+  site_config_id: string | null;
   status: string;
   current_phase: number;
   phase_results: Record<string, unknown> | null;
@@ -41,6 +43,8 @@ interface TeamRun {
   error_message: string | null;
   created_at: string;
   template: TeamTemplate | null;
+  client: { id: string; name: string } | null;
+  site_config: { id: string; site_name: string; site_url: string } | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -179,6 +183,8 @@ export default function TeamRunDetail({ runId }: Props) {
             <StatusBadge status={run.status} />
           </div>
           <div className="flex items-center gap-3 md:gap-4 mt-2 text-xs md:text-sm text-navy/50 dark:text-slate-400 font-body flex-wrap">
+            {run.client && <span className="text-navy/60 dark:text-slate-300 font-semibold">{run.client.name}</span>}
+            {run.site_config && <span>{run.site_config.site_name} ({run.site_config.site_url})</span>}
             <span>Created: {new Date(run.created_at).toLocaleString()}</span>
             {run.total_cost_usd > 0 && <span>Cost: ${run.total_cost_usd.toFixed(2)}</span>}
           </div>

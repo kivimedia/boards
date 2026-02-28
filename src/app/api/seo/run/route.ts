@@ -27,10 +27,10 @@ export async function POST(request: NextRequest) {
 
   const { supabase, userId } = auth.ctx;
 
-  // Verify the team config exists
+  // Verify the team config exists and get its client_id
   const { data: configCheck, error: configErr } = await supabase
     .from('seo_team_configs')
-    .select('id')
+    .select('id, client_id')
     .eq('id', team_config_id)
     .single();
 
@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
       job_type: 'pipeline:seo',
       status: 'pending',
       user_id: userId,
+      client_id: configCheck.client_id || null,
       payload: { team_config_id, topic, silo: silo || null },
     })
     .select()
@@ -58,6 +59,7 @@ export async function POST(request: NextRequest) {
     .insert({
       vps_job_id: job.id,
       team_config_id: team_config_id.trim(),
+      client_id: configCheck.client_id || null,
       topic: topic.trim(),
       silo: silo?.trim() || null,
       assignment: assignment || null,

@@ -3293,6 +3293,9 @@ export interface SeoTeamConfig {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+
+  // Joined
+  client?: { id: string; name: string } | null;
 }
 
 export interface SeoPipelineRun {
@@ -3300,6 +3303,7 @@ export interface SeoPipelineRun {
   team_config_id: string | null;
   vps_job_id: string | null;
   post_id: string | null;
+  client_id: string | null;
 
   status: SeoPipelineStatus;
   current_phase: number;

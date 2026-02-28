@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import type { SeoPipelineRun, SeoTeamConfig } from '@/lib/types';
@@ -33,6 +33,7 @@ export default function SeoDashboard() {
   const [configs, setConfigs] = useState<SeoTeamConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
+  const [siteFilter, setSiteFilter] = useState<string>('all');
   const [showNewRun, setShowNewRun] = useState(false);
   const [newRunTopic, setNewRunTopic] = useState('');
   const [newRunSilo, setNewRunSilo] = useState('');
@@ -42,8 +43,13 @@ export default function SeoDashboard() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
+      const params = new URLSearchParams();
+      if (filter !== 'all') params.set('status', filter);
+      if (siteFilter !== 'all') params.set('team_config_id', siteFilter);
+      const qs = params.toString();
+
       const [runsRes, configsRes] = await Promise.all([
-        fetch(`/api/seo/runs${filter !== 'all' ? `?status=${filter}` : ''}`),
+        fetch(`/api/seo/runs${qs ? `?${qs}` : ''}`),
         fetch('/api/seo/configs'),
       ]);
       if (runsRes.ok) {
@@ -58,7 +64,7 @@ export default function SeoDashboard() {
       console.error('Failed to fetch SEO data:', err);
     }
     setLoading(false);
-  }, [filter]);
+  }, [filter, siteFilter]);
 
   useEffect(() => {
     fetchData();
@@ -163,9 +169,10 @@ export default function SeoDashboard() {
                 href={`/seo/${run.id}`}
                 className="flex items-center justify-between p-3 bg-white dark:bg-dark-card rounded-lg hover:bg-cream dark:hover:bg-slate-700 transition-colors"
               >
-                <div>
-                  <p className="text-sm font-semibold text-navy dark:text-white font-heading">{run.topic || 'Untitled'}</p>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-navy dark:text-white font-heading truncate">{run.topic || 'Untitled'}</p>
                   <p className="text-xs text-navy/50 dark:text-slate-400 font-body">
+                    {run.team_config?.site_name && <span className="mr-2">{run.team_config.site_name}</span>}
                     {run.status === 'awaiting_approval_1' ? 'Gate 1: Content Review' : 'Gate 2: Published Post Review'}
                   </p>
                 </div>
@@ -176,21 +183,39 @@ export default function SeoDashboard() {
         </div>
       )}
 
-      {/* Filter */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 -mb-1">
-        {['all', 'planning', 'writing', 'published', 'failed'].map(f => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors font-body ${
-              filter === f
-                ? 'bg-electric text-white'
-                : 'bg-cream dark:bg-dark-surface text-navy/60 dark:text-slate-400 hover:bg-cream-dark dark:hover:bg-slate-700'
-            }`}
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+        {/* Site Filter */}
+        {configs.length > 1 && (
+          <select
+            value={siteFilter}
+            onChange={e => setSiteFilter(e.target.value)}
+            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-cream dark:bg-dark-surface text-navy/60 dark:text-slate-400 border border-cream-dark dark:border-slate-700 font-body"
           >
-            {f === 'all' ? 'All' : f.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-          </button>
-        ))}
+            <option value="all">All Sites</option>
+            {configs.map(c => (
+              <option key={c.id} value={c.id}>
+                {c.site_name}{c.client ? ` (${c.client.name})` : ''}
+              </option>
+            ))}
+          </select>
+        )}
+        {/* Status Filter */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 -mb-1">
+          {['all', 'planning', 'writing', 'published', 'failed'].map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors font-body ${
+                filter === f
+                  ? 'bg-electric text-white'
+                  : 'bg-cream dark:bg-dark-surface text-navy/60 dark:text-slate-400 hover:bg-cream-dark dark:hover:bg-slate-700'
+              }`}
+            >
+              {f === 'all' ? 'All' : f.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Runs List */}
@@ -219,18 +244,21 @@ export default function SeoDashboard() {
               className="flex items-center justify-between p-4 bg-white dark:bg-dark-card rounded-xl border border-cream-dark dark:border-slate-700 hover:border-electric dark:hover:border-electric transition-colors"
             >
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 md:gap-3 flex-wrap">
                   <p className="text-sm font-semibold text-navy dark:text-white truncate font-heading">
                     {run.topic || 'Untitled'}
                   </p>
                   <StatusBadge status={run.status} />
                 </div>
                 <p className="text-xs text-navy/40 dark:text-slate-500 mt-1 font-body">
+                  {run.team_config?.site_name && (
+                    <span className="mr-3 text-navy/50 dark:text-slate-400">{run.team_config.site_name}</span>
+                  )}
                   {run.silo && <span className="mr-3">Silo: {run.silo}</span>}
                   Phase {run.current_phase} - {new Date(run.created_at).toLocaleDateString()}
                 </p>
               </div>
-              <div className="text-right ml-4">
+              <div className="text-right ml-4 shrink-0">
                 {run.qc_score != null && (
                   <p className="text-xs text-navy/50 dark:text-slate-400 font-body">QC: {run.qc_score}</p>
                 )}
@@ -258,7 +286,9 @@ export default function SeoDashboard() {
                 >
                   <option value="">Select a site...</option>
                   {configs.map(c => (
-                    <option key={c.id} value={c.id}>{c.site_name} ({c.site_url})</option>
+                    <option key={c.id} value={c.id}>
+                      {c.site_name} ({c.site_url}){c.client ? ` - ${c.client.name}` : ''}
+                    </option>
                   ))}
                 </select>
               </div>
