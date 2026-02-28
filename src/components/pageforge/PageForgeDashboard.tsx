@@ -214,16 +214,19 @@ export default function PageForgeDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error('Create failed');
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => null);
+        throw new Error(errBody?.error || errBody?.message || `Create failed (${res.status})`);
+      }
       setShowNewBuildModal(false);
-      setNewBuild({ site_profile_id: '', figma_file_key: '', page_title: '', page_slug: '', page_builder: '', model_profile: 'cost_optimized', board_list_id: '', customModels: { ...defaultCustomModels } });
+      setNewBuild({ site_profile_id: '', figma_file_key: '', page_title: '', page_slug: '', page_builder: '', model_profile: 'cost_optimized', customModels: { ...defaultCustomModels } });
       setFigmaSearch('');
       setShowFigmaDropdown(false);
       setTrackOnBoard(false);
       await fetchBuilds();
     } catch (err) {
       console.error('Failed to create build:', err);
-      setError('Failed to create build');
+      setError(err instanceof Error ? err.message : 'Failed to create build');
     } finally {
       setCreating(false);
     }

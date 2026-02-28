@@ -80,9 +80,11 @@ export default function TeamsDashboard() {
   const [figmaFileKey, setFigmaFileKey] = useState('');
   const [pageTitle, setPageTitle] = useState('');
   const [pageSlug, setPageSlug] = useState('');
+  const [pageBuilder, setPageBuilder] = useState('');
   const [modelProfile, setModelProfile] = useState('cost_optimized');
   const defaultCustomModels = MODEL_PROFILES.find(p => p.id === 'cost_optimized')!.models;
   const [customModels, setCustomModels] = useState<Record<string, string>>({ ...defaultCustomModels });
+  const [trackOnBoard, setTrackOnBoard] = useState(false);
 
   // Figma files combobox
   const [figmaFiles, setFigmaFiles] = useState<Array<{ key: string; name: string; thumbnail_url: string | null; last_modified: string; project_name: string }>>([]);

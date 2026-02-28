@@ -41,76 +41,81 @@ export async function POST(request: NextRequest) {
     return errorResponse('siteProfileId, figmaFileKey, and pageTitle are required');
   }
 
-  // Fetch site profile
-  const { data: siteProfile, error } = await auth.ctx.supabase
-    .from('pageforge_site_profiles')
-    .select('*')
-    .eq('id', siteProfileId)
-    .single();
+  try {
+    // Fetch site profile
+    const { data: siteProfile, error } = await auth.ctx.supabase
+      .from('pageforge_site_profiles')
+      .select('*')
+      .eq('id', siteProfileId)
+      .single();
 
-  if (error || !siteProfile) {
-    return errorResponse('Site profile not found', 404);
-  }
-
-  const build = await createBuild(
-    auth.ctx.supabase,
-    siteProfile as PageForgeSiteProfile,
-    {
-      figmaFileKey,
-      figmaNodeIds: figmaNodeIds || [],
-      pageTitle,
-      pageSlug,
-      createdBy: auth.ctx.userId,
+    if (error || !siteProfile) {
+      return errorResponse('Site profile not found', 404);
     }
-  );
 
-  // Store model_profile, custom_models, and page_builder override in the build
-  const updatePayload: Record<string, unknown> = {
-    artifacts: {
-      model_profile: modelProfile || 'cost_optimized',
-      custom_models: customModels || null,
-    },
-  };
-  // Allow overriding the page builder per-build
-  if (pageBuilder && pageBuilder !== siteProfile.page_builder) {
-    updatePayload.page_builder = pageBuilder;
-  }
-  await auth.ctx.supabase
-    .from('pageforge_builds')
-    .update(updatePayload)
-    .eq('id', build.id);
-
-  // Create VPS job for the build
-  await auth.ctx.supabase.from('vps_jobs').insert({
-    job_type: 'pipeline:pageforge',
-    status: 'queued',
-    payload: {
-      build_id: build.id,
-      site_profile_id: siteProfileId,
-      model_profile: modelProfile || 'cost_optimized',
-      page_builder: pageBuilder || siteProfile.page_builder,
-    },
-    created_by: auth.ctx.userId,
-  });
-
-  // Optionally create board sub-tasks
-  const resolvedListId = boardListId || (trackOnBoard ? await resolveClientBoardList(auth.ctx.supabase, siteProfile) : null);
-  if (resolvedListId) {
-    try {
-      const { createBuildSubTasks } = await import('@/lib/ai/pageforge/build-tasks');
-      await createBuildSubTasks(auth.ctx.supabase, {
-        buildId: build.id,
+    const build = await createBuild(
+      auth.ctx.supabase,
+      siteProfile as PageForgeSiteProfile,
+      {
+        figmaFileKey,
+        figmaNodeIds: figmaNodeIds || [],
         pageTitle,
-        listId: resolvedListId,
+        pageSlug,
         createdBy: auth.ctx.userId,
-      });
-    } catch (err) {
-      console.error('Failed to create build sub-tasks:', err);
-      // Non-fatal - build continues without board tasks
-    }
-  }
+      }
+    );
 
-  return NextResponse.json({ build }, { status: 201 });
+    // Store model_profile, custom_models, and page_builder override in the build
+    const updatePayload: Record<string, unknown> = {
+      artifacts: {
+        model_profile: modelProfile || 'cost_optimized',
+        custom_models: customModels || null,
+      },
+    };
+    // Allow overriding the page builder per-build
+    if (pageBuilder && pageBuilder !== siteProfile.page_builder) {
+      updatePayload.page_builder = pageBuilder;
+    }
+    await auth.ctx.supabase
+      .from('pageforge_builds')
+      .update(updatePayload)
+      .eq('id', build.id);
+
+    // Create VPS job for the build
+    await auth.ctx.supabase.from('vps_jobs').insert({
+      job_type: 'pipeline:pageforge',
+      status: 'queued',
+      payload: {
+        build_id: build.id,
+        site_profile_id: siteProfileId,
+        model_profile: modelProfile || 'cost_optimized',
+        page_builder: pageBuilder || siteProfile.page_builder,
+      },
+      created_by: auth.ctx.userId,
+    });
+
+    // Optionally create board sub-tasks
+    const resolvedListId = boardListId || (trackOnBoard ? await resolveClientBoardList(auth.ctx.supabase, siteProfile) : null);
+    if (resolvedListId) {
+      try {
+        const { createBuildSubTasks } = await import('@/lib/ai/pageforge/build-tasks');
+        await createBuildSubTasks(auth.ctx.supabase, {
+          buildId: build.id,
+          pageTitle,
+          listId: resolvedListId,
+          createdBy: auth.ctx.userId,
+        });
+      } catch (err) {
+        console.error('Failed to create build sub-tasks:', err);
+        // Non-fatal - build continues without board tasks
+      }
+    }
+
+    return NextResponse.json({ build }, { status: 201 });
+  } catch (err) {
+    console.error('PageForge create build error:', err);
+    return errorResponse(err instanceof Error ? err.message : 'Failed to create build', 500);
+  }
 }
 
 /**
