@@ -60,34 +60,29 @@ export async function GET(request: NextRequest) {
     const projData = await projRes.json();
     const projects: Array<{ id: string; name: string }> = projData.projects || [];
 
-    // 2. Fetch files for all projects (parallel in batches of 10)
+    // 2. Fetch files for ALL projects in parallel (single burst)
+    const fileResults = await Promise.allSettled(
+      projects.map(async (project) => {
+        const res = await fetch(`https://api.figma.com/v1/projects/${project.id}/files`, {
+          headers,
+          signal: AbortSignal.timeout(15000),
+        });
+        if (!res.ok) return [];
+        const data = await res.json();
+        return (data.files || []).map((f: any) => ({
+          key: f.key,
+          name: f.name,
+          thumbnail_url: f.thumbnail_url || null,
+          last_modified: f.last_modified,
+          project_name: project.name,
+        }));
+      }),
+    );
+
     const allFiles: FigmaFileEntry[] = [];
-    const BATCH_SIZE = 10;
-
-    for (let i = 0; i < projects.length; i += BATCH_SIZE) {
-      const batch = projects.slice(i, i + BATCH_SIZE);
-      const fileResults = await Promise.allSettled(
-        batch.map(async (project) => {
-          const res = await fetch(`https://api.figma.com/v1/projects/${project.id}/files`, {
-            headers,
-            signal: AbortSignal.timeout(10000),
-          });
-          if (!res.ok) return [];
-          const data = await res.json();
-          return (data.files || []).map((f: any) => ({
-            key: f.key,
-            name: f.name,
-            thumbnail_url: f.thumbnail_url || null,
-            last_modified: f.last_modified,
-            project_name: project.name,
-          }));
-        }),
-      );
-
-      for (const result of fileResults) {
-        if (result.status === 'fulfilled') {
-          allFiles.push(...result.value);
-        }
+    for (const result of fileResults) {
+      if (result.status === 'fulfilled') {
+        allFiles.push(...result.value);
       }
     }
 
