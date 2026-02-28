@@ -43,6 +43,66 @@ import type {
 
 const PREVIEW_LENGTH = 500;
 
+// ============================================================================
+// MODEL PROFILES - Router for per-build model selection
+// ============================================================================
+
+export interface PageForgeModelProfile {
+  id: string;
+  label: string;
+  description: string;
+  estimatedCost: string;
+  models: {
+    orchestrator: string;
+    builder: string;
+    vqa: string;
+    qa: string;
+    seo: string;
+  };
+}
+
+export const MODEL_PROFILES: PageForgeModelProfile[] = [
+  {
+    id: 'cost_optimized',
+    label: 'Cost-Optimized',
+    description: 'Gemini Flash for most agents, Claude Sonnet for Builder',
+    estimatedCost: '~$2.50/build',
+    models: {
+      orchestrator: 'gemini-2.5-flash',
+      builder: 'claude-sonnet-4-5-20250929',
+      vqa: 'gemini-2.5-pro',
+      qa: 'gemini-2.5-flash',
+      seo: 'gemini-2.5-flash',
+    },
+  },
+  {
+    id: 'quality_first',
+    label: 'Quality-First',
+    description: 'Claude Sonnet for Builder, Gemini Pro for VQA, premium models throughout',
+    estimatedCost: '~$6/build',
+    models: {
+      orchestrator: 'claude-sonnet-4-5-20250929',
+      builder: 'claude-sonnet-4-5-20250929',
+      vqa: 'gemini-2.5-pro',
+      qa: 'claude-haiku-4-5-20251001',
+      seo: 'claude-sonnet-4-5-20250929',
+    },
+  },
+  {
+    id: 'budget',
+    label: 'Budget',
+    description: 'Cheapest models for all agents - good for simple landing pages',
+    estimatedCost: '~$1/build',
+    models: {
+      orchestrator: 'gemini-2.5-flash',
+      builder: 'claude-haiku-4-5-20251001',
+      vqa: 'gemini-2.5-flash',
+      qa: 'gemini-2.5-flash',
+      seo: 'gemini-2.5-flash',
+    },
+  },
+];
+
 export const PAGEFORGE_PHASE_ORDER: string[] = [
   'preflight',
   'figma_analysis',
