@@ -64,7 +64,6 @@ interface NewBuildForm {
   page_slug: string;
   page_builder: string;
   model_profile: string;
-  board_list_id: string;
   customModels: Record<string, string>;
 }
 
@@ -95,7 +94,7 @@ export default function PageForgeDashboard() {
     page_slug: '',
     page_builder: '',
     model_profile: 'cost_optimized',
-    board_list_id: '',
+
     customModels: { ...defaultCustomModels },
   });
 
@@ -104,6 +103,9 @@ export default function PageForgeDashboard() {
   const [figmaFilesLoading, setFigmaFilesLoading] = useState(false);
   const [figmaSearch, setFigmaSearch] = useState('');
   const [showFigmaDropdown, setShowFigmaDropdown] = useState(false);
+
+  // Board tracking toggle
+  const [trackOnBoard, setTrackOnBoard] = useState(false);
 
   // Fetch Figma files when site profile changes
   useEffect(() => {
@@ -196,13 +198,17 @@ export default function PageForgeDashboard() {
     setCreating(true);
     try {
       const payload: Record<string, unknown> = {
-        ...newBuild,
-        boardListId: newBuild.board_list_id || undefined,
+        siteProfileId: newBuild.site_profile_id,
+        figmaFileKey: newBuild.figma_file_key,
+        pageTitle: newBuild.page_title,
+        pageSlug: newBuild.page_slug || undefined,
+        page_builder: newBuild.page_builder || undefined,
+        model_profile: newBuild.model_profile,
+        trackOnBoard: trackOnBoard || undefined,
       };
       if (newBuild.model_profile === 'custom') {
         payload.custom_models = newBuild.customModels;
       }
-      delete payload.customModels;
       const res = await fetch('/api/pageforge/builds', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -213,6 +219,7 @@ export default function PageForgeDashboard() {
       setNewBuild({ site_profile_id: '', figma_file_key: '', page_title: '', page_slug: '', page_builder: '', model_profile: 'cost_optimized', board_list_id: '', customModels: { ...defaultCustomModels } });
       setFigmaSearch('');
       setShowFigmaDropdown(false);
+      setTrackOnBoard(false);
       await fetchBuilds();
     } catch (err) {
       console.error('Failed to create build:', err);
@@ -739,29 +746,46 @@ export default function PageForgeDashboard() {
                 )}
               </div>
 
-              {/* Advanced Options */}
-              <details className="group">
-                <summary className="text-xs font-semibold text-navy/40 dark:text-slate-500 cursor-pointer hover:text-navy/60 dark:hover:text-slate-300 font-heading transition-colors select-none">
-                  <span className="inline-flex items-center gap-1.5">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-transform group-open:rotate-90"><path d="m9 18 6-6-6-6"/></svg>
-                    Advanced Options
-                  </span>
-                </summary>
-                <div className="mt-3 space-y-3 rounded-xl border border-cream-dark dark:border-slate-700 bg-cream/30 dark:bg-dark-surface/50 p-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1.5 font-heading">
-                      Board List ID <span className="font-normal text-navy/30 dark:text-slate-600">(creates tracking tasks)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={newBuild.board_list_id}
-                      onChange={(e) => setNewBuild(prev => ({ ...prev, board_list_id: e.target.value }))}
-                      placeholder="Paste a board list UUID"
-                      className="w-full rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 px-3 py-2.5 font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric placeholder:text-navy/30 dark:placeholder:text-slate-500"
-                    />
+              {/* Track on client's board */}
+              {newBuild.site_profile_id && (() => {
+                const selectedSite = sites.find(s => s.id === newBuild.site_profile_id);
+                const hasClient = !!selectedSite?.client_id;
+                const clientName = (selectedSite as any)?.client?.name;
+                return (
+                  <div className={`flex items-center justify-between rounded-xl border px-4 py-3 ${
+                    !hasClient ? 'border-cream-dark/50 dark:border-slate-700/50 opacity-50' : 'border-cream-dark dark:border-slate-700'
+                  }`}>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-navy dark:text-slate-100 font-heading">
+                        Track on client&apos;s board
+                      </p>
+                      <p className="text-[10px] text-navy/40 dark:text-slate-500 font-body mt-0.5">
+                        {!hasClient
+                          ? 'No client linked to this site profile'
+                          : trackOnBoard
+                            ? `Build progress posted to ${clientName || 'client'}'s board`
+                            : 'Creates tracking tasks on the client board'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={trackOnBoard}
+                      disabled={!hasClient}
+                      onClick={() => setTrackOnBoard(prev => !prev)}
+                      className={`relative shrink-0 w-10 h-6 rounded-full transition-colors ${
+                        trackOnBoard ? 'bg-electric' : 'bg-navy/15 dark:bg-slate-600'
+                      } disabled:cursor-not-allowed`}
+                    >
+                      <span
+                        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                          trackOnBoard ? 'translate-x-4' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
                   </div>
-                </div>
-              </details>
+                );
+              })()}
             </div>
 
             {/* Footer actions - sticky */}
