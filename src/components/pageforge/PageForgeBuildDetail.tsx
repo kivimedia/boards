@@ -371,7 +371,7 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
   const qaItems = (qaResults.checks ?? []) as Array<{ name: string; passed: boolean; message?: string }>;
 
   return (
-    <div className="space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
@@ -379,9 +379,9 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
             href="/pageforge"
             className="text-xs text-electric hover:text-electric-bright transition-colors"
           >
-            &larr; Back to Dashboard
+            Back to Dashboard
           </a>
-          <h1 className="text-2xl font-bold text-navy dark:text-slate-100 font-heading mt-1">
+          <h1 className="text-xl font-bold text-navy dark:text-slate-100 font-heading mt-1">
             {build.page_title}
           </h1>
           {build.site_profile?.site_name && (

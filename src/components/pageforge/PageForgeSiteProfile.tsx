@@ -170,7 +170,7 @@ export default function PageForgeSiteProfile({ siteId, onSaved }: PageForgeSiteP
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-6">
       <h1 className="text-xl font-bold text-navy dark:text-slate-100 font-heading">
         {siteId ? 'Edit Site Profile' : 'New Site Profile'}
       </h1>
