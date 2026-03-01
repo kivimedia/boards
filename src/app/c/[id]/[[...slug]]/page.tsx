@@ -54,34 +54,35 @@ export default async function CardDeepLinkPage({ params }: Props) {
     const board = (allBoards ?? []).find((b: any) => slugify(b.name) === boardSlug);
     if (!board) notFound();
 
-    // 2. Fetch all cards on this board with their assignees
-    const { data: placements } = await db
-      .from('card_placements')
-      .select('card_id, cards(id, title), card_assignees(user_id, profiles(display_name))')
-      .eq('lists.board_id', board.id)
-      .eq('is_mirror', false);
-
-    // Supabase join filtering — fetch via lists table instead
+    // 2. Get list IDs for this board
     const { data: lists } = await db
       .from('lists')
       .select('id')
       .eq('board_id', board.id);
 
     const listIds = (lists ?? []).map((l: any) => l.id);
+    if (!listIds.length) notFound();
 
-    const { data: boardPlacements } = await db
+    // 3. Search for cards matching the slug (targeted query to avoid 1000-row limit)
+    //    Convert slug back to a search pattern: "sara-march-18-flyer" -> "%sara%march%18%flyer%"
+    const titlePattern = cardSlug.split('-').filter(Boolean).join('%');
+    const { data: candidates } = await db
       .from('card_placements')
-      .select('card_id, cards(id, title)')
-      .in('list_id', listIds.length > 0 ? listIds : ['none']);
+      .select('card_id, cards!inner(id, title)')
+      .in('list_id', listIds)
+      .ilike('cards.title', `%${titlePattern}%`)
+      .limit(50);
 
-    if (!boardPlacements?.length) notFound();
+    // Exact slug match from candidates
+    const matches = (candidates ?? []).filter((p: any) =>
+      p.cards && slugify(p.cards.title) === cardSlug
+    );
 
-    // 3. For each placement, check if card slug + assignee slug match
-    for (const p of boardPlacements) {
-      const c = p.cards as any;
-      if (!c || slugify(c.title) !== cardSlug) continue;
+    if (!matches.length) notFound();
 
-      // Fetch assignees for this card
+    // 4. Try assignee match first
+    for (const p of matches) {
+      const c = (p as any).cards;
       const { data: assigneeRows } = await db
         .from('card_assignees')
         .select('profiles(display_name)')
@@ -92,22 +93,15 @@ export default async function CardDeepLinkPage({ params }: Props) {
         return slugify(name.split(' ')[0]) === personSlug;
       });
 
-      // Also match 'unassigned' if no assignees
       const noAssignees = !assigneeRows || assigneeRows.length === 0;
       if (assigneeMatches || (noAssignees && personSlug === 'unassigned')) {
         redirect(`/board/${boardSlug}?card=${c.id}`);
       }
     }
 
-    // 4. Fallback: match by card slug alone (ignore person segment)
-    const cardBySlug = (boardPlacements ?? []).find((p: any) =>
-      p.cards && slugify((p.cards as any).title) === cardSlug
-    );
-    if (cardBySlug) {
-      redirect(`/board/${boardSlug}?card=${(cardBySlug.cards as any).id}`);
-    }
-
-    notFound();
+    // 5. Fallback: match by card slug alone (ignore person segment)
+    const firstMatch = (matches[0] as any).cards;
+    redirect(`/board/${boardSlug}?card=${firstMatch.id}`);
   }
 
   // ── Single segment (board slug only or unknown) ──────────────────────────
