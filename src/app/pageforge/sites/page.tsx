@@ -2,9 +2,9 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import SidebarWithBoards from '@/components/layout/SidebarWithBoards';
 import Header from '@/components/layout/Header';
-import PageForgeSiteProfile from '@/components/pageforge/PageForgeSiteProfile';
+import PageForgeSitesList from '@/components/pageforge/PageForgeSitesList';
 
-export const metadata = { title: 'Site Profiles - PageForge' };
+export const metadata = { title: 'Manage Sites - PageForge' };
 
 export default async function PageForgeSitesPage() {
   const supabase = createServerSupabaseClient();
@@ -18,9 +18,9 @@ export default async function PageForgeSitesPage() {
     <div className="flex h-screen overflow-hidden">
       <SidebarWithBoards />
       <main className="flex-1 flex flex-col overflow-hidden">
-        <Header title="Site Profiles" />
+        <Header title="Manage Sites" />
         <div className="flex-1 overflow-y-auto">
-          <PageForgeSiteProfile />
+          <PageForgeSitesList />
         </div>
       </main>
     </div>

@@ -130,6 +130,7 @@ export default function PageForgeDashboard() {
   // Figma files combobox
   const [figmaFiles, setFigmaFiles] = useState<FigmaFileEntry[]>([]);
   const [figmaFilesLoading, setFigmaFilesLoading] = useState(false);
+  const [figmaCached, setFigmaCached] = useState(false);
   const [figmaSearch, setFigmaSearch] = useState('');
   const [figmaSelectedName, setFigmaSelectedName] = useState('');
   const [showFigmaDropdown, setShowFigmaDropdown] = useState(false);
@@ -155,27 +156,31 @@ export default function PageForgeDashboard() {
   }, []);
 
   // Fetch Figma files when site profile changes
+  const loadFigmaFiles = useCallback(async (siteProfileId: string, bust = false) => {
+    setFigmaFilesLoading(true);
+    setFigmaCached(false);
+    try {
+      const qs = bust ? `&bust=1` : '';
+      const res = await fetch(`/api/pageforge/figma/files?siteProfileId=${siteProfileId}${qs}`);
+      const json = await res.json();
+      if (json.files) {
+        setFigmaFiles(json.files);
+        setFigmaCached(!!json.cached);
+      }
+    } catch {
+      // silent - user can still type manually
+    } finally {
+      setFigmaFilesLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!newBuild.site_profile_id) {
       setFigmaFiles([]);
       return;
     }
-    let cancelled = false;
-    async function loadFiles() {
-      setFigmaFilesLoading(true);
-      try {
-        const res = await fetch(`/api/pageforge/figma/files?siteProfileId=${newBuild.site_profile_id}`);
-        const json = await res.json();
-        if (!cancelled && json.files) setFigmaFiles(json.files);
-      } catch {
-        // silent - user can still type manually
-      } finally {
-        if (!cancelled) setFigmaFilesLoading(false);
-      }
-    }
-    loadFiles();
-    return () => { cancelled = true; };
-  }, [newBuild.site_profile_id]);
+    loadFigmaFiles(newBuild.site_profile_id);
+  }, [newBuild.site_profile_id, loadFigmaFiles]);
 
   const filteredFigmaFiles = figmaSearch
     ? figmaFiles.filter(f =>
@@ -505,55 +510,62 @@ export default function PageForgeDashboard() {
       )}
 
       {activeTab === 'sites' && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {sites.length === 0 ? (
-            <div className="col-span-full text-center py-16 bg-white dark:bg-slate-800 rounded-xl border border-navy/5 dark:border-slate-700">
-              <p className="text-sm text-navy/40 dark:text-slate-500">No site profiles</p>
-              <p className="text-xs text-navy/30 dark:text-slate-600 mt-1">
-                Create a site profile to connect WordPress
-              </p>
-            </div>
-          ) : (
-            sites.map((site) => (
-              <div
-                key={site.id}
-                className="bg-white dark:bg-slate-800 rounded-xl border border-navy/5 dark:border-slate-700 p-4 space-y-3"
-              >
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-navy dark:text-slate-200 truncate">
-                    {site.site_name}
-                  </h3>
-                  <div className="flex items-center gap-1.5">
-                    {isCredentialStale(site.created_at) && (
-                      <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300">
-                        Rotate Creds
+        <div className="space-y-4">
+          {/* Manage Sites link */}
+          <div className="flex items-center justify-end">
+            <a
+              href="/pageforge/sites"
+              className="px-4 py-2 text-xs font-semibold text-electric border border-electric rounded-lg hover:bg-electric/5 dark:hover:bg-electric/10 transition-colors font-heading"
+            >
+              Manage Sites
+            </a>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {sites.length === 0 ? (
+              <div className="col-span-full text-center py-16 bg-white dark:bg-slate-800 rounded-xl border border-navy/5 dark:border-slate-700">
+                <p className="text-sm text-navy/40 dark:text-slate-500">No site profiles</p>
+                <p className="text-xs text-navy/30 dark:text-slate-600 mt-1">
+                  Create a site profile to connect WordPress
+                </p>
+              </div>
+            ) : (
+              sites.map((site) => (
+                <div
+                  key={site.id}
+                  className="bg-white dark:bg-slate-800 rounded-xl border border-navy/5 dark:border-slate-700 p-4 space-y-3 hover:border-navy/20 dark:hover:border-slate-500 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-navy dark:text-slate-200 truncate">
+                      {site.site_name}
+                    </h3>
+                    <div className="flex items-center gap-1.5">
+                      {isCredentialStale(site.created_at) && (
+                        <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300">
+                          Rotate Creds
+                        </span>
+                      )}
+                      <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-navy/5 dark:bg-slate-700 text-navy/40 dark:text-slate-500">
+                        {site.page_builder}
                       </span>
-                    )}
-                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-navy/5 dark:bg-slate-700 text-navy/40 dark:text-slate-500">
-                      {site.page_builder}
+                    </div>
+                  </div>
+                  <p className="text-xs text-navy/40 dark:text-slate-500 truncate">
+                    {site.site_url}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-navy/30 dark:text-slate-600">
+                      VQA {site.vqa_pass_threshold}%
                     </span>
+                    <span className="text-[10px] text-navy/30 dark:text-slate-600">
+                      LH {site.lighthouse_min_score}
+                    </span>
+                    {site.figma_personal_token && <span className="text-[10px] text-electric">Figma</span>}
+                    {site.wp_username && <span className="text-[10px] text-green-600 dark:text-green-400">WP API</span>}
                   </div>
                 </div>
-                <p className="text-xs text-navy/40 dark:text-slate-500 truncate">
-                  {site.site_url}
-                </p>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-navy/30 dark:text-slate-600">
-                    VQA threshold: {site.vqa_pass_threshold}%
-                  </span>
-                  <span className="text-[10px] text-navy/30 dark:text-slate-600">
-                    LH min: {site.lighthouse_min_score}
-                  </span>
-                </div>
-                <a
-                  href={`/pageforge/sites/${site.id}`}
-                  className="inline-block text-xs font-semibold text-electric hover:text-electric-bright transition-colors"
-                >
-                  Edit Profile
-                </a>
-              </div>
-            ))
-          )}
+              ))
+            )}
+          </div>
         </div>
       )}
 
@@ -910,10 +922,24 @@ export default function PageForgeDashboard() {
                         </button>
                       )}
                     </div>
-                    {/* Figma file count indicator */}
+                    {/* Figma file count indicator + refresh */}
                     {!figmaFilesLoading && figmaFiles.length > 0 && !showFigmaDropdown && (
+                      <p className="text-[10px] text-navy/30 dark:text-slate-600 mt-1 font-body flex items-center gap-1.5">
+                        <span>{figmaFiles.length} files available{figmaCached ? ' (cached)' : ''}</span>
+                        <button
+                          type="button"
+                          onClick={() => loadFigmaFiles(newBuild.site_profile_id, true)}
+                          className="text-electric hover:text-electric-bright transition-colors"
+                          title="Refresh from Figma"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+                        </button>
+                      </p>
+                    )}
+                    {/* First load hint */}
+                    {figmaFilesLoading && figmaFiles.length === 0 && (
                       <p className="text-[10px] text-navy/30 dark:text-slate-600 mt-1 font-body">
-                        {figmaFiles.length} files available from Figma
+                        First load may take ~20s for large teams
                       </p>
                     )}
                     {/* Dropdown */}
