@@ -4,6 +4,7 @@ import SidebarWithBoards from '@/components/layout/SidebarWithBoards';
 import Header from '@/components/layout/Header';
 import IntegrationList from '@/components/integrations/IntegrationList';
 import GoogleCalendarConnect from '@/components/client-updates/GoogleCalendarConnect';
+import PageForgeFigmaConfig from '@/components/integrations/PageForgeFigmaConfig';
 
 export default async function IntegrationsSettingsPage() {
   const supabase = createServerSupabaseClient();
@@ -29,6 +30,9 @@ export default async function IntegrationsSettingsPage() {
             <GoogleCalendarConnect />
             <div className="mt-8">
               <IntegrationList />
+            </div>
+            <div className="mt-8">
+              <PageForgeFigmaConfig />
             </div>
           </div>
         </div>
