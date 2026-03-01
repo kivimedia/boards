@@ -122,10 +122,11 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
     try {
       const res = await fetch(`/api/pageforge/builds/${buildId}`);
       const json = await res.json();
-      if (json.data) {
-        setBuild(json.data.build ?? json.data);
-        if (json.data.phases) setPhases(json.data.phases);
-        if (json.data.agent_calls) setAgentCalls(json.data.agent_calls);
+      const buildData = json.build ?? json.data?.build ?? json.data;
+      if (buildData) {
+        setBuild(buildData);
+        if (buildData.phases) setPhases(buildData.phases);
+        if (buildData.agent_calls) setAgentCalls(buildData.agent_calls);
       }
     } catch (err) {
       console.error('Failed to fetch build:', err);
