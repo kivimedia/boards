@@ -737,11 +737,37 @@ async function executePhase(
       const figmaClient = createFigmaClient(siteProfile.figma_personal_token!);
       const wpClient = createWpClient({ restUrl: siteProfile.wp_rest_url, username: siteProfile.wp_username!, appPassword: siteProfile.wp_app_password! });
 
-      const imageResponse = await figmaGetImages(figmaClient, build.figma_file_key, imageNodeIds, { format: 'png', scale: 2 });
+      // Batch image exports to avoid Figma render timeout (max ~10 per request)
+      const BATCH_SIZE = 10;
+      const allImages: Record<string, string | null> = {};
+      for (let b = 0; b < imageNodeIds.length; b += BATCH_SIZE) {
+        const batch = imageNodeIds.slice(b, b + BATCH_SIZE);
+        const batchNum = Math.floor(b / BATCH_SIZE) + 1;
+        const totalBatches = Math.ceil(imageNodeIds.length / BATCH_SIZE);
+        console.log(`[pageforge] Exporting image batch ${batchNum}/${totalBatches} (${batch.length} images)`);
+        try {
+          const batchResponse = await figmaGetImages(figmaClient, build.figma_file_key, batch, { format: 'png', scale: 2 });
+          Object.assign(allImages, batchResponse.images);
+        } catch (err) {
+          console.error(`[pageforge] Image batch ${batchNum} failed, retrying at scale 1...`);
+          try {
+            const retryResponse = await figmaGetImages(figmaClient, build.figma_file_key, batch, { format: 'png', scale: 1 });
+            Object.assign(allImages, retryResponse.images);
+          } catch (retryErr) {
+            console.error(`[pageforge] Image batch ${batchNum} failed on retry too:`, retryErr);
+            for (const id of batch) allImages[id] = null;
+          }
+        }
+      }
+
+      await postBuildMessage(supabase, buildId,
+        `Exported ${Object.values(allImages).filter(Boolean).length}/${imageNodeIds.length} images from Figma. Uploading to WordPress...`,
+        'image_optimization');
+
       const mediaIds: number[] = [];
       let uploaded = 0, failed = 0;
 
-      for (const [nodeId, imageUrl] of Object.entries(imageResponse.images)) {
+      for (const [nodeId, imageUrl] of Object.entries(allImages)) {
         if (!imageUrl) { failed++; continue; }
         try {
           const buffer = await figmaDownloadImage(imageUrl);
