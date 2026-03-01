@@ -228,6 +228,28 @@ function calculateCost(model: string, inputTokens: number, outputTokens: number)
 }
 
 // ============================================================================
+// BUILD CHAT MESSAGES
+// ============================================================================
+
+export async function postBuildMessage(
+  supabase: SupabaseClient,
+  buildId: string,
+  content: string,
+  phase?: string,
+  role: 'orchestrator' | 'system' = 'orchestrator'
+): Promise<void> {
+  const phaseIndex = phase ? PAGEFORGE_PHASE_ORDER.indexOf(phase) : null;
+  await supabase.from('pageforge_build_messages').insert({
+    build_id: buildId,
+    role,
+    sender_name: role === 'orchestrator' ? 'Orchestrator' : 'System',
+    content,
+    phase: phase || null,
+    phase_index: phaseIndex !== null && phaseIndex >= 0 ? phaseIndex : null,
+  });
+}
+
+// ============================================================================
 // SYSTEM PROMPTS
 // ============================================================================
 

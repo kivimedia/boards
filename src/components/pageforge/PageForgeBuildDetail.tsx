@@ -11,6 +11,7 @@ import type {
   PageForgeNamingIssue,
   PageForgeDesignerFixRequest,
 } from '@/lib/types';
+import PageForgeChatPanel from './PageForgeChatPanel';
 
 // ---------------------------------------------------------------------------
 // Phase definitions (order matters)
@@ -668,6 +669,11 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
                 );
               })}
             </div>
+          </div>
+
+          {/* Chat Panel */}
+          <div className="mt-6">
+            <PageForgeChatPanel buildId={build.id} buildStatus={build.status} />
           </div>
         </div>
 
