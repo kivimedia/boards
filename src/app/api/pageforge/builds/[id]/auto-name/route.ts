@@ -264,7 +264,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     // Build parts array - image first (if available), then text
     const parts: any[] = [];
@@ -323,7 +323,7 @@ export async function POST(request: NextRequest, { params }: Params) {
         userId,
         activity: 'pageforge_orchestrator',
         provider: 'google',
-        modelId: 'gemini-2.0-flash',
+        modelId: 'gemini-2.5-flash',
         inputTokens,
         outputTokens,
         latencyMs: durationMs,
@@ -351,7 +351,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       userId,
       activity: 'pageforge_orchestrator',
       provider: 'google',
-      modelId: 'gemini-2.0-flash',
+      modelId: 'gemini-2.5-flash',
       inputTokens,
       outputTokens,
       latencyMs: durationMs,
@@ -374,7 +374,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   const autoNameResults = {
     renames,
     generated_at: new Date().toISOString(),
-    model: 'gemini-2.0-flash',
+    model: 'gemini-2.5-flash',
     issue_count: namingIssues.length,
     rename_count: renames.length,
     had_screenshot: !!screenshotBase64,

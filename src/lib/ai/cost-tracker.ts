@@ -30,8 +30,6 @@ export const MODEL_PRICING: AIModelPricing[] = [
   // Google
   { provider: 'google', model_id: 'gemini-2.5-pro', input_cost_per_1k: 0.00125, output_cost_per_1k: 0.01 },
   { provider: 'google', model_id: 'gemini-2.5-flash', input_cost_per_1k: 0.00015, output_cost_per_1k: 0.0006 },
-  { provider: 'google', model_id: 'gemini-2.0-flash', input_cost_per_1k: 0.0001, output_cost_per_1k: 0.0004 },
-  { provider: 'google', model_id: 'gemini-2.0-flash-exp', input_cost_per_1k: 0.0001, output_cost_per_1k: 0.0004 },
   { provider: 'google', model_id: 'gemini-1.5-pro', input_cost_per_1k: 0.00125, output_cost_per_1k: 0.005 },
   // Replicate (per-image pricing, not per-token; cost logged directly in metadata)
   { provider: 'replicate', model_id: 'flux-1.1-pro', input_cost_per_1k: 0, output_cost_per_1k: 0 },

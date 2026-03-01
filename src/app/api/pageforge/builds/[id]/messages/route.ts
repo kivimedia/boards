@@ -157,7 +157,7 @@ Guidelines:
 
     const { GoogleGenerativeAI } = await import('@google/generative-ai');
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const result = await model.generateContent({
       contents: [{ role: 'user', parts: [{ text: userMessage }] }],
@@ -180,7 +180,7 @@ Guidelines:
       content: replyText,
       phase: build?.status || null,
       phase_index: build?.current_phase ?? null,
-      metadata: { ai_reply: true, model: 'gemini-2.0-flash', latency_ms: latencyMs },
+      metadata: { ai_reply: true, model: 'gemini-2.5-flash', latency_ms: latencyMs },
     });
 
     // Log usage
@@ -189,7 +189,7 @@ Guidelines:
         userId,
         activity: 'pageforge_orchestrator' as any,
         provider: 'google',
-        modelId: 'gemini-2.0-flash',
+        modelId: 'gemini-2.5-flash',
         inputTokens: usage?.promptTokenCount || 0,
         outputTokens: usage?.candidatesTokenCount || 0,
         latencyMs,
