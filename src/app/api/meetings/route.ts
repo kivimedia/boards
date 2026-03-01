@@ -36,6 +36,8 @@ export async function GET(request: Request) {
       recorded_at,
       fathom_summary,
       fathom_action_items,
+      ai_summary,
+      ai_action_items,
       processing_status,
       matched_client_id,
       matched_by,
