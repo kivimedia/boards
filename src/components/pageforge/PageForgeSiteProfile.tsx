@@ -46,7 +46,7 @@ const INITIAL_FORM: FormState = {
   page_builder: 'gutenberg',
   vqa_pass_threshold: 90,
   lighthouse_min_score: 80,
-  max_vqa_fix_loops: 3,
+  max_vqa_fix_loops: 15,
   yoast_enabled: false,
 };
 
