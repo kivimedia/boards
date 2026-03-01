@@ -690,6 +690,8 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
                 const phase = phases.find((p) => p.phase_index === idx);
                 const phaseStatus = phase?.status ?? 'pending';
                 const isCurrent = build.current_phase === idx;
+                const isGate = idx >= 13; // Developer Review Gate (13), AM Sign-off Gate (14)
+                const isWaitingGate = isGate && isCurrent && GATE_STATUSES.includes(build.status as PageForgeBuildStatus);
 
                 return (
                   <div key={name} className="flex items-start gap-3 relative">
@@ -699,7 +701,9 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
                         className={`absolute left-3 top-6 w-0.5 h-full ${
                           phaseStatus === 'completed'
                             ? 'bg-success'
-                            : 'bg-navy/10 dark:bg-slate-700'
+                            : isWaitingGate
+                              ? 'bg-amber-300 dark:bg-amber-600'
+                              : 'bg-navy/10 dark:bg-slate-700'
                         }`}
                       />
                     )}
@@ -708,19 +712,19 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
                     <div className="shrink-0 relative z-10">
                       {phaseStatus === 'completed' ? (
                         <div className="w-6 h-6 rounded-full bg-success flex items-center justify-center">
-                          <svg
-                            className="w-3.5 h-3.5 text-white"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={3}
-                              d="M5 13l4 4L19 7"
-                            />
+                          <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                           </svg>
+                        </div>
+                      ) : isWaitingGate ? (
+                        <div className="w-6 h-6 rounded-full bg-amber-400 dark:bg-amber-500 flex items-center justify-center animate-pulse">
+                          <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                        </div>
+                      ) : isGate && isCurrent ? (
+                        <div className="w-6 h-6 rounded-full border-2 border-amber-400 dark:border-amber-500 flex items-center justify-center">
+                          <div className="w-2 h-2 rounded-full bg-amber-400 dark:bg-amber-500" />
                         </div>
                       ) : phaseStatus === 'running' || isCurrent ? (
                         <div className="w-6 h-6 rounded-full border-2 border-electric flex items-center justify-center">
@@ -728,18 +732,8 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
                         </div>
                       ) : phaseStatus === 'failed' ? (
                         <div className="w-6 h-6 rounded-full bg-danger flex items-center justify-center">
-                          <svg
-                            className="w-3.5 h-3.5 text-white"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={3}
-                              d="M6 18L18 6M6 6l12 12"
-                            />
+                          <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
                           </svg>
                         </div>
                       ) : (
@@ -750,18 +744,25 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
                     </div>
 
                     {/* Phase info */}
-                    <div className="pb-4 min-w-0">
+                    <div className="pb-4 min-w-0 flex-1">
                       <p
                         className={`text-sm font-medium ${
-                          isCurrent
-                            ? 'text-electric'
-                            : phaseStatus === 'completed'
-                              ? 'text-navy dark:text-slate-200'
-                              : 'text-navy/40 dark:text-slate-500'
+                          isWaitingGate
+                            ? 'text-amber-600 dark:text-amber-400'
+                            : isCurrent
+                              ? 'text-electric'
+                              : phaseStatus === 'completed'
+                                ? 'text-navy dark:text-slate-200'
+                                : 'text-navy/40 dark:text-slate-500'
                         }`}
                       >
                         {name}
                       </p>
+                      {isWaitingGate && (
+                        <p className="text-[10px] text-amber-500 dark:text-amber-400 mt-0.5 font-medium">
+                          Waiting for your review
+                        </p>
+                      )}
                       {phase?.duration_ms != null && (
                         <p className="text-[10px] text-navy/30 dark:text-slate-600 mt-0.5">
                           {(phase.duration_ms / 1000).toFixed(1)}s
@@ -780,6 +781,31 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
                         >
                           {retrying ? 'Retrying...' : 'Retry this phase'}
                         </button>
+                      )}
+                      {isWaitingGate && (
+                        <div className="flex items-center gap-2 mt-2">
+                          <button
+                            onClick={() => handleGateSubmit('approve')}
+                            disabled={submittingGate}
+                            className="text-[11px] px-3 py-1 rounded-md bg-success text-white font-semibold hover:bg-green-600 transition-colors disabled:opacity-50"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => handleGateSubmit('revise')}
+                            disabled={submittingGate}
+                            className="text-[11px] px-3 py-1 rounded-md bg-amber-400 text-white font-semibold hover:bg-amber-500 transition-colors disabled:opacity-50"
+                          >
+                            Revise
+                          </button>
+                          <button
+                            onClick={() => handleGateSubmit('cancel')}
+                            disabled={submittingGate}
+                            className="text-[11px] px-2 py-1 rounded-md text-navy/40 dark:text-slate-500 hover:text-danger transition-colors disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
