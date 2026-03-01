@@ -352,7 +352,7 @@ export default function TeamsDashboard() {
             {pendingApprovals.map(run => (
               <Link
                 key={run.id}
-                href={run.template?.slug === 'pageforge' ? `/pageforge/builds/${run.id}` : `/teams/runs/${run.id}`}
+                href={run.template?.slug === 'pageforge' ? `/pageforge/${run.id}` : `/teams/runs/${run.id}`}
                 className="flex items-center justify-between p-3 bg-white dark:bg-dark-card rounded-lg hover:bg-cream dark:hover:bg-slate-700 transition-colors"
               >
                 <div className="min-w-0">
@@ -430,7 +430,7 @@ export default function TeamsDashboard() {
             {runs.map(run => (
               <Link
                 key={run.id}
-                href={run.template?.slug === 'pageforge' ? `/pageforge/builds/${run.id}` : `/teams/runs/${run.id}`}
+                href={run.template?.slug === 'pageforge' ? `/pageforge/${run.id}` : `/teams/runs/${run.id}`}
                 className="flex items-center justify-between p-3 md:p-4 bg-white dark:bg-dark-card rounded-xl border border-cream-dark dark:border-slate-700 hover:border-electric dark:hover:border-electric transition-colors"
               >
                 <div className="flex-1 min-w-0">
