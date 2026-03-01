@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 12px;
+    color: #1e1e1e;
+    background: #f5f5f5;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* Header */
+  .header {
+    background: #1e1e1e;
+    color: #fff;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .header h1 {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+
+  .header .badge {
+    font-size: 10px;
+    background: #3B82F6;
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 500;
+  }
+
+  /* Config section */
+  .config-section {
+    background: #fff;
+    padding: 12px 16px;
+    border-bottom: 1px solid #e5e5e5;
+    flex-shrink: 0;
+  }
+
+  .field {
+    margin-bottom: 10px;
+  }
+
+  .field:last-child {
+    margin-bottom: 0;
+  }
+
+  .field label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .field input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s;
+    background: #fafafa;
+  }
+
+  .field input:focus {
+    border-color: #3B82F6;
+    background: #fff;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+  }
+
+  .field input::placeholder {
+    color: #aaa;
+  }
+
+  .field .hint {
+    font-size: 10px;
+    color: #888;
+    margin-top: 3px;
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.15s;
+    gap: 6px;
+  }
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-primary {
+    background: #3B82F6;
+    color: #fff;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: #2563EB;
+  }
+
+  .btn-secondary {
+    background: #e5e7eb;
+    color: #374151;
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    background: #d1d5db;
+  }
+
+  .btn-success {
+    background: #10B981;
+    color: #fff;
+  }
+
+  .btn-success:hover:not(:disabled) {
+    background: #059669;
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: #6b7280;
+    padding: 6px 10px;
+    font-weight: 500;
+  }
+
+  .btn-ghost:hover:not(:disabled) {
+    background: #f3f4f6;
+    color: #374151;
+  }
+
+  .action-row {
+    display: flex;
+    gap: 8px;
+    padding: 10px 16px;
+    background: #fff;
+    border-bottom: 1px solid #e5e5e5;
+    flex-shrink: 0;
+  }
+
+  .action-row .btn {
+    flex: 1;
+  }
+
+  /* Results area */
+  .results-area {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .results-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    background: #fff;
+    border-bottom: 1px solid #eee;
+    flex-shrink: 0;
+  }
+
+  .results-toolbar .count {
+    font-size: 11px;
+    color: #666;
+    font-weight: 500;
+  }
+
+  .results-toolbar .toggle-btns {
+    display: flex;
+    gap: 4px;
+  }
+
+  .results-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+
+  .result-item {
+    display: flex;
+    align-items: flex-start;
+    padding: 8px 16px;
+    gap: 10px;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background 0.1s;
+  }
+
+  .result-item:hover {
+    background: #fafbfc;
+  }
+
+  .result-item input[type="checkbox"] {
+    margin-top: 3px;
+    flex-shrink: 0;
+    accent-color: #3B82F6;
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+  }
+
+  .result-item .info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .result-item .current-name {
+    font-size: 11px;
+    color: #888;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .result-item .arrow {
+    color: #3B82F6;
+    font-size: 11px;
+    margin: 2px 0;
+    font-weight: 500;
+  }
+
+  .result-item .suggested-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #1e1e1e;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .result-item .node-type {
+    font-size: 10px;
+    color: #fff;
+    background: #6b7280;
+    padding: 1px 6px;
+    border-radius: 3px;
+    display: inline-block;
+    margin-top: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    font-weight: 500;
+  }
+
+  .result-item .reason {
+    font-size: 10px;
+    color: #888;
+    margin-top: 3px;
+    font-style: italic;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Status bar */
+  .status-bar {
+    background: #fff;
+    border-top: 1px solid #e5e5e5;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    gap: 8px;
+  }
+
+  .status-bar .status-text {
+    font-size: 11px;
+    color: #666;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .status-bar .status-text.error {
+    color: #dc2626;
+  }
+
+  .status-bar .status-text.success {
+    color: #059669;
+  }
+
+  /* Loading spinner */
+  .spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid #e5e7eb;
+    border-top-color: #3B82F6;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* Empty/placeholder states */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    padding: 40px 20px;
+    text-align: center;
+    color: #999;
+  }
+
+  .empty-state .icon {
+    font-size: 32px;
+    margin-bottom: 12px;
+    opacity: 0.5;
+  }
+
+  .empty-state p {
+    font-size: 12px;
+    line-height: 1.5;
+    max-width: 260px;
+  }
+
+  /* Error banner */
+  .error-banner {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+    padding: 10px 14px;
+    margin: 8px 16px;
+    border-radius: 6px;
+    font-size: 11px;
+    line-height: 1.5;
+    display: none;
+  }
+
+  .error-banner.visible {
+    display: block;
+  }
+
+  /* Hidden utility */
+  .hidden {
+    display: none !important;
+  }
+</style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <h1>PageForge Namer</h1>
+    <span class="badge">KM Boards</span>
+  </div>
+
+  <!-- Config -->
+  <div class="config-section">
+    <div class="field">
+      <label>Build ID</label>
+      <input type="text" id="buildId" placeholder="e.g. a1b2c3d4-e5f6-7890-abcd-ef1234567890" />
+    </div>
+    <div class="field">
+      <label>API Key</label>
+      <input type="password" id="apiKey" placeholder="Bearer token for authentication" />
+      <div class="hint">Supabase service key or generated API key from KM Boards</div>
+    </div>
+    <div class="field">
+      <label>API Base URL</label>
+      <input type="text" id="apiBase" value="https://kmboards.co" />
+    </div>
+  </div>
+
+  <!-- Main action -->
+  <div class="action-row">
+    <button class="btn btn-primary" id="btnFetch" onclick="handleFetch()">
+      Fetch Suggestions
+    </button>
+    <button class="btn btn-secondary" id="btnCancel" onclick="handleCancel()">
+      Close
+    </button>
+  </div>
+
+  <!-- Error banner -->
+  <div class="error-banner" id="errorBanner"></div>
+
+  <!-- Results -->
+  <div class="results-area">
+
+    <!-- Toolbar (hidden until results) -->
+    <div class="results-toolbar hidden" id="resultsToolbar">
+      <span class="count" id="resultsCount">0 suggestions</span>
+      <div class="toggle-btns">
+        <button class="btn btn-ghost" onclick="selectAll()">Select All</button>
+        <button class="btn btn-ghost" onclick="deselectAll()">Deselect All</button>
+      </div>
+    </div>
+
+    <!-- Suggestion list -->
+    <div class="results-list" id="resultsList">
+      <div class="empty-state" id="emptyState">
+        <div class="icon">&#128204;</div>
+        <p>Enter a Build ID and click "Fetch Suggestions" to get AI-generated layer name recommendations from KM Boards.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <div class="status-bar">
+    <div class="spinner hidden" id="spinner"></div>
+    <span class="status-text" id="statusText">Ready</span>
+    <button class="btn btn-success hidden" id="btnApply" onclick="handleApply()">
+      Apply Selected
+    </button>
+  </div>
+
+<script>
+  // State
+  let suggestions = [];
+  let collectedNodes = null;
+  let pageName = '';
+  let isLoading = false;
+
+  // DOM references
+  const buildIdInput = document.getElementById('buildId');
+  const apiKeyInput = document.getElementById('apiKey');
+  const apiBaseInput = document.getElementById('apiBase');
+  const btnFetch = document.getElementById('btnFetch');
+  const btnApply = document.getElementById('btnApply');
+  const btnCancel = document.getElementById('btnCancel');
+  const resultsList = document.getElementById('resultsList');
+  const resultsToolbar = document.getElementById('resultsToolbar');
+  const resultsCount = document.getElementById('resultsCount');
+  const emptyState = document.getElementById('emptyState');
+  const statusText = document.getElementById('statusText');
+  const spinner = document.getElementById('spinner');
+  const errorBanner = document.getElementById('errorBanner');
+
+  // Helpers
+  function setLoading(loading, message) {
+    isLoading = loading;
+    btnFetch.disabled = loading;
+    spinner.classList.toggle('hidden', !loading);
+    if (message) {
+      statusText.textContent = message;
+      statusText.className = 'status-text';
+    }
+  }
+
+  function setStatus(message, type) {
+    statusText.textContent = message;
+    statusText.className = 'status-text' + (type ? ' ' + type : '');
+  }
+
+  function showError(message) {
+    errorBanner.textContent = message;
+    errorBanner.classList.add('visible');
+  }
+
+  function hideError() {
+    errorBanner.classList.remove('visible');
+  }
+
+  function postToPlugin(data) {
+    parent.postMessage({ pluginMessage: data }, '*');
+  }
+
+  // Fetch flow
+  function handleFetch() {
+    const buildId = buildIdInput.value.trim();
+    const apiKey = apiKeyInput.value.trim();
+
+    if (!buildId) {
+      showError('Please enter a Build ID.');
+      return;
+    }
+    if (!apiKey) {
+      showError('Please enter an API Key.');
+      return;
+    }
+
+    hideError();
+    suggestions = [];
+    collectedNodes = null;
+    renderSuggestions();
+    setLoading(true, 'Collecting layers from current page...');
+
+    // Step 1: Ask code.ts to collect all nodes
+    postToPlugin({ type: 'collect-nodes' });
+  }
+
+  // Handle messages from code.ts
+  window.onmessage = async (event) => {
+    const msg = event.data.pluginMessage;
+    if (!msg) return;
+
+    if (msg.type === 'nodes-collected') {
+      collectedNodes = msg.nodes;
+      pageName = msg.pageName;
+      setLoading(true, `Collected ${msg.nodes.length} layers. Fetching AI suggestions...`);
+
+      // Step 2: Send nodes to KM Boards API
+      await fetchSuggestionsFromAPI(msg.nodes);
+    }
+
+    if (msg.type === 'renames-applied') {
+      setLoading(false);
+      const successMsg = `Done! Renamed ${msg.applied} layer${msg.applied !== 1 ? 's' : ''}`;
+      const failMsg = msg.failed > 0 ? ` (${msg.failed} not found)` : '';
+      setStatus(successMsg + failMsg, 'success');
+      btnApply.classList.add('hidden');
+
+      // Clear suggestions after applying
+      suggestions = [];
+      renderSuggestions();
+    }
+  };
+
+  async function fetchSuggestionsFromAPI(nodes) {
+    const buildId = buildIdInput.value.trim();
+    const apiKey = apiKeyInput.value.trim();
+    const apiBase = apiBaseInput.value.trim().replace(/\/$/, '');
+
+    const url = `${apiBase}/api/pageforge/builds/${buildId}/auto-name`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ figma_nodes: nodes }),
+      });
+
+      if (!response.ok) {
+        let errMsg = `API returned ${response.status}`;
+        try {
+          const errBody = await response.json();
+          if (errBody.error) errMsg += `: ${errBody.error}`;
+          else if (errBody.message) errMsg += `: ${errBody.message}`;
+        } catch (e) {
+          // Could not parse error body
+        }
+        throw new Error(errMsg);
+      }
+
+      const data = await response.json();
+
+      if (!data.suggestions || !Array.isArray(data.suggestions)) {
+        throw new Error('Unexpected response format - expected { suggestions: [...] }');
+      }
+
+      if (data.suggestions.length === 0) {
+        setLoading(false);
+        setStatus('No rename suggestions returned. Layers may already be well-named.', '');
+        return;
+      }
+
+      suggestions = data.suggestions.map((s) => ({
+        nodeId: s.node_id || s.nodeId,
+        currentName: s.current_name || s.currentName || '',
+        suggestedName: s.suggested_name || s.suggestedName || '',
+        reason: s.reason || '',
+        nodeType: s.node_type || s.nodeType || '',
+        checked: true,
+      }));
+
+      setLoading(false);
+      setStatus(`${suggestions.length} suggestion${suggestions.length !== 1 ? 's' : ''} ready to review`, 'success');
+      renderSuggestions();
+
+    } catch (err) {
+      setLoading(false);
+      showError(err.message || 'Failed to fetch suggestions from API');
+      setStatus('Error fetching suggestions', 'error');
+    }
+  }
+
+  // Render suggestion list
+  function renderSuggestions() {
+    if (suggestions.length === 0) {
+      resultsList.innerHTML = '';
+      resultsList.appendChild(emptyState);
+      emptyState.classList.remove('hidden');
+      resultsToolbar.classList.add('hidden');
+      btnApply.classList.add('hidden');
+      return;
+    }
+
+    emptyState.classList.add('hidden');
+    resultsToolbar.classList.remove('hidden');
+    btnApply.classList.remove('hidden');
+    updateCount();
+
+    let html = '';
+    suggestions.forEach((s, i) => {
+      const escapedCurrent = escapeHtml(s.currentName);
+      const escapedSuggested = escapeHtml(s.suggestedName);
+      const escapedReason = escapeHtml(s.reason);
+      const typeLabel = s.nodeType ? s.nodeType : 'LAYER';
+
+      html += `
+        <div class="result-item">
+          <input type="checkbox" ${s.checked ? 'checked' : ''} onchange="toggleItem(${i}, this.checked)" />
+          <div class="info" title="${escapedReason || 'No reason provided'}">
+            <div class="current-name">${escapedCurrent}</div>
+            <div class="arrow">&#8594; ${escapedSuggested}</div>
+            <span class="node-type">${typeLabel}</span>
+            ${s.reason ? `<div class="reason">${escapedReason}</div>` : ''}
+          </div>
+        </div>
+      `;
+    });
+
+    resultsList.innerHTML = html;
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function toggleItem(index, checked) {
+    suggestions[index].checked = checked;
+    updateCount();
+  }
+
+  function selectAll() {
+    suggestions.forEach((s) => (s.checked = true));
+    renderSuggestions();
+  }
+
+  function deselectAll() {
+    suggestions.forEach((s) => (s.checked = false));
+    renderSuggestions();
+  }
+
+  function updateCount() {
+    const checkedCount = suggestions.filter((s) => s.checked).length;
+    resultsCount.textContent = `${checkedCount} of ${suggestions.length} selected`;
+  }
+
+  // Apply renames
+  function handleApply() {
+    const selected = suggestions.filter((s) => s.checked);
+    if (selected.length === 0) {
+      showError('No suggestions selected. Check at least one item to apply.');
+      return;
+    }
+
+    hideError();
+    setLoading(true, `Applying ${selected.length} rename${selected.length !== 1 ? 's' : ''}...`);
+
+    const renames = selected.map((s) => ({
+      nodeId: s.nodeId,
+      suggestedName: s.suggestedName,
+    }));
+
+    postToPlugin({ type: 'apply-renames', renames });
+  }
+
+  // Cancel / close
+  function handleCancel() {
+    postToPlugin({ type: 'cancel' });
+  }
+</script>
+
+</body>
+</html>

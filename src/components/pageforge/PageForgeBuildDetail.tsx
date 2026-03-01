@@ -961,6 +961,86 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
                   : 'Account Manager sign-off - confirm client requirements are met.'}
               </p>
 
+              {/* Build preview for informed decision */}
+              <div className="mb-4 space-y-3">
+                {/* Draft URL - most important */}
+                {build.wp_draft_url && (
+                  <a
+                    href={build.wp_draft_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-4 py-3 rounded-lg bg-electric/10 dark:bg-electric/20 border border-electric/20 hover:bg-electric/20 dark:hover:bg-electric/30 transition-colors group"
+                  >
+                    <svg className="w-5 h-5 text-electric flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    <div>
+                      <span className="text-sm font-semibold text-electric group-hover:text-electric-bright block">
+                        Open Draft Preview
+                      </span>
+                      <span className="text-[10px] text-navy/40 dark:text-slate-500">
+                        {build.wp_draft_url}
+                      </span>
+                    </div>
+                  </a>
+                )}
+
+                {/* Quick stats row */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {build.vqa_score_overall != null && (
+                    <div className="px-3 py-2 rounded-lg bg-cream dark:bg-slate-700/50 text-center">
+                      <span className="block text-[10px] text-navy/40 dark:text-slate-500 uppercase">VQA</span>
+                      <span className={`text-sm font-bold ${
+                        build.vqa_score_overall >= 90 ? 'text-success' :
+                        build.vqa_score_overall >= 70 ? 'text-warning' : 'text-danger'
+                      }`}>{build.vqa_score_overall}%</span>
+                    </div>
+                  )}
+                  {build.vqa_score_desktop != null && (
+                    <div className="px-3 py-2 rounded-lg bg-cream dark:bg-slate-700/50 text-center">
+                      <span className="block text-[10px] text-navy/40 dark:text-slate-500 uppercase">Desktop</span>
+                      <span className={`text-sm font-bold ${
+                        build.vqa_score_desktop >= 90 ? 'text-success' :
+                        build.vqa_score_desktop >= 70 ? 'text-warning' : 'text-danger'
+                      }`}>{build.vqa_score_desktop}%</span>
+                    </div>
+                  )}
+                  {build.vqa_score_tablet != null && (
+                    <div className="px-3 py-2 rounded-lg bg-cream dark:bg-slate-700/50 text-center">
+                      <span className="block text-[10px] text-navy/40 dark:text-slate-500 uppercase">Tablet</span>
+                      <span className={`text-sm font-bold ${
+                        build.vqa_score_tablet >= 90 ? 'text-success' :
+                        build.vqa_score_tablet >= 70 ? 'text-warning' : 'text-danger'
+                      }`}>{build.vqa_score_tablet}%</span>
+                    </div>
+                  )}
+                  {build.vqa_score_mobile != null && (
+                    <div className="px-3 py-2 rounded-lg bg-cream dark:bg-slate-700/50 text-center">
+                      <span className="block text-[10px] text-navy/40 dark:text-slate-500 uppercase">Mobile</span>
+                      <span className={`text-sm font-bold ${
+                        build.vqa_score_mobile >= 90 ? 'text-success' :
+                        build.vqa_score_mobile >= 70 ? 'text-warning' : 'text-danger'
+                      }`}>{build.vqa_score_mobile}%</span>
+                    </div>
+                  )}
+                  {build.total_cost_usd > 0 && (
+                    <div className="px-3 py-2 rounded-lg bg-cream dark:bg-slate-700/50 text-center">
+                      <span className="block text-[10px] text-navy/40 dark:text-slate-500 uppercase">Cost</span>
+                      <span className="text-sm font-bold text-navy dark:text-slate-200">${Number(build.total_cost_usd).toFixed(3)}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* No draft URL warning */}
+                {!build.wp_draft_url && (
+                  <div className="px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                    <p className="text-xs text-amber-700 dark:text-amber-300">
+                      No draft URL available yet. The build may not have reached the deploy phase.
+                    </p>
+                  </div>
+                )}
+              </div>
+
               {/* Feedback textarea */}
               <textarea
                 value={gateFeedback}

@@ -42,6 +42,7 @@ export default function PageForgeChatPanel({ buildId, buildStatus }: PageForgeCh
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [pendingReply, setPendingReply] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -86,8 +87,17 @@ export default function PageForgeChatPanel({ buildId, buildStatus }: PageForgeCh
           setMessages((prev) => {
             // Avoid duplicates
             if (prev.some((m) => m.id === newMsg.id)) return prev;
+            // If this is a user message and we have an optimistic one, replace it
+            if (newMsg.role === 'user') {
+              const withoutOptimistic = prev.filter((m) => !m.id.startsWith('temp-'));
+              return [...withoutOptimistic, newMsg];
+            }
             return [...prev, newMsg];
           });
+          // Clear typing indicator when orchestrator replies
+          if (newMsg.role === 'orchestrator') {
+            setPendingReply(false);
+          }
           scrollToBottom();
         }
       )
@@ -110,6 +120,25 @@ export default function PageForgeChatPanel({ buildId, buildStatus }: PageForgeCh
     setSending(true);
     setInput('');
 
+    // Optimistic: show user message immediately
+    const optimisticMsg: PageForgeBuildMessage = {
+      id: `temp-${Date.now()}`,
+      build_id: buildId,
+      role: 'user',
+      sender_name: 'You',
+      sender_id: null,
+      content: text,
+      phase: null,
+      phase_index: null,
+      metadata: {},
+      created_at: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, optimisticMsg]);
+    scrollToBottom();
+    setPendingReply(true);
+    // Auto-clear typing indicator after 15s
+    setTimeout(() => setPendingReply(false), 15_000);
+
     try {
       const res = await fetch(`/api/pageforge/builds/${buildId}/messages`, {
         method: 'POST',
@@ -117,10 +146,15 @@ export default function PageForgeChatPanel({ buildId, buildStatus }: PageForgeCh
         body: JSON.stringify({ content: text }),
       });
       if (!res.ok) {
-        setInput(text); // restore on failure
+        // Remove optimistic and restore input
+        setMessages((prev) => prev.filter((m) => m.id !== optimisticMsg.id));
+        setInput(text);
+        setPendingReply(false);
       }
     } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticMsg.id));
       setInput(text);
+      setPendingReply(false);
     } finally {
       setSending(false);
       inputRef.current?.focus();
@@ -195,6 +229,21 @@ export default function PageForgeChatPanel({ buildId, buildStatus }: PageForgeCh
               </div>
             );
           })
+        )}
+        {pendingReply && (
+          <div className="rounded-lg px-3 py-2 bg-electric/10 dark:bg-electric/20 animate-pulse">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-navy dark:text-slate-200 font-heading">
+                🤖 Orchestrator
+              </span>
+              <span className="text-[10px] text-navy/40 dark:text-slate-500 font-body italic">thinking...</span>
+            </div>
+            <div className="flex items-center gap-1 mt-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-electric animate-bounce" style={{ animationDelay: '0ms' }} />
+              <div className="w-1.5 h-1.5 rounded-full bg-electric animate-bounce" style={{ animationDelay: '150ms' }} />
+              <div className="w-1.5 h-1.5 rounded-full bg-electric animate-bounce" style={{ animationDelay: '300ms' }} />
+            </div>
+          </div>
         )}
         <div ref={messagesEndRef} />
       </div>
