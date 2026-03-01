@@ -22,6 +22,8 @@ const ALL_PERMISSIONS: { value: ApiKeyPermission; label: string; group: string }
   { value: 'labels:write', label: 'Write Labels', group: 'Labels' },
   { value: 'webhooks:manage', label: 'Manage Webhooks', group: 'Webhooks' },
   { value: 'users:read', label: 'Read Users', group: 'Users' },
+  { value: 'pageforge:read', label: 'Read PageForge', group: 'PageForge' },
+  { value: 'pageforge:write', label: 'Write PageForge', group: 'PageForge' },
 ];
 
 export default function ApiKeyManager() {

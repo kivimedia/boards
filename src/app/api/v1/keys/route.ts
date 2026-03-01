@@ -14,6 +14,8 @@ const VALID_PERMISSIONS: ApiKeyPermission[] = [
   'labels:write',
   'webhooks:manage',
   'users:read',
+  'pageforge:read',
+  'pageforge:write',
 ];
 
 /**
