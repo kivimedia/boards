@@ -139,6 +139,7 @@ export default function PageForgeDashboard() {
   const [showNewSiteForm, setShowNewSiteForm] = useState(false);
   const [newSiteForm, setNewSiteForm] = useState<NewSiteForm>({ ...EMPTY_SITE_FORM });
   const [creatingSite, setCreatingSite] = useState(false);
+  const [retryingBuildId, setRetryingBuildId] = useState<string | null>(null);
 
   // Close Figma dropdown when clicking outside
   useEffect(() => {
@@ -234,6 +235,26 @@ export default function PageForgeDashboard() {
       // silent
     }
   }, []);
+
+  const handleRetryBuild = async (buildId: string, currentPhase: number) => {
+    setRetryingBuildId(buildId);
+    try {
+      const res = await fetch(`/api/pageforge/builds/${buildId}/retry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resume_from_phase: currentPhase }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || 'Retry failed');
+      }
+      await fetchBuilds();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to retry build');
+    } finally {
+      setRetryingBuildId(null);
+    }
+  };
 
   // Initial load
   useEffect(() => {
@@ -487,12 +508,29 @@ export default function PageForgeDashboard() {
                         {formatDate(build.created_at)}
                       </td>
                       <td className="px-4 py-3">
-                        <a
-                          href={`/pageforge/${build.id}`}
-                          className="text-xs font-semibold text-electric hover:text-electric-bright transition-colors"
-                        >
-                          View
-                        </a>
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={`/pageforge/${build.id}`}
+                            className="text-xs font-semibold text-electric hover:text-electric-bright transition-colors"
+                          >
+                            View
+                          </a>
+                          {(build.status === 'failed' || build.status === 'cancelled') && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRetryBuild(build.id, build.current_phase ?? 0);
+                              }}
+                              disabled={retryingBuildId === build.id}
+                              className="text-xs font-semibold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors disabled:opacity-50 flex items-center gap-1"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                              {retryingBuildId === build.id ? 'Retrying...' : 'Retry'}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
