@@ -712,20 +712,18 @@ export default function ClientsListView() {
               />
             </div>
 
-            {/* Send invite toggle - only when email is filled */}
-            {formData.email.trim() && (
-              <label className="flex items-center gap-2 mb-3 cursor-pointer group">
-                <input
-                  type="checkbox"
-                  checked={sendInvite}
-                  onChange={(e) => setSendInvite(e.target.checked)}
-                  className="w-4 h-4 rounded border-2 border-navy/20 dark:border-slate-600 text-electric focus:ring-electric/30 cursor-pointer"
-                />
-                <span className="text-sm text-navy/70 dark:text-slate-400 font-body group-hover:text-navy dark:group-hover:text-slate-300 transition-colors">
-                  Send portal invite email to this client
-                </span>
-              </label>
-            )}
+            {/* Send invite toggle */}
+            <label className="flex items-center gap-2 mb-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={sendInvite}
+                onChange={(e) => setSendInvite(e.target.checked)}
+                className="w-4 h-4 rounded border-2 border-navy/20 dark:border-slate-600 text-electric focus:ring-electric/30 cursor-pointer"
+              />
+              <span className="text-sm text-navy/70 dark:text-slate-400 font-body group-hover:text-navy dark:group-hover:text-slate-300 transition-colors">
+                Send portal invite email to this client
+              </span>
+            </label>
 
             {/* Row 3: Location + Contract Type */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
