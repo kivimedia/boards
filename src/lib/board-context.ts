@@ -12,6 +12,8 @@ export interface BoardContextCard {
   list_name: string;
   priority: string;
   due_date: string | null;
+  created_at: string;
+  updated_at: string;
   assignee_names: string[];
   labels: string[];
   comments: BoardContextComment[];
@@ -215,6 +217,8 @@ export async function gatherBoardContext(
       list_name: listNameMap.get(p.list_id) || 'Unknown',
       priority: p.card.priority || 'none',
       due_date: p.card.due_date,
+      created_at: p.card.created_at,
+      updated_at: p.card.updated_at,
       assignee_names: assigneeMap[p.card.id] || [],
       labels: cardLabelMap[p.card.id] || [],
       comments: commentMap[p.card.id] || [],
@@ -265,7 +269,9 @@ export function boardContextToText(ctx: BoardContext): string {
     const dueStr = c.due_date ? ` | Due: ${c.due_date}` : '';
     const priorityStr = c.priority !== 'none' ? ` | Priority: ${c.priority}` : '';
     const labelStr = c.labels.length > 0 ? ` | Labels: ${c.labels.join(', ')}` : '';
-    text += `## [${c.list_name}] ${c.title}${priorityStr}${dueStr}${assigneeStr}${labelStr}\n`;
+    const updatedStr = c.updated_at ? ` | Updated: ${c.updated_at.slice(0, 16)}` : '';
+    const createdStr = c.created_at ? ` | Created: ${c.created_at.slice(0, 10)}` : '';
+    text += `## [${c.list_name}] ${c.title}${priorityStr}${dueStr}${assigneeStr}${labelStr}${updatedStr}${createdStr}\n`;
 
     if (c.description) {
       text += `Description: ${c.description}\n`;
