@@ -16,6 +16,8 @@ export async function paginateCards(
 ): Promise<CursorPaginationResult<Record<string, unknown>>> {
   const limit = Math.min(params.limit, 200);
 
+  // card_placements has no board_id column - filter via list_id which belongs to a board,
+  // or join through lists table when only boardId is provided.
   let query = supabase
     .from('card_placements')
     .select(`
@@ -23,14 +25,23 @@ export async function paginateCards(
       position,
       card_id,
       list_id,
-      board_id,
       cards (
-        id, title, description, priority, due_date, created_at, updated_at
+        id, title, description, priority, due_date, client_id, created_at, updated_at
       )
-    `)
-    .eq('board_id', boardId);
+    `);
 
-  if (listId) query = query.eq('list_id', listId);
+  if (listId) {
+    query = query.eq('list_id', listId);
+  } else {
+    // No list specified - get all cards for the board by joining through lists
+    const { data: boardLists } = await supabase
+      .from('lists')
+      .select('id')
+      .eq('board_id', boardId);
+    const listIds = (boardLists || []).map((l: { id: string }) => l.id);
+    if (listIds.length === 0) return { items: [], next_cursor: null, has_more: false };
+    query = query.in('list_id', listIds);
+  }
 
   if (params.cursor) {
     if (params.direction === 'forward') {
