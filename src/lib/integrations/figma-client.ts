@@ -95,7 +95,7 @@ export interface FigmaExportSetting {
 }
 
 export interface FigmaImageResponse {
-  images: Record<string, string>;
+  images: Record<string, string | null>;
   err: string | null;
 }
 
