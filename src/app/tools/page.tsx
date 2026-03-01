@@ -1,5 +1,7 @@
-'use client';
-
+import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
+import Sidebar from '@/components/layout/Sidebar';
+import Header from '@/components/layout/Header';
 import Link from 'next/link';
 
 const TOOLS = [
@@ -11,31 +13,50 @@ const TOOLS = [
   },
 ];
 
-export default function ToolsPage() {
-  return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold text-navy dark:text-white font-heading mb-2">Tools</h1>
-      <p className="text-navy/60 dark:text-slate-400 font-body mb-8">
-        Automation tools to save time on recurring tasks.
-      </p>
+export default async function ToolsPage() {
+  const supabase = createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {TOOLS.map(tool => (
-          <Link
-            key={tool.href}
-            href={tool.href}
-            className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-cream-dark dark:border-slate-700 hover:border-brand dark:hover:border-brand transition-all group"
-          >
-            <div className="text-3xl mb-3">{tool.icon}</div>
-            <h2 className="text-lg font-bold text-navy dark:text-white font-heading group-hover:text-brand transition-colors">
-              {tool.title}
-            </h2>
-            <p className="text-sm text-navy/60 dark:text-slate-400 font-body mt-1">
-              {tool.description}
+  if (!user) {
+    redirect('/login');
+  }
+
+  const { data: boards } = await supabase
+    .from('boards')
+    .select('*')
+    .order('created_at', { ascending: true });
+
+  return (
+    <div className="flex h-screen overflow-hidden">
+      <Sidebar initialBoards={boards || []} />
+      <main className="flex-1 flex flex-col overflow-hidden">
+        <Header title="Tools" />
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="max-w-4xl mx-auto">
+            <p className="text-navy/60 dark:text-slate-400 font-body mb-8">
+              Automation tools to save time on recurring tasks.
             </p>
-          </Link>
-        ))}
-      </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {TOOLS.map(tool => (
+                <Link
+                  key={tool.href}
+                  href={tool.href}
+                  className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-cream-dark dark:border-slate-700 hover:border-brand dark:hover:border-brand transition-all group"
+                >
+                  <div className="text-3xl mb-3">{tool.icon}</div>
+                  <h2 className="text-lg font-bold text-navy dark:text-white font-heading group-hover:text-brand transition-colors">
+                    {tool.title}
+                  </h2>
+                  <p className="text-sm text-navy/60 dark:text-slate-400 font-body mt-1">
+                    {tool.description}
+                  </p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }
