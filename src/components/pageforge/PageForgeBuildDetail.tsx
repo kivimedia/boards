@@ -167,19 +167,24 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
   }, [build, fetchBuild]);
 
   // ------- Gate submission -------
-  const handleGateSubmit = async () => {
-    if (!gateAction) return;
+  const handleGateSubmit = async (action?: PageForgeGateDecision) => {
+    const decision = action || gateAction;
+    if (!decision || !build) return;
     setSubmittingGate(true);
     try {
       const res = await fetch(`/api/pageforge/builds/${buildId}/gate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          decision: gateAction,
+          gate: build.status,
+          decision,
           feedback: gateFeedback || undefined,
         }),
       });
-      if (!res.ok) throw new Error('Gate submit failed');
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || 'Gate submit failed');
+      }
       setGateAction(null);
       setGateFeedback('');
       await fetchBuild();
@@ -1085,30 +1090,21 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
               {/* Action buttons */}
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => {
-                    setGateAction('approve');
-                    handleGateSubmit();
-                  }}
+                  onClick={() => handleGateSubmit('approve')}
                   disabled={submittingGate}
                   className="px-4 py-2 text-sm font-semibold text-white bg-success hover:bg-green-600 rounded-lg transition-colors disabled:opacity-50"
                 >
                   Approve
                 </button>
                 <button
-                  onClick={() => {
-                    setGateAction('revise');
-                    handleGateSubmit();
-                  }}
+                  onClick={() => handleGateSubmit('revise')}
                   disabled={submittingGate}
                   className="px-4 py-2 text-sm font-semibold text-white bg-warning hover:bg-yellow-600 rounded-lg transition-colors disabled:opacity-50"
                 >
                   Revise
                 </button>
                 <button
-                  onClick={() => {
-                    setGateAction('cancel');
-                    handleGateSubmit();
-                  }}
+                  onClick={() => handleGateSubmit('cancel')}
                   disabled={submittingGate}
                   className="px-4 py-2 text-sm font-semibold text-white bg-danger hover:bg-red-600 rounded-lg transition-colors disabled:opacity-50"
                 >
