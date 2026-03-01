@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { getAuthContext, errorResponse } from '@/lib/api-helpers';
 import { createAnthropicClient } from '@/lib/ai/providers';
 import { searchKnowledge } from '@/lib/ai/knowledge-indexer';
+import { searchCards, extractSearchFromUrl } from '@/lib/search';
 
 export const maxDuration = 60;
 
@@ -120,23 +121,51 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Semantic search for cards most relevant to the user's question
-    let semanticResults = '';
+    // Resolve the actual search query (extract from URL if applicable)
+    const rawQuery = body.query.trim();
+    const urlExtracted = extractSearchFromUrl(rawQuery);
+    const searchQuery = urlExtracted || rawQuery;
+
+    // Hybrid search: semantic + keyword in parallel
+    let hybridContext = '';
     try {
-      const searchResults = await searchKnowledge(supabase, body.query.trim(), {
-        limit: 8,
-        threshold: 0.6,
-      });
-      if (searchResults.length > 0) {
-        semanticResults = `\n=== Most Relevant Cards for This Question (from knowledge base) ===\n\n${searchResults
-          .map((r) => `### ${r.title} (${r.metadata?.board_name || 'Unknown board'})\n${r.content.slice(0, 600)}`)
-          .join('\n\n')}\n`;
+      const [semanticResults, keywordResults] = await Promise.all([
+        searchKnowledge(supabase, searchQuery, {
+          limit: 15,
+          threshold: 0.45,
+        }).catch(() => []),
+        searchCards(supabase, searchQuery, 10).catch(() => []),
+      ]);
+
+      const parts: string[] = [];
+
+      if (semanticResults.length > 0) {
+        parts.push(`\n=== Most Relevant Cards (semantic match) ===\n`);
+        for (const r of semanticResults) {
+          parts.push(`### ${r.title} (${r.metadata?.board_name || 'Unknown board'}) - ${(r.similarity * 100).toFixed(0)}% match\n${r.content.slice(0, 1200)}`);
+        }
       }
+
+      // Add keyword-only matches (not already in semantic results)
+      const semanticIds = new Set(semanticResults.map((r) => r.source_id));
+      const keywordOnly = keywordResults.filter((r) => !semanticIds.has(r.id));
+      if (keywordOnly.length > 0) {
+        parts.push(`\n=== Additional Cards (keyword match) ===\n`);
+        for (const r of keywordOnly) {
+          parts.push(`### ${r.title}\n${r.subtitle || ''}`);
+        }
+      }
+
+      if (urlExtracted) {
+        parts.push(`\n(Note: user pasted a URL. Extracted search terms: "${urlExtracted}")\n`);
+      }
+
+      hybridContext = parts.join('\n\n');
     } catch {
-      // Semantic search is best-effort
+      // Hybrid search is best-effort
     }
 
-    const context = lines.join('\n') + semanticResults;
+    const context = lines.join('\n') + hybridContext;
 
     const systemPrompt = `You are a helpful project management assistant for Kivi Media. You have deep knowledge of ALL boards across the workspace, including AI-generated summaries and semantically relevant card details.
 
