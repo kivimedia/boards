@@ -95,8 +95,12 @@ export default function ClientsListView() {
   const [selectedList, setSelectedList] = useState<ListItem | null>(null);
   const [selectedCards, setSelectedCards] = useState<SelectedCard[]>([]);
 
+  // Portal invite
+  const [sendInvite, setSendInvite] = useState(false);
+
   // Card search across all boards
   const [cardSearchQuery, setCardSearchQuery] = useState('');
+
   const [cardSearchResults, setCardSearchResults] = useState<SelectedCard[]>([]);
   const [searchingCards, setSearchingCards] = useState(false);
   const [cardSearchTimeout, setCardSearchTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
@@ -294,6 +298,27 @@ export default function ClientsListView() {
             body: JSON.stringify({ client_id: newClientId }),
           }).catch(() => {});
         }
+
+        // Send portal invite email if toggled on
+        if (sendInvite && formData.email.trim()) {
+          try {
+            const portalRes = await fetch(`/api/clients/${newClientId}/portal-users`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                email: formData.email.trim(),
+                name: formData.name.trim(),
+                isPrimary: true,
+              }),
+            });
+            const portalJson = await portalRes.json();
+            if (portalRes.ok && portalJson.data?.id) {
+              await fetch(`/api/clients/${newClientId}/portal-users/${portalJson.data.id}/magic-link`, {
+                method: 'POST',
+              });
+            }
+          } catch {}
+        }
       }
     } finally {
       setCreating(false);
@@ -304,6 +329,7 @@ export default function ClientsListView() {
     setShowCreate(false);
     setCreatedClientId(null);
     setFormData({ name: '', company: '', contract_type: '', notes: '', email: '', phone: '', location: '' });
+    setSendInvite(false);
     setSelectedEventTitle('');
     setEventFilter('');
     setShowCalendarSection(false);
@@ -685,6 +711,21 @@ export default function ClientsListView() {
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               />
             </div>
+
+            {/* Send invite toggle - only when email is filled */}
+            {formData.email.trim() && (
+              <label className="flex items-center gap-2 mb-3 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={sendInvite}
+                  onChange={(e) => setSendInvite(e.target.checked)}
+                  className="w-4 h-4 rounded border-2 border-navy/20 dark:border-slate-600 text-electric focus:ring-electric/30 cursor-pointer"
+                />
+                <span className="text-sm text-navy/70 dark:text-slate-400 font-body group-hover:text-navy dark:group-hover:text-slate-300 transition-colors">
+                  Send portal invite email to this client
+                </span>
+              </label>
+            )}
 
             {/* Row 3: Location + Contract Type */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
@@ -1082,6 +1123,16 @@ export default function ClientsListView() {
             </div>
 
             <div className="space-y-3 mb-6">
+              {sendInvite && formData.email.trim() && (
+                <div className="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/40 rounded-xl px-3 py-2">
+                  <svg className="w-4 h-4 text-green-600 dark:text-green-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 2L11 13" /><path d="M22 2L15 22L11 13L2 9L22 2Z" />
+                  </svg>
+                  <span className="text-xs font-medium text-green-700 dark:text-green-300 font-body">
+                    Portal invite sent to {formData.email.trim()}
+                  </span>
+                </div>
+              )}
               {selectedEventTitle && (
                 <div className="flex items-center gap-2 bg-electric/5 dark:bg-electric/10 border border-electric/20 rounded-xl px-3 py-2">
                   <svg className="w-4 h-4 text-electric shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
