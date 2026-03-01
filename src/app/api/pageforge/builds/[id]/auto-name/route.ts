@@ -1,4 +1,5 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { getAuthContext, errorResponse, successResponse } from '@/lib/api-helpers';
 import {
   createFigmaClient,
@@ -10,6 +11,29 @@ import {
 import { getProviderKey } from '@/lib/ai/providers';
 import { logUsage } from '@/lib/ai/cost-tracker';
 import type { PageForgeNamingIssue } from '@/lib/types';
+
+/**
+ * Get auth context from either cookies (web app) or Bearer token (Figma plugin).
+ * Bearer token should be a Supabase JWT access token.
+ */
+async function getAuthContextWithBearer(request: NextRequest) {
+  const authHeader = request.headers.get('authorization');
+  if (authHeader?.startsWith('Bearer ')) {
+    const jwt = authHeader.slice(7);
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { global: { headers: { Authorization: `Bearer ${jwt}` } } }
+    );
+    const { data: { user }, error } = await supabase.auth.getUser(jwt);
+    if (error || !user) {
+      return { ok: false as const, response: NextResponse.json({ error: 'Invalid token' }, { status: 401 }) };
+    }
+    return { ok: true as const, ctx: { supabase, userId: user.id } };
+  }
+  // Fall back to cookie auth
+  return getAuthContext();
+}
 
 interface Params {
   params: { id: string };
@@ -125,7 +149,7 @@ Only include nodes that need renaming (marked with [!] that have generic/meaning
  * Use AI vision to suggest proper Figma layer names for layers with generic names.
  */
 export async function POST(request: NextRequest, { params }: Params) {
-  const auth = await getAuthContext();
+  const auth = await getAuthContextWithBearer(request);
   if (!auth.ok) return auth.response;
 
   const { supabase, userId } = auth.ctx;
