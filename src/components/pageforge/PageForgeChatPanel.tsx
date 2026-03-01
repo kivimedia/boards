@@ -150,6 +150,11 @@ export default function PageForgeChatPanel({ buildId, buildStatus }: PageForgeCh
         setMessages((prev) => prev.filter((m) => m.id !== optimisticMsg.id));
         setInput(text);
         setPendingReply(false);
+      } else {
+        // Refetch to ensure we show the reply even if Realtime missed it
+        await fetchMessages();
+        setPendingReply(false);
+        scrollToBottom();
       }
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== optimisticMsg.id));
