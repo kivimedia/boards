@@ -29,6 +29,7 @@ import Anthropic from '@anthropic-ai/sdk';
 // Per-phase auto-retry config: how many times to retry before giving up
 const PHASE_MAX_RETRIES: Record<string, number> = {
   preflight: 1,
+  auto_name: 2,
   figma_analysis: 2,
   section_classification: 2,
   markup_generation: 2,
@@ -522,6 +523,56 @@ async function executePhase(
         'preflight');
 
       console.log(`[pageforge] Preflight passed: ${checks.length} checks${preflightResults.figma_warnings ? `, ${preflightResults.figma_warnings.length} Figma warnings` : ''}`);
+      break;
+    }
+
+    // -----------------------------------------------------------------------
+    // PHASE 1: AUTO_NAME - AI-powered Figma layer naming suggestions
+    // -----------------------------------------------------------------------
+    case 'auto_name': {
+      const preflightData = artifacts.preflight;
+      const namingIssues = preflightData?.figma_naming?.issues || [];
+
+      if (namingIssues.length === 0) {
+        await updateBuildArtifacts(supabase, buildId, 'auto_name', {
+          skipped: true,
+          reason: 'No naming issues found in preflight',
+        });
+        await postBuildMessage(supabase, buildId, 'Auto-name skipped: all layers already have good names.', 'auto_name');
+        console.log('[pageforge] Auto-name: no naming issues, skipping');
+        break;
+      }
+
+      const googleApiKey = process.env.GOOGLE_AI_API_KEY;
+      if (!googleApiKey) {
+        throw new Error('GOOGLE_AI_API_KEY not configured on VPS');
+      }
+
+      if (!siteProfile.figma_personal_token) {
+        throw new Error('Site profile has no Figma personal token configured');
+      }
+
+      const { runAutoName } = await import('../lib/auto-name-core.js');
+
+      const result = await runAutoName({
+        figmaFileKey: build.figma_file_key,
+        figmaPersonalToken: siteProfile.figma_personal_token,
+        figmaNodeIds: build.figma_node_ids,
+        namingIssues,
+        googleApiKey,
+      });
+
+      await updateBuildArtifacts(supabase, buildId, 'auto_name', result);
+
+      await postBuildMessage(
+        supabase, buildId,
+        result.rename_count > 0
+          ? `Auto-name complete: ${result.rename_count} rename suggestions generated for ${result.issue_count} naming issues.`
+          : 'Auto-name: all layers already have good names.',
+        'auto_name'
+      );
+
+      console.log(`[pageforge] Auto-name: ${result.rename_count} renames suggested (${result.duration_ms}ms)`);
       break;
     }
 

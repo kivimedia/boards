@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     // Send the recovery email via Resend
     let emailSent = false;
     const resendKey = process.env.RESEND_API_KEY;
-    const fromEmail = process.env.RESEND_FROM_EMAIL || 'noreply@dailycookie.co';
+    const fromEmail = process.env.RESEND_FROM_EMAIL || 'KM Boards <noreply@dailycookie.co>';
 
     if (resendKey && actionLink) {
       try {
