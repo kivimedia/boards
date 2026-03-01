@@ -108,6 +108,7 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
   const [previewTokens, setPreviewTokens] = useState<PageForgePreviewToken[]>([]);
   const [creatingToken, setCreatingToken] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
+  const [copiedErrorIdx, setCopiedErrorIdx] = useState<number | null>(null);
 
   // Naming issues state
   const [selectedNamingIssues, setSelectedNamingIssues] = useState<Set<string>>(new Set());
@@ -117,6 +118,7 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
   const [designerReportMarkdown, setDesignerReportMarkdown] = useState('');
   const [copiedReport, setCopiedReport] = useState(false);
   const [resolvingDesignerRequest, setResolvingDesignerRequest] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   // ------- Fetch build -------
   const fetchBuild = useCallback(async () => {
@@ -196,6 +198,31 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
       setError('Failed to abort build');
     } finally {
       setAborting(false);
+    }
+  };
+
+  // ------- Retry handler (re-queue failed build from the failed phase) -------
+  const handleRetry = async () => {
+    if (!build) return;
+    setRetrying(true);
+    setError(null);
+    try {
+      // Reset the build status and re-create a VPS job to resume from the failed phase
+      const res = await fetch(`/api/pageforge/builds/${buildId}/retry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resume_from_phase: build.current_phase }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || 'Retry failed');
+      }
+      await fetchBuild();
+    } catch (err) {
+      console.error('Retry error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to retry build');
+    } finally {
+      setRetrying(false);
     }
   };
 
@@ -423,6 +450,18 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
             </svg>
             Share Preview
           </button>
+          {build.status === 'failed' && (
+            <button
+              onClick={handleRetry}
+              disabled={retrying}
+              className="px-3 py-1.5 text-xs font-semibold border border-electric text-electric hover:bg-electric/10 rounded-lg transition-colors flex items-center gap-1.5 disabled:opacity-50"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {retrying ? 'Retrying...' : 'Retry Build'}
+            </button>
+          )}
           {isActive && (
             <div className="relative">
               <button
@@ -982,13 +1021,30 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
                       <span className="text-xs font-semibold text-red-600 dark:text-red-400">
                         {humanStatus(entry.phase)}
                       </span>
-                      <span className="text-[10px] text-red-400 dark:text-red-500">
-                        {new Date(entry.timestamp).toLocaleTimeString('en-US', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          second: '2-digit',
-                        })}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(entry.error);
+                            setCopiedErrorIdx(idx);
+                            setTimeout(() => setCopiedErrorIdx(null), 1500);
+                          }}
+                          className="text-red-400 hover:text-red-600 dark:text-red-500 dark:hover:text-red-300 transition-colors"
+                          title="Copy error"
+                        >
+                          {copiedErrorIdx === idx ? (
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                          ) : (
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                          )}
+                        </button>
+                        <span className="text-[10px] text-red-400 dark:text-red-500">
+                          {new Date(entry.timestamp).toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                          })}
+                        </span>
+                      </div>
                     </div>
                     <p className="text-xs text-red-700 dark:text-red-300 font-mono break-all">
                       {entry.error}
