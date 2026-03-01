@@ -3642,6 +3642,19 @@ export interface PageForgeNamingIssue {
   suggested: string;
 }
 
+export interface PageForgeBuildMessage {
+  id: string;
+  build_id: string;
+  role: 'user' | 'orchestrator' | 'system';
+  sender_name: string | null;
+  sender_id: string | null;
+  content: string;
+  phase: string | null;
+  phase_index: number | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
 export interface PageForgeDesignerFixRequest {
   requested_at: string;
   requested_by: string;

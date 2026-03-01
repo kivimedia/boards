@@ -5,7 +5,7 @@ import { updateJobProgress } from '../lib/job-reporter.js';
 import {
   PAGEFORGE_PHASE_ORDER, GATE_PHASES,
   callPageForgeAgent, startPhaseRecord, completePhaseRecord, failPhaseRecord,
-  updateBuildArtifacts, appendBuildError, getSystemPrompt,
+  updateBuildArtifacts, appendBuildError, getSystemPrompt, postBuildMessage,
 } from '../shared/pageforge-pipeline.js';
 import {
   createWpClient, wpTestConnection, wpCreatePage, wpUpdatePage,
@@ -46,6 +46,12 @@ export async function processPageForgeJob(job: Job<PageForgeJobData>): Promise<v
     progress_message: 'PageForge build starting...',
   });
 
+  await postBuildMessage(supabase, build_id,
+    startPhaseIdx > 0
+      ? `Resuming build from phase ${startPhaseIdx + 1}/${PAGEFORGE_PHASE_ORDER.length}`
+      : 'Build started. Running through all phases...',
+    undefined, 'system');
+
   // Fetch build + site profile
   const { data: build, error: buildError } = await supabase
     .from('pageforge_builds')
@@ -84,9 +90,21 @@ export async function processPageForgeJob(job: Job<PageForgeJobData>): Promise<v
         status: 'waiting',
         progress_message: `Waiting for ${phase.replace(/_/g, ' ')}`,
       });
+
+      const gateName = phase === 'developer_review_gate' ? 'Developer Review' : 'AM Sign-off';
+      await postBuildMessage(supabase, build_id,
+        `Waiting for ${gateName}. Please review the build results and approve, revise, or cancel.`,
+        phase);
+
       console.log(`[pageforge] Paused at ${phase}, waiting for human decision`);
       return; // Gate watcher will re-enqueue
     }
+
+    // Post phase start message
+    const phaseLabel = phase.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+    await postBuildMessage(supabase, build_id,
+      `Starting phase ${i + 1}/${PAGEFORGE_PHASE_ORDER.length}: ${phaseLabel}`,
+      phase);
 
     // Execute phase
     const phaseStart = Date.now();
@@ -141,6 +159,10 @@ export async function processPageForgeJob(job: Job<PageForgeJobData>): Promise<v
       await failPhaseRecord(supabase, phaseRecordId, errorMsg, Date.now() - phaseStart);
       await appendBuildError(supabase, build_id, phase, errorMsg);
 
+      await postBuildMessage(supabase, build_id,
+        `Phase "${phase}" failed: ${errorMsg}`,
+        phase, 'system');
+
       await supabase.from('pageforge_builds').update({
         status: 'failed', updated_at: new Date().toISOString(),
       }).eq('id', build_id);
@@ -157,6 +179,10 @@ export async function processPageForgeJob(job: Job<PageForgeJobData>): Promise<v
   await supabase.from('pageforge_builds').update({
     status: 'published', published_at: new Date().toISOString(), updated_at: new Date().toISOString(),
   }).eq('id', build_id);
+
+  await postBuildMessage(supabase, build_id,
+    'Build completed successfully! All phases passed.',
+    'report_generation', 'system');
 
   await updateJobProgress(vps_job_id, {
     status: 'completed', completed_at: new Date().toISOString(),
@@ -433,6 +459,16 @@ async function executePhase(
       if (!passed) throw new Error(`Preflight failed: ${errors.join(', ')}`);
 
       await updateBuildArtifacts(supabase, buildId, 'preflight', { passed, checks, errors, ...preflightResults });
+
+      // Post preflight summary to chat
+      const checkSummary = checks.map(c => `${c.passed ? 'OK' : 'FAIL'} ${c.name}: ${c.message}`).join('\n');
+      const warningsSummary = preflightResults.figma_warnings?.length
+        ? `\n\nFigma warnings:\n${preflightResults.figma_warnings.join('\n')}`
+        : '';
+      await postBuildMessage(supabase, buildId,
+        `Preflight complete - ${checks.length} checks run.\n${checkSummary}${warningsSummary}`,
+        'preflight');
+
       console.log(`[pageforge] Preflight passed: ${checks.length} checks${preflightResults.figma_warnings ? `, ${preflightResults.figma_warnings.length} Figma warnings` : ''}`);
       break;
     }
