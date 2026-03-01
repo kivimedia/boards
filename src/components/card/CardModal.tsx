@@ -1469,6 +1469,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                   <CardActions
                     cardId={cardId}
                     boardId={boardId}
+                    clientId={card?.client_id}
                     onClose={onClose}
                     onRefresh={() => {
                       fetchCardDetails();
@@ -1557,6 +1558,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
           <CardActions
             cardId={cardId}
             boardId={boardId}
+            clientId={card?.client_id}
             onClose={() => {
               setShowMoveModal(false);
               onClose();
