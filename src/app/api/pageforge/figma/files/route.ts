@@ -115,16 +115,46 @@ export async function GET(request: NextRequest) {
     const projData = await projRes.json();
     const projects: Array<{ id: string; name: string }> = projData.projects || [];
 
-    // 2. Fetch files SEQUENTIALLY - one project at a time.
-    //    This is slower on first load (~20s for 40 projects) but 100% reliable.
-    //    The 5-minute cache makes subsequent loads instant.
+    // 2. Check if streaming progress was requested
+    const stream = url.searchParams.get('stream') === '1';
+
+    if (stream) {
+      // Stream progress updates so the UI can show "Loading 3/12 projects..."
+      const encoder = new TextEncoder();
+      const readable = new ReadableStream({
+        async start(controller) {
+          const allFiles: FigmaFileEntry[] = [];
+          for (let i = 0; i < projects.length; i++) {
+            const project = projects[i];
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ progress: i + 1, total: projects.length })}\n\n`));
+            const files = await fetchProjectFiles(project.id, project.name, headers);
+            allFiles.push(...files);
+            if (i < projects.length - 1) {
+              await new Promise((r) => setTimeout(r, 150));
+            }
+          }
+          allFiles.sort((a, b) => new Date(b.last_modified).getTime() - new Date(a.last_modified).getTime());
+          cache.set(siteProfileId!, { files: allFiles, fetchedAt: Date.now() });
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, files: allFiles })}\n\n`));
+          controller.close();
+        },
+      });
+      return new Response(readable, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+        },
+      });
+    }
+
+    // Non-streaming: fetch all sequentially then return
     const allFiles: FigmaFileEntry[] = [];
 
-    for (const project of projects) {
-      const files = await fetchProjectFiles(project.id, project.name, headers);
+    for (let i = 0; i < projects.length; i++) {
+      const files = await fetchProjectFiles(projects[i].id, projects[i].name, headers);
       allFiles.push(...files);
-      // Small delay between requests to be a good API citizen
-      if (projects.indexOf(project) < projects.length - 1) {
+      if (i < projects.length - 1) {
         await new Promise((r) => setTimeout(r, 150));
       }
     }

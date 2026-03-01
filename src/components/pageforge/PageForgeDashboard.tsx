@@ -20,6 +20,7 @@ const STATUS_COLORS: Record<string, string> = {
     'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300',
   failed: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
   cancelled: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+  archived: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
 };
 
 const STATUS_DEFAULT_COLOR =
@@ -126,6 +127,7 @@ export default function PageForgeDashboard() {
   // Figma files combobox
   const [figmaFiles, setFigmaFiles] = useState<FigmaFileEntry[]>([]);
   const [figmaFilesLoading, setFigmaFilesLoading] = useState(false);
+  const [figmaLoadProgress, setFigmaLoadProgress] = useState<{ current: number; total: number } | null>(null);
   const [figmaCached, setFigmaCached] = useState(false);
   const [figmaSearch, setFigmaSearch] = useState('');
   const [figmaSelectedName, setFigmaSelectedName] = useState('');
@@ -140,6 +142,8 @@ export default function PageForgeDashboard() {
   const [newSiteForm, setNewSiteForm] = useState<NewSiteForm>({ ...EMPTY_SITE_FORM });
   const [creatingSite, setCreatingSite] = useState(false);
   const [retryingBuildId, setRetryingBuildId] = useState<string | null>(null);
+  const [archivingBuildId, setArchivingBuildId] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   // Close Figma dropdown when clicking outside
   useEffect(() => {
@@ -152,22 +156,53 @@ export default function PageForgeDashboard() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  // Fetch Figma files when site profile changes
+  // Fetch Figma files when site profile changes (with streaming progress)
   const loadFigmaFiles = useCallback(async (siteProfileId: string, bust = false) => {
     setFigmaFilesLoading(true);
     setFigmaCached(false);
+    setFigmaLoadProgress(null);
     try {
       const qs = bust ? `&bust=1` : '';
-      const res = await fetch(`/api/pageforge/figma/files?siteProfileId=${siteProfileId}${qs}`);
-      const json = await res.json();
-      if (json.files) {
-        setFigmaFiles(json.files);
-        setFigmaCached(!!json.cached);
+      // Try streaming first for progress updates
+      const res = await fetch(`/api/pageforge/figma/files?siteProfileId=${siteProfileId}${qs}&stream=1`);
+      if (res.headers.get('content-type')?.includes('text/event-stream') && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            const match = line.match(/^data: (.+)$/);
+            if (!match) continue;
+            try {
+              const msg = JSON.parse(match[1]);
+              if (msg.progress) {
+                setFigmaLoadProgress({ current: msg.progress, total: msg.total });
+              }
+              if (msg.done && msg.files) {
+                setFigmaFiles(msg.files);
+                setFigmaCached(false);
+              }
+            } catch { /* skip bad JSON */ }
+          }
+        }
+      } else {
+        // Fallback to regular JSON response (e.g. cached hit)
+        const json = await res.json();
+        if (json.files) {
+          setFigmaFiles(json.files);
+          setFigmaCached(!!json.cached);
+        }
       }
     } catch {
       // silent - user can still type manually
     } finally {
       setFigmaFilesLoading(false);
+      setFigmaLoadProgress(null);
     }
   }, []);
 
@@ -186,20 +221,25 @@ export default function PageForgeDashboard() {
       )
     : figmaFiles;
 
-  // Derived stats
+  // Filter builds: hide archived unless toggled
+  const visibleBuilds = showArchived ? builds : builds.filter(b => b.status !== 'archived');
+  const archivedCount = builds.filter(b => b.status === 'archived').length;
+
+  // Derived stats (exclude archived)
+  const nonArchivedBuilds = builds.filter(b => b.status !== 'archived');
   const stats: DashboardStats = {
-    totalBuilds: builds.length,
-    activeBuilds: builds.filter(
+    totalBuilds: nonArchivedBuilds.length,
+    activeBuilds: nonArchivedBuilds.filter(
       (b) =>
         b.status !== 'published' &&
         b.status !== 'failed' &&
         b.status !== 'cancelled',
     ).length,
-    publishedBuilds: builds.filter((b) => b.status === 'published').length,
+    publishedBuilds: nonArchivedBuilds.filter((b) => b.status === 'published').length,
     avgCost:
-      builds.length > 0
-        ? builds.reduce((sum, b) => sum + (b.total_cost_usd ?? 0), 0) /
-          builds.length
+      nonArchivedBuilds.length > 0
+        ? nonArchivedBuilds.reduce((sum, b) => sum + (b.total_cost_usd ?? 0), 0) /
+          nonArchivedBuilds.length
         : 0,
   };
 
@@ -253,6 +293,22 @@ export default function PageForgeDashboard() {
       setError(err instanceof Error ? err.message : 'Failed to retry build');
     } finally {
       setRetryingBuildId(null);
+    }
+  };
+
+  const handleArchiveBuild = async (buildId: string) => {
+    setArchivingBuildId(buildId);
+    try {
+      const res = await fetch(`/api/pageforge/builds/${buildId}/archive`, { method: 'POST' });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || 'Archive failed');
+      }
+      await fetchBuilds();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to archive build');
+    } finally {
+      setArchivingBuildId(null);
     }
   };
 
@@ -437,7 +493,21 @@ export default function PageForgeDashboard() {
       {/* Tab content */}
       {activeTab === 'builds' && (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-navy/5 dark:border-slate-700 overflow-hidden">
-          {builds.length === 0 ? (
+          {/* Archive toggle */}
+          {archivedCount > 0 && (
+            <div className="px-4 py-2 border-b border-navy/5 dark:border-slate-700 flex items-center justify-end">
+              <button
+                onClick={() => setShowArchived(!showArchived)}
+                className="text-[10px] font-semibold text-navy/40 dark:text-slate-500 hover:text-navy/60 dark:hover:text-slate-300 transition-colors flex items-center gap-1"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                </svg>
+                {showArchived ? 'Hide' : 'Show'} archived ({archivedCount})
+              </button>
+            </div>
+          )}
+          {visibleBuilds.length === 0 ? (
             <div className="text-center py-16">
               <p className="text-sm text-navy/40 dark:text-slate-500">No builds yet</p>
               <p className="text-xs text-navy/30 dark:text-slate-600 mt-1">
@@ -462,7 +532,7 @@ export default function PageForgeDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-navy/5 dark:divide-slate-700">
-                  {builds.map((build) => (
+                  {visibleBuilds.map((build) => (
                     <tr
                       key={build.id}
                       onClick={() => window.location.href = `/pageforge/${build.id}`}
@@ -529,6 +599,22 @@ export default function PageForgeDashboard() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                               </svg>
                               {retryingBuildId === build.id ? 'Retrying...' : 'Retry'}
+                            </button>
+                          )}
+                          {build.status !== 'archived' && (build.status === 'published' || build.status === 'failed' || build.status === 'cancelled') && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleArchiveBuild(build.id);
+                              }}
+                              disabled={archivingBuildId === build.id}
+                              className="text-xs font-semibold text-navy/30 dark:text-slate-600 hover:text-navy/50 dark:hover:text-slate-400 transition-colors disabled:opacity-50 flex items-center gap-1"
+                              title="Archive this build"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                              </svg>
+                              {archivingBuildId === build.id ? '...' : 'Archive'}
                             </button>
                           )}
                         </div>
@@ -884,7 +970,9 @@ export default function PageForgeDashboard() {
                           !newBuild.site_profile_id
                             ? 'Select a site first'
                             : figmaFilesLoading
-                              ? 'Loading Figma files...'
+                              ? figmaLoadProgress
+                                ? `Loading projects ${figmaLoadProgress.current}/${figmaLoadProgress.total}...`
+                                : 'Loading Figma files...'
                               : figmaFiles.length > 0
                                 ? 'Search or pick a Figma file...'
                                 : 'Paste file key or Figma URL'
@@ -937,11 +1025,27 @@ export default function PageForgeDashboard() {
                         </button>
                       </p>
                     )}
-                    {/* First load hint */}
+                    {/* First load hint with progress */}
                     {figmaFilesLoading && figmaFiles.length === 0 && (
-                      <p className="text-[10px] text-navy/30 dark:text-slate-600 mt-1 font-body">
-                        First load may take ~20s for large teams
-                      </p>
+                      <div className="mt-1">
+                        {figmaLoadProgress ? (
+                          <div className="space-y-1">
+                            <div className="w-full bg-navy/5 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
+                              <div
+                                className="bg-electric h-full rounded-full transition-all duration-300"
+                                style={{ width: `${Math.round((figmaLoadProgress.current / figmaLoadProgress.total) * 100)}%` }}
+                              />
+                            </div>
+                            <p className="text-[10px] text-navy/30 dark:text-slate-600 font-body">
+                              Scanning project {figmaLoadProgress.current} of {figmaLoadProgress.total}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-[10px] text-navy/30 dark:text-slate-600 font-body">
+                            First load may take ~20s for large teams
+                          </p>
+                        )}
+                      </div>
                     )}
                     {/* Dropdown */}
                     {showFigmaDropdown && filteredFigmaFiles.length > 0 && (
