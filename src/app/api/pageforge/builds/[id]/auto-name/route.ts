@@ -287,7 +287,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       systemInstruction: { role: 'model', parts: [{ text: SYSTEM_PROMPT }] },
       generationConfig: {
         temperature: 0.2,
-        maxOutputTokens: 8192,
+        maxOutputTokens: 32768,
       },
     });
 
@@ -296,13 +296,35 @@ export async function POST(request: NextRequest, { params }: Params) {
     inputTokens = usage?.promptTokenCount || 0;
     outputTokens = usage?.candidatesTokenCount || 0;
 
-    // Parse JSON response - handle potential markdown code fences
+    // Parse JSON response - handle potential markdown code fences and truncation
     let cleanJson = responseText.trim();
     if (cleanJson.startsWith('```')) {
       cleanJson = cleanJson.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
     }
 
-    const parsed = JSON.parse(cleanJson);
+    let parsed: any;
+    try {
+      parsed = JSON.parse(cleanJson);
+    } catch (parseErr) {
+      // JSON may be truncated - try to recover partial results
+      // Find the last complete object in the renames array
+      const lastGoodClose = cleanJson.lastIndexOf('}');
+      if (lastGoodClose > 0) {
+        const truncated = cleanJson.substring(0, lastGoodClose + 1) + ']}';
+        try {
+          parsed = JSON.parse(truncated);
+        } catch {
+          // Try one more level - maybe we need to close an extra brace
+          try {
+            parsed = JSON.parse(truncated + '}');
+          } catch {
+            throw parseErr; // Give up, rethrow original error
+          }
+        }
+      } else {
+        throw parseErr;
+      }
+    }
     renames = Array.isArray(parsed.renames) ? parsed.renames : [];
 
     // Validate rename entries
