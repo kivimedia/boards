@@ -80,8 +80,9 @@ export async function POST(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Generate AI response in background (don't block the user message response)
-  generateOrchestratorReply(supabase, params.id, content.trim(), build, user.id).catch((err) => {
+  // Generate AI response - must await because Vercel kills the function after response is sent
+  // The user's message already appears instantly via optimistic UI, so this delay is fine
+  await generateOrchestratorReply(supabase, params.id, content.trim(), build, user.id).catch((err) => {
     console.error('[PageForge Chat] AI reply failed:', err);
   });
 
