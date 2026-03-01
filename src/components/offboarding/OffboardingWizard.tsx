@@ -141,24 +141,29 @@ export default function OffboardingWizard({ preselectedClientId }: OffboardingWi
     <div className="max-w-4xl mx-auto">
       {/* Step indicator */}
       <div className="flex items-center gap-4 mb-8">
-        {[
-          { key: 'select', label: '1. Select Client' },
-          { key: 'discover', label: '2. Review Assets' },
-          { key: 'report', label: '3. Report' },
-        ].map(({ key, label }) => (
-          <div
-            key={key}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              step === key
-                ? 'bg-brand text-white'
-                : step > key || (key === 'select' && step !== 'select')
-                  ? 'bg-brand/10 text-brand'
-                  : 'bg-cream-dark dark:bg-slate-800 text-navy/40 dark:text-slate-500'
-            }`}
-          >
-            {label}
-          </div>
-        ))}
+        {([
+          { key: 'select', idx: 0, label: '1. Select Client' },
+          { key: 'discover', idx: 1, label: '2. Review Assets' },
+          { key: 'report', idx: 2, label: '3. Report' },
+        ] as const).map(({ key, idx, label }) => {
+          const currentIdx = step === 'select' ? 0 : step === 'discover' ? 1 : 2;
+          const isActive = step === key;
+          const isCompleted = idx < currentIdx;
+          return (
+            <div
+              key={key}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                isActive
+                  ? 'bg-electric text-white'
+                  : isCompleted
+                    ? 'bg-electric/10 text-electric'
+                    : 'bg-cream-dark dark:bg-slate-800 text-navy/40 dark:text-slate-500'
+              }`}
+            >
+              {label}
+            </div>
+          );
+        })}
       </div>
 
       {error && (
