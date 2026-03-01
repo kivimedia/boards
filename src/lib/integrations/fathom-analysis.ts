@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { FathomTranscriptEntry } from './fathom';
 import { transcriptToText } from './fathom';
+import { logUsage } from '@/lib/ai/cost-tracker';
 
 // ============================================================================
 // FATHOM TRANSCRIPT AI ANALYSIS
@@ -221,6 +222,7 @@ export async function analyzeMeetingTranscript(params: {
     }
 
     const anthropic = new Anthropic({ apiKey });
+    const startTime = Date.now();
 
     const response = await anthropic.messages.create({
       model: MODEL,
@@ -231,6 +233,23 @@ export async function analyzeMeetingTranscript(params: {
         { role: 'user', content: userMessage },
       ],
     });
+
+    // Log AI usage for cost tracking
+    const latencyMs = Date.now() - startTime;
+    try {
+      await logUsage(supabase, {
+        activity: 'fathom_analysis',
+        provider: 'anthropic',
+        modelId: MODEL,
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+        latencyMs,
+        status: 'success',
+        metadata: { recording_id: recordingId, client_id: clientId },
+      });
+    } catch (logErr) {
+      console.error('[fathom-analysis] Failed to log usage:', logErr);
+    }
 
     // Extract text from response
     const textBlock = response.content.find((block) => block.type === 'text');

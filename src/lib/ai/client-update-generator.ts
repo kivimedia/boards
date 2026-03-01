@@ -16,14 +16,42 @@ function buildActivityContext(data: ClientActivityData): string {
   text += `Company: ${data.client.company || 'N/A'}\n`;
   text += `Period: ${new Date(data.period.start).toLocaleDateString()} to ${new Date(data.period.end).toLocaleDateString()}\n\n`;
 
-  text += `Summary: ${data.summary_stats.total_cards} total tickets, ${data.summary_stats.cards_completed} completed, ${data.summary_stats.cards_created} new, ${data.summary_stats.comments_added} comments\n\n`;
+  text += `Summary: ${data.summary_stats.total_cards} total tickets, ${data.summary_stats.cards_completed} completed, ${data.summary_stats.cards_created} new, ${data.summary_stats.comments_added} comments`;
+  if (data.summary_stats.meetings_held) {
+    text += `, ${data.summary_stats.meetings_held} meetings held`;
+  }
+  text += '\n\n';
 
-  if (data.cards.length === 0) {
+  // Meeting activity (from Fathom)
+  if (data.meetings && data.meetings.length > 0) {
+    text += 'Meeting Activity:\n';
+    for (const meeting of data.meetings) {
+      text += `\n--- Meeting: ${meeting.title} (${new Date(meeting.recorded_at).toLocaleDateString()}) ---\n`;
+      if (meeting.duration_seconds) {
+        const mins = Math.round(meeting.duration_seconds / 60);
+        text += `Duration: ${mins} minutes\n`;
+      }
+      if (meeting.ai_summary) {
+        text += `Summary: ${meeting.ai_summary.slice(0, 500)}\n`;
+      }
+      if (meeting.ai_action_items && meeting.ai_action_items.length > 0) {
+        text += 'Action items:\n';
+        for (const item of meeting.ai_action_items) {
+          text += `  - ${typeof item === 'string' ? item : item.text}\n`;
+        }
+      }
+    }
+    text += '\n';
+  }
+
+  if (data.cards.length === 0 && (!data.meetings || data.meetings.length === 0)) {
     text += 'No significant activity this period.\n';
     return text;
   }
 
-  text += 'Ticket Activity:\n';
+  if (data.cards.length > 0) {
+    text += 'Ticket Activity:\n';
+  }
   for (const card of data.cards) {
     text += `\n--- ${card.title} [${card.list_name}] (Priority: ${card.priority}) ---\n`;
     if (card.due_date) text += `Due: ${card.due_date}\n`;
@@ -60,6 +88,8 @@ Guidelines:
 - Use professional but warm tone suitable for client communication
 - Convert internal terminology to client-friendly language (e.g., "moved to QA" becomes "now in quality review")
 - Do NOT include internal ticket IDs, priority levels, or technical details
+- If meetings were held, include a "Meeting Highlights" section summarizing key discussions and follow-up items
+- Reference meeting action items alongside ticket activity for a complete picture
 - If there was no activity, write a brief reassuring message
 
 You must output valid JSON with this exact structure:

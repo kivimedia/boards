@@ -91,6 +91,8 @@ const DEFAULT_CONFIGS: Record<AIActivity, { provider: AIProvider; model_id: stri
   pageforge_vqa: { provider: 'google', model_id: 'gemini-2.5-pro-preview-05-06', temperature: 0.2, max_tokens: 8192 },
   pageforge_qa: { provider: 'google', model_id: 'gemini-2.5-flash', temperature: 0.2, max_tokens: 4096 },
   pageforge_seo: { provider: 'google', model_id: 'gemini-2.5-flash', temperature: 0.3, max_tokens: 4096 },
+  fathom_analysis: { provider: 'anthropic', model_id: 'claude-haiku-4-5-20251001', temperature: 0.3, max_tokens: 2000 },
+  fathom_embedding: { provider: 'openai', model_id: 'text-embedding-3-small', temperature: 0, max_tokens: 0 },
 };
 
 /**
@@ -156,4 +158,6 @@ export const ACTIVITY_LABELS: Record<AIActivity, string> = {
   pageforge_vqa: 'PageForge VQA',
   pageforge_qa: 'PageForge QA',
   pageforge_seo: 'PageForge SEO',
+  fathom_analysis: 'Fathom Meeting Analysis',
+  fathom_embedding: 'Fathom Transcript Embedding',
 };

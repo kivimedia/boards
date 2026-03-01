@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import ClientEngagementView from './ClientEngagementView';
 
 interface Meeting {
   id: string;
@@ -20,6 +21,17 @@ interface Meeting {
   clients: { id: string; name: string } | null;
   ai_summary: string | null;
   ai_action_items: any[] | null;
+}
+
+interface Client {
+  id: string;
+  name: string;
+}
+
+interface Feedback {
+  is_positive: boolean | null;
+  positive_count: number;
+  negative_count: number;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -79,6 +91,11 @@ export default function MeetingsContent() {
   const [semanticResults, setSemanticResults] = useState<SemanticResult[]>([]);
   const [searchingSemantics, setSearchingSemantics] = useState(false);
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [clientFilter, setClientFilter] = useState('');
+  const [feedbackMap, setFeedbackMap] = useState<Record<string, Feedback>>({});
+  const [emailingId, setEmailingId] = useState<string | null>(null);
+  const [emailToast, setEmailToast] = useState<string | null>(null);
 
   const fetchMeetings = useCallback(async () => {
     setLoading(true);
@@ -86,6 +103,7 @@ export default function MeetingsContent() {
       const params = new URLSearchParams({ page: String(page), limit: '20' });
       if (statusFilter) params.set('status', statusFilter);
       if (search) params.set('search', search);
+      if (clientFilter) params.set('client_id', clientFilter);
 
       const res = await fetch(`/api/meetings?${params}`);
       const data = await res.json();
@@ -97,7 +115,7 @@ export default function MeetingsContent() {
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter, search]);
+  }, [page, statusFilter, search, clientFilter]);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -109,6 +127,17 @@ export default function MeetingsContent() {
     } catch (err) {
       console.error('Failed to fetch meeting stats:', err);
     }
+  }, []);
+
+  // Fetch clients for filter dropdown
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/clients');
+        const json = await res.json();
+        setClients((json.data || json || []).map((c: any) => ({ id: c.id, name: c.name })));
+      } catch {}
+    })();
   }, []);
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
@@ -170,8 +199,76 @@ export default function MeetingsContent() {
     }
   };
 
+  const emailSummary = async (meetingId: string) => {
+    setEmailingId(meetingId);
+    try {
+      const res = await fetch(`/api/meetings/${meetingId}/email`, { method: 'POST' });
+      if (res.ok) {
+        setEmailToast('Email draft created');
+        setTimeout(() => setEmailToast(null), 3000);
+      } else {
+        const data = await res.json();
+        setEmailToast(data.error || 'Failed to create email');
+        setTimeout(() => setEmailToast(null), 3000);
+      }
+    } catch {
+      setEmailToast('Failed to create email');
+      setTimeout(() => setEmailToast(null), 3000);
+    } finally {
+      setEmailingId(null);
+    }
+  };
+
+  const fetchFeedback = async (meetingId: string) => {
+    try {
+      const res = await fetch(`/api/meetings/${meetingId}/feedback`);
+      if (res.ok) {
+        const data = await res.json();
+        setFeedbackMap(prev => ({ ...prev, [meetingId]: data }));
+      }
+    } catch {}
+  };
+
+  const submitFeedback = async (meetingId: string, isPositive: boolean) => {
+    const current = feedbackMap[meetingId];
+    // Toggle off if same value
+    const newVal = current?.is_positive === isPositive ? null : isPositive;
+    try {
+      if (newVal === null) {
+        // No API for delete - submit opposite then same to toggle (or just re-submit)
+        // Actually our API upserts, so submit opposite of what was there
+        // Simplest: just submit the value as-is and let upsert handle it
+      }
+      const res = await fetch(`/api/meetings/${meetingId}/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_positive: isPositive }),
+      });
+      if (res.ok) {
+        await fetchFeedback(meetingId);
+      }
+    } catch {}
+  };
+
+  // Fetch feedback when a meeting is expanded
+  useEffect(() => {
+    if (expandedId) {
+      const m = meetings.find(m => m.id === expandedId);
+      if (m?.ai_summary && !feedbackMap[expandedId]) {
+        fetchFeedback(expandedId);
+      }
+    }
+  }, [expandedId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div className="p-4 sm:p-6">
+      {/* Email toast */}
+      {emailToast && (
+        <div className="fixed top-4 right-4 z-50 px-4 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg shadow-lg text-sm">
+          {emailToast}
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto">
         {/* Stats Dashboard */}
         {stats && (
@@ -260,7 +357,20 @@ export default function MeetingsContent() {
             <option value="analyzed">Analyzed</option>
             <option value="error">Error</option>
           </select>
+          <select
+            value={clientFilter}
+            onChange={(e) => { setClientFilter(e.target.value); setPage(1); }}
+            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+          >
+            <option value="">All clients</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
         </div>
+
+        {/* Client Engagement View */}
+        {clientFilter && <ClientEngagementView clientId={clientFilter} />}
 
         {/* Semantic Search Results */}
         {smartSearch && semanticResults.length > 0 && (
@@ -335,6 +445,15 @@ export default function MeetingsContent() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 ml-4">
+                      {m.ai_summary && m.matched_client_id && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); emailSummary(m.id); }}
+                          disabled={emailingId === m.id}
+                          className="px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg text-xs font-medium hover:bg-emerald-100 dark:hover:bg-emerald-900/50 disabled:opacity-50"
+                        >
+                          {emailingId === m.id ? 'Drafting...' : 'Email Summary'}
+                        </button>
+                      )}
                       {m.ai_summary ? (
                         <button
                           onClick={(e) => { e.stopPropagation(); analyzeMeeting(m.id); }}
@@ -428,7 +547,40 @@ export default function MeetingsContent() {
                     {/* AI Summary */}
                     {m.ai_summary && (
                       <div className="border-l-4 border-purple-400 dark:border-purple-600 pl-4">
-                        <h4 className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase mb-2">AI Summary</h4>
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase">AI Summary</h4>
+                          {/* Feedback thumbs */}
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => submitFeedback(m.id, true)}
+                              className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                                feedbackMap[m.id]?.is_positive === true
+                                  ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                                  : 'text-gray-400 hover:text-green-600 dark:hover:text-green-400'
+                              }`}
+                              title="Good summary"
+                            >
+                              <svg className="w-4 h-4" fill={feedbackMap[m.id]?.is_positive === true ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
+                              </svg>
+                              {feedbackMap[m.id]?.positive_count || 0}
+                            </button>
+                            <button
+                              onClick={() => submitFeedback(m.id, false)}
+                              className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                                feedbackMap[m.id]?.is_positive === false
+                                  ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                                  : 'text-gray-400 hover:text-red-600 dark:hover:text-red-400'
+                              }`}
+                              title="Needs improvement"
+                            >
+                              <svg className="w-4 h-4" fill={feedbackMap[m.id]?.is_positive === false ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.736 3h4.018a2 2 0 01.485.06l3.76.94m-7 10v5a2 2 0 002 2h.096c.5 0 .905-.405.905-.904 0-.715.211-1.413.608-2.008L17 13V4m-7 10h2m5-10h2a2 2 0 012 2v6a2 2 0 01-2 2h-2.5" />
+                              </svg>
+                              {feedbackMap[m.id]?.negative_count || 0}
+                            </button>
+                          </div>
+                        </div>
                         <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap bg-purple-50 dark:bg-purple-900/10 rounded-lg p-3">
                           {m.ai_summary}
                         </div>

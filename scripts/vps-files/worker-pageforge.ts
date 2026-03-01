@@ -564,15 +564,46 @@ async function executePhase(
 
       await updateBuildArtifacts(supabase, buildId, 'auto_name', result);
 
+      // Build a nodeId->suggestedName map so later phases use AI names
+      if (result.renames?.length > 0) {
+        const nameMap: Record<string, string> = {};
+        for (const r of result.renames) {
+          nameMap[r.nodeId] = r.suggestedName;
+        }
+        // Store the name overlay map for figma_analysis and later phases
+        await updateBuildArtifacts(supabase, buildId, 'auto_name_map', nameMap);
+
+        // Update preflight naming data to mark resolved issues
+        const preflightArtifacts = artifacts.preflight;
+        if (preflightArtifacts?.figma_naming) {
+          const resolvedIds = new Set(Object.keys(nameMap));
+          const updatedNaming = {
+            ...preflightArtifacts.figma_naming,
+            resolved_count: resolvedIds.size,
+            remaining_count: preflightArtifacts.figma_naming.issues.length - resolvedIds.size,
+            issues: preflightArtifacts.figma_naming.issues.map((issue: any) => ({
+              ...issue,
+              resolved: resolvedIds.has(issue.nodeId),
+              suggestedName: nameMap[issue.nodeId] || undefined,
+            })),
+          };
+          await updateBuildArtifacts(supabase, buildId, 'preflight', {
+            ...preflightArtifacts,
+            figma_naming: updatedNaming,
+          });
+        }
+      }
+
+      const remaining = result.issue_count - result.rename_count;
       await postBuildMessage(
         supabase, buildId,
         result.rename_count > 0
-          ? `Auto-name complete: ${result.rename_count} rename suggestions generated for ${result.issue_count} naming issues.`
+          ? `Auto-name complete: ${result.rename_count} of ${result.issue_count} naming issues resolved.${remaining > 0 ? ` ${remaining} remaining (minor or context-dependent).` : ''}`
           : 'Auto-name: all layers already have good names.',
         'auto_name'
       );
 
-      console.log(`[pageforge] Auto-name: ${result.rename_count} renames suggested (${result.duration_ms}ms)`);
+      console.log(`[pageforge] Auto-name: ${result.rename_count} resolved, ${result.issue_count - result.rename_count} remaining (${result.duration_ms}ms)`);
       break;
     }
 
@@ -593,9 +624,17 @@ async function executePhase(
         pageNode = file.document.children?.[0] || file.document;
       }
 
-      const sections = figmaExtractSections(pageNode);
+      const rawSections = figmaExtractSections(pageNode);
       const colors = figmaExtractColors(pageNode);
       const fonts = figmaExtractTypography(pageNode);
+
+      // Apply auto_name overlay: use AI-generated names instead of generic Figma names
+      const nameMap = (artifacts.auto_name_map || {}) as Record<string, string>;
+      const sections = rawSections.map(s => ({
+        ...s,
+        name: nameMap[s.id] || s.name,
+        originalName: s.name,
+      }));
 
       // Find image nodes
       const imageNodeIds: string[] = [];

@@ -387,10 +387,123 @@ recoverOrphanedJobs().catch((err) => {
   console.error('[recovery] Failed:', err.message);
 });
 
+// === Periodic Orphan Recovery ===
+// Catches jobs that realtime missed (race conditions, dropped subscriptions)
+// Scaling schedule: 60s for first 10m, 5m until 6h, 15m until 24h, then hourly
+
+const ORPHAN_POLL_START = Date.now();
+let orphanPollTimer: ReturnType<typeof setTimeout> | null = null;
+
+function getOrphanPollInterval(): number {
+  const elapsedMs = Date.now() - ORPHAN_POLL_START;
+  const elapsedHours = elapsedMs / (1000 * 60 * 60);
+  if (elapsedHours >= 24) return 60 * 60 * 1000;   // hourly
+  if (elapsedHours >= 6) return 15 * 60 * 1000;     // every 15m
+  const elapsedMin = elapsedMs / (1000 * 60);
+  if (elapsedMin >= 10) return 5 * 60 * 1000;       // every 5m
+  return 60 * 1000;                                  // every 60s
+}
+
+async function pollOrphanedJobs(): Promise<void> {
+  try {
+    // Find jobs stuck in pending/queued that aren't in BullMQ
+    const { data: stuckJobs } = await supabase
+      .from('vps_jobs')
+      .select('id, job_type, payload, status, created_at')
+      .in('status', ['pending', 'queued'])
+      .order('created_at', { ascending: true })
+      .limit(20);
+
+    if (!stuckJobs?.length) return;
+
+    // Only recover jobs older than 30 seconds (give realtime a chance first)
+    const cutoff = new Date(Date.now() - 30_000).toISOString();
+    const orphans = stuckJobs.filter((j) => j.created_at < cutoff);
+    if (!orphans.length) return;
+
+    console.log(`[orphan-poll] Found ${orphans.length} stuck jobs, re-enqueuing...`);
+
+    for (const job of orphans) {
+      const p = job.payload as Record<string, unknown> | null;
+
+      if (job.job_type === 'pipeline:pageforge') {
+        const buildId = p?.build_id as string | undefined;
+        if (buildId) {
+          await pageforgeQueue.add('pageforge-orphan-recover', {
+            vps_job_id: job.id,
+            build_id: buildId,
+            resume_from_phase: (p?.resume_from_phase as number) || 0,
+          }, { attempts: 2, backoff: { type: 'exponential', delay: 30000 } });
+          console.log(`[orphan-poll] Re-enqueued PageForge ${job.id}`);
+        }
+      } else if (job.job_type === 'seo') {
+        const runId = p?.pipeline_run_id as string | undefined;
+        if (runId) {
+          await seoQueue.add('seo-orphan-recover', {
+            vps_job_id: job.id,
+            pipeline_run_id: runId,
+            resume_from_phase: (p?.resume_from_phase as number) || 0,
+          });
+          console.log(`[orphan-poll] Re-enqueued SEO ${job.id}`);
+        }
+      } else if (job.job_type === 'agent') {
+        const skillId = p?.skill_id as string | undefined;
+        if (skillId) {
+          await agentQueue.add('agent-orphan-recover', {
+            vps_job_id: job.id,
+            skill_id: skillId,
+            board_id: p?.board_id as string | undefined,
+            user_id: (p?.user_id as string) || '',
+            input_message: (p?.input_message as string) || '',
+          });
+          console.log(`[orphan-poll] Re-enqueued agent ${job.id}`);
+        }
+      } else if (job.job_type === 'agent_chain') {
+        const slug = p?.target_skill_slug as string | undefined;
+        if (slug) {
+          await chainQueue.add('chain-orphan-recover', {
+            vps_job_id: job.id,
+            target_skill_slug: slug,
+            board_id: p?.board_id as string | undefined,
+            user_id: (p?.user_id as string) || '',
+            input_prompt: (p?.input_prompt as string) || '',
+          });
+          console.log(`[orphan-poll] Re-enqueued chain ${job.id}`);
+        }
+      } else if (job.job_type === 'agent_team') {
+        const teamRunId = p?.team_run_id as string | undefined;
+        if (teamRunId) {
+          await teamQueue.add('team-orphan-recover', {
+            vps_job_id: job.id,
+            team_run_id: teamRunId,
+            resume_from_phase: (p?.resume_from_phase as number) || 0,
+          });
+          console.log(`[orphan-poll] Re-enqueued team ${job.id}`);
+        }
+      }
+
+      // Mark as queued so we don't re-enqueue next poll
+      await supabase
+        .from('vps_jobs')
+        .update({ status: 'queued' })
+        .eq('id', job.id);
+    }
+  } catch (err: any) {
+    console.error('[orphan-poll] Error:', err.message);
+  }
+
+  // Schedule next poll with adaptive interval
+  orphanPollTimer = setTimeout(pollOrphanedJobs, getOrphanPollInterval());
+}
+
+// Start first poll after 30s (let startup recovery finish first)
+orphanPollTimer = setTimeout(pollOrphanedJobs, 30_000);
+
 // === Graceful Shutdown ===
 
 async function shutdown(signal: string): Promise<void> {
   console.log(`[shutdown] ${signal} received, closing workers...`);
+  if (orphanPollTimer) clearTimeout(orphanPollTimer);
   await Promise.all([
     seoWorker.close(),
     agentWorker.close(),
