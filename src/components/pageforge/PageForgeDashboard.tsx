@@ -465,7 +465,8 @@ export default function PageForgeDashboard() {
                   {builds.map((build) => (
                     <tr
                       key={build.id}
-                      className="hover:bg-navy/[0.02] dark:hover:bg-slate-700/30 transition-colors"
+                      onClick={() => window.location.href = `/pageforge/${build.id}`}
+                      className="hover:bg-navy/[0.02] dark:hover:bg-slate-700/30 transition-colors cursor-pointer"
                     >
                       <td className="px-4 py-3">
                         <p className="text-sm font-medium text-navy dark:text-slate-200 truncate max-w-[200px]">
