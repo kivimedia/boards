@@ -12,6 +12,7 @@ import type {
   PageForgeDesignerFixRequest,
 } from '@/lib/types';
 import PageForgeChatPanel from './PageForgeChatPanel';
+import PageForgeDesignerSuggestions from './PageForgeDesignerSuggestions';
 
 // ---------------------------------------------------------------------------
 // Phase definitions (order matters)
@@ -1172,6 +1173,17 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
                 </button>
               </div>
             </div>
+          )}
+
+          {/* Designer Suggestions */}
+          {(namingIssues.length > 0 || ((build.artifacts as any)?.preflight?.figma_warnings?.length > 0)) && (
+            <PageForgeDesignerSuggestions
+              buildId={build.id}
+              buildTitle={build.page_title}
+              namingIssues={namingIssues}
+              figmaWarnings={((build.artifacts as any)?.preflight?.figma_warnings as string[]) || []}
+              figmaFileKey={build.figma_file_key || undefined}
+            />
           )}
 
           {/* Designer Fix Request Status */}
