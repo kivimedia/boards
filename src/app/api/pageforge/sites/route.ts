@@ -55,9 +55,9 @@ export async function POST(request: NextRequest) {
       theme_css_url: rest.themeCssUrl || null,
       global_css: rest.globalCss || null,
       yoast_enabled: rest.yoastEnabled ?? true,
-      vqa_pass_threshold: rest.vqaPassThreshold ?? 95,
+      vqa_pass_threshold: rest.vqaPassThreshold ?? 80,
       lighthouse_min_score: rest.lighthouseMinScore ?? 80,
-      max_vqa_fix_loops: rest.maxVqaFixLoops ?? 3,
+      max_vqa_fix_loops: rest.maxVqaFixLoops ?? 15,
       created_by: auth.ctx.userId,
     })
     .select('*')

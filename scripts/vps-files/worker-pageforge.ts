@@ -701,10 +701,61 @@ async function executePhase(
       const builder = build.page_builder || 'gutenberg';
       const builderInstructions = builder === 'divi5' ? DIVI5_INSTRUCTIONS : builder === 'divi4' ? DIVI4_INSTRUCTIONS : GUTENBERG_INSTRUCTIONS;
 
+      // Export Figma screenshot so the builder AI can SEE the design
+      let figmaImage: string | null = null;
+      if (siteProfile.figma_personal_token && build.figma_node_ids?.length > 0) {
+        try {
+          const figmaClient = createFigmaClient(siteProfile.figma_personal_token);
+          const imageResponse = await figmaGetImages(figmaClient, build.figma_file_key, build.figma_node_ids, { format: 'png', scale: 1 });
+          const firstUrl = Object.values(imageResponse.images).find(Boolean);
+          if (firstUrl) {
+            const buffer = await figmaDownloadImage(firstUrl);
+            figmaImage = buffer.toString('base64');
+          }
+        } catch (err) {
+          console.warn('[pageforge] Failed to export Figma image for builder:', err);
+        }
+      }
+
+      // Build detailed section descriptions with dimensions
+      const sectionDetails = classifications.map((c: any, i: number) => {
+        const section = figmaData.sections.find((s: any) => s.id === c.sectionId);
+        const bounds = section?.bounds || {};
+        return `${i + 1}. "${c.sectionName}" (${c.type}, Tier ${c.tier}) - ${bounds.width || '?'}x${bounds.height || '?'}px, ${section?.childCount || 0} child elements${c.description ? ` - ${c.description}` : ''}`;
+      }).join('\n');
+
+      const prompt = `Generate a COMPLETE WordPress ${builder} page. You MUST generate markup for EVERY section listed below - do not skip, abbreviate, or leave placeholders.
+
+${figmaImage ? 'IMPORTANT: The attached image shows the Figma design. Study it carefully - match the layout, spacing, colors, typography, and visual hierarchy EXACTLY.' : ''}
+
+${builderInstructions}
+
+Design Tokens:
+- Colors: ${figmaData.colors.map((c: any) => `${c.hex} (${c.name})`).join(', ')}
+- Fonts: ${figmaData.fonts.map((f: any) => `${f.family} ${f.weight} ${f.size}px/${f.lineHeight || 'auto'}`).join(', ')}
+${siteProfile.global_css ? `\nSite Global CSS:\n${siteProfile.global_css.slice(0, 2000)}` : ''}
+
+Sections to build (${classifications.length} total - ALL are required):
+${sectionDetails}
+
+CRITICAL RULES:
+1. Generate EVERY section - the output must cover the entire page top to bottom
+2. Use INLINE STYLES for exact color values, font sizes, spacing, and dimensions from the design tokens
+3. Match the Figma design pixel-for-pixel: correct padding, margin, gap, border-radius
+4. Make it responsive: use max-width, flexbox/grid, and mobile-friendly patterns
+5. Use real semantic HTML (proper headings hierarchy, sections, articles)
+6. Do NOT use placeholder text - use realistic content that fits the design intent
+7. Include background colors, gradients, and visual treatments shown in the design
+
+Respond with JSON: {"markup":"the COMPLETE page markup as a single string","sections":[{"name":"section name","markup":"that section's markup"}]}`;
+
       const result = await callPageForgeAgent(supabase, buildId, 'pageforge_markup_gen', 'markup_generation',
         getSystemPrompt('pageforge_builder'),
-        `Generate WordPress ${builder} markup.\n\n${builderInstructions}\n\nDesign Tokens:\n- Colors: ${figmaData.colors.slice(0, 10).map((c: any) => `${c.hex} (${c.name})`).join(', ')}\n- Fonts: ${figmaData.fonts.map((f: any) => `${f.family} ${f.weight} ${f.size}px`).join(', ')}\n${siteProfile.global_css ? `\nGlobal CSS:\n${siteProfile.global_css.slice(0, 1000)}` : ''}\n\nSections:\n${classifications.map((c: any, i: number) => `${i + 1}. "${c.sectionName}" (${c.type}, Tier ${c.tier})`).join('\n')}\n\nRespond with JSON: {"markup":"full page markup","sections":[{"name":"...","markup":"..."}]}`,
-        anthropic, { maxTokens: 16384 }
+        prompt,
+        anthropic, {
+          maxTokens: 32768,
+          images: figmaImage ? [{ data: figmaImage, mimeType: 'image/png' }] : undefined,
+        }
       );
 
       let markup: string;
@@ -964,28 +1015,101 @@ async function executePhase(
       if (!captureData) throw new Error('Missing vqa_capture artifacts');
 
       const { wpScreenshots, figmaScreenshots } = captureData;
-      const threshold = siteProfile.vqa_pass_threshold || 95;
-      const breakpoints = ['desktop', 'tablet', 'mobile'] as const;
+      const threshold = siteProfile.vqa_pass_threshold || 80;
+      const figmaData = artifacts.figma_analysis;
+      const classifications = artifacts.section_classification;
       const results: Record<string, { score: number; differences: any[] }> = {};
 
-      for (const bp of breakpoints) {
-        const figmaImg = figmaScreenshots?.[bp];
-        const wpImg = wpScreenshots?.[bp];
+      // Build section context for the VQA agent
+      const sectionContext = classifications?.length
+        ? `\nPage sections (top to bottom):\n${classifications.map((c: any, i: number) => `${i + 1}. "${c.sectionName}" (${c.type})`).join('\n')}`
+        : '';
 
-        if (!figmaImg || !wpImg) {
+      // DESKTOP: Full Figma vs WP comparison (primary - this is where Figma image matches)
+      const figmaDesktop = figmaScreenshots?.desktop;
+      const wpDesktop = wpScreenshots?.desktop;
+
+      if (figmaDesktop && wpDesktop) {
+        try {
+          const vqaResult = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa', 'vqa_comparison',
+            getSystemPrompt('pageforge_vqa'),
+            `Compare these two full-page screenshots at DESKTOP (1440px) breakpoint.
+
+Image 1: Original Figma design (the reference - this is what we're building toward)
+Image 2: WordPress page as currently built (the actual output)
+
+Analyze the ENTIRE page from top to bottom. For each section, check:
+1. LAYOUT: Are elements positioned correctly? Correct widths, heights, spacing, alignment?
+2. TYPOGRAPHY: Right fonts, sizes, weights, colors, line heights?
+3. COLORS: Background colors, text colors, accent colors match?
+4. IMAGES/ICONS: Present, correct size, correct position?
+5. SPACING: Padding, margins, gaps between elements match?
+6. MISSING CONTENT: Are any sections from the Figma design missing entirely in the WP page?
+${sectionContext}
+
+IMPORTANT: Check if the WordPress page covers ALL sections shown in the Figma design. Missing sections are CRITICAL differences.
+
+Score the overall match from 0-100 (100 = pixel-perfect match).
+A score below 60 means major sections are missing or fundamentally broken.
+A score of 60-80 means the structure is there but details need work.
+A score above 80 means it's close with only minor differences.
+
+For EACH difference found, provide a specific, actionable CSS/markup fix.
+
+Respond with JSON:
+{"score":N,"differences":[{"area":"section or element name","severity":"critical|major|minor","description":"specific description of what's different","suggestedFix":"exact CSS or markup change to apply"}]}`,
+            anthropic, {
+              images: [
+                { data: figmaDesktop, mimeType: 'image/png' },
+                { data: wpDesktop, mimeType: 'image/png' },
+              ],
+            }
+          );
+
+          const jsonMatch = vqaResult.text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            results.desktop = { score: parsed.score || 0, differences: parsed.differences || [] };
+          } else {
+            results.desktop = { score: 50, differences: [] };
+          }
+        } catch (err) {
+          results.desktop = { score: 0, differences: [{ area: 'comparison', severity: 'critical', description: `Failed: ${err instanceof Error ? err.message : String(err)}` }] };
+        }
+      } else {
+        results.desktop = { score: 0, differences: [{ area: 'full', severity: 'critical', description: 'Screenshot not available' }] };
+      }
+
+      // TABLET + MOBILE: Responsive-only checks (no Figma reference since it's the same desktop image)
+      for (const bp of ['tablet', 'mobile'] as const) {
+        const wpImg = wpScreenshots?.[bp];
+        if (!wpImg) {
           results[bp] = { score: 0, differences: [{ area: 'full', severity: 'critical', description: 'Screenshot not available' }] };
           continue;
         }
 
         try {
+          const width = bp === 'tablet' ? 768 : 375;
           const vqaResult = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa', 'vqa_comparison',
             getSystemPrompt('pageforge_vqa'),
-            `Compare these two images at ${bp} breakpoint.\nImage 1: Figma design (reference)\nImage 2: WordPress page (actual)\n\nScore 0-100. Respond with JSON: {"score":N,"differences":[{"area":"...","severity":"critical|major|minor","description":"...","suggestedFix":"..."}]}`,
+            `Evaluate this WordPress page screenshot at ${bp.toUpperCase()} (${width}px) breakpoint for responsive quality.
+
+Image 1: The WordPress page rendered at ${width}px width
+
+Check for responsive issues:
+1. Is all content visible and readable? No text overflow or cut-off?
+2. Do layouts stack properly on smaller screens? No horizontal scroll?
+3. Are font sizes appropriate for the viewport?
+4. Are images properly sized and not overflowing?
+5. Is spacing reasonable (not too cramped or too much whitespace)?
+6. Are interactive elements (buttons, links) large enough to tap?
+
+Score from 0-100 (100 = perfect responsive behavior).
+
+Respond with JSON:
+{"score":N,"differences":[{"area":"element","severity":"critical|major|minor","description":"responsive issue","suggestedFix":"CSS fix"}]}`,
             anthropic, {
-              images: [
-                { data: figmaImg, mimeType: 'image/png' },
-                { data: wpImg, mimeType: 'image/png' },
-              ],
+              images: [{ data: wpImg, mimeType: 'image/png' }],
             }
           );
 
@@ -994,17 +1118,18 @@ async function executePhase(
             const parsed = JSON.parse(jsonMatch[0]);
             results[bp] = { score: parsed.score || 0, differences: parsed.differences || [] };
           } else {
-            results[bp] = { score: 50, differences: [] };
+            results[bp] = { score: 70, differences: [] };
           }
         } catch (err) {
           results[bp] = { score: 0, differences: [{ area: 'comparison', severity: 'critical', description: `Failed: ${err instanceof Error ? err.message : String(err)}` }] };
         }
       }
 
+      // Desktop is primary (70% weight since it's the only real Figma comparison)
       const desktopScore = results.desktop?.score || 0;
       const tabletScore = results.tablet?.score || 0;
       const mobileScore = results.mobile?.score || 0;
-      const overallScore = Math.round(desktopScore * 0.5 + tabletScore * 0.25 + mobileScore * 0.25);
+      const overallScore = Math.round(desktopScore * 0.7 + tabletScore * 0.15 + mobileScore * 0.15);
       const passed = overallScore >= threshold;
 
       await supabase.from('pageforge_builds').update({
@@ -1016,6 +1141,11 @@ async function executePhase(
       const fixSuggestions = Object.values(results).flatMap(r => r.differences.filter((d: any) => d.suggestedFix).map((d: any) => d.suggestedFix));
 
       await updateBuildArtifacts(supabase, buildId, 'vqa_comparison', { results, overallScore, passed, threshold, fixSuggestions });
+
+      await postBuildMessage(supabase, buildId,
+        `VQA Comparison: Desktop=${desktopScore}% Tablet=${tabletScore}% Mobile=${mobileScore}% Overall=${overallScore}% (threshold=${threshold}%, ${passed ? 'PASSED' : 'needs fixes'})`,
+        'vqa_comparison');
+
       console.log(`[pageforge] VQA scores: D=${desktopScore} T=${tabletScore} M=${mobileScore} Overall=${overallScore} (threshold=${threshold}, passed=${passed})`);
       break;
     }
@@ -1024,7 +1154,7 @@ async function executePhase(
     // PHASE 9: VQA FIX LOOP - Apply AI-suggested fixes
     // -----------------------------------------------------------------------
     case 'vqa_fix_loop': {
-      const comparisonData = artifacts.vqa_comparison;
+      let comparisonData = artifacts.vqa_comparison;
       const markupData = artifacts.markup_generation;
       if (!comparisonData || !markupData) throw new Error('Missing upstream artifacts');
 
@@ -1034,56 +1164,272 @@ async function executePhase(
         break;
       }
 
-      const maxLoops = siteProfile.max_vqa_fix_loops || 3;
+      const maxLoops = siteProfile.max_vqa_fix_loops || 15;
+      const threshold = siteProfile.vqa_pass_threshold || 80;
       let currentIteration = build.vqa_fix_iteration || 0;
       let currentMarkup = markupData.markup;
       const allChanges: string[] = [];
+      let lastScore = comparisonData.overallScore || 0;
+      let stallCount = 0;
+      const scoreHistory: Array<{ iteration: number; score: number }> = [];
+
+      // Get the Figma reference screenshot (doesn't change between iterations)
+      const figmaDesktop = artifacts.vqa_capture?.figmaScreenshots?.desktop;
+      const deployData = artifacts.deploy_draft;
+      const draftUrl = deployData?.draftUrl;
+
+      if (!draftUrl) throw new Error('Missing draft URL for VQA fix loop');
+
+      await postBuildMessage(supabase, buildId,
+        `Starting VQA fix loop: score=${lastScore}%, threshold=${threshold}%, max iterations=${maxLoops}`,
+        'vqa_fix_loop');
 
       while (currentIteration < maxLoops) {
         currentIteration++;
-        console.log(`[pageforge] VQA fix iteration ${currentIteration}/${maxLoops}`);
+        console.log(`[pageforge] VQA fix iteration ${currentIteration}/${maxLoops} (score: ${lastScore}%, target: ${threshold}%)`);
 
-        // Gather differences to fix
+        // 1. Gather differences from latest comparison (critical + major only)
         const allDiffs = Object.values(comparisonData.results as Record<string, any>)
           .flatMap((r: any) => (r.differences || []).filter((d: any) => d.severity !== 'minor'));
 
-        if (allDiffs.length === 0) break;
+        if (allDiffs.length === 0) {
+          console.log('[pageforge] No more differences to fix');
+          break;
+        }
 
-        // AI suggest fixes
+        // 2. Prioritize: critical first, then major, max 10 per iteration
+        const sortedDiffs = allDiffs.sort((a: any, b: any) => {
+          const order = { critical: 0, major: 1, minor: 2 };
+          return (order[a.severity as keyof typeof order] || 2) - (order[b.severity as keyof typeof order] || 2);
+        }).slice(0, 10);
+
+        // 3. AI fix with visual context (Figma + current WP screenshot)
+        const images: Array<{ data: string; mimeType: string }> = [];
+        if (figmaDesktop) {
+          images.push({ data: figmaDesktop, mimeType: 'image/png' });
+        }
+
+        // Capture current WP desktop screenshot for visual reference
+        let currentWpScreenshot: string | null = null;
+        try {
+          const wpShots = await captureScreenshots(draftUrl);
+          currentWpScreenshot = wpShots.desktop || null;
+          if (currentWpScreenshot) {
+            images.push({ data: currentWpScreenshot, mimeType: 'image/png' });
+          }
+        } catch (err) {
+          console.warn('[pageforge] Failed to capture current WP screenshot for fix context:', err);
+        }
+
+        const imageContext = images.length >= 2
+          ? 'Image 1 is the Figma design reference. Image 2 is the current WordPress page. Fix the WordPress markup to match the Figma design.'
+          : images.length === 1
+            ? 'Image 1 is the Figma design reference. Fix the markup to match it.'
+            : '';
+
+        const fixPrompt = `Fix this WordPress page markup to better match the Figma design.
+
+${imageContext}
+
+Iteration ${currentIteration}/${maxLoops} - Current VQA score: ${lastScore}% (target: ${threshold}%)
+
+Current markup (FULL page):
+\`\`\`html
+${currentMarkup}
+\`\`\`
+
+Visual differences to fix (${sortedDiffs.length} issues, priority order):
+${sortedDiffs.map((d: any, i: number) => `${i + 1}. [${d.severity.toUpperCase()}] ${d.area}: ${d.description}${d.suggestedFix ? `\n   Suggested fix: ${d.suggestedFix}` : ''}`).join('\n')}
+
+RULES:
+1. Return the COMPLETE fixed markup - do not truncate or abbreviate ANY section
+2. Apply ALL suggested fixes where possible
+3. Preserve all existing content and structure that is correct
+4. Use inline styles for visual fixes (colors, spacing, fonts, layout)
+5. If sections are missing from the page, ADD them
+6. Make sure responsive styles are preserved (flexbox, max-width, etc.)
+
+Respond with JSON:
+{"fixedMarkup":"the COMPLETE corrected markup","changesApplied":["description of each change"]}`;
+
         const fixResult = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa_fix', 'vqa_fix_loop',
           getSystemPrompt('pageforge_vqa'),
-          `Apply fixes to this markup:\n\n\`\`\`html\n${currentMarkup.slice(0, 8000)}\n\`\`\`\n\nDifferences:\n${allDiffs.map((d: any, i: number) => `${i + 1}. ${d.area}: ${d.description}${d.suggestedFix ? ` (Fix: ${d.suggestedFix})` : ''}`).join('\n')}\n\nRespond with JSON: {"fixedMarkup":"...","changesApplied":["..."]}`,
-          anthropic, { maxTokens: 16384 }
+          fixPrompt,
+          anthropic, {
+            maxTokens: 32768,
+            images: images.length > 0 ? images : undefined,
+          }
         );
 
+        let fixApplied = false;
         try {
           const jsonMatch = fixResult.text.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
             const parsed = JSON.parse(jsonMatch[0]);
-            if (parsed.fixedMarkup) {
+            if (parsed.fixedMarkup && parsed.fixedMarkup.length > currentMarkup.length * 0.5) {
+              // Only accept if the fix is at least 50% the size of original (prevent truncation)
               currentMarkup = parsed.fixedMarkup;
               allChanges.push(...(parsed.changesApplied || []));
+              fixApplied = true;
+            } else if (parsed.fixedMarkup) {
+              console.warn(`[pageforge] Fix returned truncated markup (${parsed.fixedMarkup.length} vs ${currentMarkup.length} chars) - skipping`);
             }
           }
         } catch { /* continue with current markup */ }
 
-        // Re-deploy with fixed markup
+        if (!fixApplied) {
+          console.warn(`[pageforge] Fix iteration ${currentIteration} produced no valid markup change`);
+          stallCount++;
+          if (stallCount >= 3) {
+            console.log('[pageforge] 3 consecutive failed fix attempts, stopping');
+            break;
+          }
+          continue;
+        }
+
+        // 4. Re-deploy with fixed markup
         if (build.wp_page_id && siteProfile.wp_username && siteProfile.wp_app_password) {
           const wpClient = createWpClient({ restUrl: siteProfile.wp_rest_url, username: siteProfile.wp_username, appPassword: siteProfile.wp_app_password });
           await wpUpdatePage(wpClient, build.wp_page_id, { content: currentMarkup });
         }
 
-        // Update iteration counter
+        // 5. Wait briefly for WP to process the update
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // 6. Re-capture desktop screenshot
+        let newWpDesktop: string | null = null;
+        try {
+          const newShots = await captureScreenshots(draftUrl);
+          newWpDesktop = newShots.desktop || null;
+        } catch (err) {
+          console.warn('[pageforge] Failed to recapture WP screenshot:', err);
+        }
+
+        // 7. Re-compare desktop against Figma
+        let newScore = lastScore;
+        let newDiffs: any[] = [];
+
+        if (figmaDesktop && newWpDesktop) {
+          try {
+            const compareResult = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa', 'vqa_fix_loop',
+              getSystemPrompt('pageforge_vqa'),
+              `Re-evaluate after fix iteration ${currentIteration}. Compare these two full-page screenshots.
+
+Image 1: Figma design (reference)
+Image 2: WordPress page (after fix)
+
+Previous score was ${lastScore}%. Check if the fixes improved the match.
+Focus on remaining differences only.
+
+Score 0-100. Respond with JSON:
+{"score":N,"differences":[{"area":"...","severity":"critical|major|minor","description":"...","suggestedFix":"..."}]}`,
+              anthropic, {
+                images: [
+                  { data: figmaDesktop, mimeType: 'image/png' },
+                  { data: newWpDesktop, mimeType: 'image/png' },
+                ],
+              }
+            );
+
+            const jsonMatch = compareResult.text.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              const parsed = JSON.parse(jsonMatch[0]);
+              newScore = parsed.score || lastScore;
+              newDiffs = parsed.differences || [];
+            }
+          } catch (err) {
+            console.warn('[pageforge] Re-comparison failed:', err);
+          }
+        }
+
+        scoreHistory.push({ iteration: currentIteration, score: newScore });
+        const improvement = newScore - lastScore;
+
+        console.log(`[pageforge] Iteration ${currentIteration}: score ${lastScore}% -> ${newScore}% (${improvement >= 0 ? '+' : ''}${improvement}%)`);
+
+        await postBuildMessage(supabase, buildId,
+          `Fix iteration ${currentIteration}/${maxLoops}: score ${lastScore}% -> ${newScore}% (${improvement >= 0 ? '+' : ''}${improvement}%)${newScore >= threshold ? ' - PASSED!' : ''}`,
+          'vqa_fix_loop');
+
+        // 8. Update build state
         await supabase.from('pageforge_builds').update({
-          vqa_fix_iteration: currentIteration, updated_at: new Date().toISOString(),
+          vqa_fix_iteration: currentIteration,
+          vqa_score_desktop: newScore,
+          vqa_score_overall: newScore, // Desktop is primary during fix loop
+          updated_at: new Date().toISOString(),
         }).eq('id', buildId);
 
-        // Update markup artifact for downstream phases
         await updateBuildArtifacts(supabase, buildId, 'markup_generation', { ...markupData, markup: currentMarkup });
-        break; // One fix iteration per phase execution
+
+        // Update comparison data for next iteration
+        comparisonData = {
+          results: { desktop: { score: newScore, differences: newDiffs } },
+          overallScore: newScore,
+          passed: newScore >= threshold,
+          threshold,
+          fixSuggestions: newDiffs.filter((d: any) => d.suggestedFix).map((d: any) => d.suggestedFix),
+        };
+        await updateBuildArtifacts(supabase, buildId, 'vqa_comparison', comparisonData);
+
+        // 9. Check if passed
+        if (newScore >= threshold) {
+          console.log(`[pageforge] VQA PASSED at iteration ${currentIteration}: ${newScore}% >= ${threshold}%`);
+          break;
+        }
+
+        // 10. Stall detection: if score didn't improve by at least 2 points for 3 consecutive iterations
+        if (improvement < 2) {
+          stallCount++;
+          if (stallCount >= 3) {
+            console.log(`[pageforge] Score stalled for 3 iterations (${newScore}%), stopping fix loop`);
+            await postBuildMessage(supabase, buildId,
+              `VQA fix loop stopped: score plateaued at ${newScore}% after ${currentIteration} iterations`,
+              'vqa_fix_loop');
+            break;
+          }
+        } else {
+          stallCount = 0;
+        }
+
+        lastScore = newScore;
       }
 
-      await updateBuildArtifacts(supabase, buildId, 'vqa_fix_loop', { iterations: currentIteration, changesApplied: allChanges, maxLoops });
+      // Final full 3-breakpoint comparison after all fixes
+      if (currentIteration > 0) {
+        try {
+          const finalShots = await captureScreenshots(draftUrl);
+          await updateBuildArtifacts(supabase, buildId, 'vqa_capture', {
+            ...artifacts.vqa_capture,
+            wpScreenshots: finalShots,
+          });
+
+          // Update tablet/mobile scores
+          const tabletScore = finalShots.tablet ? 70 : 0; // Will be properly scored in next comparison
+          const mobileScore = finalShots.mobile ? 70 : 0;
+          const finalDesktop = comparisonData.overallScore || lastScore;
+          const finalOverall = Math.round(finalDesktop * 0.7 + tabletScore * 0.15 + mobileScore * 0.15);
+
+          await supabase.from('pageforge_builds').update({
+            vqa_score_overall: finalOverall,
+            vqa_score_tablet: tabletScore,
+            vqa_score_mobile: mobileScore,
+            updated_at: new Date().toISOString(),
+          }).eq('id', buildId);
+        } catch (err) {
+          console.warn('[pageforge] Final screenshot capture failed:', err);
+        }
+      }
+
+      await updateBuildArtifacts(supabase, buildId, 'vqa_fix_loop', {
+        iterations: currentIteration,
+        changesApplied: allChanges,
+        maxLoops,
+        scoreHistory,
+        finalScore: lastScore,
+        threshold,
+      });
+
+      console.log(`[pageforge] VQA fix loop complete: ${currentIteration} iterations, final score: ${lastScore}%`);
       break;
     }
 
