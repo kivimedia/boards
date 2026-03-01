@@ -10,6 +10,10 @@ import {
   type FathomMeeting,
 } from '@/lib/integrations/fathom';
 import { matchParticipantsToClients } from '@/lib/integrations/fathom-matching';
+import { analyzeMeetingTranscript } from '@/lib/integrations/fathom-analysis';
+import { evaluateRoutingRules } from '@/lib/integrations/fathom-routing';
+import { postMeetingSummaryToCard, createActionItemCards } from '@/lib/integrations/fathom-actions';
+import { indexTranscriptEmbeddings } from '@/lib/integrations/fathom-embeddings';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -60,7 +64,7 @@ export async function POST(request: Request) {
     .eq('fathom_recording_id', payload.recording_id)
     .single();
 
-  if (existing && existing.processing_status === 'matched') {
+  if (existing && ['matched', 'analyzed'].includes(existing.processing_status)) {
     return NextResponse.json({ message: 'Already processed', id: existing.id });
   }
 
@@ -169,14 +173,45 @@ async function processFathomMeeting(
     transcript || []
   );
 
+  let clientId = matchResult.clientId;
+  let matchedBy = matchResult.matchedBy;
+  let cardId: string | null = null;
+
+  // If email matching failed, try routing rules
+  if (!clientId) {
+    try {
+      const routingResult = await evaluateRoutingRules({
+        title: meeting?.title || meeting?.meeting_title || null,
+        transcript: transcript || null,
+        participants: (meeting?.calendar_invitees || []).map(inv => ({
+          email: inv.email,
+          name: inv.name,
+          is_external: inv.is_external,
+        })),
+        recordedAt: meeting?.created_at || null,
+        supabase,
+      });
+      if (routingResult.clientId) {
+        clientId = routingResult.clientId;
+        matchedBy = `rule:${routingResult.matchedBy}`;
+        cardId = routingResult.cardId;
+      }
+    } catch (err) {
+      console.warn('[fathom-webhook] Routing rules evaluation failed:', err);
+    }
+  }
+
   // Update recording with match result
   const updateData: Record<string, any> = {
-    processing_status: matchResult.clientId ? 'matched' : 'needs_review',
+    processing_status: clientId ? 'matched' : 'needs_review',
     updated_at: new Date().toISOString(),
   };
-  if (matchResult.clientId) {
-    updateData.matched_client_id = matchResult.clientId;
-    updateData.matched_by = matchResult.matchedBy;
+  if (clientId) {
+    updateData.matched_client_id = clientId;
+    updateData.matched_by = matchedBy;
+  }
+  if (cardId) {
+    updateData.matched_card_id = cardId;
   }
 
   await supabase
@@ -184,10 +219,89 @@ async function processFathomMeeting(
     .update(updateData)
     .eq('id', recording.id);
 
+  // Phase 2: AI Analysis (if transcript available)
+  let analysisResult = null;
+  if (transcript && transcript.length > 0) {
+    try {
+      analysisResult = await analyzeMeetingTranscript({
+        recordingId: recording.id,
+        transcript,
+        fathomSummary: summary?.markdown_formatted || null,
+        clientId,
+        supabase,
+      });
+      console.log(`[fathom-webhook] AI analysis complete for ${recording.id}`);
+    } catch (err) {
+      console.warn('[fathom-webhook] AI analysis failed (non-blocking):', err);
+    }
+  }
+
+  // Phase 2: Auto-actions (post summary to card, create action item cards)
+  if (analysisResult) {
+    const meetingTitle = meeting?.title || meeting?.meeting_title || 'Untitled Meeting';
+
+    // Post summary to matched card
+    if (cardId) {
+      try {
+        await postMeetingSummaryToCard({
+          recordingId: recording.id,
+          cardId,
+          title: meetingTitle,
+          summary: analysisResult.ai_summary,
+          actionItems: analysisResult.ai_action_items,
+          shareUrl: payload.share_url,
+          supabase,
+          systemUserId: '00000000-0000-0000-0000-000000000000',
+        });
+      } catch (err) {
+        console.warn('[fathom-webhook] Failed to post summary to card:', err);
+      }
+    }
+
+    // Create action item cards if client matched and there are action items
+    if (clientId && analysisResult.ai_action_items.length > 0) {
+      try {
+        const { created } = await createActionItemCards({
+          recordingId: recording.id,
+          clientId,
+          meetingTitle: meetingTitle,
+          actionItems: analysisResult.ai_action_items,
+          shareUrl: payload.share_url,
+          supabase,
+          createdBy: '00000000-0000-0000-0000-000000000000',
+        });
+        if (created > 0) {
+          console.log(`[fathom-webhook] Created ${created} action item cards`);
+        }
+      } catch (err) {
+        console.warn('[fathom-webhook] Failed to create action item cards:', err);
+      }
+    }
+  }
+
+  // Phase 4: Index transcript embeddings for semantic search
+  if (transcript && transcript.length > 0) {
+    try {
+      const { chunksIndexed } = await indexTranscriptEmbeddings({
+        recordingId: recording.id,
+        transcript,
+        title: meeting?.title || meeting?.meeting_title || 'Meeting',
+        supabase,
+      });
+      if (chunksIndexed > 0) {
+        console.log(`[fathom-webhook] Indexed ${chunksIndexed} transcript chunks`);
+      }
+    } catch (err) {
+      console.warn('[fathom-webhook] Embedding indexing failed (non-blocking):', err);
+    }
+  }
+
   return {
     id: recording.id,
-    status: updateData.processing_status,
+    status: analysisResult ? 'analyzed' : updateData.processing_status,
     matched_client: matchResult.clientName || null,
     participants_found: matchResult.participantsCreated,
+    ai_analyzed: !!analysisResult,
+    action_items_count: analysisResult?.ai_action_items.length || 0,
   };
 }

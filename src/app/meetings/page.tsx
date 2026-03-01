@@ -18,6 +18,8 @@ interface Meeting {
   matched_by: string | null;
   calendar_invitees: any[] | null;
   clients: { id: string; name: string } | null;
+  ai_summary: string | null;
+  ai_action_items: any[] | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -26,6 +28,7 @@ const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
   processing: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
   error: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+  analyzed: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
 };
 
 function formatDuration(seconds: number | null): string {
@@ -45,6 +48,21 @@ function formatDate(iso: string): string {
   });
 }
 
+interface MeetingStats {
+  total: number;
+  this_week: number;
+  avg_duration_minutes: number;
+  unmatched: number;
+  analyzed: number;
+}
+
+interface SemanticResult {
+  id: string;
+  title: string;
+  snippet: string;
+  similarity: number;
+}
+
 export default function MeetingsPage() {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [total, setTotal] = useState(0);
@@ -56,6 +74,11 @@ export default function MeetingsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [backfilling, setBackfilling] = useState(false);
   const [backfillResult, setBackfillResult] = useState<string | null>(null);
+  const [stats, setStats] = useState<MeetingStats | null>(null);
+  const [smartSearch, setSmartSearch] = useState(false);
+  const [semanticResults, setSemanticResults] = useState<SemanticResult[]>([]);
+  const [searchingSemantics, setSearchingSemantics] = useState(false);
+  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
 
   const fetchMeetings = useCallback(async () => {
     setLoading(true);
@@ -76,6 +99,19 @@ export default function MeetingsPage() {
     }
   }, [page, statusFilter, search]);
 
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await fetch('/api/meetings/stats');
+      if (res.ok) {
+        const data = await res.json();
+        setStats(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch meeting stats:', err);
+    }
+  }, []);
+
+  useEffect(() => { fetchStats(); }, [fetchStats]);
   useEffect(() => { fetchMeetings(); }, [fetchMeetings]);
 
   const runBackfill = async () => {
@@ -96,9 +132,68 @@ export default function MeetingsPage() {
     }
   };
 
+  const runSemanticSearch = async (query: string) => {
+    if (!query.trim()) {
+      setSemanticResults([]);
+      return;
+    }
+    setSearchingSemantics(true);
+    try {
+      const res = await fetch('/api/meetings/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSemanticResults(data.results || []);
+      }
+    } catch (err) {
+      console.error('Semantic search failed:', err);
+    } finally {
+      setSearchingSemantics(false);
+    }
+  };
+
+  const analyzeMeeting = async (meetingId: string) => {
+    setAnalyzingId(meetingId);
+    try {
+      const res = await fetch(`/api/meetings/${meetingId}/analyze`, { method: 'POST' });
+      if (res.ok) {
+        await fetchMeetings();
+        await fetchStats();
+      }
+    } catch (err) {
+      console.error('Failed to analyze meeting:', err);
+    } finally {
+      setAnalyzingId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
       <div className="max-w-7xl mx-auto">
+        {/* Stats Dashboard */}
+        {stats && (
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+            {[
+              { label: 'Total', value: stats.total },
+              { label: 'This Week', value: stats.this_week },
+              { label: 'Avg Duration', value: `${stats.avg_duration_minutes}m` },
+              { label: 'Unmatched', value: stats.unmatched },
+              { label: 'Analyzed', value: stats.analyzed },
+            ].map((stat) => (
+              <div
+                key={stat.label}
+                className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 text-center"
+              >
+                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">{stat.label}</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">{stat.value}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -124,13 +219,36 @@ export default function MeetingsPage() {
 
         {/* Filters */}
         <div className="flex gap-3 mb-4">
-          <input
-            type="text"
-            placeholder="Search meetings..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
-          />
+          <div className="flex-1 flex gap-2">
+            <input
+              type="text"
+              placeholder={smartSearch ? 'Semantic search across transcripts...' : 'Search meetings...'}
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+                if (smartSearch && e.target.value.trim()) {
+                  runSemanticSearch(e.target.value);
+                } else {
+                  setSemanticResults([]);
+                }
+              }}
+              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+            />
+            <button
+              onClick={() => {
+                setSmartSearch(!smartSearch);
+                setSemanticResults([]);
+              }}
+              className={`px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
+                smartSearch
+                  ? 'bg-purple-600 text-white hover:bg-purple-700'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              Smart Search
+            </button>
+          </div>
           <select
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
@@ -140,9 +258,37 @@ export default function MeetingsPage() {
             <option value="matched">Matched</option>
             <option value="needs_review">Needs Review</option>
             <option value="pending">Pending</option>
+            <option value="analyzed">Analyzed</option>
             <option value="error">Error</option>
           </select>
         </div>
+
+        {/* Semantic Search Results */}
+        {smartSearch && semanticResults.length > 0 && (
+          <div className="mb-4 space-y-2">
+            <h3 className="text-sm font-semibold text-purple-600 dark:text-purple-400 mb-2">
+              {searchingSemantics ? 'Searching...' : `${semanticResults.length} semantic result${semanticResults.length !== 1 ? 's' : ''}`}
+            </h3>
+            {semanticResults.map((r) => (
+              <div
+                key={r.id}
+                className="bg-white dark:bg-gray-800 border border-purple-200 dark:border-purple-800 rounded-lg p-3"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-medium text-gray-900 dark:text-white text-sm">{r.title}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+                    {(r.similarity * 100).toFixed(0)}% match
+                  </span>
+                </div>
+                <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2">{r.snippet}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {smartSearch && searchingSemantics && semanticResults.length === 0 && (
+          <div className="mb-4 text-center py-4 text-sm text-purple-500">Searching transcripts...</div>
+        )}
 
         {/* Meeting List */}
         {loading ? (
@@ -190,6 +336,23 @@ export default function MeetingsPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 ml-4">
+                      {m.ai_summary ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); analyzeMeeting(m.id); }}
+                          disabled={analyzingId === m.id}
+                          className="px-2 py-1 text-purple-600 dark:text-purple-400 text-xs hover:underline disabled:opacity-50"
+                        >
+                          {analyzingId === m.id ? 'Analyzing...' : 'Re-analyze'}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); analyzeMeeting(m.id); }}
+                          disabled={analyzingId === m.id}
+                          className="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-medium hover:bg-purple-700 disabled:opacity-50"
+                        >
+                          {analyzingId === m.id ? 'Analyzing...' : 'Analyze'}
+                        </button>
+                      )}
                       {m.share_url && (
                         <a
                           href={m.share_url}
@@ -256,6 +419,31 @@ export default function MeetingsPage() {
                           {m.fathom_action_items.map((item: any, i: number) => (
                             <li key={i} className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
                               <span className="mt-1 w-4 h-4 rounded border border-gray-300 dark:border-gray-600 flex-shrink-0" />
+                              <span>{typeof item === 'string' ? item : item.text || JSON.stringify(item)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* AI Summary */}
+                    {m.ai_summary && (
+                      <div className="border-l-4 border-purple-400 dark:border-purple-600 pl-4">
+                        <h4 className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase mb-2">AI Summary</h4>
+                        <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap bg-purple-50 dark:bg-purple-900/10 rounded-lg p-3">
+                          {m.ai_summary}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* AI Action Items */}
+                    {m.ai_action_items && m.ai_action_items.length > 0 && (
+                      <div className="border-l-4 border-purple-400 dark:border-purple-600 pl-4">
+                        <h4 className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase mb-2">AI Action Items</h4>
+                        <ul className="space-y-1">
+                          {m.ai_action_items.map((item: any, i: number) => (
+                            <li key={i} className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+                              <input type="checkbox" className="mt-1 w-4 h-4 rounded border-purple-300 dark:border-purple-600 text-purple-600 focus:ring-purple-500 flex-shrink-0" />
                               <span>{typeof item === 'string' ? item : item.text || JSON.stringify(item)}</span>
                             </li>
                           ))}
