@@ -3484,7 +3484,8 @@ export type PageForgeBuildStatus =
   | 'am_signoff_gate'
   | 'published'
   | 'failed'
-  | 'cancelled';
+  | 'cancelled'
+  | 'archived';
 
 export type PageForgeGateDecision = 'approve' | 'revise' | 'cancel';
 
