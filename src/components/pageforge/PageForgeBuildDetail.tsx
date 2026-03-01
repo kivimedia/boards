@@ -35,6 +35,13 @@ const PHASE_NAMES: string[] = [
   'AM Sign-off Gate',
 ];
 
+const PHASE_KEYS = [
+  'preflight', 'figma_analysis', 'section_classification', 'markup_generation',
+  'markup_validation', 'deploy_draft', 'image_optimization', 'vqa_capture',
+  'vqa_comparison', 'vqa_fix_loop', 'functional_qa', 'seo_config',
+  'report_generation', 'developer_review_gate', 'am_signoff_gate',
+];
+
 const GATE_STATUSES: PageForgeBuildStatus[] = [
   'developer_review_gate',
   'am_signoff_gate',
@@ -237,6 +244,30 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
     } catch (err) {
       console.error('Retry error:', err);
       setError(err instanceof Error ? err.message : 'Failed to retry build');
+    } finally {
+      setRetrying(false);
+    }
+  };
+
+  // ------- Retry specific phase handler -------
+  const handleRetryPhase = async (phaseIndex: number) => {
+    if (!build) return;
+    setRetrying(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/pageforge/builds/${buildId}/retry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resume_from_phase: phaseIndex }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || 'Retry failed');
+      }
+      await fetchBuild();
+    } catch (err) {
+      console.error('Retry phase error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to retry phase');
     } finally {
       setRetrying(false);
     }
@@ -741,6 +772,15 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
                           {phase.error_message}
                         </p>
                       )}
+                      {phaseStatus === 'failed' && (
+                        <button
+                          onClick={() => handleRetryPhase(idx)}
+                          disabled={retrying}
+                          className="mt-1 text-[10px] px-2 py-0.5 rounded bg-electric/10 text-electric hover:bg-electric/20 transition-colors disabled:opacity-40 font-medium"
+                        >
+                          {retrying ? 'Retrying...' : 'Retry this phase'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -1158,6 +1198,15 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
                     <p className="text-xs text-red-700 dark:text-red-300 font-mono break-all">
                       {entry.error}
                     </p>
+                    {PHASE_KEYS.includes(entry.phase) && (
+                      <button
+                        onClick={() => handleRetryPhase(PHASE_KEYS.indexOf(entry.phase))}
+                        disabled={retrying}
+                        className="mt-1.5 text-[10px] px-2 py-0.5 rounded bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors disabled:opacity-40 font-medium"
+                      >
+                        {retrying ? 'Retrying...' : `Retry from ${humanStatus(entry.phase)}`}
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>

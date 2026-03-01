@@ -28,8 +28,9 @@ export async function POST(request: NextRequest, { params }: Params) {
     return errorResponse('Build not found', 404);
   }
 
-  // Only allow retry on failed or cancelled builds
-  if (build.status !== 'failed' && build.status !== 'cancelled') {
+  // Allow retry on failed, cancelled, or gate states (for retrying specific phases)
+  const TERMINAL_NO_RETRY = ['published'];
+  if (TERMINAL_NO_RETRY.includes(build.status)) {
     return errorResponse('Build is not in a retryable state', 400);
   }
 
