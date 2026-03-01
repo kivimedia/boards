@@ -174,24 +174,40 @@ export async function figmaGetImages(
   nodeIds: string[],
   options?: { format?: 'png' | 'jpg' | 'svg' | 'pdf'; scale?: number }
 ): Promise<FigmaImageResponse> {
-  const ids = nodeIds.join(',');
   const format = options?.format || 'png';
   const scale = options?.scale || 2;
+  const BATCH_SIZE = 5;
 
-  const res = await fetch(
-    `${FIGMA_API_BASE}/images/${fileKey}?ids=${encodeURIComponent(ids)}&format=${format}&scale=${scale}`,
-    {
-      headers: client.headers,
-      signal: AbortSignal.timeout(60000),
+  // Batch node IDs to avoid Figma render timeouts on large/complex designs
+  const allImages: Record<string, string | null> = {};
+
+  for (let i = 0; i < nodeIds.length; i += BATCH_SIZE) {
+    const batch = nodeIds.slice(i, i + BATCH_SIZE);
+    const ids = batch.join(',');
+
+    const res = await fetch(
+      `${FIGMA_API_BASE}/images/${fileKey}?ids=${encodeURIComponent(ids)}&format=${format}&scale=${scale}`,
+      {
+        headers: client.headers,
+        signal: AbortSignal.timeout(60000),
+      }
+    );
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Figma get images failed (${res.status}): ${err}`);
     }
-  );
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Figma get images failed (${res.status}): ${err}`);
+    const data: FigmaImageResponse = await res.json();
+    Object.assign(allImages, data.images || {});
+
+    // Small delay between batches to avoid rate limiting
+    if (i + BATCH_SIZE < nodeIds.length) {
+      await new Promise(r => setTimeout(r, 500));
+    }
   }
 
-  return res.json();
+  return { err: null, images: allImages };
 }
 
 export async function figmaDownloadImage(url: string): Promise<Buffer> {
