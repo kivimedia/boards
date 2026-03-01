@@ -26,6 +26,28 @@ import Anthropic from '@anthropic-ai/sdk';
 // Each phase calls actual APIs (Figma, WordPress, Browserless) and AI.
 // ============================================================================
 
+// Per-phase auto-retry config: how many times to retry before giving up
+const PHASE_MAX_RETRIES: Record<string, number> = {
+  preflight: 1,
+  figma_analysis: 2,
+  section_classification: 2,
+  markup_generation: 2,
+  markup_validation: 1,
+  deploy_draft: 2,
+  image_optimization: 3, // most flaky due to Figma API timeouts
+  vqa_capture: 2,
+  vqa_comparison: 2,
+  vqa_fix_loop: 1,
+  functional_qa: 2,
+  seo_config: 2,
+  report_generation: 1,
+  developer_review_gate: 0, // gates never retry
+  am_signoff_gate: 0,
+};
+
+// Base delay in ms between retries (doubles each attempt)
+const RETRY_BASE_DELAY_MS = 3000;
+
 export interface PageForgeJobData {
   vps_job_id: string;
   build_id: string;
@@ -69,6 +91,9 @@ export async function processPageForgeJob(job: Job<PageForgeJobData>): Promise<v
 
   const siteProfile = build.site_profile as PageForgeSiteProfile;
   const anthropic = getAnthropicClient();
+
+  // Track per-phase retry attempts
+  const phaseRetryCount: Record<string, number> = {};
 
   // Process phases sequentially
   for (let i = startPhaseIdx; i < PAGEFORGE_PHASE_ORDER.length; i++) {
@@ -154,13 +179,40 @@ export async function processPageForgeJob(job: Job<PageForgeJobData>): Promise<v
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
-      console.error(`[pageforge] Phase ${phase} failed:`, errorMsg);
+      const maxRetries = PHASE_MAX_RETRIES[phase] ?? 1;
+
+      // Track retry attempts
+      if (!phaseRetryCount[phase]) phaseRetryCount[phase] = 0;
+      phaseRetryCount[phase]++;
+      const attempt = phaseRetryCount[phase];
+
+      if (attempt <= maxRetries) {
+        // Auto-retry: log the failure, wait with exponential backoff, then retry
+        const delayMs = RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1);
+        console.warn(`[pageforge] Phase ${phase} failed (attempt ${attempt}/${maxRetries + 1}), retrying in ${delayMs}ms: ${errorMsg}`);
+
+        await failPhaseRecord(supabase, phaseRecordId, errorMsg, Date.now() - phaseStart);
+        await appendBuildError(supabase, build_id, phase, `[Attempt ${attempt}/${maxRetries + 1}] ${errorMsg}`);
+
+        await postBuildMessage(supabase, build_id,
+          `Phase "${phase}" failed (attempt ${attempt}/${maxRetries + 1}): ${errorMsg}\nRetrying in ${Math.round(delayMs / 1000)}s...`,
+          phase, 'system');
+
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+
+        // Retry: decrement i so the for-loop re-runs this phase
+        i--;
+        continue;
+      }
+
+      // All retries exhausted - mark as failed
+      console.error(`[pageforge] Phase ${phase} failed after ${attempt} attempts:`, errorMsg);
 
       await failPhaseRecord(supabase, phaseRecordId, errorMsg, Date.now() - phaseStart);
       await appendBuildError(supabase, build_id, phase, errorMsg);
 
       await postBuildMessage(supabase, build_id,
-        `Phase "${phase}" failed: ${errorMsg}`,
+        `Phase "${phase}" failed after ${attempt} attempt${attempt !== 1 ? 's' : ''}. Build stopped.\nError: ${errorMsg}`,
         phase, 'system');
 
       await supabase.from('pageforge_builds').update({
@@ -169,7 +221,7 @@ export async function processPageForgeJob(job: Job<PageForgeJobData>): Promise<v
 
       await updateJobProgress(vps_job_id, {
         status: 'failed', completed_at: new Date().toISOString(),
-        progress_message: `Failed at ${phase}: ${errorMsg}`,
+        progress_message: `Failed at ${phase} after ${attempt} attempts: ${errorMsg}`,
       });
       return;
     }
