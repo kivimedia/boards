@@ -100,6 +100,15 @@
     margin-top: 3px;
   }
 
+  .field .hint a {
+    color: #3B82F6;
+    text-decoration: none;
+  }
+
+  .field .hint a:hover {
+    text-decoration: underline;
+  }
+
   /* Buttons */
   .btn {
     display: inline-flex;
@@ -160,6 +169,18 @@
     color: #374151;
   }
 
+  .btn-danger-ghost {
+    background: transparent;
+    color: #dc2626;
+    padding: 6px 10px;
+    font-weight: 500;
+    font-size: 10px;
+  }
+
+  .btn-danger-ghost:hover:not(:disabled) {
+    background: #fef2f2;
+  }
+
   .action-row {
     display: flex;
     gap: 8px;
@@ -171,6 +192,31 @@
 
   .action-row .btn {
     flex: 1;
+  }
+
+  /* Connected badge */
+  .connected-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .connected-badge {
+    font-size: 11px;
+    color: #059669;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .connected-badge .dot {
+    width: 6px;
+    height: 6px;
+    background: #10B981;
+    border-radius: 50%;
+    display: inline-block;
   }
 
   /* Results area */
@@ -382,31 +428,22 @@
     <span class="badge">KM Boards</span>
   </div>
 
-  <!-- Login screen -->
-  <div class="config-section" id="loginSection">
-    <div style="text-align:center;margin-bottom:8px;font-size:11px;color:#888">Sign in with your KM Boards account</div>
+  <!-- Config section -->
+  <div class="config-section" id="configSection">
     <div class="field">
-      <label>Email</label>
-      <input type="email" id="loginEmail" placeholder="you@example.com" />
-    </div>
-    <div class="field">
-      <label>Password</label>
-      <input type="password" id="loginPassword" placeholder="Your KM Boards password" />
-    </div>
-    <div style="padding-top:6px">
-      <button class="btn btn-primary" style="width:100%" id="btnLogin" onclick="handleLogin()">Sign In</button>
-    </div>
-  </div>
-
-  <!-- Logged-in config (hidden until auth) -->
-  <div class="config-section hidden" id="configSection">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <span style="font-size:11px;color:#059669;font-weight:600" id="loggedInAs">Signed in</span>
-      <button class="btn btn-ghost" style="font-size:10px;padding:2px 8px" onclick="handleLogout()">Sign Out</button>
+      <label>API Key</label>
+      <input type="password" id="apiKeyInput" placeholder="ab_XXXXXXXX..." />
+      <div class="hint">
+        Generate at <a href="https://kmboards.co/settings" target="_blank">KM Boards Settings</a> with <strong>pageforge:write</strong> permission
+      </div>
     </div>
     <div class="field">
       <label>Build ID</label>
       <input type="text" id="buildId" placeholder="e.g. a1b2c3d4-e5f6-7890-abcd-ef1234567890" />
+    </div>
+    <div class="connected-row hidden" id="connectedRow">
+      <span class="connected-badge"><span class="dot"></span> Connected</span>
+      <button class="btn-danger-ghost" onclick="handleDisconnect()">Disconnect</button>
     </div>
   </div>
 
@@ -439,7 +476,7 @@
     <div class="results-list" id="resultsList">
       <div class="empty-state" id="emptyState">
         <div class="icon">&#128204;</div>
-        <p>Enter a Build ID and click "Fetch Suggestions" to get AI-generated layer name recommendations from KM Boards.</p>
+        <p>Enter your API Key and Build ID, then click "Fetch Suggestions" to get AI-generated layer name recommendations.</p>
       </div>
     </div>
   </div>
@@ -455,10 +492,8 @@
 
 <script>
   // =========================================================================
-  // Supabase config (public keys - safe to expose)
+  // Config
   // =========================================================================
-  const SUPABASE_URL = 'https://uqoogrnrzfsurupqkgco.supabase.co';
-  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxb29ncm5yemZzdXJ1cHFrZ2NvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA2Mzg1MDYsImV4cCI6MjA4NjIxNDUwNn0.NcfveFryzvshGc6qnxOC7LjysdXA4dHDUynAoeZG1UU';
   const API_BASE = 'https://kmboards.co';
 
   // =========================================================================
@@ -468,17 +503,13 @@
   let collectedNodes = null;
   let pageName = '';
   let isLoading = false;
-  let authToken = null;
-  let userEmail = null;
+  let apiKey = null;
 
   // DOM references
-  const loginSection = document.getElementById('loginSection');
   const configSection = document.getElementById('configSection');
-  const loginEmailInput = document.getElementById('loginEmail');
-  const loginPasswordInput = document.getElementById('loginPassword');
-  const btnLogin = document.getElementById('btnLogin');
-  const loggedInAs = document.getElementById('loggedInAs');
+  const apiKeyInput = document.getElementById('apiKeyInput');
   const buildIdInput = document.getElementById('buildId');
+  const connectedRow = document.getElementById('connectedRow');
   const btnFetch = document.getElementById('btnFetch');
   const btnApply = document.getElementById('btnApply');
   const btnCancel = document.getElementById('btnCancel');
@@ -491,69 +522,54 @@
   const errorBanner = document.getElementById('errorBanner');
 
   // =========================================================================
-  // Auth - Supabase email/password login
+  // API Key management
   // =========================================================================
-  async function handleLogin() {
-    const email = loginEmailInput.value.trim();
-    const password = loginPasswordInput.value.trim();
-    if (!email || !password) { showError('Email and password are required.'); return; }
 
-    hideError();
-    btnLogin.disabled = true;
-    btnLogin.textContent = 'Signing in...';
-
-    try {
-      const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error_description || err.msg || `Login failed (${res.status})`);
-      }
-
-      const data = await res.json();
-      authToken = data.access_token;
-      userEmail = email;
-
-      // Save credentials to Figma storage (persists across plugin opens)
-      postToPlugin({ type: 'save-credentials', email, token: authToken });
-
-      showLoggedIn();
-      setStatus('Signed in successfully', 'success');
-    } catch (err) {
-      showError(err.message || 'Login failed');
-    } finally {
-      btnLogin.disabled = false;
-      btnLogin.textContent = 'Sign In';
+  // Save API key when user leaves the field
+  apiKeyInput.addEventListener('blur', () => {
+    const val = apiKeyInput.value.trim();
+    if (val && val.startsWith('ab_')) {
+      apiKey = val;
+      postToPlugin({ type: 'save-credentials', apiKey: val });
+      showConnected();
     }
-  }
-
-  // Enter key in password field triggers login
-  loginPasswordInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') handleLogin();
   });
 
-  function handleLogout() {
-    authToken = null;
-    userEmail = null;
-    postToPlugin({ type: 'clear-credentials' });
-    loginSection.classList.remove('hidden');
-    configSection.classList.add('hidden');
-    btnFetch.disabled = true;
-    setStatus('Signed out', '');
+  // Enter key in API key field triggers save + focus build ID
+  apiKeyInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const val = apiKeyInput.value.trim();
+      if (val && val.startsWith('ab_')) {
+        apiKey = val;
+        postToPlugin({ type: 'save-credentials', apiKey: val });
+        showConnected();
+        buildIdInput.focus();
+      } else {
+        showError('API key must start with "ab_"');
+      }
+    }
+  });
+
+  // Save build ID when user leaves the field
+  buildIdInput.addEventListener('blur', () => {
+    const val = buildIdInput.value.trim();
+    if (val) {
+      postToPlugin({ type: 'save-credentials', buildId: val });
+    }
+  });
+
+  function showConnected() {
+    connectedRow.classList.remove('hidden');
+    apiKeyInput.type = 'password';
+    setStatus('API key saved - ready to use', 'success');
   }
 
-  function showLoggedIn() {
-    loginSection.classList.add('hidden');
-    configSection.classList.remove('hidden');
-    loggedInAs.textContent = userEmail || 'Signed in';
-    btnFetch.disabled = false;
+  function handleDisconnect() {
+    apiKey = null;
+    apiKeyInput.value = '';
+    connectedRow.classList.add('hidden');
+    postToPlugin({ type: 'clear-credentials' });
+    setStatus('Disconnected', '');
   }
 
   // =========================================================================
@@ -591,9 +607,18 @@
   // Fetch flow
   // =========================================================================
   function handleFetch() {
+    // Read API key from input if not already stored
+    const keyVal = apiKeyInput.value.trim();
+    if (keyVal && keyVal.startsWith('ab_')) {
+      apiKey = keyVal;
+      postToPlugin({ type: 'save-credentials', apiKey: keyVal });
+      showConnected();
+    }
+
+    if (!apiKey) { showError('Please enter your API key. Get one at KM Boards Settings.'); return; }
+
     const buildId = buildIdInput.value.trim();
     if (!buildId) { showError('Please enter a Build ID.'); return; }
-    if (!authToken) { showError('Not signed in.'); return; }
 
     hideError();
     suggestions = [];
@@ -615,25 +640,10 @@
 
     // Restore saved credentials on plugin open
     if (msg.type === 'stored-credentials') {
-      if (msg.token) {
-        // Verify token is still valid
-        try {
-          const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-            headers: { 'Authorization': `Bearer ${msg.token}`, 'apikey': SUPABASE_ANON_KEY },
-          });
-          if (res.ok) {
-            authToken = msg.token;
-            userEmail = msg.email || 'Saved session';
-            showLoggedIn();
-            setStatus('Session restored', 'success');
-          } else {
-            // Token expired - prefill email for easy re-login
-            if (msg.email) loginEmailInput.value = msg.email;
-            setStatus('Session expired - please sign in again', '');
-          }
-        } catch {
-          if (msg.email) loginEmailInput.value = msg.email;
-        }
+      if (msg.apiKey) {
+        apiKey = msg.apiKey;
+        apiKeyInput.value = msg.apiKey;
+        showConnected();
       }
       if (msg.buildId) buildIdInput.value = msg.buildId;
       return;
@@ -665,7 +675,7 @@
       const response = await fetch(url, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${authToken}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ figma_nodes: nodes }),
@@ -673,9 +683,10 @@
 
       if (!response.ok) {
         if (response.status === 401) {
-          // Token expired - force re-login
-          handleLogout();
-          throw new Error('Session expired. Please sign in again.');
+          throw new Error('Invalid API key. Check your key at KM Boards Settings.');
+        }
+        if (response.status === 403) {
+          throw new Error('API key missing pageforge:write permission. Update your key at KM Boards Settings.');
         }
         let errMsg = `API returned ${response.status}`;
         try {

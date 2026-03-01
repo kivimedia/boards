@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext, errorResponse } from '@/lib/api-helpers';
+import { errorResponse } from '@/lib/api-helpers';
+import { getPageForgeAuth } from '@/lib/pageforge-auth';
 import { createBuild, listBuilds } from '@/lib/ai/pageforge-pipeline';
 import type { PageForgeSiteProfile } from '@/lib/types';
 
@@ -8,7 +9,7 @@ import type { PageForgeSiteProfile } from '@/lib/types';
  * List builds, optionally filtered by clientId or siteProfileId.
  */
 export async function GET(request: NextRequest) {
-  const auth = await getAuthContext();
+  const auth = await getPageForgeAuth(request, 'pageforge:read');
   if (!auth.ok) return auth.response;
 
   const url = new URL(request.url);
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
  * Body: { siteProfileId, figmaFileKey, figmaNodeIds?, pageTitle, pageSlug? }
  */
 export async function POST(request: NextRequest) {
-  const auth = await getAuthContext();
+  const auth = await getPageForgeAuth(request, 'pageforge:write');
   if (!auth.ok) return auth.response;
 
   const body = await request.json();
@@ -43,11 +44,11 @@ export async function POST(request: NextRequest) {
 
   try {
     // Fetch site profile
-    const { data: siteProfile, error } = await auth.ctx.supabase
+    const { data: siteProfile, error } = await (auth.ctx.supabase as any)
       .from('pageforge_site_profiles')
       .select('*')
       .eq('id', siteProfileId)
-      .single();
+      .single() as { data: any; error: any };
 
     if (error || !siteProfile) {
       return errorResponse('Site profile not found', 404);
@@ -76,13 +77,13 @@ export async function POST(request: NextRequest) {
     if (pageBuilder && pageBuilder !== siteProfile.page_builder) {
       updatePayload.page_builder = pageBuilder;
     }
-    await auth.ctx.supabase
+    await (auth.ctx.supabase as any)
       .from('pageforge_builds')
       .update(updatePayload)
       .eq('id', build.id);
 
     // Create VPS job for the build
-    await auth.ctx.supabase.from('vps_jobs').insert({
+    await (auth.ctx.supabase as any).from('vps_jobs').insert({
       job_type: 'pipeline:pageforge',
       status: 'queued',
       payload: {

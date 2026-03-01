@@ -11,25 +11,21 @@ figma.showUI(__html__, { width: 420, height: 620 });
 // Load saved credentials on startup
 function loadSavedCredentials() {
     return __awaiter(this, void 0, void 0, function* () {
-        const email = yield figma.clientStorage.getAsync('kmboards_email');
-        const token = yield figma.clientStorage.getAsync('kmboards_token');
+        const apiKey = yield figma.clientStorage.getAsync('kmboards_api_key');
         const buildId = yield figma.clientStorage.getAsync('kmboards_build_id');
-        figma.ui.postMessage({ type: 'stored-credentials', email, token, buildId });
+        figma.ui.postMessage({ type: 'stored-credentials', apiKey, buildId });
     });
 }
 loadSavedCredentials();
 figma.ui.onmessage = (msg) => __awaiter(this, void 0, void 0, function* () {
     if (msg.type === 'save-credentials') {
-        if (msg.email)
-            yield figma.clientStorage.setAsync('kmboards_email', msg.email);
-        if (msg.token)
-            yield figma.clientStorage.setAsync('kmboards_token', msg.token);
-        if (msg.buildId)
+        if (msg.apiKey !== undefined)
+            yield figma.clientStorage.setAsync('kmboards_api_key', msg.apiKey);
+        if (msg.buildId !== undefined)
             yield figma.clientStorage.setAsync('kmboards_build_id', msg.buildId);
     }
     if (msg.type === 'clear-credentials') {
-        yield figma.clientStorage.deleteAsync('kmboards_email');
-        yield figma.clientStorage.deleteAsync('kmboards_token');
+        yield figma.clientStorage.deleteAsync('kmboards_api_key');
         yield figma.clientStorage.deleteAsync('kmboards_build_id');
     }
     if (msg.type === 'collect-nodes') {
