@@ -4,6 +4,7 @@ import { gatherBoardContext, boardContextToText } from '@/lib/board-context';
 import { validateChartData } from '@/lib/ai/chart-validator';
 import { createAnthropicClient } from '@/lib/ai/providers';
 import { searchKnowledge } from '@/lib/ai/knowledge-indexer';
+import { searchCards, extractSearchFromUrl } from '@/lib/search';
 
 export const maxDuration = 60;
 
@@ -49,25 +50,52 @@ export async function POST(request: NextRequest) {
 
     const boardText = boardContextToText(boardCtx);
 
-    // Semantic search for cards most relevant to this query
-    let semanticContext = '';
+    // Resolve the actual search query (extract from URL if applicable)
+    const urlExtracted = extractSearchFromUrl(query);
+    const searchQuery = urlExtracted || query;
+
+    // Hybrid search: semantic + keyword in parallel
+    let hybridContext = '';
     try {
-      const searchResults = await searchKnowledge(supabase, query, {
-        boardId: board_id,
-        limit: 10,
-        threshold: 0.6,
-        sourceTypes: ['card'],
-      });
-      if (searchResults.length > 0) {
-        semanticContext = `\n=== Most Relevant Cards for This Question (from knowledge base) ===\n\n${searchResults
-          .map((r) => `### ${r.title} (relevance: ${(r.similarity * 100).toFixed(0)}%)\n${r.content}`)
-          .join('\n\n')}\n\n`;
+      const [semanticResults, keywordResults] = await Promise.all([
+        searchKnowledge(supabase, searchQuery, {
+          boardId: board_id,
+          limit: 15,
+          threshold: 0.45,
+          sourceTypes: ['card'],
+        }).catch(() => []),
+        searchCards(supabase, searchQuery, 10, board_id).catch(() => []),
+      ]);
+
+      const parts: string[] = [];
+
+      if (semanticResults.length > 0) {
+        parts.push(`\n=== Most Relevant Cards (semantic match) ===\n`);
+        for (const r of semanticResults) {
+          parts.push(`### ${r.title} (relevance: ${(r.similarity * 100).toFixed(0)}%)\n${r.content}`);
+        }
       }
+
+      // Add keyword-only matches (not already in semantic results)
+      const semanticIds = new Set(semanticResults.map((r) => r.source_id));
+      const keywordOnly = keywordResults.filter((r) => !semanticIds.has(r.id));
+      if (keywordOnly.length > 0) {
+        parts.push(`\n=== Additional Cards (keyword match) ===\n`);
+        for (const r of keywordOnly) {
+          parts.push(`### ${r.title}\n${r.subtitle || ''}`);
+        }
+      }
+
+      if (urlExtracted) {
+        parts.push(`\n(Note: user pasted a URL. Extracted search terms: "${urlExtracted}")\n`);
+      }
+
+      hybridContext = parts.join('\n\n');
     } catch {
-      // Semantic search is best-effort - continue without it
+      // Hybrid search is best-effort - continue without it
     }
 
-    const context = semanticContext + boardText;
+    const context = hybridContext + boardText;
 
     // Call Claude API using stored key from settings
     const client = await createAnthropicClient(supabase);

@@ -38,6 +38,9 @@ export function detectMode(input: string): SearchMode {
   // Command mode: starts with imperative verb AND has 2+ words
   if (COMMAND_KEYWORDS.includes(firstWord) && wordCount >= 2) return 'command';
 
+  // URLs (kmboards.co or /c/ deep links) -> AI
+  if (trimmed.includes('/c/') || trimmed.includes('kmboards.co')) return 'ai';
+
   // Has question mark -> AI
   if (trimmed.includes('?')) return 'ai';
 

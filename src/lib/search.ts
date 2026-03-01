@@ -1,5 +1,25 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 
+/**
+ * Extract meaningful search terms from a KM Boards URL.
+ * e.g. "/c/jesus/kim/sara-march-18-flyer" -> "sara march 18 flyer"
+ * e.g. "https://kmboards.co/c/jesus/kim/sara-march-18-flyer" -> "sara march 18 flyer"
+ */
+export function extractSearchFromUrl(input: string): string | null {
+  // Strip domain prefix if present
+  const path = input.replace(/^https?:\/\/[^/]+/, '');
+  // /c/board-slug/person-slug/card-slug
+  const cardMatch = path.match(/\/c\/[\w-]+\/[\w-]+\/([\w-]+)/);
+  if (cardMatch) return cardMatch[1].replace(/-/g, ' ');
+  // /c/uuid/card-slug (legacy)
+  const legacyMatch = path.match(/\/c\/[0-9a-f-]{36}\/([\w-]+)/);
+  if (legacyMatch) return legacyMatch[1].replace(/-/g, ' ');
+  // /board/board-slug
+  const boardMatch = path.match(/\/board\/([\w-]+)/);
+  if (boardMatch) return boardMatch[1].replace(/-/g, ' ');
+  return null;
+}
+
 export interface SearchResult {
   type: 'card' | 'board' | 'comment' | 'person';
   id: string;

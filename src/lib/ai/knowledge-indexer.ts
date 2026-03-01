@@ -354,7 +354,7 @@ export async function searchKnowledge(
   query: string,
   options: SearchKnowledgeOptions = {}
 ): Promise<KnowledgeSearchResult[]> {
-  const { boardId, limit = 10, threshold = 0.65, sourceTypes, excludeSourceId } = options;
+  const { boardId, limit = 20, threshold = 0.50, sourceTypes, excludeSourceId } = options;
 
   const openaiClient = await createOpenAIClient(supabase);
   if (!openaiClient) return [];
