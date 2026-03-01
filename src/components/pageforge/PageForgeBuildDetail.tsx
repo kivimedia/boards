@@ -121,6 +121,16 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
   const [resolvingDesignerRequest, setResolvingDesignerRequest] = useState(false);
   const [retrying, setRetrying] = useState(false);
 
+  // Auto-name state
+  const [autoNaming, setAutoNaming] = useState(false);
+  const [autoNameResults, setAutoNameResults] = useState<Array<{
+    nodeId: string;
+    currentName: string;
+    suggestedName: string;
+    reason: string;
+  }> | null>(null);
+  const [autoNameError, setAutoNameError] = useState<string | null>(null);
+
   // ------- Fetch build -------
   const fetchBuild = useCallback(async () => {
     try {
@@ -224,6 +234,28 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
       setError(err instanceof Error ? err.message : 'Failed to retry build');
     } finally {
       setRetrying(false);
+    }
+  };
+
+  // ------- Auto-Name handler -------
+  const handleAutoName = async () => {
+    setAutoNaming(true);
+    setAutoNameError(null);
+    setAutoNameResults(null);
+    try {
+      const res = await fetch(`/api/pageforge/builds/${buildId}/auto-name`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Auto-name failed');
+      const data = json.data || json;
+      setAutoNameResults(data.renames || []);
+    } catch (err) {
+      console.error('Auto-name error:', err);
+      setAutoNameError(err instanceof Error ? err.message : 'Failed to generate names');
+    } finally {
+      setAutoNaming(false);
     }
   };
 
@@ -1222,6 +1254,95 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
                   </tbody>
                 </table>
               </div>
+              {/* Auto-Name with AI */}
+              <div className="mt-4 border-t border-navy/5 dark:border-slate-700 pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-xs font-semibold text-navy dark:text-slate-200">
+                      AI Auto-Namer
+                    </h3>
+                    <p className="text-[10px] text-navy/40 dark:text-slate-500 mt-0.5">
+                      Uses AI vision to suggest proper semantic names for generic layers
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleAutoName}
+                    disabled={autoNaming}
+                    className="px-3 py-1.5 text-xs font-semibold text-white bg-electric hover:bg-electric/90 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                  >
+                    {autoNaming ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Analyzing...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        </svg>
+                        Auto-Name with AI
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {autoNameError && (
+                  <div className="mb-3 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800/40">
+                    <p className="text-xs text-red-600 dark:text-red-400">{autoNameError}</p>
+                  </div>
+                )}
+
+                {autoNameResults && autoNameResults.length > 0 && (
+                  <div className="mb-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-semibold text-navy/40 dark:text-slate-500 uppercase">
+                        AI Suggestions ({autoNameResults.length} renames)
+                      </span>
+                      <button
+                        onClick={() => {
+                          const text = autoNameResults.map(r => `${r.currentName} -> ${r.suggestedName}`).join('\n');
+                          navigator.clipboard.writeText(text);
+                        }}
+                        className="text-[10px] text-electric hover:text-electric-bright font-semibold"
+                      >
+                        Copy All
+                      </button>
+                    </div>
+                    <div className="max-h-48 overflow-y-auto space-y-1">
+                      {autoNameResults.map((r) => (
+                        <div
+                          key={r.nodeId}
+                          className="flex items-center gap-2 px-2 py-1.5 rounded bg-electric/5 dark:bg-electric/10 group"
+                          title={r.reason}
+                        >
+                          <span className="text-xs text-navy/40 dark:text-slate-500 font-mono line-through flex-shrink-0 max-w-[120px] truncate">
+                            {r.currentName}
+                          </span>
+                          <svg className="w-3 h-3 text-electric flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                          </svg>
+                          <span className="text-xs text-navy dark:text-slate-200 font-mono font-semibold flex-shrink-0 max-w-[160px] truncate">
+                            {r.suggestedName}
+                          </span>
+                          <span className="text-[9px] text-navy/30 dark:text-slate-600 truncate ml-auto hidden group-hover:block">
+                            {r.reason}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-navy/30 dark:text-slate-600 mt-2">
+                      Use the PageForge Namer Figma plugin to apply these renames automatically.
+                    </p>
+                  </div>
+                )}
+
+                {autoNameResults && autoNameResults.length === 0 && (
+                  <div className="mb-3 px-3 py-2 rounded-lg bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800/40">
+                    <p className="text-xs text-green-600 dark:text-green-400">All layers already have good names!</p>
+                  </div>
+                )}
+              </div>
+
               <div className="mt-4 space-y-3 border-t border-navy/5 dark:border-slate-700 pt-4">
                 <textarea
                   value={designerFeedback}
