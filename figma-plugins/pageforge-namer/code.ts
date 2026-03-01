@@ -1,6 +1,28 @@
 figma.showUI(__html__, { width: 420, height: 620 });
 
-figma.ui.onmessage = async (msg) => {
+// Load saved credentials on startup
+async function loadSavedCredentials() {
+  const email = await figma.clientStorage.getAsync('kmboards_email');
+  const token = await figma.clientStorage.getAsync('kmboards_token');
+  const buildId = await figma.clientStorage.getAsync('kmboards_build_id');
+  figma.ui.postMessage({ type: 'stored-credentials', email, token, buildId });
+}
+
+loadSavedCredentials();
+
+figma.ui.onmessage = async (msg: any) => {
+  if (msg.type === 'save-credentials') {
+    if (msg.email) await figma.clientStorage.setAsync('kmboards_email', msg.email);
+    if (msg.token) await figma.clientStorage.setAsync('kmboards_token', msg.token);
+    if (msg.buildId) await figma.clientStorage.setAsync('kmboards_build_id', msg.buildId);
+  }
+
+  if (msg.type === 'clear-credentials') {
+    await figma.clientStorage.deleteAsync('kmboards_email');
+    await figma.clientStorage.deleteAsync('kmboards_token');
+    await figma.clientStorage.deleteAsync('kmboards_build_id');
+  }
+
   if (msg.type === 'collect-nodes') {
     const nodes: Array<{ id: string; name: string; type: string; depth: number }> = [];
 

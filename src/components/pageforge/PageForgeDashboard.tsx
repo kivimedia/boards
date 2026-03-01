@@ -111,6 +111,7 @@ export default function PageForgeDashboard() {
   const [clients, setClients] = useState<ClientEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [copiedToken, setCopiedToken] = useState(false);
   const [showNewBuildModal, setShowNewBuildModal] = useState(false);
   const [creating, setCreating] = useState(false);
   const defaultCustomModels = MODEL_PROFILES.find(p => p.id === 'cost_optimized')!.models;
@@ -373,7 +374,30 @@ export default function PageForgeDashboard() {
   return (
     <div className="p-4 sm:p-6 space-y-6">
       {/* Action bar */}
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-end gap-2">
+        <button
+          onClick={async () => {
+            try {
+              const { createClient } = await import('@/lib/supabase/client');
+              const supabase = createClient();
+              const { data } = await supabase.auth.getSession();
+              if (data?.session?.access_token) {
+                await navigator.clipboard.writeText(data.session.access_token);
+                setError(null);
+                setCopiedToken(true);
+                setTimeout(() => setCopiedToken(false), 3000);
+              } else {
+                setError('No active session found. Try refreshing the page.');
+              }
+            } catch {
+              setError('Failed to copy token');
+            }
+          }}
+          className="px-3 py-2 text-xs font-medium text-navy/60 dark:text-slate-400 bg-cream dark:bg-slate-800 hover:bg-cream-dark dark:hover:bg-slate-700 border border-cream-dark dark:border-slate-600 rounded-lg transition-colors"
+          title="Copy your auth token for the Figma plugin"
+        >
+          {copiedToken ? 'Copied!' : 'Copy Plugin Token'}
+        </button>
         <button
           onClick={() => setShowNewBuildModal(true)}
           className="px-4 py-2 text-sm font-semibold text-white bg-electric hover:bg-electric-bright rounded-lg transition-colors"
