@@ -1,10 +1,16 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import Sidebar from '@/components/layout/Sidebar';
+import SidebarWithBoards from '@/components/layout/SidebarWithBoards';
 import Header from '@/components/layout/Header';
 import Link from 'next/link';
 
 const TOOLS = [
+  {
+    title: 'Fathom Meetings',
+    description: 'View meeting recordings, manage participant identities, analyze summaries, and track client engagement.',
+    href: '/meetings',
+    icon: '🎥',
+  },
   {
     title: 'Client Offboarding',
     description: 'Generate a comprehensive handoff report with all Figma, Canva, Dropbox, Drive links, credentials, and project history.',
@@ -21,14 +27,9 @@ export default async function ToolsPage() {
     redirect('/login');
   }
 
-  const { data: boards } = await supabase
-    .from('boards')
-    .select('*')
-    .order('created_at', { ascending: true });
-
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar initialBoards={boards || []} />
+      <SidebarWithBoards />
       <main className="flex-1 flex flex-col overflow-hidden">
         <Header title="Tools" />
         <div className="flex-1 overflow-y-auto p-6">

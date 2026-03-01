@@ -104,7 +104,7 @@ export default function IdentityManager() {
   const fetchIdentities = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page: String(page), limit: '50' });
+      const params = new URLSearchParams({ page: String(page), limit: '25' });
       if (confidenceFilter) params.set('confidence', confidenceFilter);
       if (confirmedFilter) params.set('confirmed', confirmedFilter);
       if (clientFilter) params.set('client_id', clientFilter);
