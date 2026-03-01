@@ -95,6 +95,12 @@ export default function ClientsListView() {
   const [selectedList, setSelectedList] = useState<ListItem | null>(null);
   const [selectedCards, setSelectedCards] = useState<SelectedCard[]>([]);
 
+  // Card search across all boards
+  const [cardSearchQuery, setCardSearchQuery] = useState('');
+  const [cardSearchResults, setCardSearchResults] = useState<SelectedCard[]>([]);
+  const [searchingCards, setSearchingCards] = useState(false);
+  const [cardSearchTimeout, setCardSearchTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
+
   const router = useRouter();
 
   const fetchClients = async () => {
@@ -196,6 +202,50 @@ export default function ClientsListView() {
   };
 
   const isCardSelected = (cardId: string) => selectedCards.some(c => c.id === cardId);
+
+  const handleCardSearch = (query: string) => {
+    setCardSearchQuery(query);
+    if (cardSearchTimeout) clearTimeout(cardSearchTimeout);
+    if (!query.trim() || query.trim().length < 2) {
+      setCardSearchResults([]);
+      setSearchingCards(false);
+      return;
+    }
+    setSearchingCards(true);
+    const timeout = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/cards/search-for-linking?q=${encodeURIComponent(query.trim())}`);
+        const json = await res.json();
+        const results: SelectedCard[] = (json.data || []).map((r: any) => ({
+          id: r.id,
+          title: r.title,
+          boardName: r.boardName || '',
+          listName: r.listName || '',
+          client_id: r.client_id,
+        }));
+        setCardSearchResults(results);
+      } catch {
+        setCardSearchResults([]);
+      } finally {
+        setSearchingCards(false);
+      }
+    }, 300);
+    setCardSearchTimeout(timeout);
+  };
+
+  const toggleSearchCard = (card: SelectedCard & { client_id?: string | null }) => {
+    const already = selectedCards.find(c => c.id === card.id);
+    if (already) {
+      setSelectedCards(prev => prev.filter(c => c.id !== card.id));
+    } else {
+      setSelectedCards(prev => [...prev, {
+        id: card.id,
+        title: card.title,
+        boardName: card.boardName,
+        listName: card.listName,
+      }]);
+    }
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -814,7 +864,7 @@ export default function ClientsListView() {
               {showCardSection && (
                 <div className="px-4 pb-4 border-t border-cream-dark dark:border-slate-700">
                   <p className="text-xs text-navy/40 dark:text-slate-500 font-body mt-3 mb-3">
-                    Pick cards from your boards to link to this client.
+                    Search for any card across all boards, or browse by board below.
                   </p>
 
                   {/* Selected cards */}
@@ -842,6 +892,85 @@ export default function ClientsListView() {
                       ))}
                     </div>
                   )}
+
+                  {/* Search across all boards */}
+                  <div className="relative mb-3">
+                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-navy/30 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    <input
+                      type="text"
+                      value={cardSearchQuery}
+                      onChange={(e) => handleCardSearch(e.target.value)}
+                      placeholder="Search cards by name..."
+                      className="w-full pl-9 pr-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-navy/15 dark:border-slate-700 text-sm font-body text-navy dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric transition-all placeholder:text-navy/30 dark:placeholder:text-slate-500"
+                    />
+                  </div>
+
+                  {/* Search results */}
+                  {(cardSearchQuery.trim().length >= 2) && (
+                    <div className="max-h-48 overflow-y-auto rounded-lg border border-navy/15 dark:border-slate-700 bg-white dark:bg-dark-surface divide-y divide-cream-dark/50 dark:divide-slate-700/50 mb-3">
+                      {searchingCards ? (
+                        <div className="px-3 py-4 text-xs text-navy/40 dark:text-slate-500 font-body text-center">
+                          Searching...
+                        </div>
+                      ) : cardSearchResults.length === 0 ? (
+                        <div className="px-3 py-4 text-xs text-navy/40 dark:text-slate-500 font-body text-center">
+                          No cards found.
+                        </div>
+                      ) : (
+                        cardSearchResults.map((card: any) => {
+                          const selected = isCardSelected(card.id);
+                          const alreadyLinked = !!card.client_id && !selected;
+                          return (
+                            <button
+                              key={card.id}
+                              type="button"
+                              onClick={() => !alreadyLinked && toggleSearchCard(card)}
+                              disabled={alreadyLinked}
+                              className={`w-full text-left px-3 py-2 text-xs font-body transition-colors flex items-center gap-2 ${
+                                selected
+                                  ? 'text-electric bg-electric/5 dark:bg-electric/10'
+                                  : alreadyLinked
+                                  ? 'text-navy/30 dark:text-slate-600 bg-cream/30 dark:bg-slate-800/20 cursor-default'
+                                  : 'text-navy dark:text-slate-200 hover:bg-electric/5 dark:hover:bg-electric/10 cursor-pointer'
+                              }`}
+                            >
+                              {selected ? (
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-electric">
+                                  <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                              ) : alreadyLinked ? (
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                                </svg>
+                              ) : (
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-navy/20 dark:text-slate-600">
+                                  <line x1="12" y1="5" x2="12" y2="19" />
+                                  <line x1="5" y1="12" x2="19" y2="12" />
+                                </svg>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <span className="truncate block">{card.title}</span>
+                                <span className="text-[10px] text-navy/30 dark:text-slate-600 truncate block">{card.boardName} &rsaquo; {card.listName}</span>
+                              </div>
+                              {alreadyLinked && (
+                                <span className="text-[10px] text-navy/25 dark:text-slate-600 ml-auto shrink-0">linked</span>
+                              )}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+
+                  {/* Divider between search and browse */}
+                  <div className="flex items-center gap-2 my-2">
+                    <div className="flex-1 h-px bg-cream-dark dark:bg-slate-700" />
+                    <span className="text-[10px] text-navy/30 dark:text-slate-500 font-body uppercase tracking-wider">or browse by board</span>
+                    <div className="flex-1 h-px bg-cream-dark dark:bg-slate-700" />
+                  </div>
 
                   {/* Board selector */}
                   <select
@@ -875,7 +1004,7 @@ export default function ClientsListView() {
                     </select>
                   )}
 
-                  {/* Card list */}
+                  {/* Card list from browse */}
                   {selectedList && (
                     <div className="max-h-48 overflow-y-auto rounded-lg border border-navy/15 dark:border-slate-700 bg-white dark:bg-dark-surface divide-y divide-cream-dark/50 dark:divide-slate-700/50">
                       {loadingCards ? (
