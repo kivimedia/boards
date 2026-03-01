@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
         model_profile: modelProfile || 'cost_optimized',
         page_builder: pageBuilder || siteProfile.page_builder,
       },
-      created_by: auth.ctx.userId,
+      user_id: auth.ctx.userId,
     });
 
     // Optionally create board sub-tasks

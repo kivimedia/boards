@@ -9,24 +9,34 @@ interface FigmaFileEntry {
   project_name: string;
 }
 
+// ---------------------------------------------------------------------------
+// In-memory cache: siteProfileId -> { files, fetchedAt }
+// Files rarely change, so caching 5 min is safe and eliminates rate limits.
+// ---------------------------------------------------------------------------
+const cache = new Map<string, { files: FigmaFileEntry[]; fetchedAt: number }>();
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 /**
- * Fetch files for a single project with one retry on failure.
+ * Fetch files for a single project SEQUENTIALLY with up to 3 retries.
+ * Waits progressively longer on rate limits.
  */
 async function fetchProjectFiles(
   projectId: string,
   projectName: string,
   headers: Record<string, string>,
 ): Promise<FigmaFileEntry[]> {
-  for (let attempt = 0; attempt < 2; attempt++) {
+  const delays = [0, 1000, 2000]; // retry delays
+  for (let attempt = 0; attempt < delays.length; attempt++) {
     try {
-      if (attempt > 0) await new Promise((r) => setTimeout(r, 500));
+      if (delays[attempt]) await new Promise((r) => setTimeout(r, delays[attempt]));
       const res = await fetch(`https://api.figma.com/v1/projects/${projectId}/files`, {
         headers,
         signal: AbortSignal.timeout(15000),
       });
       if (res.status === 429) {
-        // Rate limited - wait and retry
-        await new Promise((r) => setTimeout(r, 1000));
+        const retryAfter = res.headers.get('Retry-After');
+        const wait = retryAfter ? parseInt(retryAfter, 10) * 1000 : 2000;
+        await new Promise((r) => setTimeout(r, wait));
         continue;
       }
       if (!res.ok) continue;
@@ -48,8 +58,8 @@ async function fetchProjectFiles(
 /**
  * GET /api/pageforge/figma/files
  * List Figma files from the site profile's team projects.
- * Query: ?siteProfileId=xxx
- * Returns: { files: FigmaFileEntry[] }
+ * Query: ?siteProfileId=xxx&bust=1 (bust=1 forces cache refresh)
+ * Returns: { files: FigmaFileEntry[], cached: boolean }
  */
 export async function GET(request: NextRequest) {
   const auth = await getAuthContext();
@@ -57,9 +67,18 @@ export async function GET(request: NextRequest) {
 
   const url = new URL(request.url);
   const siteProfileId = url.searchParams.get('siteProfileId');
+  const bustCache = url.searchParams.get('bust') === '1';
 
   if (!siteProfileId) {
     return errorResponse('siteProfileId is required');
+  }
+
+  // Check cache first (unless bust requested)
+  if (!bustCache) {
+    const cached = cache.get(siteProfileId);
+    if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
+      return NextResponse.json({ files: cached.files, cached: true });
+    }
   }
 
   const { data: site } = await auth.ctx.supabase
@@ -96,23 +115,17 @@ export async function GET(request: NextRequest) {
     const projData = await projRes.json();
     const projects: Array<{ id: string; name: string }> = projData.projects || [];
 
-    // 2. Fetch files in batches of 5 with retry to avoid Figma rate limits
-    const BATCH_SIZE = 5;
+    // 2. Fetch files SEQUENTIALLY - one project at a time.
+    //    This is slower on first load (~20s for 40 projects) but 100% reliable.
+    //    The 5-minute cache makes subsequent loads instant.
     const allFiles: FigmaFileEntry[] = [];
 
-    for (let i = 0; i < projects.length; i += BATCH_SIZE) {
-      const batch = projects.slice(i, i + BATCH_SIZE);
-      const batchResults = await Promise.all(
-        batch.map((project) => fetchProjectFiles(project.id, project.name, headers)),
-      );
-
-      for (const files of batchResults) {
-        allFiles.push(...files);
-      }
-
-      // Delay between batches to respect rate limits
-      if (i + BATCH_SIZE < projects.length) {
-        await new Promise((r) => setTimeout(r, 300));
+    for (const project of projects) {
+      const files = await fetchProjectFiles(project.id, project.name, headers);
+      allFiles.push(...files);
+      // Small delay between requests to be a good API citizen
+      if (projects.indexOf(project) < projects.length - 1) {
+        await new Promise((r) => setTimeout(r, 150));
       }
     }
 
@@ -121,7 +134,10 @@ export async function GET(request: NextRequest) {
       (a, b) => new Date(b.last_modified).getTime() - new Date(a.last_modified).getTime(),
     );
 
-    return NextResponse.json({ files: allFiles });
+    // Cache the result
+    cache.set(siteProfileId, { files: allFiles, fetchedAt: Date.now() });
+
+    return NextResponse.json({ files: allFiles, cached: false });
   } catch (err) {
     return errorResponse(err instanceof Error ? err.message : 'Figma API error', 500);
   }

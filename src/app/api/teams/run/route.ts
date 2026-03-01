@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
         page_slug: page_slug || null,
         page_builder: siteProfile?.page_builder || 'gutenberg',
         status: 'pending',
-        current_phase: 'pending',
+        current_phase: 0,
         phase_results: {},
         artifacts: {
           model_profile: model_profile || 'cost_optimized',
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
           site_profile_id: body.site_config_id || null,
           model_profile: model_profile || 'cost_optimized',
         },
-        created_by: userId,
+        user_id: userId,
       })
       .select()
       .single();
