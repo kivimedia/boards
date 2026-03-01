@@ -113,7 +113,8 @@ export async function GET(request: Request) {
       if (existing && existing.length > 0) continue;
 
       // Generate update
-      const activityData = await gatherClientActivity(supabase, config.client_id);
+      const includeMeetings = config.include_fathom_meetings !== false;
+      const activityData = await gatherClientActivity(supabase, config.client_id, 7, { includeMeetings });
       const generatedUpdate = await generateClientUpdate(supabase, activityData);
 
       const meetingTime = new Date(event.start_time);

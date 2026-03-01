@@ -351,8 +351,12 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
   };
 
   // ------- Designer Fix Request handlers -------
-  const namingIssues: PageForgeNamingIssue[] =
-    ((build?.artifacts as any)?.preflight?.figma_naming?.issues as PageForgeNamingIssue[]) || [];
+  const namingIssues: (PageForgeNamingIssue & { resolved?: boolean; suggestedName?: string })[] =
+    ((build?.artifacts as any)?.preflight?.figma_naming?.issues as any[]) || [];
+  const resolvedCount = namingIssues.filter(i => i.resolved).length;
+  const unresolvedCount = namingIssues.length - resolvedCount;
+  // Show unresolved first, resolved at the bottom
+  const sortedNamingIssues = [...namingIssues].sort((a, b) => (a.resolved ? 1 : 0) - (b.resolved ? 1 : 0));
   const designerFixRequest: PageForgeDesignerFixRequest | null =
     ((build?.artifacts as any)?.designer_fix_request as PageForgeDesignerFixRequest) || null;
 
@@ -1267,9 +1271,16 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
                 <h2 className="text-sm font-semibold text-amber-700 dark:text-amber-400">
                   Figma Naming Issues
                 </h2>
-                <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
-                  {namingIssues.length}
-                </span>
+                <div className="flex items-center gap-2">
+                  {resolvedCount > 0 && (
+                    <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                      {resolvedCount} auto-resolved
+                    </span>
+                  )}
+                  <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${unresolvedCount > 0 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'}`}>
+                    {unresolvedCount > 0 ? unresolvedCount : namingIssues.length}
+                  </span>
+                </div>
               </div>
               <div className="overflow-x-auto max-h-72 overflow-y-auto">
                 <table className="w-full text-left">
@@ -1298,8 +1309,8 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-navy/5 dark:divide-slate-700">
-                    {namingIssues.map((issue) => (
-                      <tr key={issue.nodeId} className="hover:bg-navy/[0.02] dark:hover:bg-slate-700/30">
+                    {sortedNamingIssues.map((issue) => (
+                      <tr key={issue.nodeId} className={`hover:bg-navy/[0.02] dark:hover:bg-slate-700/30 ${issue.resolved ? 'opacity-40' : ''}`}>
                         <td className="px-2 py-2">
                           <input
                             type="checkbox"
@@ -1309,16 +1320,23 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
                           />
                         </td>
                         <td className="px-2 py-2 text-xs text-navy dark:text-slate-200 font-mono">
-                          {issue.nodeName}
+                          {issue.resolved ? (
+                            <span className="flex items-center gap-1">
+                              <span className="line-through">{issue.nodeName}</span>
+                              <span className="text-green-600 dark:text-green-400 no-underline">&rarr; {issue.suggestedName}</span>
+                            </span>
+                          ) : issue.nodeName}
                         </td>
                         <td className="px-2 py-2 text-[10px] text-navy/40 dark:text-slate-500 capitalize">
                           {issue.nodeType.toLowerCase().replace(/_/g, ' ')}
                         </td>
                         <td className="px-2 py-2 text-xs text-amber-700 dark:text-amber-400">
-                          {issue.issue}
+                          {issue.resolved ? (
+                            <span className="text-green-600 dark:text-green-400">Auto-resolved</span>
+                          ) : issue.issue}
                         </td>
                         <td className="px-2 py-2 text-xs text-navy/60 dark:text-slate-400">
-                          {issue.suggested}
+                          {issue.resolved ? issue.suggestedName : issue.suggested}
                         </td>
                       </tr>
                     ))}

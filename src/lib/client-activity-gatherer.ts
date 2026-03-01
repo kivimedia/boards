@@ -13,16 +13,28 @@ export interface ClientActivityCard {
   was_completed_this_period: boolean;
 }
 
+export interface ClientMeetingActivity {
+  id: string;
+  title: string;
+  recorded_at: string;
+  duration_seconds: number | null;
+  ai_summary: string | null;
+  ai_action_items: { text: string; assignee?: string; due_date?: string; priority?: string }[] | null;
+  share_url: string | null;
+}
+
 export interface ClientActivityData {
   client: { id: string; name: string; company: string | null; contacts: { name: string; email: string }[] };
   period: { start: string; end: string };
   cards: ClientActivityCard[];
+  meetings?: ClientMeetingActivity[];
   summary_stats: {
     total_cards: number;
     cards_completed: number;
     cards_created: number;
     cards_in_progress: number;
     comments_added: number;
+    meetings_held?: number;
   };
 }
 
@@ -39,8 +51,10 @@ function isDoneList(listName: string): boolean {
 export async function gatherClientActivity(
   supabase: SupabaseClient,
   clientId: string,
-  periodDays: number = 7
+  periodDays: number = 7,
+  options?: { includeMeetings?: boolean }
 ): Promise<ClientActivityData> {
+  const includeMeetings = options?.includeMeetings !== false;
   const periodEnd = new Date();
   const periodStart = new Date(periodEnd.getTime() - periodDays * 24 * 60 * 60 * 1000);
   const periodStartISO = periodStart.toISOString();
@@ -172,6 +186,33 @@ export async function gatherClientActivity(
     c.status_changes.length > 0
   );
 
+  // Fetch Fathom meetings for this client in the period
+  let meetings: ClientMeetingActivity[] | undefined;
+  let meetingsHeld = 0;
+
+  if (includeMeetings) {
+    const { data: fathomMeetings } = await supabase
+      .from('fathom_recordings')
+      .select('id, title, meeting_title, recorded_at, duration_seconds, ai_summary, ai_action_items, share_url')
+      .eq('matched_client_id', clientId)
+      .gte('recorded_at', periodStartISO)
+      .order('recorded_at', { ascending: false })
+      .limit(10);
+
+    if (fathomMeetings && fathomMeetings.length > 0) {
+      meetings = fathomMeetings.map(m => ({
+        id: m.id,
+        title: m.title || m.meeting_title || 'Untitled Meeting',
+        recorded_at: m.recorded_at,
+        duration_seconds: m.duration_seconds,
+        ai_summary: m.ai_summary,
+        ai_action_items: m.ai_action_items as ClientMeetingActivity['ai_action_items'],
+        share_url: m.share_url,
+      }));
+      meetingsHeld = meetings.length;
+    }
+  }
+
   return {
     client: {
       id: client.id,
@@ -181,12 +222,14 @@ export async function gatherClientActivity(
     },
     period: { start: periodStartISO, end: periodEnd.toISOString() },
     cards: activeCards.slice(0, 20), // Cap at 20 most active
+    meetings,
     summary_stats: {
       total_cards: cards.length,
       cards_completed: cardsCompleted,
       cards_created: cardsCreated,
       cards_in_progress: cards.length - cardsCompleted,
       comments_added: totalComments,
+      meetings_held: meetingsHeld,
     },
   };
 }

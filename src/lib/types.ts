@@ -974,7 +974,9 @@ export type AIActivity =
   | 'pageforge_builder'
   | 'pageforge_vqa'
   | 'pageforge_qa'
-  | 'pageforge_seo';
+  | 'pageforge_seo'
+  | 'fathom_analysis'
+  | 'fathom_embedding';
 
 export type AIUsageStatus = 'success' | 'error' | 'cancelled' | 'budget_blocked' | 'rate_limited';
 

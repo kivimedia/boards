@@ -58,6 +58,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     if (body.send_mode !== undefined) updates.send_mode = body.send_mode;
     if (body.is_active !== undefined) updates.is_active = body.is_active;
     if (body.send_to_contacts !== undefined) updates.send_to_contacts = body.send_to_contacts;
+    if (body.include_fathom_meetings !== undefined) updates.include_fathom_meetings = body.include_fathom_meetings;
 
     const { data, error } = await auth.ctx.supabase
       .from('client_meeting_configs')

@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { FathomTranscriptEntry } from './fathom';
 import { transcriptToText } from './fathom';
+import { logUsage } from '@/lib/ai/cost-tracker';
 
 const CHUNK_SIZE = 1500;
 const CHUNK_OVERLAP = 200;
@@ -71,6 +72,7 @@ export async function indexTranscriptEmbeddings(params: {
 
   for (let i = 0; i < chunks.length; i += EMBEDDING_BATCH_SIZE) {
     const batch = chunks.slice(i, i + EMBEDDING_BATCH_SIZE);
+    const batchStart = Date.now();
     const response = await openai.embeddings.create({
       model: 'text-embedding-3-small',
       input: batch,
@@ -78,6 +80,22 @@ export async function indexTranscriptEmbeddings(params: {
     });
     for (const item of response.data) {
       allEmbeddings.push(item.embedding);
+    }
+
+    // Log embedding usage for cost tracking
+    try {
+      await logUsage(supabase, {
+        activity: 'fathom_embedding',
+        provider: 'openai',
+        modelId: 'text-embedding-3-small',
+        inputTokens: response.usage.total_tokens,
+        outputTokens: 0,
+        latencyMs: Date.now() - batchStart,
+        status: 'success',
+        metadata: { recording_id: recordingId, chunks_in_batch: batch.length },
+      });
+    } catch (logErr) {
+      console.error('[fathom-embeddings] Failed to log usage:', logErr);
     }
   }
 
