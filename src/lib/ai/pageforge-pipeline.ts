@@ -136,6 +136,7 @@ export const AGENT_ROLES = [
 
 export const PAGEFORGE_PHASE_ORDER: string[] = [
   'preflight',
+  'auto_name',
   'figma_analysis',
   'section_classification',
   'markup_generation',
@@ -154,6 +155,7 @@ export const PAGEFORGE_PHASE_ORDER: string[] = [
 
 const PHASE_TO_STATUS: Record<string, PageForgeBuildStatus> = {
   preflight: 'preflight',
+  auto_name: 'auto_name',
   figma_analysis: 'figma_analysis',
   section_classification: 'section_classification',
   markup_generation: 'markup_generation',
@@ -173,6 +175,7 @@ const PHASE_TO_STATUS: Record<string, PageForgeBuildStatus> = {
 // Map phases to their AI activity for model resolution
 const PHASE_TO_ACTIVITY: Record<string, AIActivity> = {
   preflight: 'pageforge_orchestrator',
+  auto_name: 'pageforge_orchestrator',
   figma_analysis: 'pageforge_builder',
   section_classification: 'pageforge_builder',
   markup_generation: 'pageforge_builder',

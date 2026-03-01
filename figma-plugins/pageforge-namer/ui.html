@@ -449,12 +449,8 @@
 
   <!-- Main action -->
   <div class="action-row">
-    <button class="btn btn-secondary" id="btnCancel" onclick="handleCancel()">
-      Close
-    </button>
-    <button class="btn btn-primary" id="btnFetch" onclick="handleFetch()">
-      Fetch Suggestions
-    </button>
+    <button class="btn btn-secondary" id="btnCancel" onclick="handleCancel()">Close</button>
+    <button class="btn btn-ghost" id="btnFetch" onclick="handleFetch()">Re-run AI</button>
   </div>
 
   <!-- Error banner -->
@@ -476,7 +472,7 @@
     <div class="results-list" id="resultsList">
       <div class="empty-state" id="emptyState">
         <div class="icon">&#128204;</div>
-        <p>Enter your API Key and Build ID, then click "Fetch Suggestions" to get AI-generated layer name recommendations.</p>
+        <p>Enter your API Key and Build ID to auto-load rename suggestions. Use "Re-run AI" to manually trigger a fresh analysis.</p>
       </div>
     </div>
   </div>
@@ -550,11 +546,23 @@
     }
   });
 
-  // Save build ID when user leaves the field
-  buildIdInput.addEventListener('blur', () => {
-    const val = buildIdInput.value.trim();
+  // Auto-load suggestions when user leaves the build ID field
+  buildIdInput.addEventListener('blur', function() {
+    var val = buildIdInput.value.trim();
     if (val) {
       postToPlugin({ type: 'save-credentials', buildId: val });
+      loadSuggestions();
+    }
+  });
+
+  // Auto-load suggestions when user presses Enter in build ID field
+  buildIdInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      var val = buildIdInput.value.trim();
+      if (val) {
+        postToPlugin({ type: 'save-credentials', buildId: val });
+        loadSuggestions();
+      }
     }
   });
 
@@ -604,7 +612,78 @@
   }
 
   // =========================================================================
-  // Fetch flow
+  // Auto-load suggestions via GET (pipeline results)
+  // =========================================================================
+  async function loadSuggestions() {
+    const keyVal = apiKeyInput.value.trim();
+    if (keyVal && keyVal.startsWith('ab_')) {
+      apiKey = keyVal;
+    }
+    if (!apiKey) return;
+
+    const buildId = buildIdInput.value.trim();
+    if (!buildId) return;
+
+    hideError();
+    setLoading(true, 'Loading suggestions...');
+
+    try {
+      const response = await fetch(`${API_BASE}/api/pageforge/builds/${buildId}/auto-name`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) throw new Error('Invalid API key.');
+        if (response.status === 404) throw new Error('Build not found.');
+        throw new Error(`API returned ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.data?.status === 'not_ready') {
+        setLoading(false);
+        setStatus('Pipeline hasn\'t run auto-name yet. Use "Re-run AI" to trigger manually.', '');
+        return;
+      }
+
+      if (data.data?.status === 'skipped') {
+        setLoading(false);
+        setStatus('No naming issues found - all layers are well-named.', 'success');
+        return;
+      }
+
+      // status === 'ready'
+      const renames = data.data?.renames || [];
+      if (renames.length === 0) {
+        setLoading(false);
+        setStatus('No rename suggestions available.', '');
+        return;
+      }
+
+      suggestions = renames.map(function(s) {
+        return {
+          nodeId: s.nodeId || s.node_id,
+          currentName: s.currentName || s.current_name || '',
+          suggestedName: s.suggestedName || s.suggested_name || '',
+          reason: s.reason || '',
+          nodeType: s.nodeType || s.node_type || '',
+          checked: true,
+        };
+      });
+
+      setLoading(false);
+      setStatus(suggestions.length + ' suggestion' + (suggestions.length !== 1 ? 's' : '') + ' loaded from pipeline', 'success');
+      renderSuggestions();
+    } catch (err) {
+      setLoading(false);
+      showError(err.message || 'Failed to load suggestions');
+      setStatus('Error loading suggestions', 'error');
+    }
+  }
+
+  // =========================================================================
+  // Re-run AI flow (manual POST with node collection)
   // =========================================================================
   function handleFetch() {
     // Read API key from input if not already stored
@@ -645,7 +724,13 @@
         apiKeyInput.value = msg.apiKey;
         showConnected();
       }
-      if (msg.buildId) buildIdInput.value = msg.buildId;
+      if (msg.buildId) {
+        buildIdInput.value = msg.buildId;
+        // Auto-load suggestions if we have both key and build ID
+        if (apiKey && msg.buildId) {
+          setTimeout(loadSuggestions, 300);
+        }
+      }
       return;
     }
 

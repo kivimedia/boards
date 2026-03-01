@@ -146,7 +146,7 @@ export async function sendEmailNotification(
 
   if (!profile?.email) return;
 
-  const fromEmail = process.env.RESEND_FROM_EMAIL || 'noreply@dailycookie.co';
+  const fromEmail = process.env.RESEND_FROM_EMAIL || 'KM Boards <noreply@dailycookie.co>';
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://kmboards.co';
   const cardLink = cardId ? `${siteUrl}/card/${cardId}` : siteUrl;
 

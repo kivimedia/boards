@@ -3467,6 +3467,7 @@ export type PageForgeBuilderType = 'gutenberg' | 'divi5' | 'divi4';
 export type PageForgeBuildStatus =
   | 'pending'
   | 'preflight'
+  | 'auto_name'
   | 'figma_analysis'
   | 'section_classification'
   | 'markup_generation'

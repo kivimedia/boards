@@ -95,7 +95,7 @@ export async function sendDigest(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: process.env.RESEND_FROM_EMAIL ?? 'updates@agency.com',
+        from: process.env.RESEND_FROM_EMAIL ?? 'KM Boards <noreply@dailycookie.co>',
         to: [email],
         subject: emailContent.subject,
         html: emailContent.html,

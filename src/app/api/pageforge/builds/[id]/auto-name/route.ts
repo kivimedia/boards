@@ -1,121 +1,70 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { errorResponse, successResponse } from '@/lib/api-helpers';
 import { getPageForgeAuth } from '@/lib/pageforge-auth';
-import {
-  createFigmaClient,
-  figmaGetFile,
-  figmaGetImages,
-  figmaDownloadImage,
-  FigmaNode,
-} from '@/lib/integrations/figma-client';
 import { getProviderKey } from '@/lib/ai/providers';
 import { logUsage } from '@/lib/ai/cost-tracker';
+import { runAutoName } from '@/lib/ai/pageforge-auto-name';
 import type { PageForgeNamingIssue } from '@/lib/types';
 
 interface Params {
   params: { id: string };
 }
 
-interface AutoNameRename {
-  nodeId: string;
-  currentName: string;
-  suggestedName: string;
-  reason: string;
-}
-
 // ============================================================================
-// NODE TREE BUILDER
+// GET HANDLER
 // ============================================================================
 
 /**
- * Collect all node IDs that are ancestors of issue nodes.
- * This lets us prune the tree to only relevant branches.
+ * GET /api/pageforge/builds/[id]/auto-name
+ * Returns pre-computed auto-name suggestions from build artifacts.
+ * Used by the Figma plugin to load results without triggering AI.
  */
-function collectAncestorIds(
-  node: FigmaNode,
-  issueNodeIds: Set<string>,
-  ancestors: string[] = []
-): Set<string> {
-  const result = new Set<string>();
+export async function GET(request: NextRequest, { params }: Params) {
+  const auth = await getPageForgeAuth(request, 'pageforge:read');
+  if (!auth.ok) return auth.response;
 
-  if (issueNodeIds.has(node.id)) {
-    // Mark all ancestors as relevant
-    for (const ancestorId of ancestors) {
-      result.add(ancestorId);
-    }
-    result.add(node.id);
+  const { supabase } = auth.ctx;
+  const buildId = params.id;
+
+  const { data: build, error } = await (supabase as any)
+    .from('pageforge_builds')
+    .select('artifacts')
+    .eq('id', buildId)
+    .single();
+
+  if (error || !build) {
+    return errorResponse('Build not found', 404);
   }
 
-  if (node.children) {
-    const newAncestors = [...ancestors, node.id];
-    for (const child of node.children) {
-      const childResult = collectAncestorIds(child, issueNodeIds, newAncestors);
-      childResult.forEach((id) => result.add(id));
-    }
+  const artifacts = (build.artifacts || {}) as Record<string, any>;
+  const autoNameData = artifacts.auto_name || artifacts.auto_name_results;
+
+  if (!autoNameData) {
+    return successResponse({
+      status: 'not_ready',
+      renames: [],
+      message: 'Auto-name has not run yet for this build',
+    });
   }
 
-  return result;
-}
-
-/**
- * Build a filtered node tree that only includes:
- * - Nodes with naming issues
- * - Ancestors of nodes with naming issues
- * - Direct children of ancestor nodes (for context)
- */
-function buildFilteredNodeTree(
-  node: FigmaNode,
-  issueNodeIds: Set<string>,
-  relevantIds: Set<string>,
-  depth: number = 0
-): string[] {
-  const lines: string[] = [];
-  const isRelevant = relevantIds.has(node.id) || issueNodeIds.has(node.id);
-
-  // Always include root-level pages and relevant nodes
-  if (depth <= 1 || isRelevant) {
-    const indent = '  '.repeat(depth);
-    const hasIssue = issueNodeIds.has(node.id);
-    const marker = hasIssue ? ' [!]' : '';
-    lines.push(`${indent}[${node.id}] ${node.type} "${node.name}"${marker}`);
-
-    if (node.children) {
-      for (const child of node.children) {
-        lines.push(
-          ...buildFilteredNodeTree(child, issueNodeIds, relevantIds, depth + 1)
-        );
-      }
-    }
+  if (autoNameData.skipped) {
+    return successResponse({
+      status: 'skipped',
+      renames: [],
+      message: autoNameData.reason || 'No naming issues found',
+    });
   }
 
-  return lines;
+  return successResponse({
+    status: 'ready',
+    renames: autoNameData.renames || [],
+    issue_count: autoNameData.issue_count,
+    rename_count: autoNameData.rename_count,
+    generated_at: autoNameData.generated_at,
+    had_screenshot: autoNameData.had_screenshot,
+    duration_ms: autoNameData.duration_ms,
+  });
 }
-
-// ============================================================================
-// GEMINI SYSTEM PROMPT
-// ============================================================================
-
-const SYSTEM_PROMPT = `You are a Figma layer naming expert. You are given a screenshot of a web page design and a tree of Figma layers.
-Many layers have generic auto-generated names like "Frame 427", "Rectangle 12", "Group 5", etc.
-These are marked with [!] in the node tree.
-
-Your job is to analyze the screenshot visually, understand what each section/element represents,
-and suggest proper semantic names following these conventions:
-- Use kebab-case (e.g., hero-section, cta-button, footer-nav)
-- Name should describe the visual/functional role (e.g., testimonials-grid, pricing-card, social-links)
-- For text layers, include the content type (e.g., hero-heading, subtitle-text, price-label)
-- For images/icons, describe what they show (e.g., logo-icon, hero-background, team-photo)
-- Group containers by what they contain (e.g., features-section, pricing-cards-row)
-- Keep names concise but descriptive (max 3-4 words joined by hyphens)
-
-Respond ONLY with valid JSON (no markdown code fences, no extra text):
-{
-  "renames": [
-    {"nodeId": "1:23", "currentName": "Frame 427", "suggestedName": "hero-section", "reason": "Top banner area with headline and CTA"}
-  ]
-}
-
-Only include nodes that need renaming (marked with [!] that have generic/meaningless names). Skip nodes that already have good descriptive names.`;
 
 // ============================================================================
 // POST HANDLER
@@ -174,172 +123,30 @@ export async function POST(request: NextRequest, { params }: Params) {
   }
 
   const namingIssues: PageForgeNamingIssue[] = namingData.issues;
-  const issueNodeIds = new Set(namingIssues.map((i) => i.nodeId));
 
   // -----------------------------------------------------------------------
-  // 3. Get the Figma file tree
+  // 3. Get Google API key
   // -----------------------------------------------------------------------
-  let figmaFile;
+  const apiKey = await getProviderKey(supabase, 'google');
+  if (!apiKey) {
+    return errorResponse('Google AI API key not configured');
+  }
+
+  // -----------------------------------------------------------------------
+  // 4. Run auto-name via shared module
+  // -----------------------------------------------------------------------
+  let result;
   try {
-    const client = createFigmaClient(siteProfile.figma_personal_token);
-    figmaFile = await figmaGetFile(client, build.figma_file_key);
-  } catch (err) {
-    console.error('[auto-name] Failed to fetch Figma file:', err);
-    return errorResponse(
-      `Failed to fetch Figma file: ${err instanceof Error ? err.message : String(err)}`,
-      502
-    );
-  }
-
-  // -----------------------------------------------------------------------
-  // 4. Build a compact text tree for the prompt
-  // -----------------------------------------------------------------------
-  const document = figmaFile.document;
-  const pages = document.children || [];
-
-  // Use figma_node_ids if available, otherwise use all pages
-  const targetNodeIds: string[] = build.figma_node_ids?.length
-    ? build.figma_node_ids
-    : pages.map((p: FigmaNode) => p.id);
-
-  // Find the target page nodes
-  const targetPages = pages.filter((p: FigmaNode) =>
-    targetNodeIds.some((nid: string) => nid === p.id || nid.startsWith(p.id))
-  );
-
-  // If no pages matched, fall back to first page
-  const pagesToProcess = targetPages.length > 0 ? targetPages : pages.slice(0, 1);
-
-  // Build the filtered node trees
-  let nodeTreeText = '';
-  for (const page of pagesToProcess) {
-    const relevantIds = collectAncestorIds(page, issueNodeIds);
-    const treeLines = buildFilteredNodeTree(page, issueNodeIds, relevantIds);
-    nodeTreeText += treeLines.join('\n') + '\n';
-  }
-
-  // Truncate if tree is too large (keep under 20k chars for Gemini context)
-  const MAX_TREE_LENGTH = 20000;
-  if (nodeTreeText.length > MAX_TREE_LENGTH) {
-    nodeTreeText = nodeTreeText.substring(0, MAX_TREE_LENGTH) + '\n... (truncated)';
-  }
-
-  // -----------------------------------------------------------------------
-  // 5. Export page-level screenshot from Figma
-  // -----------------------------------------------------------------------
-  let screenshotBase64: string | null = null;
-  try {
-    const client = createFigmaClient(siteProfile.figma_personal_token);
-    const pageNodeIds = pagesToProcess.map((p: FigmaNode) => p.id);
-
-    const imgResponse = await figmaGetImages(client, build.figma_file_key, pageNodeIds, {
-      format: 'jpg',
-      scale: 1,
+    result = await runAutoName({
+      figmaFileKey: build.figma_file_key,
+      figmaPersonalToken: siteProfile.figma_personal_token,
+      figmaNodeIds: build.figma_node_ids,
+      namingIssues,
+      googleApiKey: apiKey,
     });
-
-    if (imgResponse.images) {
-      // Get the first available image URL
-      const imageUrls = Object.values(imgResponse.images).filter((u): u is string => !!u);
-      if (imageUrls.length > 0) {
-        const imageBuffer = await figmaDownloadImage(imageUrls[0]);
-        screenshotBase64 = imageBuffer.toString('base64');
-      }
-    }
   } catch (err) {
-    // Screenshot is optional - continue without it
-    console.warn('[auto-name] Failed to export Figma screenshot, proceeding without image:', err);
-  }
-
-  // -----------------------------------------------------------------------
-  // 6. Call Gemini 2.0 Flash with screenshot + node tree
-  // -----------------------------------------------------------------------
-  let renames: AutoNameRename[] = [];
-  let inputTokens = 0;
-  let outputTokens = 0;
-
-  try {
-    const { GoogleGenerativeAI } = await import('@google/generative-ai');
-    const apiKey = await getProviderKey(supabase, 'google');
-    if (!apiKey) {
-      return errorResponse('Google AI API key not configured');
-    }
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-
-    // Build parts array - image first (if available), then text
-    const parts: any[] = [];
-
-    if (screenshotBase64) {
-      parts.push({
-        inlineData: { mimeType: 'image/jpeg', data: screenshotBase64 },
-      });
-    }
-
-    const userMessage = screenshotBase64
-      ? `Analyze this Figma page screenshot alongside the node tree below. Suggest proper semantic names for all nodes marked with [!].\n\nNode tree:\n${nodeTreeText}`
-      : `I don't have a screenshot available, but here is the Figma node tree. Based on the node types, nesting structure, and any naming patterns, suggest proper semantic names for all nodes marked with [!].\n\nNode tree:\n${nodeTreeText}`;
-
-    parts.push({ text: userMessage });
-
-    const result = await model.generateContent({
-      contents: [{ role: 'user', parts }],
-      systemInstruction: { role: 'model', parts: [{ text: SYSTEM_PROMPT }] },
-      generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 32768,
-      },
-    });
-
-    const responseText = result.response.text();
-    const usage = result.response.usageMetadata;
-    inputTokens = usage?.promptTokenCount || 0;
-    outputTokens = usage?.candidatesTokenCount || 0;
-
-    // Parse JSON response - handle potential markdown code fences and truncation
-    let cleanJson = responseText.trim();
-    if (cleanJson.startsWith('```')) {
-      cleanJson = cleanJson.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
-    }
-
-    let parsed: any;
-    try {
-      parsed = JSON.parse(cleanJson);
-    } catch (parseErr) {
-      // JSON may be truncated - try to recover partial results
-      // Find the last complete object in the renames array
-      const lastGoodClose = cleanJson.lastIndexOf('}');
-      if (lastGoodClose > 0) {
-        const truncated = cleanJson.substring(0, lastGoodClose + 1) + ']}';
-        try {
-          parsed = JSON.parse(truncated);
-        } catch {
-          // Try one more level - maybe we need to close an extra brace
-          try {
-            parsed = JSON.parse(truncated + '}');
-          } catch {
-            throw parseErr; // Give up, rethrow original error
-          }
-        }
-      } else {
-        throw parseErr;
-      }
-    }
-    renames = Array.isArray(parsed.renames) ? parsed.renames : [];
-
-    // Validate rename entries
-    renames = renames.filter(
-      (r) =>
-        r &&
-        typeof r.nodeId === 'string' &&
-        typeof r.suggestedName === 'string' &&
-        r.nodeId.length > 0 &&
-        r.suggestedName.length > 0
-    );
-  } catch (err) {
-    console.error('[auto-name] Gemini vision call failed:', err);
-
     const durationMs = Date.now() - startTime;
+
     // Log the failed attempt
     try {
       await logUsage(supabase, {
@@ -347,8 +154,8 @@ export async function POST(request: NextRequest, { params }: Params) {
         activity: 'pageforge_orchestrator',
         provider: 'google',
         modelId: 'gemini-2.5-flash',
-        inputTokens,
-        outputTokens,
+        inputTokens: 0,
+        outputTokens: 0,
         latencyMs: durationMs,
         status: 'error',
         errorMessage: err instanceof Error ? err.message : String(err),
@@ -364,10 +171,8 @@ export async function POST(request: NextRequest, { params }: Params) {
     );
   }
 
-  const durationMs = Date.now() - startTime;
-
   // -----------------------------------------------------------------------
-  // 7. Log usage
+  // 5. Log usage
   // -----------------------------------------------------------------------
   try {
     await logUsage(supabase, {
@@ -375,16 +180,16 @@ export async function POST(request: NextRequest, { params }: Params) {
       activity: 'pageforge_orchestrator',
       provider: 'google',
       modelId: 'gemini-2.5-flash',
-      inputTokens,
-      outputTokens,
-      latencyMs: durationMs,
+      inputTokens: result.input_tokens,
+      outputTokens: result.output_tokens,
+      latencyMs: result.duration_ms,
       status: 'success',
       metadata: {
         buildId,
         endpoint: 'auto-name',
-        issueCount: namingIssues.length,
-        renameCount: renames.length,
-        hadScreenshot: !!screenshotBase64,
+        issueCount: result.issue_count,
+        renameCount: result.rename_count,
+        hadScreenshot: result.had_screenshot,
       },
     });
   } catch (logErr) {
@@ -392,22 +197,22 @@ export async function POST(request: NextRequest, { params }: Params) {
   }
 
   // -----------------------------------------------------------------------
-  // 8. Store results in build artifacts
+  // 6. Store results in build artifacts
   // -----------------------------------------------------------------------
   const autoNameResults = {
-    renames,
-    generated_at: new Date().toISOString(),
-    model: 'gemini-2.5-flash',
-    issue_count: namingIssues.length,
-    rename_count: renames.length,
-    had_screenshot: !!screenshotBase64,
-    duration_ms: durationMs,
+    renames: result.renames,
+    generated_at: result.generated_at,
+    model: result.model,
+    issue_count: result.issue_count,
+    rename_count: result.rename_count,
+    had_screenshot: result.had_screenshot,
+    duration_ms: result.duration_ms,
   };
 
   try {
     const updatedArtifacts = {
       ...artifacts,
-      auto_name_results: autoNameResults,
+      auto_name: autoNameResults,
     };
 
     const { error: updateError } = await (supabase as any)
@@ -427,13 +232,13 @@ export async function POST(request: NextRequest, { params }: Params) {
   }
 
   // -----------------------------------------------------------------------
-  // 9. Return results
+  // 7. Return results
   // -----------------------------------------------------------------------
   return successResponse({
-    renames,
-    issue_count: namingIssues.length,
-    rename_count: renames.length,
-    had_screenshot: !!screenshotBase64,
-    duration_ms: durationMs,
+    renames: result.renames,
+    issue_count: result.issue_count,
+    rename_count: result.rename_count,
+    had_screenshot: result.had_screenshot,
+    duration_ms: result.duration_ms,
   });
 }
