@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext, errorResponse } from '@/lib/api-helpers';
+import { errorResponse } from '@/lib/api-helpers';
+import { getPageForgeAuth } from '@/lib/pageforge-auth';
 import { getBuildWithCalls } from '@/lib/ai/pageforge-pipeline';
 
 interface Params {
@@ -10,8 +11,8 @@ interface Params {
  * GET /api/pageforge/builds/[id]
  * Get build detail with agent calls and phases.
  */
-export async function GET(_request: NextRequest, { params }: Params) {
-  const auth = await getAuthContext();
+export async function GET(request: NextRequest, { params }: Params) {
+  const auth = await getPageForgeAuth(request, 'pageforge:read');
   if (!auth.ok) return auth.response;
 
   try {

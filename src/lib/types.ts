@@ -2354,7 +2354,9 @@ export type ApiKeyPermission =
   | 'labels:read'
   | 'labels:write'
   | 'webhooks:manage'
-  | 'users:read';
+  | 'users:read'
+  | 'pageforge:read'
+  | 'pageforge:write';
 
 export interface ApiKey {
   id: string;
