@@ -15,7 +15,6 @@ function isCredentialStale(createdAt: string): boolean {
 const BUILDER_LABELS: Record<string, string> = {
   gutenberg: 'Gutenberg',
   divi5: 'Divi 5',
-  divi4: 'Divi 4',
 };
 
 const INPUT_CLS =
@@ -24,7 +23,6 @@ const INPUT_CLS =
 const BUILDERS: { value: PageForgeBuilderType; label: string }[] = [
   { value: 'gutenberg', label: 'Gutenberg' },
   { value: 'divi5', label: 'Divi 5' },
-  { value: 'divi4', label: 'Divi 4' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -36,8 +34,6 @@ interface EditForm {
   wp_rest_url: string;
   wp_username: string;
   wp_app_password: string;
-  figma_personal_token: string;
-  figma_team_id: string;
   page_builder: PageForgeBuilderType;
   vqa_pass_threshold: number;
   lighthouse_min_score: number;
@@ -52,8 +48,6 @@ function siteToForm(s: PageForgeSiteProfile): EditForm {
     wp_rest_url: s.wp_rest_url,
     wp_username: s.wp_username ?? '',
     wp_app_password: s.wp_app_password ?? '',
-    figma_personal_token: s.figma_personal_token ?? '',
-    figma_team_id: s.figma_team_id ?? '',
     page_builder: s.page_builder,
     vqa_pass_threshold: s.vqa_pass_threshold,
     lighthouse_min_score: s.lighthouse_min_score,
@@ -122,8 +116,6 @@ export default function PageForgeSitesList() {
           wpRestUrl: editForm.wp_rest_url || `${editForm.site_url.replace(/\/+$/, '')}/wp-json`,
           wpUsername: editForm.wp_username || null,
           wpAppPassword: editForm.wp_app_password || null,
-          figmaPersonalToken: editForm.figma_personal_token || null,
-          figmaTeamId: editForm.figma_team_id || null,
           pageBuilder: editForm.page_builder,
           vqaPassThreshold: editForm.vqa_pass_threshold,
           lighthouseMinScore: editForm.lighthouse_min_score,
@@ -383,42 +375,6 @@ export default function PageForgeSitesList() {
                       </div>
                     </div>
 
-                    {/* Figma */}
-                    <div className="space-y-3">
-                      <h4 className="text-xs font-semibold text-navy/60 dark:text-slate-300 font-heading uppercase tracking-wider">
-                        Figma Integration
-                      </h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-semibold text-navy/60 dark:text-slate-400 mb-1 font-heading">Personal Access Token</label>
-                          <input
-                            type="password"
-                            value={editForm.figma_personal_token}
-                            onChange={(e) => updateForm('figma_personal_token', e.target.value)}
-                            placeholder="figd_..."
-                            className={INPUT_CLS}
-                          />
-                          <p className="text-[10px] text-navy/30 dark:text-slate-600 mt-1 font-body">
-                            <a href="https://www.figma.com/developers/api#access-tokens" target="_blank" rel="noopener noreferrer" className="text-electric hover:underline">Generate token</a>{' '}
-                            in Figma Settings
-                          </p>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-navy/60 dark:text-slate-400 mb-1 font-heading">Team ID</label>
-                          <input
-                            type="text"
-                            value={editForm.figma_team_id}
-                            onChange={(e) => updateForm('figma_team_id', e.target.value)}
-                            placeholder="Team ID"
-                            className={INPUT_CLS}
-                          />
-                          <p className="text-[10px] text-navy/30 dark:text-slate-600 mt-1 font-body">
-                            From your team URL: figma.com/files/team/<strong>TEAM_ID</strong>/...
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
                     {/* Page Builder */}
                     <div className="space-y-3">
                       <h4 className="text-xs font-semibold text-navy/60 dark:text-slate-300 font-heading uppercase tracking-wider">
@@ -455,10 +411,11 @@ export default function PageForgeSitesList() {
                       </h4>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
-                          <div className="flex items-center justify-between mb-1.5">
-                            <label className="text-xs text-navy/60 dark:text-slate-400 font-heading">VQA Pass</label>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-xs font-semibold text-navy/60 dark:text-slate-400 font-heading">VQA Pass Score</label>
                             <span className="text-xs font-bold text-electric">{editForm.vqa_pass_threshold}%</span>
                           </div>
+                          <p className="text-[10px] text-navy/30 dark:text-slate-600 font-body mb-1.5">Visual match threshold</p>
                           <input
                             type="range" min={80} max={100}
                             value={editForm.vqa_pass_threshold}
@@ -467,10 +424,11 @@ export default function PageForgeSitesList() {
                           />
                         </div>
                         <div>
-                          <div className="flex items-center justify-between mb-1.5">
-                            <label className="text-xs text-navy/60 dark:text-slate-400 font-heading">Lighthouse</label>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-xs font-semibold text-navy/60 dark:text-slate-400 font-heading">Lighthouse Min</label>
                             <span className="text-xs font-bold text-electric">{editForm.lighthouse_min_score}</span>
                           </div>
+                          <p className="text-[10px] text-navy/30 dark:text-slate-600 font-body mb-1.5">Performance score floor</p>
                           <input
                             type="range" min={50} max={100}
                             value={editForm.lighthouse_min_score}
@@ -479,10 +437,11 @@ export default function PageForgeSitesList() {
                           />
                         </div>
                         <div>
-                          <div className="flex items-center justify-between mb-1.5">
-                            <label className="text-xs text-navy/60 dark:text-slate-400 font-heading">Max VQA Loops</label>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-xs font-semibold text-navy/60 dark:text-slate-400 font-heading">Max Fix Loops</label>
                             <span className="text-xs font-bold text-electric">{editForm.max_vqa_fix_loops}</span>
                           </div>
+                          <p className="text-[10px] text-navy/30 dark:text-slate-600 font-body mb-1.5">VQA retry attempts</p>
                           <input
                             type="range" min={1} max={5}
                             value={editForm.max_vqa_fix_loops}

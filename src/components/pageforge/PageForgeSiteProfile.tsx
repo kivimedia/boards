@@ -53,7 +53,6 @@ const INITIAL_FORM: FormState = {
 const BUILDERS: { value: PageForgeBuilderType; label: string }[] = [
   { value: 'gutenberg', label: 'Gutenberg' },
   { value: 'divi5', label: 'Divi 5' },
-  { value: 'divi4', label: 'Divi 4' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -313,37 +312,6 @@ export default function PageForgeSiteProfile({ siteId, onSaved }: PageForgeSiteP
             </div>
           </div>
         )}
-      </div>
-
-      {/* Figma fields */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-navy/5 dark:border-slate-700 p-5 space-y-4">
-        <h2 className="text-sm font-semibold text-navy dark:text-slate-200">Figma Integration</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-semibold text-navy/60 dark:text-slate-400 mb-1">
-              Personal Access Token
-            </label>
-            <input
-              type="password"
-              value={form.figma_personal_token}
-              onChange={(e) => updateField('figma_personal_token', e.target.value)}
-              placeholder="figd_..."
-              className="w-full rounded-lg border border-navy/10 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm text-navy dark:text-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-electric/40"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-navy/60 dark:text-slate-400 mb-1">
-              Team ID
-            </label>
-            <input
-              type="text"
-              value={form.figma_team_id}
-              onChange={(e) => updateField('figma_team_id', e.target.value)}
-              placeholder="12345678"
-              className="w-full rounded-lg border border-navy/10 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm text-navy dark:text-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-electric/40"
-            />
-          </div>
-        </div>
       </div>
 
       {/* Builder selector */}

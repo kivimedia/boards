@@ -80,8 +80,6 @@ interface NewSiteForm {
   wp_username: string;
   wp_app_password: string;
   page_builder: string;
-  figma_personal_token: string;
-  figma_team_id: string;
   client_id: string;
 }
 
@@ -92,8 +90,6 @@ const EMPTY_SITE_FORM: NewSiteForm = {
   wp_username: '',
   wp_app_password: '',
   page_builder: 'gutenberg',
-  figma_personal_token: '',
-  figma_team_id: '',
   client_id: '',
 };
 
@@ -272,8 +268,6 @@ export default function PageForgeDashboard() {
           wpUsername: newSiteForm.wp_username || undefined,
           wpAppPassword: newSiteForm.wp_app_password || undefined,
           pageBuilder: newSiteForm.page_builder,
-          figmaPersonalToken: newSiteForm.figma_personal_token || undefined,
-          figmaTeamId: newSiteForm.figma_team_id || undefined,
           clientId: newSiteForm.client_id || undefined,
         }),
       });
@@ -494,7 +488,7 @@ export default function PageForgeDashboard() {
                       </td>
                       <td className="px-4 py-3">
                         <a
-                          href={`/pageforge/builds/${build.id}`}
+                          href={`/pageforge/${build.id}`}
                           className="text-xs font-semibold text-electric hover:text-electric-bright transition-colors"
                         >
                           View
@@ -711,42 +705,6 @@ export default function PageForgeDashboard() {
                     </div>
                   </div>
 
-                  {/* Figma Integration */}
-                  <div className="space-y-2">
-                    <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 font-heading">
-                      Figma Integration <span className="font-normal text-navy/30 dark:text-slate-600">(optional)</span>
-                    </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <input
-                          type="password"
-                          value={newSiteForm.figma_personal_token}
-                          onChange={(e) => setNewSiteForm(prev => ({ ...prev, figma_personal_token: e.target.value }))}
-                          placeholder="Personal access token"
-                          className="w-full rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 px-3 py-2.5 font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric placeholder:text-navy/30 dark:placeholder:text-slate-500"
-                        />
-                        <p className="text-[10px] text-navy/30 dark:text-slate-600 mt-1 font-body">
-                          <a href="https://www.figma.com/developers/api#access-tokens" target="_blank" rel="noopener noreferrer" className="text-electric hover:underline">
-                            Generate token
-                          </a>{' '}
-                          in Figma Settings &gt; Personal access tokens
-                        </p>
-                      </div>
-                      <div>
-                        <input
-                          type="text"
-                          value={newSiteForm.figma_team_id}
-                          onChange={(e) => setNewSiteForm(prev => ({ ...prev, figma_team_id: e.target.value }))}
-                          placeholder="Team ID"
-                          className="w-full rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 px-3 py-2.5 font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric placeholder:text-navy/30 dark:placeholder:text-slate-500"
-                        />
-                        <p className="text-[10px] text-navy/30 dark:text-slate-600 mt-1 font-body">
-                          From your team URL: figma.com/files/team/<strong>TEAM_ID</strong>/...
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
                   {/* Client selector */}
                   <div>
                     <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1.5 font-heading">
@@ -896,7 +854,11 @@ export default function PageForgeDashboard() {
                         className="w-full rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 px-3 py-2.5 pr-8 font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric placeholder:text-navy/30 dark:placeholder:text-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                       {figmaFilesLoading && (
-                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-electric/30 border-t-electric rounded-full animate-spin" />
+                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                          <div className="w-1.5 h-1.5 rounded-full bg-electric animate-pulse" />
+                          <div className="w-1.5 h-1.5 rounded-full bg-electric animate-pulse [animation-delay:150ms]" />
+                          <div className="w-1.5 h-1.5 rounded-full bg-electric animate-pulse [animation-delay:300ms]" />
+                        </div>
                       )}
                       {!figmaFilesLoading && figmaFiles.length > 0 && (
                         <button
