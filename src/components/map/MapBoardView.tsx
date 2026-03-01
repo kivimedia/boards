@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Client, Door, TrainingAssignment, MapSection, MapSectionType } from '@/lib/types';
 import DoorsRoadmap from './DoorsRoadmap';
 import TrainingTracker from './TrainingTracker';
@@ -25,6 +26,7 @@ const SECTION_TYPE_LABELS: Record<MapSectionType, string> = {
 };
 
 export default function MapBoardView({ clientId }: MapBoardViewProps) {
+  const router = useRouter();
   const [client, setClient] = useState<Client | null>(null);
   const [doors, setDoors] = useState<Door[]>([]);
   const [training, setTraining] = useState<TrainingAssignment[]>([]);
@@ -226,6 +228,15 @@ export default function MapBoardView({ clientId }: MapBoardViewProps) {
                   <line x1="3" y1="10" x2="21" y2="10" strokeWidth="2" />
                 </svg>
                 Meetings
+              </button>
+              <button
+                onClick={() => router.push(`/tools/offboarding?clientId=${clientId}`)}
+                className="p-2 rounded-xl text-navy/40 dark:text-slate-400 hover:text-electric hover:bg-electric/5 transition-all duration-200"
+                title="Offboarding Report"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
               </button>
               <button
                 onClick={handleExportPDF}

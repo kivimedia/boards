@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Board, List } from '@/lib/types';
 import Button from '@/components/ui/Button';
@@ -8,11 +9,13 @@ import Button from '@/components/ui/Button';
 interface CardActionsProps {
   cardId: string;
   boardId: string;
+  clientId?: string | null;
   onClose: () => void;
   onRefresh: () => void;
 }
 
-export default function CardActions({ cardId, boardId, onClose, onRefresh }: CardActionsProps) {
+export default function CardActions({ cardId, boardId, clientId, onClose, onRefresh }: CardActionsProps) {
+  const router = useRouter();
   const [showMirror, setShowMirror] = useState(false);
   const [showMove, setShowMove] = useState(false);
   const [boards, setBoards] = useState<Board[]>([]);
@@ -219,6 +222,15 @@ export default function CardActions({ cardId, boardId, onClose, onRefresh }: Car
         {showMove && <BoardListSelector onSubmit={handleMove} submitLabel="Move Card" />}
 
         <hr className="border-cream-dark dark:border-slate-700 my-2" />
+
+        {clientId && (
+          <button
+            onClick={() => router.push(`/tools/offboarding?clientId=${clientId}`)}
+            className="w-full text-left px-3 py-2 rounded-lg text-sm text-navy/60 dark:text-slate-400 hover:bg-cream-dark dark:hover:bg-slate-800 hover:text-navy dark:hover:text-slate-100 transition-all font-body"
+          >
+            Offboarding Report
+          </button>
+        )}
 
         <button
           onClick={handleArchive}
