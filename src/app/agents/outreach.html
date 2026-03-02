@@ -1,0 +1,2060 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Balloon Decorator Outreach</title>
+<style>
+/* ── Design Tokens ─────────────────────────────────────────────────────── */
+:root {
+    --bg:#0d0d0f;--surface:#16161a;--card:#1e1e24;--card-hover:#26262e;
+    --border:#2e2e38;--accent:#7c5cfc;--accent2:#c084fc;--text:#e8e8f0;
+    --muted:#8888a0;--success:#22c55e;--error:#ef4444;--warning:#f59e0b;
+    --info:#3b82f6;--radius:12px;--radius-sm:8px;--sidebar-w:200px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex}
+a{color:var(--accent);text-decoration:none;cursor:pointer}a:hover{color:var(--accent2)}
+
+/* ── Sidebar ──────────────────────────────────────────────────────────── */
+.sidebar{width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100}
+.sidebar-logo{padding:18px;font-size:15px;font-weight:700;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.sidebar-logo span{background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.sidebar-nav{list-style:none;padding:10px 6px;flex:1}
+.sidebar-nav li{margin-bottom:1px}
+.sidebar-nav a{display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:var(--radius-sm);color:var(--muted);font-size:13px;transition:all .2s;cursor:pointer}
+.sidebar-nav a:hover{background:var(--card);color:var(--text)}
+.sidebar-nav a.active{background:rgba(124,92,252,.12);color:var(--accent)}
+.nav-icon{width:18px;text-align:center;font-size:15px}
+.main{margin-left:var(--sidebar-w);flex:1;padding:24px 28px;min-height:100vh}
+.page{display:none}.page.active{display:block}
+
+/* ── Page Header ──────────────────────────────────────────────────────── */
+.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
+.page-header h1{font-size:clamp(20px,3vw,28px);font-weight:700;background:linear-gradient(135deg,#fff,var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.header-actions{display:flex;gap:8px;align-items:center}
+
+/* ── Cards ────────────────────────────────────────────────────────────── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:16px}
+.card-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.card-hdr h2,.card-hdr h3{font-size:15px;font-weight:600}
+
+/* ── Buttons ──────────────────────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:var(--radius-sm);border:none;font-size:12px;font-weight:500;cursor:pointer;transition:all .2s;font-family:inherit}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;box-shadow:0 2px 8px rgba(124,92,252,.3)}
+.btn-primary:hover{box-shadow:0 4px 16px rgba(124,92,252,.5);transform:translateY(-1px)}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted)}
+.btn-ghost:hover{border-color:var(--accent);color:var(--text)}
+.btn-danger{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:var(--error)}
+.btn-success{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:var(--success)}
+.btn-sm{padding:4px 9px;font-size:11px}
+.btn:disabled{opacity:.4;pointer-events:none}
+
+/* ── Badges ───────────────────────────────────────────────────────────── */
+.badge{display:inline-flex;align-items:center;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:600;letter-spacing:.02em}
+.b-qual{background:rgba(34,197,94,.15);color:var(--success)}
+.b-maybe{background:rgba(245,158,11,.15);color:var(--warning)}
+.b-skip{background:rgba(239,68,68,.15);color:var(--error)}
+.b-beg{background:rgba(59,130,246,.15);color:var(--info)}
+.b-scale{background:rgba(192,132,252,.15);color:var(--accent2)}
+.b-sent{background:rgba(34,197,94,.15);color:var(--success)}
+.b-draft{background:rgba(245,158,11,.15);color:var(--warning)}
+
+/* ── Forms ────────────────────────────────────────────────────────────── */
+.fg{margin-bottom:14px}
+.fg label{display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
+.inp,.sel,.ta{width:100%;padding:9px 12px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px;font-family:inherit;transition:border-color .2s}
+.inp:focus,.sel:focus,.ta:focus{outline:none;border-color:var(--accent)}
+.ta{resize:vertical;min-height:60px}
+.sel{appearance:none;cursor:pointer;padding-right:28px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%238888a0' d='M5 7L0 2h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+
+/* ── Table ────────────────────────────────────────────────────────────── */
+.dt{width:100%;border-collapse:collapse}
+.dt th{text-align:left;padding:8px 12px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border)}
+.dt td{padding:10px 12px;font-size:13px;border-bottom:1px solid var(--border)}
+.dt tr:hover td{background:var(--card)}
+.dt tr{cursor:pointer}
+
+/* ── Pipeline Board ───────────────────────────────────────────────────── */
+.pipe-board{display:grid;grid-template-columns:repeat(8,minmax(160px,1fr));gap:8px;overflow-x:auto;padding-bottom:12px}
+.pipe-col{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);min-height:300px;display:flex;flex-direction:column}
+.pipe-hdr{padding:10px 12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.pipe-hdr .sn{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text)}
+.cnt-b{background:var(--accent);color:#fff;border-radius:12px;padding:1px 7px;font-size:9px;font-weight:700;min-width:18px;text-align:center}
+.pipe-cards{flex:1;padding:6px;display:flex;flex-direction:column;gap:5px;min-height:40px}
+.pipe-cards.drag-over{background:rgba(124,92,252,.05)}
+.lc{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;cursor:grab;transition:all .2s}
+.lc:hover{border-color:var(--accent);transform:translateY(-1px)}
+.lc.dragging{opacity:.4}
+.lc-name{font-size:12px;font-weight:600;margin-bottom:3px}
+.lc-biz{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px}
+.lc-foot{display:flex;justify-content:space-between;align-items:center}
+.lc-handler{font-size:9px;color:var(--muted);background:var(--surface);padding:1px 5px;border-radius:3px}
+
+/* ── Stats Grid ───────────────────────────────────────────────────────── */
+.stats-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+.stat-c{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center}
+.stat-v{font-size:26px;font-weight:700;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.stat-l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:3px}
+
+/* ── Funnel ───────────────────────────────────────────────────────────── */
+.funnel-bar{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.funnel-lbl{width:120px;text-align:right;font-size:11px;color:var(--muted);flex-shrink:0}
+.funnel-trk{flex:1;height:24px;background:var(--card);border-radius:5px;overflow:hidden}
+.funnel-fill{height:100%;border-radius:5px;display:flex;align-items:center;padding-left:8px;font-size:11px;font-weight:600;color:#fff;min-width:24px;transition:width .6s ease}
+
+/* ── Checklist ────────────────────────────────────────────────────────── */
+.chk-list{list-style:none}
+.chk-item{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px}
+.chk-item:last-child{border-bottom:none}
+.chk-i{font-size:14px;flex-shrink:0;margin-top:1px}
+.chk-i.pass{color:var(--success)}.chk-i.fail{color:var(--error)}
+.chk-note{font-size:10px;color:var(--warning);margin-top:1px}
+
+/* ── Timeline ─────────────────────────────────────────────────────────── */
+.tl{position:relative;padding-left:20px}
+.tl::before{content:'';position:absolute;left:6px;top:0;bottom:0;width:2px;background:var(--border)}
+.tl-item{position:relative;padding-bottom:16px}
+.tl-item::before{content:'';position:absolute;left:-17px;top:3px;width:8px;height:8px;border-radius:50%;background:var(--accent);border:2px solid var(--bg)}
+.tl-date{font-size:10px;color:var(--muted);margin-bottom:3px}
+.tl-ct{font-size:12px}
+
+/* ── Message Preview ──────────────────────────────────────────────────── */
+.msg-prev{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;font-size:13px;line-height:1.6;white-space:pre-wrap;position:relative}
+.char-cnt{position:absolute;bottom:6px;right:10px;font-size:10px;color:var(--muted)}
+.char-cnt.over{color:var(--error);font-weight:600}
+
+/* ── Modal ────────────────────────────────────────────────────────────── */
+.modal-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:center;justify-content:center}
+.modal-ov.vis{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px;max-width:520px;width:92%;max-height:80vh;overflow-y:auto}
+.modal h3{font-size:17px;margin-bottom:10px}
+.modal-act{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+
+/* ── Toast ────────────────────────────────────────────────────────────── */
+.toast-c{position:fixed;top:16px;right:16px;z-index:300;display:flex;flex-direction:column;gap:6px}
+.toast{padding:10px 16px;border-radius:var(--radius-sm);font-size:12px;font-weight:500;animation:fadeUp .3s ease;max-width:320px}
+.t-ok{background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.3);color:var(--success)}
+.t-err{background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);color:var(--error)}
+.t-info{background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);color:var(--info)}
+
+/* ── Empty State ──────────────────────────────────────────────────────── */
+.empty{text-align:center;padding:36px 16px;color:var(--muted)}
+.empty .ei{font-size:36px;margin-bottom:10px}
+.empty p{font-size:13px;margin-bottom:14px}
+
+/* ── Animations / Responsive ──────────────────────────────────────────── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.mob-tog{display:none;position:fixed;top:10px;left:10px;z-index:150;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:var(--radius-sm);font-size:16px;cursor:pointer}
+@media(max-width:768px){
+    .sidebar{transform:translateX(-100%);transition:transform .3s}.sidebar.open{transform:translateX(0)}
+    .mob-tog{display:block}.main{margin-left:0;padding:14px;padding-top:48px}
+    .pipe-board{grid-template-columns:repeat(8,180px)}.form-row{grid-template-columns:1fr}
+    .stats-g{grid-template-columns:repeat(2,1fr)}
+}
+.mt-2{margin-top:8px}.mt-3{margin-top:12px}.mb-2{margin-bottom:8px}.mb-3{margin-bottom:12px}
+.flex{display:flex}.fw{flex-wrap:wrap}.aic{align-items:center}.jcb{justify-content:space-between}
+.gap-2{gap:8px}.hidden{display:none!important}.text-m{color:var(--muted)}.text-s{font-size:11px}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:900px){.detail-grid{grid-template-columns:1fr}}
+
+/* ── Scout Page ───────────────────────────────────────────────────────── */
+.kw-grid{display:flex;flex-wrap:wrap;gap:6px}
+.kw-chip{display:flex;align-items:center;gap:5px;padding:6px 12px;background:var(--card);border:1px solid var(--border);border-radius:20px;font-size:12px;cursor:pointer;transition:all .2s;user-select:none}
+.kw-chip:hover{border-color:var(--accent)}
+.kw-chip.on{background:rgba(124,92,252,.15);border-color:var(--accent);color:var(--accent2)}
+.kw-chip input{display:none}
+.search-url-box{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;font-size:12px;word-break:break-all;color:var(--accent);margin:10px 0}
+.eval-result{border-left:3px solid var(--accent);padding:12px 16px;background:var(--card);border-radius:0 var(--radius-sm) var(--radius-sm) 0;margin-top:12px}
+.eval-result h4{font-size:13px;margin-bottom:6px}
+.eval-signals{list-style:none;padding:0}
+.eval-signals li{font-size:12px;padding:3px 0;color:var(--muted)}
+.eval-signals li::before{content:'\2022';color:var(--accent);margin-right:8px}
+.hook-sug{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;margin:4px 0;cursor:pointer;transition:all .2s}
+.hook-sug:hover{border-color:var(--accent);color:var(--accent2)}
+.scout-checklist{list-style:none}
+.scout-checklist li{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
+.scout-checklist li:last-child{border-bottom:none}
+.scout-checklist input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
+.extract-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--border);font-size:12px;transition:background .15s}
+.extract-row:hover{background:var(--card-hover)}
+.extract-row:last-child{border-bottom:none}
+.extract-row .er-name{font-weight:600;min-width:140px}
+.extract-row .er-title{color:var(--muted);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.extract-row .er-url{color:var(--accent);font-size:11px;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.extract-row input[type=checkbox]{accent-color:var(--accent);width:14px;height:14px}
+.bookmarklet-btn{display:inline-block;padding:8px 16px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-radius:var(--radius-sm);font-size:12px;font-weight:600;cursor:grab;text-decoration:none;user-select:none}
+.bookmarklet-btn:hover{color:#fff;box-shadow:0 4px 16px rgba(124,92,252,.5)}
+.extract-summary{display:flex;gap:12px;padding:10px 0}
+.extract-summary .es-item{font-size:12px;color:var(--muted)}
+.extract-summary .es-item strong{color:var(--text)}
+.sent-date-group{margin-bottom:16px}
+.sent-date-hdr{font-size:13px;font-weight:700;color:var(--text);padding:8px 0 4px;border-bottom:1px solid var(--border);margin-bottom:4px}
+.sent-date-hdr .text-m{color:var(--muted);font-weight:400;font-size:12px}
+.sent-row{padding:10px 12px;border-bottom:1px solid var(--border);transition:background .15s}
+.sent-row:hover{background:var(--card-hover)}
+.sent-row:last-child{border-bottom:none}
+.sent-time{font-size:11px;color:var(--muted);min-width:42px;font-variant-numeric:tabular-nums}
+.sent-preview{font-size:11px;color:var(--muted);margin-top:4px;padding-left:52px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.b-sent{background:rgba(34,197,94,.15);color:var(--success)}
+.b-draft{background:rgba(136,136,160,.15);color:var(--muted)}
+</style>
+</head>
+<body>
+
+<button class="mob-tog" onclick="document.querySelector('.sidebar').classList.toggle('open')">&#9776;</button>
+
+<aside class="sidebar">
+    <div class="sidebar-logo">&#127880; <span>Outreach</span></div>
+    <ul class="sidebar-nav">
+        <li><a onclick="nav('dashboard')" id="nav-dashboard" class="active"><span class="nav-icon">&#9634;</span> Dashboard</a></li>
+        <li><a onclick="nav('scout')" id="nav-scout"><span class="nav-icon">&#128269;</span> Scout</a></li>
+        <li><a onclick="nav('leads')" id="nav-leads"><span class="nav-icon">&#128101;</span> Leads</a></li>
+        <li><a onclick="nav('messages')" id="nav-messages"><span class="nav-icon">&#9993;</span> Messages</a></li>
+        <li><a onclick="nav('stats')" id="nav-stats"><span class="nav-icon">&#9636;</span> Stats</a></li>
+        <li><a onclick="nav('settings')" id="nav-settings"><span class="nav-icon">&#9881;</span> Settings</a></li>
+        <li><a onclick="nav('trash')" id="nav-trash"><span class="nav-icon">&#128465;</span> Trash <span id="trash-count" class="text-s text-m" style="margin-left:auto"></span></a></li>
+    </ul>
+</aside>
+
+<main class="main">
+
+<!-- ═══════════════════════ DASHBOARD PAGE ═══════════════════════════════ -->
+<div class="page active" id="pg-dashboard">
+    <div class="page-header">
+        <h1>Pipeline Dashboard</h1>
+        <div class="header-actions">
+            <button class="btn btn-ghost btn-sm" onclick="renderDashboard()">Refresh</button>
+            <button class="btn btn-primary btn-sm" onclick="nav('leads');showAddModal()">+ Add Lead</button>
+        </div>
+    </div>
+    <div class="stats-g" id="dash-stats"></div>
+    <div class="pipe-board" id="pipe-board"></div>
+    <details class="card mt-3">
+        <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--muted)">Other Stages (No Response, Cold, Permanently Cold)</summary>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:10px;margin-top:8px" id="other-stages"></div>
+    </details>
+</div>
+
+<!-- ═══════════════════════ SCOUT PAGE ═══════════════════════════════════ -->
+<div class="page" id="pg-scout">
+    <div class="page-header">
+        <h1>Scout Leads</h1>
+    </div>
+
+    <!-- Section A: LinkedIn Search Builder -->
+    <div class="card">
+        <div class="card-hdr"><h3>LinkedIn Search Builder</h3></div>
+        <p class="text-s text-m mb-3">Select keywords and location to generate a LinkedIn search URL. Click to open the search in a new tab.</p>
+        <div class="fg"><label>Keywords (select one or more)</label>
+            <div class="kw-grid" id="kw-grid">
+                <label class="kw-chip on"><input type="checkbox" value="balloon decorator" checked> balloon decorator</label>
+                <label class="kw-chip"><input type="checkbox" value="balloon artist"> balloon artist</label>
+                <label class="kw-chip"><input type="checkbox" value="balloon stylist"> balloon stylist</label>
+                <label class="kw-chip"><input type="checkbox" value="balloon business"> balloon business</label>
+                <label class="kw-chip"><input type="checkbox" value="event decorator"> event decorator</label>
+                <label class="kw-chip"><input type="checkbox" value="CBA"> CBA</label>
+                <label class="kw-chip"><input type="checkbox" value="certified balloon artist"> certified balloon artist</label>
+                <label class="kw-chip"><input type="checkbox" value="MBP"> MBP</label>
+                <label class="kw-chip"><input type="checkbox" value="balloon specialist"> balloon specialist</label>
+                <label class="kw-chip"><input type="checkbox" value="party decorator"> party decorator</label>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="fg"><label>Location</label>
+                <input class="inp" id="scout-location" placeholder="e.g. Texas, New York City, US" value="United States">
+            </div>
+            <div class="fg"><label>Search Type</label>
+                <select class="sel" id="scout-type">
+                    <option value="regular">LinkedIn Search (free)</option>
+                    <option value="sales_nav">Sales Navigator</option>
+                </select>
+            </div>
+        </div>
+        <button class="btn btn-primary" onclick="buildSearchURL()">Generate Search URL</button>
+        <div id="search-result" class="hidden">
+            <div class="search-url-box" id="search-url"></div>
+            <div class="flex gap-2">
+                <button class="btn btn-primary btn-sm" onclick="window.open(document.getElementById('search-url').dataset.url,'_blank')">Open in LinkedIn</button>
+                <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('search-url').dataset.url);toast('URL copied!','ok')">Copy URL</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section B: Quick Lead Evaluator -->
+    <div class="card">
+        <div class="card-hdr"><h3>Quick Lead Evaluator</h3></div>
+        <p class="text-s text-m mb-3">Paste a prospect's details to instantly get qualification, growth stage, and conversation hook suggestions.</p>
+        <div class="form-row">
+            <div class="fg"><label>Full Name</label><input class="inp" id="ev-name" placeholder="e.g. Sarah Johnson"></div>
+            <div class="fg"><label>Position / Title</label><input class="inp" id="ev-position" placeholder="e.g. Balloon Decorator, CBA"></div>
+        </div>
+        <div class="form-row">
+            <div class="fg"><label>LinkedIn URL</label><input class="inp" id="ev-url" placeholder="https://linkedin.com/in/..."></div>
+            <div class="fg"><label>Business / Website</label><input class="inp" id="ev-biz" placeholder="e.g. balloonsbysarah.com"></div>
+        </div>
+        <div class="form-row">
+            <div class="fg"><label>Location</label><input class="inp" id="ev-location" placeholder="e.g. Austin, TX"></div>
+            <div class="fg"><label>Additional Notes</label><input class="inp" id="ev-notes" placeholder="e.g. posted about corporate event last week"></div>
+        </div>
+        <button class="btn btn-primary" onclick="evaluateLead()">Evaluate Prospect</button>
+        <button class="btn btn-ghost" onclick="clearEval()" style="margin-left:6px">Clear</button>
+
+        <div id="eval-results" class="hidden mt-3">
+            <!-- Qualification -->
+            <div class="eval-result" id="eval-qual-box">
+                <div class="flex jcb aic"><h4>Qualification</h4><span id="eval-qual-badge"></span></div>
+                <ul class="eval-signals" id="eval-qual-reasons"></ul>
+            </div>
+            <!-- Growth Stage -->
+            <div class="eval-result mt-2" id="eval-stage-box">
+                <div class="flex jcb aic"><h4>Growth Stage</h4><span id="eval-stage-badge"></span></div>
+                <ul class="eval-signals" id="eval-stage-signals"></ul>
+            </div>
+            <!-- Website Assessment -->
+            <div class="eval-result mt-2">
+                <h4>Website Assessment</h4>
+                <p class="text-s" id="eval-website"></p>
+            </div>
+            <!-- Credentials -->
+            <div class="eval-result mt-2" id="eval-creds-box" style="display:none">
+                <h4>Credentials Detected</h4>
+                <p class="text-s" id="eval-creds"></p>
+            </div>
+            <!-- Conversation Hooks -->
+            <div class="eval-result mt-2">
+                <h4>Suggested Conversation Hooks</h4>
+                <div id="eval-hooks"></div>
+            </div>
+            <!-- Add to Pipeline -->
+            <div class="mt-3">
+                <button class="btn btn-primary" onclick="addEvalToPipeline()">Add to Pipeline</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section C: Bulk Extract -->
+    <div class="card">
+        <div class="card-hdr"><h3>Bulk Extract LinkedIn Profiles</h3></div>
+        <div class="eval-result mb-3" style="border-left-color:var(--accent2)">
+            <h4>How to use</h4>
+            <p class="text-s text-m mt-2">
+                <strong>1.</strong> Go to your LinkedIn search results page<br>
+                <strong>2.</strong> Scroll down to load all the profiles you want<br>
+                <strong>3.</strong> Press <strong>Ctrl+A</strong> (select all) then <strong>Ctrl+C</strong> (copy)<br>
+                <strong>4.</strong> Click the box below and press <strong>Ctrl+V</strong> (paste)<br>
+                <strong>5.</strong> Click <strong>Extract Leads</strong>
+            </p>
+            <p class="text-s text-m mt-2" style="color:var(--muted)">The parser auto-detects names from the "· 1st / · 2nd / · 3rd+" markers that LinkedIn shows next to each person. It also works if you paste profile URLs directly.</p>
+        </div>
+
+        <div class="fg">
+            <label>Paste LinkedIn Search Results Here</label>
+            <textarea class="ta" id="bulk-paste" rows="8" placeholder="Go to your LinkedIn search results page, press Ctrl+A then Ctrl+C, then paste here with Ctrl+V.&#10;&#10;Example of what the pasted text looks like:&#10;&#10;Robert Archer · 2nd&#10;Balloon Artist&#10;Charlotte, North Carolina, United States&#10;&#10;Flavia Oleniewski · 1st&#10;Owner / Event Decorator &amp; Certified Balloon Artist&#10;Baltimore, Maryland, United States"></textarea>
+        </div>
+        <div class="flex gap-2 aic">
+            <button class="btn btn-primary" onclick="parseBulkPaste()">Extract Leads</button>
+            <button class="btn btn-ghost" onclick="document.getElementById('bulk-paste').value='';document.getElementById('bulk-results').classList.add('hidden');extractedLeads=[]">Clear</button>
+            <span class="text-s text-m" style="margin-left:auto">Want exact profile URLs? Drag this to your bookmarks bar:</span>
+            <a class="bookmarklet-btn" id="bkmk-link" href="#" onclick="event.preventDefault();toast('Drag this to your bookmarks bar, then click it on a LinkedIn page.','info')" style="font-size:10px;padding:4px 10px">
+                &#128279; LI Extract
+            </a>
+        </div>
+
+        <!-- Extracted Results -->
+        <div id="bulk-results" class="hidden mt-3">
+            <div class="flex jcb aic mb-2">
+                <div class="extract-summary" id="bulk-summary"></div>
+                <div class="flex gap-2">
+                    <button class="btn btn-ghost btn-sm" onclick="toggleAllExtracted()">Select All</button>
+                    <button class="btn btn-primary btn-sm" onclick="addSelectedToPipeline()">Add Selected to Pipeline</button>
+                </div>
+            </div>
+            <div id="bulk-list" style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm)"></div>
+        </div>
+    </div>
+
+    <!-- Section D: Scouting Checklist -->
+    <div class="card">
+        <div class="card-hdr"><h3>Scouting Checklist</h3><button class="btn btn-ghost btn-sm" onclick="resetScoutChecklist()">Reset</button></div>
+        <p class="text-s text-m mb-3">Use this while reviewing a prospect's LinkedIn profile. Check each item as you verify it.</p>
+        <ul class="scout-checklist" id="scout-checklist">
+            <li><input type="checkbox" onchange="updateChecklistCount()"> Actually running a balloon/event decor business?</li>
+            <li><input type="checkbox" onchange="updateChecklistCount()"> LinkedIn profile is personal (not a company page)?</li>
+            <li><input type="checkbox" onchange="updateChecklistCount()"> US-based?</li>
+            <li><input type="checkbox" onchange="updateChecklistCount()"> Active on LinkedIn (posted/engaged in last 90 days)?</li>
+            <li><input type="checkbox" onchange="updateChecklistCount()"> Can identify growth stage with 2+ signals?</li>
+            <li><input type="checkbox" onchange="updateChecklistCount()"> Found a conversation hook for personalization?</li>
+            <li><input type="checkbox" onchange="updateChecklistCount()"> NOT a coach, consultant, instructor, or large company?</li>
+            <li><input type="checkbox" onchange="updateChecklistCount()"> Data is clean (correct URL, location, name)?</li>
+        </ul>
+        <div class="mt-2 flex jcb aic">
+            <span class="text-s text-m" id="checklist-count">0 / 8 checked</span>
+            <span class="badge" id="checklist-verdict" style="display:none"></span>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════ LEADS PAGE ═══════════════════════════════════ -->
+<div class="page" id="pg-leads">
+    <div class="page-header">
+        <h1>Leads</h1>
+        <div class="header-actions">
+            <button class="btn btn-ghost btn-sm" onclick="showImportModal()">Import CSV</button>
+            <button class="btn btn-ghost btn-sm" onclick="exportCSV()">Export CSV</button>
+            <button class="btn btn-primary btn-sm" onclick="showAddModal()">+ Add Lead</button>
+        </div>
+    </div>
+    <div class="card mb-3">
+        <div class="flex fw gap-2 aic">
+            <input type="text" class="inp" id="f-search" placeholder="Search name or business..." style="max-width:260px" oninput="renderLeads()">
+            <select class="sel" id="f-stage" style="max-width:170px" onchange="renderLeads()"><option value="">All Stages</option></select>
+            <select class="sel" id="f-qual" style="max-width:150px" onchange="renderLeads()">
+                <option value="">All Qualifications</option><option value="qualified">Qualified</option><option value="maybe">Maybe</option><option value="skip">Skip</option>
+            </select>
+            <select class="sel" id="f-handler" style="max-width:130px" onchange="renderLeads()"><option value="">All Handlers</option></select>
+        </div>
+    </div>
+    <div class="card"><table class="dt"><thead><tr><th>Name</th><th>Business</th><th>Position</th><th>Stage</th><th>Qualification</th><th>Handler</th><th>Updated</th></tr></thead><tbody id="leads-body"></tbody></table>
+        <div class="empty hidden" id="leads-empty"><div class="ei">&#128203;</div><p>No leads yet. Add your first lead to get started.</p><button class="btn btn-primary" onclick="showAddModal()">+ Add Lead</button></div>
+    </div>
+</div>
+
+<!-- ═══════════════════════ LEAD DETAIL PAGE ═════════════════════════════ -->
+<div class="page" id="pg-detail">
+    <div class="page-header">
+        <div><a onclick="nav('leads')" class="text-s text-m">&larr; Back to Leads</a><h1 id="det-name" style="margin-top:3px"></h1></div>
+        <div class="header-actions">
+            <button class="btn btn-ghost btn-sm" onclick="runQualCheck()">Quality Check</button>
+            <button class="btn btn-danger btn-sm" onclick="showDeleteModal()">Delete</button>
+        </div>
+    </div>
+    <div class="detail-grid">
+        <div>
+            <div class="card">
+                <div class="card-hdr"><h3>Lead Info</h3>
+                    <div class="flex gap-2 aic"><span id="det-stage-badge"></span>
+                        <select class="sel btn-sm" style="width:auto;padding:3px 24px 3px 7px;font-size:10px" id="det-move" onchange="moveStage()"><option value="">Move to...</option></select>
+                    </div>
+                </div>
+                <form id="edit-form" onsubmit="saveEdit(event)">
+                    <div class="form-row"><div class="fg"><label>LinkedIn URL</label><input class="inp" name="linkedin_url" id="ed-url"></div><div class="fg"><label>Business / Website</label><input class="inp" name="business_name" id="ed-biz"></div></div>
+                    <div class="form-row"><div class="fg"><label>Position</label><input class="inp" name="position" id="ed-pos"></div><div class="fg"><label>Location</label><input class="inp" name="country" id="ed-country"></div></div>
+                    <div class="form-row"><div class="fg"><label>Growth Stage</label><select class="sel" name="growth_stage" id="ed-growth"><option value="beginner">Beginner</option><option value="scaling">Scaling</option></select></div>
+                    <div class="fg"><label>Qualification</label><select class="sel" name="qualification" id="ed-qual"><option value="qualified">Qualified</option><option value="maybe">Maybe</option><option value="skip">Skip</option></select></div></div>
+                    <div class="fg"><label>Conversation Hook</label><textarea class="ta" name="conversation_hook" id="ed-hook" rows="2"></textarea></div>
+                    <div class="form-row"><div class="fg"><label>Website Assessment</label><select class="sel" name="website_assessment" id="ed-wa"><option value="">-- Select --</option><option value="none">No website</option><option value="free_builder">Free builder</option><option value="custom_basic">Custom domain, basic</option><option value="professional">Professional site</option><option value="unrelated">Unrelated URL</option></select></div>
+                    <div class="fg"><label>Handled By</label><select class="sel" name="handled_by" id="ed-handler"></select></div></div>
+                    <div class="fg"><label>Notes</label><textarea class="ta" name="notes" id="ed-notes" rows="2"></textarea></div>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </form>
+            </div>
+            <div class="card hidden" id="qual-card"><div class="card-hdr"><h3>Quality Check</h3></div><div id="qual-results"></div></div>
+        </div>
+        <div>
+            <div class="card">
+                <div class="card-hdr"><h3>Draft Message</h3></div>
+                <div class="flex gap-2 fw">
+                    <select class="sel" id="det-msgtype" style="max-width:200px"></select>
+                    <button class="btn btn-primary btn-sm" onclick="draftMsg()">Draft</button>
+                </div>
+                <div class="hidden mt-2" id="draft-area">
+                    <div class="msg-prev" contenteditable="true" id="draft-text"></div>
+                    <div class="flex gap-2 mt-2 jcb aic"><span class="text-s text-m" id="draft-chars"></span>
+                        <div class="flex gap-2 fw">
+                            <a id="draft-li-link" href="#" target="_blank" class="btn btn-ghost btn-sm" style="display:none;color:var(--info)">LinkedIn</a>
+                            <a id="draft-sn-link" href="#" target="_blank" class="btn btn-ghost btn-sm" style="display:none;color:var(--accent2)">Sales Nav</a>
+                            <button class="btn btn-ghost btn-sm" onclick="copyAndOpenLI(false)">Copy & Open LinkedIn</button>
+                            <button class="btn btn-ghost btn-sm" onclick="copyAndOpenLI(true)" style="color:var(--accent2)">Copy & Open Sales Nav</button>
+                            <button class="btn btn-ghost btn-sm" onclick="copyEl('draft-text')">Copy Only</button>
+                            <button class="btn btn-success btn-sm" onclick="markDraftSent()">Mark Sent</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card"><div class="card-hdr"><h3>Message History</h3></div><div id="det-msgs"></div></div>
+            <div class="card"><div class="card-hdr"><h3>Pipeline History</h3></div><div id="det-events"></div></div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════ MESSAGES PAGE ════════════════════════════════ -->
+<div class="page" id="pg-messages">
+    <div class="page-header"><h1>Message Workspace</h1></div>
+    <div class="card">
+        <div class="card-hdr"><h3>Batch Draft Messages</h3></div>
+        <p class="text-s text-m mb-3">Select a pipeline stage to see leads ready for the next message.</p>
+        <div class="flex gap-2 fw aic">
+            <select class="sel" id="batch-stage" style="max-width:260px" onchange="loadBatch()">
+                <option value="">-- Select Stage --</option>
+                <option value="new">New &rarr; Connection Request</option>
+                <option value="accepted">Accepted &rarr; Loom Permission</option>
+                <option value="loom_sent">Loom Sent &rarr; Follow-up</option>
+                <option value="loom_watched">Loom Watched &rarr; Strategy Session</option>
+            </select>
+            <button class="btn btn-primary btn-sm" id="batch-btn" onclick="batchDraft()" disabled>Draft All</button>
+        </div>
+    </div>
+    <div id="batch-list" class="mt-3"></div>
+    <div class="empty" id="batch-empty"><div class="ei">&#9993;</div><p>Select a stage above to start drafting.</p></div>
+
+    <!-- Sent Messages Log -->
+    <div class="card mt-4">
+        <div class="card-hdr">
+            <h3>Sent Messages Log</h3>
+            <div class="flex gap-2 aic">
+                <select class="sel" id="sent-filter" style="max-width:200px;font-size:12px" onchange="renderSentLog()">
+                    <option value="">All Message Types</option>
+                    <option value="connection_request">Connection Requests</option>
+                    <option value="loom_permission">Loom Permission</option>
+                    <option value="loom_followup">Loom Follow-up</option>
+                    <option value="strategy_session">Strategy Session</option>
+                    <option value="followup_perm_1">Follow-up: Permission (1st)</option>
+                    <option value="followup_perm_2">Follow-up: Permission (2nd)</option>
+                    <option value="followup_loom_1">Follow-up: Loom (1st)</option>
+                    <option value="followup_loom_2">Follow-up: Loom (2nd)</option>
+                    <option value="followup_session_1">Follow-up: Session (1st)</option>
+                    <option value="followup_session_2">Follow-up: Session (2nd)</option>
+                </select>
+            </div>
+        </div>
+        <div id="sent-log"></div>
+    </div>
+</div>
+
+<!-- ═══════════════════════ STATS PAGE ══════════════════════════════════ -->
+<div class="page" id="pg-stats">
+    <div class="page-header"><h1>Pipeline Analytics</h1><button class="btn btn-ghost btn-sm" onclick="renderStats()">Refresh</button></div>
+    <div class="stats-g" id="stats-overview"></div>
+    <div class="card"><div class="card-hdr"><h3>Pipeline Funnel</h3></div><div id="funnel"></div></div>
+    <div class="card mt-3"><div class="card-hdr"><h3>Leads by Handler</h3></div><table class="dt"><thead><tr><th>Handler</th><th>Total</th><th>Active</th><th>Booked</th></tr></thead><tbody id="handler-body"></tbody></table></div>
+</div>
+
+<!-- ═══════════════════════ SETTINGS PAGE ═══════════════════════════════ -->
+<div class="page" id="pg-settings">
+    <div class="page-header"><h1>Settings</h1></div>
+    <div style="max-width:550px">
+        <div class="card"><div class="card-hdr"><h3>Team Members</h3></div>
+            <p class="text-s text-m mb-3">Manage who can be assigned to handle leads.</p>
+            <div id="team-list" class="mb-3"></div>
+            <div class="flex gap-2"><input class="inp" id="new-member" placeholder="New member name" style="max-width:220px"><button class="btn btn-ghost btn-sm" onclick="addMember()">Add</button></div>
+        </div>
+        <div class="card"><div class="card-hdr"><h3>Data</h3></div>
+            <div class="flex gap-2 fw"><button class="btn btn-ghost" onclick="exportCSV()">Export CSV</button><button class="btn btn-danger" onclick="if(confirm('Delete ALL data? This cannot be undone.')){DB.leads=[];DB.messages=[];DB.events=[];DB.checks=[];DB.trash=[];saveDB();updateTrashCount();toast('Database reset','ok');renderDashboard();}">Reset Database</button></div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════ TRASH PAGE ═════════════════════════════════ -->
+<div class="page" id="pg-trash">
+    <div class="page-header">
+        <h1>Trash</h1>
+        <div class="flex gap-2">
+            <button class="btn btn-ghost btn-sm" onclick="restoreAllTrash()">Restore All</button>
+            <button class="btn btn-danger btn-sm" onclick="emptyTrash()">Empty Trash</button>
+        </div>
+    </div>
+    <p class="text-s text-m mb-3">Deleted leads are kept here for 30 days. You can restore them or permanently delete them.</p>
+    <div id="trash-list"></div>
+    <div class="empty" id="trash-empty" style="display:none"><div class="ei">&#128465;</div><p>Trash is empty.</p></div>
+</div>
+
+</main>
+
+<!-- ═══════════════════════ MODALS ══════════════════════════════════════ -->
+
+<!-- Add Lead Modal -->
+<div class="modal-ov" id="add-modal">
+<div class="modal" style="max-width:560px">
+    <h3>Add New Lead</h3>
+    <form id="add-form" onsubmit="addLead(event)">
+        <div class="fg"><label>Name *</label><input class="inp" name="name" required></div>
+        <div class="form-row"><div class="fg"><label>LinkedIn URL</label><input class="inp" name="linkedin_url" placeholder="https://linkedin.com/in/..."></div><div class="fg"><label>Business / Website</label><input class="inp" name="business_name"></div></div>
+        <div class="form-row"><div class="fg"><label>Position</label><input class="inp" name="position" placeholder="Balloon Decorator, Event Designer..."></div><div class="fg"><label>Location</label><input class="inp" name="country" placeholder="City, State, US"></div></div>
+        <div class="form-row"><div class="fg"><label>Growth Stage</label><select class="sel" name="growth_stage"><option value="beginner">Beginner</option><option value="scaling">Scaling</option></select></div><div class="fg"><label>Qualification</label><select class="sel" name="qualification"><option value="qualified">Qualified</option><option value="maybe">Maybe</option><option value="skip">Skip</option></select></div></div>
+        <div class="fg"><label>Conversation Hook</label><textarea class="ta" name="conversation_hook" rows="2" placeholder="Something specific from their profile..."></textarea></div>
+        <div class="form-row"><div class="fg"><label>Website Assessment</label><select class="sel" name="website_assessment"><option value="">-- Select --</option><option value="none">No website</option><option value="free_builder">Free builder</option><option value="custom_basic">Custom domain, basic</option><option value="professional">Professional site</option><option value="unrelated">Unrelated URL</option></select></div>
+        <div class="fg"><label>Handled By</label><select class="sel" name="handled_by" id="add-handler"></select></div></div>
+        <div class="fg"><label>Notes</label><textarea class="ta" name="notes" rows="2"></textarea></div>
+        <div class="modal-act"><button type="button" class="btn btn-ghost" onclick="closeM('add-modal')">Cancel</button><button type="submit" class="btn btn-primary">Add Lead</button></div>
+    </form>
+</div></div>
+
+<!-- Import Modal -->
+<div class="modal-ov" id="import-modal">
+<div class="modal" style="max-width:600px">
+    <h3>Import Leads from CSV</h3>
+    <p class="text-s text-m mb-3">Paste CSV text below. Columns: Lead Name, LinkedIn Profile URL, Business Name, Position, Country, Growth Stage, Qualification, Handled By, etc.</p>
+    <textarea class="ta" id="csv-input" rows="8" placeholder="Paste CSV content here..."></textarea>
+    <div id="import-preview" class="mt-2 hidden"></div>
+    <div class="modal-act"><button class="btn btn-ghost" onclick="closeM('import-modal')">Cancel</button><button class="btn btn-primary" onclick="doImport()">Import</button></div>
+</div></div>
+
+<!-- Delete Modal -->
+<div class="modal-ov" id="del-modal">
+<div class="modal"><h3>Delete Lead?</h3><p id="del-msg">This lead will be moved to trash.</p>
+    <div class="modal-act"><button class="btn btn-ghost" onclick="closeM('del-modal')">Cancel</button><button class="btn btn-danger" onclick="deleteCurrent()">Move to Trash</button></div>
+</div></div>
+
+<!-- Stage Change Modal -->
+<div class="modal-ov" id="stage-modal">
+<div class="modal"><h3>Move Lead?</h3><p>Move <strong id="sm-name"></strong> to <span class="badge" id="sm-stage" style="background:rgba(124,92,252,.15);color:var(--accent2)"></span>?</p>
+    <div class="modal-act"><button class="btn btn-ghost" onclick="closeM('stage-modal')">Cancel</button><button class="btn btn-primary" onclick="confirmDrop()">Confirm</button></div>
+</div></div>
+
+<!-- Msg Quality Modal -->
+<div class="modal-ov" id="mqc-modal">
+<div class="modal"><h3>Message Quality Check</h3><div id="mqc-results"></div>
+    <div class="modal-act"><button class="btn btn-ghost" onclick="closeM('mqc-modal')">Close</button></div>
+</div></div>
+
+<div class="toast-c" id="toast-c"></div>
+
+<script>
+/* ═══════════════════════ DATABASE (localStorage) ═══════════════════════ */
+
+const STORE_KEY = 'outreach_db';
+let DB = { leads: [], messages: [], events: [], checks: [], settings: { team: ['You','Charlie','Ziv'] }, trash: [] };
+let nextId = { lead: 1, msg: 1, evt: 1 };
+
+function loadDB() {
+    try {
+        const raw = localStorage.getItem(STORE_KEY);
+        if (raw) {
+            const d = JSON.parse(raw);
+            DB = d;
+            if (!DB.trash) DB.trash = [];
+            nextId.lead = Math.max(0, ...DB.leads.map(l => l.id)) + 1;
+            nextId.msg = Math.max(0, ...DB.messages.map(m => m.id)) + 1;
+            nextId.evt = Math.max(0, ...DB.events.map(e => e.id)) + 1;
+        }
+    } catch(e) { console.error('DB load error', e); }
+}
+function saveDB() { localStorage.setItem(STORE_KEY, JSON.stringify(DB)); }
+loadDB();
+
+/* ═══════════════════════ CONSTANTS ═════════════════════════════════════ */
+
+const STAGES = {
+    new:{label:'New',color:'#6b7280'},connection_sent:{label:'Connection Sent',color:'#3b82f6'},
+    accepted:{label:'Accepted',color:'#8b5cf6'},loom_permission_asked:{label:'Loom Permission',color:'#a855f7'},
+    loom_sent:{label:'Loom Sent',color:'#c084fc'},loom_watched:{label:'Loom Watched',color:'#d946ef'},
+    session_offered:{label:'Session Offered',color:'#ec4899'},session_booked:{label:'Session Booked',color:'#22c55e'},
+    no_response:{label:'No Response',color:'#f59e0b'},cold:{label:'Cold',color:'#9ca3af'},
+    permanently_cold:{label:'Permanently Cold',color:'#4b5563'}
+};
+const BOARD_STAGES = ['new','connection_sent','accepted','loom_permission_asked','loom_sent','loom_watched','session_offered','session_booked'];
+const OTHER_STAGES = ['no_response','cold','permanently_cold'];
+const TRANSITIONS = {
+    new:['connection_sent'],connection_sent:['accepted','cold'],accepted:['loom_permission_asked'],
+    loom_permission_asked:['loom_sent','no_response'],loom_sent:['loom_watched','no_response'],
+    loom_watched:['session_offered'],session_offered:['session_booked','no_response'],
+    session_booked:[],no_response:['cold'],cold:['permanently_cold'],permanently_cold:[]
+};
+const MSG_TYPES = {
+    connection_request:'Connection Request',loom_permission:'Loom Permission',loom_followup:'Loom Follow-up',
+    strategy_session:'Strategy Session',followup_perm_1:'Follow-up: Permission (1st)',followup_perm_2:'Follow-up: Permission (2nd)',
+    followup_loom_1:'Follow-up: Loom (1st)',followup_loom_2:'Follow-up: Loom (2nd)',
+    followup_session_1:'Follow-up: Session (1st)',followup_session_2:'Follow-up: Session (2nd)',
+    no_show_1:'No-Show Reschedule',no_show_2:'No-Show Final',re_engagement:'Re-engagement'
+};
+const STAGE_MSG = {new:'connection_request',accepted:'loom_permission',loom_sent:'loom_followup',loom_watched:'strategy_session'};
+// After sending a message, advance lead to the next message-ready stage
+// new → accepted (ready for Loom Permission)
+// accepted → loom_sent (ready for Loom Follow-up)
+// loom_sent → loom_watched (ready for Strategy Session)
+// loom_watched → session_offered (done)
+const SENT_ADVANCE = {new:'accepted',accepted:'loom_sent',loom_sent:'loom_watched',loom_watched:'session_offered'};
+
+/* ═══════════════════════ UTILITIES ═════════════════════════════════════ */
+
+function toast(msg, type='info') {
+    const c = document.getElementById('toast-c');
+    const t = document.createElement('div');
+    t.className = `toast ${type==='ok'?'t-ok':type==='err'?'t-err':'t-info'}`;
+    t.textContent = msg; c.appendChild(t);
+    setTimeout(()=>{t.style.opacity='0';t.style.transform='translateY(-8px)';t.style.transition='all .3s';setTimeout(()=>t.remove(),300)},3000);
+}
+function showM(id){document.getElementById(id).classList.add('vis')}
+function closeM(id){document.getElementById(id).classList.remove('vis')}
+document.addEventListener('click',e=>{if(e.target.classList.contains('modal-ov'))e.target.classList.remove('vis')});
+function now(){return new Date().toISOString().slice(0,19).replace('T',' ')}
+function timeAgo(d){if(!d)return'';const ms=Date.now()-new Date(d.replace(' ','T')).getTime();const days=Math.floor(ms/864e5);if(days===0)return'Today';if(days===1)return'1d ago';if(days<30)return days+'d ago';return Math.floor(days/30)+'mo ago'}
+function stageBdg(s){const st=STAGES[s]||{label:s,color:'#6b7280'};return `<span class="badge" style="background:${st.color}22;color:${st.color}">${st.label}</span>`}
+function qualBdg(q){const c={qualified:'b-qual',maybe:'b-maybe',skip:'b-skip'};return `<span class="badge ${c[q]||'b-maybe'}">${q||'maybe'}</span>`}
+async function copyEl(id){const t=document.getElementById(id).textContent;try{await navigator.clipboard.writeText(t)}catch{const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove()}toast('Copied!','ok')}
+
+/* ═══════════════════════ NAVIGATION ═══════════════════════════════════ */
+
+let currentPage = 'dashboard';
+function nav(page) {
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    document.getElementById('pg-'+page).classList.add('active');
+    document.querySelectorAll('.sidebar-nav a').forEach(a=>a.classList.remove('active'));
+    const navEl = document.getElementById('nav-'+page);
+    if(navEl) navEl.classList.add('active');
+    currentPage = page;
+    document.querySelector('.sidebar').classList.remove('open');
+    if(page==='dashboard') renderDashboard();
+    if(page==='scout') renderScout();
+    if(page==='leads') renderLeads();
+    if(page==='stats') renderStats();
+    if(page==='settings') renderSettings();
+    if(page==='messages') renderMessages();
+    if(page==='trash') renderTrash();
+}
+
+/* ═══════════════════════ MESSAGE ENGINE ════════════════════════════════ */
+
+function getFirstName(n){return(n||'there').split(' ')[0]}
+function posCat(pos){
+    const p=(pos||'').toLowerCase();
+    if(/cba|mbp|certified balloon|master balloon/.test(p))return'cba';
+    if(/balloon decorator|balloon artist|balloon stylist|balloon specialist/.test(p))return'bd';
+    return'ev';
+}
+function hasSite(lead){const b=lead.business_name||'';return b.includes('.')&&!b.includes(' ')}
+
+function genMsg(lead, type) {
+    const f=getFirstName(lead.name), cat=posCat(lead.position), hk=lead.conversation_hook||'', hook=hk.length>5&&hk.length<80?' '+hk:'', site=hasSite(lead);
+    const m = {
+        connection_request: cat==='cba'
+            ? `Hi ${f}, I came across your profile and love seeing fellow balloon professionals taking the craft seriously.${hook} Thought I'd connect.`
+            : cat==='bd'
+            ? `Hi ${f}, I came across your profile while looking at balloon decorators and loved how you approach your work.${hook} Thought I'd say hello and connect.`
+            : `Hi ${f}, I came across your profile while looking at event businesses and loved the range of experiences you offer.${hook} Thought I'd say hello and connect.`,
+        loom_permission: site
+            ? `Thank you for connecting, ${f}! I was taking a quick look at your website and had a couple of thoughts on ways it might improve results for you. Would you be open to me sending a short, personal Loom video with some ideas? Totally free, just let me know.`
+            : `Thank you for connecting, ${f}! I was looking through your work on LinkedIn and had a couple of thoughts on ways your online presence could bring in more of the right clients. Would you be open to a short Loom with some ideas? No strings at all.`,
+        loom_followup: `Hey ${f}, just wanted to check in and see if you had a chance to watch the short Loom I sent over. Curious what you thought.`,
+        strategy_session: `I'm really glad it was helpful, ${f}. If you'd like, we'd be happy to offer a complimentary strategy session to walk through this a bit deeper and see what might make the biggest difference for you. No pressure at all, just a helpful conversation. Would you like to do that?`,
+        followup_perm_1: `Hey ${f}, no worries if the timing isn't right. I just thought there were a couple of things on your site that could make a real difference, and I'd love to share them with you whenever it works. Just let me know.`,
+        followup_perm_2: `Hi ${f}, just leaving this here in case it's helpful down the road. If you ever want a quick outside perspective on your online presence, the offer stands. Wishing you a great season ahead!`,
+        followup_loom_1: `Hey ${f}, totally understand if you haven't had a chance to watch it yet. It's only a few minutes and I kept it focused on a couple of things I think could really help. No rush at all.`,
+        followup_loom_2: `Hi ${f}, just a last little nudge on the Loom. If it's not the right time, that's completely fine. It'll be there whenever you want to take a look. Hope business is going well!`,
+        followup_session_1: `Hey ${f}, just wanted to leave the door open on that conversation. If the timing works better later, I'm happy to find a time that fits. No pressure at all.`,
+        followup_session_2: `Hi ${f}, I'll leave this with you. If you ever want to chat about where things are headed with your business, the invitation is always open. Wishing you an amazing season!`,
+        no_show_1: `Hey ${f}, I think we might have missed each other! No worries at all, these things happen. Would you like to reschedule? Happy to work around your schedule.`,
+        no_show_2: `Hi ${f}, just one more note on rescheduling. If now isn't the right time, that's completely okay. The offer stands whenever you're ready. Take care!`,
+        re_engagement: `Hi ${f}, hope you've been having a great ${['January','February','March','April','May','June','July','August','September','October','November','December'][new Date().getMonth()]}. I was thinking about your business the other day and had a fresh idea that might be worth sharing. Would you be open to a quick Loom with some thoughts? No strings at all.`,
+    };
+    let msg = m[type] || '[Unknown message type]';
+    if(type==='connection_request' && msg.length>300) msg=msg.replace(hook,'');
+    return msg;
+}
+
+/* ═══════════════════════ QUALITY CHECKS ═══════════════════════════════ */
+
+function qualCheckLead(lead) {
+    const checks = [];
+    const pos = (lead.position||'').toLowerCase();
+    const hasBalloon = /balloon|event decor|party decor/.test(pos);
+    checks.push({item:'Runs a balloon/event decor business',passed:hasBalloon,note:hasBalloon?'':'Position does not mention balloon or event decor'});
+    const url = lead.linkedin_url||'';
+    const isPers = url.includes('/in/');
+    checks.push({item:'LinkedIn is a personal profile',passed:isPers,note:isPers?'':'URL may be a company page'});
+    const country = (lead.country||'').toLowerCase();
+    const isUS = /\bus\b|united states|usa/.test(country) || /\b(al|ak|az|ar|ca|co|ct|de|fl|ga|hi|id|il|in|ia|ks|ky|la|me|md|ma|mi|mn|ms|mo|mt|ne|nv|nh|nj|nm|ny|nc|nd|oh|ok|or|pa|ri|sc|sd|tn|tx|ut|vt|va|wa|wv|wi|wy)\b/.test(country);
+    checks.push({item:'US-based',passed:isUS,note:isUS?'':`Location: ${lead.country||'unknown'}`});
+    const hasHook = (lead.conversation_hook||'').length>10;
+    checks.push({item:'Has a conversation hook',passed:hasHook,note:hasHook?'':'No hook found'});
+    const hasStage = ['beginner','scaling'].includes(lead.growth_stage);
+    checks.push({item:'Growth stage identified',passed:hasStage,note:hasStage?'':'Not set'});
+    const nameClean = !/["\n\r]/.test(lead.name||'');
+    checks.push({item:'Name is clean',passed:nameClean,note:nameClean?'':'Name has quotes or line breaks'});
+    return checks;
+}
+function qualCheckMsg(content, type, lead) {
+    const checks = [];
+    const first = getFirstName(lead.name);
+    checks.push({item:'Includes prospect name',passed:content.includes(first),note:content.includes(first)?'':'Missing first name'});
+    const noEm = !/[\u2014\u2013]/.test(content);
+    checks.push({item:'Free of emdashes',passed:noEm,note:noEm?'':'Contains emdashes'});
+    const generic = ['grow your business','next level','unlock your potential','scale your business'];
+    const noGen = !generic.some(g=>content.toLowerCase().includes(g));
+    checks.push({item:'No generic coaching language',passed:noGen,note:noGen?'':'Contains generic phrases'});
+    if(type==='connection_request'){
+        const ok=content.length<=300;
+        checks.push({item:`Under 300 chars (${content.length}/300)`,passed:ok,note:ok?'':`${content.length-300} chars over`});
+    }
+    const noPitch = !['book a call','limited spots','act now',"don't miss"].some(w=>content.toLowerCase().includes(w));
+    checks.push({item:'No pitch/pressure language',passed:noPitch,note:noPitch?'':'Contains pressure language'});
+    return checks;
+}
+function renderChecks(checks) {
+    return `<ul class="chk-list">${checks.map(c=>`<li class="chk-item"><span class="chk-i ${c.passed?'pass':'fail'}">${c.passed?'\u2713':'\u2717'}</span><div><div>${c.item}</div>${c.note?`<div class="chk-note">${c.note}</div>`:''}</div></li>`).join('')}</ul>`;
+}
+
+/* ═══════════════════════ LEAD CRUD ════════════════════════════════════ */
+
+function showAddModal(){
+    populateHandlerSel('add-handler');
+    document.getElementById('add-form').reset();
+    showM('add-modal');
+}
+function addLead(e) {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const lead = {id:nextId.lead++, pipeline_stage:'new', created_at:now(), updated_at:now()};
+    for(const [k,v] of fd) lead[k]=v;
+    DB.leads.push(lead);
+    DB.events.push({id:nextId.evt++, lead_id:lead.id, from_stage:null, to_stage:'new', event_type:'stage_change', detail:'Lead created', created_at:now()});
+    saveDB(); closeM('add-modal'); toast('Lead added!','ok');
+    if(currentPage==='leads')renderLeads(); if(currentPage==='dashboard')renderDashboard();
+}
+
+/* ═══════════════════════ LEAD LIST ═════════════════════════════════════ */
+
+function populateFilters() {
+    const ss = document.getElementById('f-stage');
+    ss.innerHTML = '<option value="">All Stages</option>' + Object.entries(STAGES).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('');
+    populateHandlerSel('f-handler', true);
+}
+function populateHandlerSel(id, addAll=false) {
+    const s = document.getElementById(id); if(!s)return;
+    const team = DB.settings.team || ['You','Charlie','Ziv'];
+    s.innerHTML = (addAll?'<option value="">All Handlers</option>':'') + team.map(t=>`<option value="${t}">${t}</option>`).join('');
+}
+function renderLeads() {
+    const search = (document.getElementById('f-search').value||'').toLowerCase();
+    const stage = document.getElementById('f-stage').value;
+    const qual = document.getElementById('f-qual').value;
+    const handler = document.getElementById('f-handler').value;
+    let filtered = DB.leads.filter(l=>{
+        if(search && !(l.name||'').toLowerCase().includes(search) && !(l.business_name||'').toLowerCase().includes(search)) return false;
+        if(stage && l.pipeline_stage!==stage) return false;
+        if(qual && l.qualification!==qual) return false;
+        if(handler && l.handled_by!==handler) return false;
+        return true;
+    }).sort((a,b)=>b.updated_at.localeCompare(a.updated_at));
+
+    const tbody = document.getElementById('leads-body');
+    const empty = document.getElementById('leads-empty');
+    if(filtered.length===0){tbody.innerHTML='';empty.classList.remove('hidden');return}
+    empty.classList.add('hidden');
+    tbody.innerHTML = filtered.map(l=>`<tr onclick="openDetail(${l.id})"><td><strong>${l.name}</strong></td><td class="text-s text-m">${l.business_name||'-'}</td><td class="text-s">${l.position||'-'}</td><td>${stageBdg(l.pipeline_stage)}</td><td>${qualBdg(l.qualification)}</td><td class="text-s text-m">${l.handled_by||'-'}</td><td class="text-s text-m">${timeAgo(l.updated_at)}</td></tr>`).join('');
+}
+
+/* ═══════════════════════ LEAD DETAIL ══════════════════════════════════ */
+
+let currentLeadId = null;
+let lastDraftId = null;
+
+function openDetail(id) {
+    currentLeadId = id;
+    const lead = DB.leads.find(l=>l.id===id);
+    if(!lead){toast('Lead not found','err');return}
+    document.getElementById('det-name').textContent = lead.name;
+    document.getElementById('det-stage-badge').innerHTML = stageBdg(lead.pipeline_stage);
+    // Move dropdown
+    const mv = document.getElementById('det-move');
+    const valid = TRANSITIONS[lead.pipeline_stage]||[];
+    mv.innerHTML = '<option value="">Move to...</option>' + valid.map(s=>`<option value="${s}">${STAGES[s].label}</option>`).join('');
+    // Fill form
+    document.getElementById('ed-url').value = lead.linkedin_url||'';
+    document.getElementById('ed-biz').value = lead.business_name||'';
+    document.getElementById('ed-pos').value = lead.position||'';
+    document.getElementById('ed-country').value = lead.country||'';
+    document.getElementById('ed-growth').value = lead.growth_stage||'beginner';
+    document.getElementById('ed-qual').value = lead.qualification||'maybe';
+    document.getElementById('ed-hook').value = lead.conversation_hook||'';
+    document.getElementById('ed-wa').value = lead.website_assessment||'';
+    populateHandlerSel('ed-handler');
+    document.getElementById('ed-handler').value = lead.handled_by||'You';
+    document.getElementById('ed-notes').value = lead.notes||'';
+    // Msg type select
+    const mts = document.getElementById('det-msgtype');
+    mts.innerHTML = Object.entries(MSG_TYPES).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
+    // Hide draft area
+    document.getElementById('draft-area').classList.add('hidden');
+    document.getElementById('qual-card').classList.add('hidden');
+    lastDraftId = null;
+    // Messages
+    const msgs = DB.messages.filter(m=>m.lead_id===id).sort((a,b)=>a.created_at.localeCompare(b.created_at));
+    const msgEl = document.getElementById('det-msgs');
+    if(msgs.length===0){msgEl.innerHTML='<p class="text-s text-m">No messages yet.</p>';}
+    else{msgEl.innerHTML=`<div class="tl">${msgs.map(m=>`<div class="tl-item"><div class="tl-date">${m.created_at||''} ${m.status==='sent'?'<span class="badge b-sent" style="margin-left:4px">Sent</span>':'<span class="badge b-draft" style="margin-left:4px">Draft</span>'}</div><div class="tl-ct"><strong class="text-s">${MSG_TYPES[m.message_type]||m.message_type}</strong><div class="msg-prev mt-2" style="font-size:12px">${m.content}<span class="char-cnt ${m.message_type==='connection_request'&&m.content.length>300?'over':''}">${m.content.length} chars</span></div><div class="flex gap-2 mt-2"><button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText(\`${m.content.replace(/`/g,"\\`").replace(/\\/g,"\\\\")}\`);toast('Copied!','ok')">Copy</button>${m.status!=='sent'?`<button class="btn btn-success btn-sm" onclick="markMsgSent(${m.id})">Mark Sent</button>`:''}<button class="btn btn-ghost btn-sm" onclick="msgQualCheck(${m.id})">Check</button></div></div></div>`).join('')}</div>`;}
+    // Events
+    const evts = DB.events.filter(e=>e.lead_id===id).sort((a,b)=>b.created_at.localeCompare(a.created_at));
+    const evtEl = document.getElementById('det-events');
+    if(evts.length===0){evtEl.innerHTML='<p class="text-s text-m">No events yet.</p>';}
+    else{evtEl.innerHTML=`<div class="tl">${evts.map(e=>`<div class="tl-item"><div class="tl-date">${e.created_at||''}</div><div class="tl-ct text-s">${e.detail||e.event_type}</div></div>`).join('')}</div>`;}
+
+    nav('detail');
+    document.getElementById('pg-detail').classList.add('active');
+}
+
+function saveEdit(e) {
+    e.preventDefault();
+    const lead = DB.leads.find(l=>l.id===currentLeadId);
+    if(!lead)return;
+    const fd = new FormData(e.target);
+    for(const [k,v] of fd) lead[k]=v;
+    lead.updated_at = now();
+    saveDB(); toast('Saved!','ok');
+}
+
+function moveStage() {
+    const s = document.getElementById('det-move').value;
+    if(!s)return;
+    const lead = DB.leads.find(l=>l.id===currentLeadId);
+    if(!lead)return;
+    const old = lead.pipeline_stage;
+    lead.pipeline_stage = s;
+    lead.updated_at = now();
+    DB.events.push({id:nextId.evt++, lead_id:lead.id, from_stage:old, to_stage:s, event_type:'stage_change', detail:`Moved from ${STAGES[old].label} to ${STAGES[s].label}`, created_at:now()});
+    saveDB(); toast(`Moved to ${STAGES[s].label}`,'ok'); openDetail(currentLeadId);
+}
+
+function showDeleteModal(){document.getElementById('del-msg').textContent=`Move ${(DB.leads.find(l=>l.id===currentLeadId)||{}).name} to trash?`;showM('del-modal')}
+function deleteCurrent(){
+    const lead = DB.leads.find(l=>l.id===currentLeadId);
+    if (!lead) return;
+    const msgs = DB.messages.filter(m=>m.lead_id===currentLeadId);
+    const evts = DB.events.filter(e=>e.lead_id===currentLeadId);
+    // Move to trash with timestamp
+    DB.trash.push({ lead, messages: msgs, events: evts, deleted_at: now() });
+    // Remove from active
+    DB.leads=DB.leads.filter(l=>l.id!==currentLeadId);
+    DB.messages=DB.messages.filter(m=>m.lead_id!==currentLeadId);
+    DB.events=DB.events.filter(e=>e.lead_id!==currentLeadId);
+    saveDB();closeM('del-modal');updateTrashCount();toast('Moved to trash','ok');nav('leads');
+}
+
+function draftMsg() {
+    const lead = DB.leads.find(l=>l.id===currentLeadId);
+    if(!lead)return;
+    const type = document.getElementById('det-msgtype').value;
+    const content = genMsg(lead, type);
+    const msg = {id:nextId.msg++, lead_id:lead.id, message_type:type, content, status:'draft', created_at:now()};
+    DB.messages.push(msg); saveDB(); lastDraftId=msg.id;
+    document.getElementById('draft-text').textContent = content;
+    document.getElementById('draft-area').classList.remove('hidden');
+    // Show LinkedIn + Sales Nav links
+    const liLink = document.getElementById('draft-li-link');
+    const snLink = document.getElementById('draft-sn-link');
+    if (lead.linkedin_url) {
+        liLink.href = lead.linkedin_url;
+        liLink.style.display = 'inline-flex';
+    } else {
+        liLink.style.display = 'none';
+    }
+    snLink.href = salesNavUrl(lead);
+    snLink.style.display = 'inline-flex';
+    updateDraftChars();
+    toast('Message drafted','ok');
+}
+function salesNavUrl(lead) {
+    if (!lead) return '';
+    // If lead has a /in/ profile URL, build Sales Nav lead URL
+    const slug = (lead.linkedin_url || '').match(/\/in\/([^/?]+)/);
+    if (slug) return 'https://www.linkedin.com/sales/people/' + slug[1];
+    // Fallback: Sales Nav search by name
+    const q = [lead.name, lead.position].filter(Boolean).join(' ');
+    return 'https://www.linkedin.com/sales/search/people?query=(keywords%3A' + encodeURIComponent(q) + ')';
+}
+function copyAndOpenLI(useSalesNav) {
+    const lead = DB.leads.find(l=>l.id===currentLeadId);
+    const text = document.getElementById('draft-text').textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        let url = '';
+        if (useSalesNav) {
+            url = salesNavUrl(lead);
+            toast('Message copied! Opening Sales Navigator...','ok');
+        } else {
+            url = lead && lead.linkedin_url ? lead.linkedin_url : '';
+            toast('Message copied! Opening LinkedIn...','ok');
+        }
+        if (url) {
+            window.open(url, '_blank');
+        } else {
+            toast('No LinkedIn URL for this lead','info');
+        }
+    });
+}
+function updateDraftChars(){
+    const c=document.getElementById('draft-text').textContent;
+    document.getElementById('draft-chars').textContent=c.length+' chars';
+    document.getElementById('draft-chars').style.color=c.length>300?'var(--error)':'var(--muted)';
+}
+document.getElementById('draft-text').addEventListener('input',function(){
+    updateDraftChars();
+    if(lastDraftId){const m=DB.messages.find(x=>x.id===lastDraftId);if(m){m.content=this.textContent;saveDB()}}
+});
+function advanceLeadAfterSend(leadId, msgType) {
+    const lead = DB.leads.find(l=>l.id===leadId);
+    if (!lead) return;
+    // Find which stage maps to this message type, then advance
+    const stageEntry = Object.entries(STAGE_MSG).find(([k,v])=>v===msgType);
+    if (!stageEntry) return;
+    const nextStage = SENT_ADVANCE[stageEntry[0]];
+    if (!nextStage || lead.pipeline_stage !== stageEntry[0]) return;
+    const old = lead.pipeline_stage;
+    lead.pipeline_stage = nextStage;
+    lead.updated_at = now();
+    DB.events.push({id:nextId.evt++, lead_id:leadId, from_stage:old, to_stage:nextStage, event_type:'stage_change', detail:`Advanced after ${MSG_TYPES[msgType]||'message'} sent`, created_at:now()});
+}
+function markDraftSent(){
+    if(!lastDraftId)return;
+    const m=DB.messages.find(x=>x.id===lastDraftId);
+    if(m){m.status='sent';m.sent_at=now();advanceLeadAfterSend(m.lead_id,m.message_type);saveDB();renderDashboard();toast('Marked sent — lead advanced','ok');openDetail(currentLeadId)}
+}
+function markMsgSent(id){
+    const m=DB.messages.find(x=>x.id===id);
+    if(m){m.status='sent';m.sent_at=now();advanceLeadAfterSend(m.lead_id,m.message_type);saveDB();renderDashboard();toast('Marked sent — lead advanced','ok');openDetail(currentLeadId)}
+}
+function runQualCheck(){
+    const lead=DB.leads.find(l=>l.id===currentLeadId);if(!lead)return;
+    const checks=qualCheckLead(lead);
+    document.getElementById('qual-card').classList.remove('hidden');
+    document.getElementById('qual-results').innerHTML=renderChecks(checks);
+    toast(checks.every(c=>c.passed)?'All checks passed!':'Some checks failed','ok');
+}
+function msgQualCheck(id){
+    const m=DB.messages.find(x=>x.id===id);if(!m)return;
+    const lead=DB.leads.find(l=>l.id===m.lead_id);if(!lead)return;
+    document.getElementById('mqc-results').innerHTML=renderChecks(qualCheckMsg(m.content,m.message_type,lead));
+    showM('mqc-modal');
+}
+
+/* ═══════════════════════ DASHBOARD ════════════════════════════════════ */
+
+let pendingDrop = null;
+function renderDashboard() {
+    const board = document.getElementById('pipe-board');
+    board.innerHTML = BOARD_STAGES.map(s=>{
+        const leads = DB.leads.filter(l=>l.pipeline_stage===s).sort((a,b)=>b.updated_at.localeCompare(a.updated_at));
+        return `<div class="pipe-col" data-stage="${s}"><div class="pipe-hdr" style="border-left:3px solid ${STAGES[s].color}"><span class="sn">${STAGES[s].label}</span><span class="cnt-b">${leads.length}</span></div><div class="pipe-cards" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="handleDrop(event,'${s}')">${leads.length?leads.map(l=>`<div class="lc" draggable="true" ondragstart="event.dataTransfer.setData('text','${l.id}');this.classList.add('dragging')" ondragend="this.classList.remove('dragging')" onclick="openDetail(${l.id})"><div class="lc-name">${l.name}</div><div class="lc-biz">${l.business_name||'-'}</div><div class="lc-foot"><span class="lc-handler">${l.handled_by||'-'}</span><span class="text-s text-m">${timeAgo(l.updated_at)}</span></div></div>`).join(''):'<div class="text-s text-m" style="padding:6px;text-align:center">No leads</div>'}</div></div>`;
+    }).join('');
+    // Other stages
+    document.getElementById('other-stages').innerHTML = OTHER_STAGES.map(s=>{
+        const leads = DB.leads.filter(l=>l.pipeline_stage===s);
+        return `<div><div class="flex jcb aic mb-2"><span class="text-s" style="color:${STAGES[s].color}">${STAGES[s].label}</span><span class="cnt-b" style="background:${STAGES[s].color}">${leads.length}</span></div>${leads.map(l=>`<div class="lc mb-2" onclick="openDetail(${l.id})" style="cursor:pointer"><div class="lc-name">${l.name}</div><div class="lc-biz">${l.business_name||'-'}</div></div>`).join('')||'<div class="text-s text-m">None</div>'}</div>`;
+    }).join('');
+    // Stats
+    const total=DB.leads.length;
+    const counts={};DB.leads.forEach(l=>{counts[l.pipeline_stage]=(counts[l.pipeline_stage]||0)+1});
+    const sent=counts.connection_sent||0;
+    const accepted=BOARD_STAGES.slice(2).reduce((s,k)=>s+(counts[k]||0),0);
+    const accRate=sent+accepted>0?Math.round(accepted/(sent+accepted)*100):0;
+    const asked=counts.loom_permission_asked||0;
+    const loomPlus=BOARD_STAGES.slice(4).reduce((s,k)=>s+(counts[k]||0),0);
+    const loomRate=asked+loomPlus>0?Math.round(loomPlus/(asked+loomPlus)*100):0;
+    const offered=counts.session_offered||0;const booked=counts.session_booked||0;
+    const sessRate=offered+booked>0?Math.round(booked/(offered+booked)*100):0;
+    document.getElementById('dash-stats').innerHTML=`
+        <div class="stat-c"><div class="stat-v">${total}</div><div class="stat-l">Total Leads</div></div>
+        <div class="stat-c"><div class="stat-v">${accRate}%</div><div class="stat-l">Acceptance Rate</div></div>
+        <div class="stat-c"><div class="stat-v">${loomRate}%</div><div class="stat-l">Loom Permission</div></div>
+        <div class="stat-c"><div class="stat-v">${sessRate}%</div><div class="stat-l">Sessions Booked</div></div>`;
+}
+
+function handleDrop(e,targetStage){
+    e.preventDefault();e.currentTarget.classList.remove('drag-over');
+    const id=parseInt(e.dataTransfer.getData('text'));
+    const lead=DB.leads.find(l=>l.id===id);if(!lead||lead.pipeline_stage===targetStage)return;
+    const valid=TRANSITIONS[lead.pipeline_stage]||[];
+    if(!valid.includes(targetStage)){toast(`Can't move from ${STAGES[lead.pipeline_stage].label} to ${STAGES[targetStage].label}`,'err');return}
+    pendingDrop={id,targetStage};
+    document.getElementById('sm-name').textContent=lead.name;
+    document.getElementById('sm-stage').textContent=STAGES[targetStage].label;
+    showM('stage-modal');
+}
+function confirmDrop(){
+    if(!pendingDrop)return;closeM('stage-modal');
+    const lead=DB.leads.find(l=>l.id===pendingDrop.id);if(!lead)return;
+    const old=lead.pipeline_stage;
+    lead.pipeline_stage=pendingDrop.targetStage;lead.updated_at=now();
+    DB.events.push({id:nextId.evt++,lead_id:lead.id,from_stage:old,to_stage:pendingDrop.targetStage,event_type:'stage_change',detail:`Moved from ${STAGES[old].label} to ${STAGES[pendingDrop.targetStage].label}`,created_at:now()});
+    saveDB();toast(`Moved to ${STAGES[pendingDrop.targetStage].label}`,'ok');pendingDrop=null;renderDashboard();
+}
+
+/* ═══════════════════════ MESSAGES PAGE ═════════════════════════════════ */
+
+function renderMessages(){ document.getElementById('batch-stage').value='';document.getElementById('batch-list').innerHTML='';document.getElementById('batch-empty').style.display='block';document.getElementById('batch-btn').disabled=true;renderSentLog(); }
+function loadBatch(){
+    const stage=document.getElementById('batch-stage').value;
+    if(!stage){document.getElementById('batch-list').innerHTML='';document.getElementById('batch-empty').style.display='block';document.getElementById('batch-btn').disabled=true;return}
+    const leads=DB.leads.filter(l=>l.pipeline_stage===stage&&l.qualification!=='skip');
+    document.getElementById('batch-empty').style.display='none';
+    document.getElementById('batch-btn').disabled=leads.length===0;
+    const msgType=STAGE_MSG[stage];const msgLabel=MSG_TYPES[msgType]||'Message';
+    if(leads.length===0){document.getElementById('batch-list').innerHTML='<div class="empty"><p class="text-s text-m">No leads at this stage.</p></div>';return}
+    document.getElementById('batch-list').innerHTML=`<div class="flex jcb aic mb-2"><h3 class="text-s">Ready for: ${msgLabel} (${leads.length} leads)</h3></div>`+leads.map(l=>{
+        const liUrl = l.linkedin_url || '';
+        const snUrl = salesNavUrl(l);
+        const nameLinks = [
+            liUrl ? `<a href="${liUrl}" target="_blank" class="text-s" style="margin-left:8px;color:var(--info);font-size:11px">LinkedIn</a>` : '',
+            `<a href="${snUrl}" target="_blank" class="text-s" style="margin-left:4px;color:var(--accent2);font-size:11px">Sales Nav</a>`
+        ].join('');
+        const draftBtns = [
+            liUrl ? `<button class="btn btn-ghost btn-sm" style="font-size:11px" onclick="navigator.clipboard.writeText(document.getElementById('bt-${l.id}').textContent).then(()=>{toast('Copied! Opening LinkedIn...','ok');window.open('${liUrl}','_blank')})">Copy & LinkedIn</button>` : '',
+            `<button class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--accent2)" onclick="navigator.clipboard.writeText(document.getElementById('bt-${l.id}').textContent).then(()=>{toast('Copied! Opening Sales Nav...','ok');window.open('${snUrl}','_blank')})">Copy & Sales Nav</button>`
+        ].join('');
+        return `<div class="card" style="padding:12px" id="bl-${l.id}"><div class="flex jcb aic"><div><a onclick="openDetail(${l.id})"><strong class="text-s">${l.name}</strong></a><span class="text-s text-m" style="margin-left:6px">${l.business_name||''}</span>${nameLinks}</div><div class="flex gap-2"><button class="btn btn-ghost btn-sm" onclick="batchDraftOne(${l.id})">Draft</button></div></div><div class="hidden mt-2" id="bd-${l.id}"><div class="msg-prev" id="bt-${l.id}" style="font-size:12px"></div><div class="flex gap-2 mt-2 jcb aic"><span class="text-s text-m" id="bc-${l.id}"></span><div class="flex gap-2 fw">${draftBtns}<button class="btn btn-ghost btn-sm" style="font-size:11px" onclick="navigator.clipboard.writeText(document.getElementById('bt-${l.id}').textContent);toast('Copied!','ok')">Copy</button><button class="btn btn-success btn-sm" style="font-size:11px" onclick="batchMarkSent(${l.id})">Mark Sent</button></div></div></div></div>`;
+    }).join('');
+}
+function batchDraftOne(lid){
+    const lead=DB.leads.find(l=>l.id===lid);if(!lead)return;
+    const stage=document.getElementById('batch-stage').value;
+    const type=STAGE_MSG[stage];if(!type)return;
+    const content=genMsg(lead,type);
+    const msg={id:nextId.msg++,lead_id:lid,message_type:type,content,status:'draft',created_at:now()};
+    DB.messages.push(msg);saveDB();
+    document.getElementById('bt-'+lid).textContent=content;
+    document.getElementById('bc-'+lid).textContent=content.length+' chars';
+    document.getElementById('bd-'+lid).classList.remove('hidden');
+    document.getElementById('bd-'+lid).dataset.msgId=msg.id;
+    toast('Drafted','ok');
+}
+function batchDraft(){
+    const stage=document.getElementById('batch-stage').value;
+    DB.leads.filter(l=>l.pipeline_stage===stage&&l.qualification!=='skip').forEach(l=>batchDraftOne(l.id));
+}
+
+function batchMarkSent(lid){
+    const el=document.getElementById('bd-'+lid);const mid=parseInt(el.dataset.msgId);
+    const m=DB.messages.find(x=>x.id===mid);
+    if(!m) return;
+    m.status='sent';m.sent_at=now();
+
+    // Advance lead to next pipeline stage
+    const stage=document.getElementById('batch-stage').value;
+    const lead=DB.leads.find(l=>l.id===lid);
+    const nextStage=SENT_ADVANCE[stage];
+    if(lead && nextStage){
+        const oldStage=lead.pipeline_stage;
+        lead.pipeline_stage=nextStage;
+        lead.updated_at=now();
+        DB.events.push({id:nextId.evt++,lead_id:lid,from_stage:oldStage,to_stage:nextStage,event_type:'stage_change',detail:`Advanced after ${MSG_TYPES[m.message_type]||'message'} sent`,created_at:now()});
+    }
+    saveDB();
+
+    // Remove lead card from list with a brief animation
+    const card=document.getElementById('bl-'+lid);
+    if(card){
+        card.style.transition='opacity .3s, max-height .3s';
+        card.style.opacity='0';card.style.maxHeight=card.offsetHeight+'px';
+        setTimeout(()=>{card.style.maxHeight='0';card.style.padding='0';card.style.margin='0';card.style.overflow='hidden';},150);
+        setTimeout(()=>{card.remove();updateBatchCount(stage);},400);
+    }
+
+    const nextLabel=nextStage?STAGES[nextStage]?.label:'';
+    toast(`Marked sent${nextLabel?' — moved to '+nextLabel:''}`, 'ok');
+    renderSentLog();
+    renderDashboard();
+}
+
+function updateBatchCount(stage){
+    const remaining=DB.leads.filter(l=>l.pipeline_stage===stage&&l.qualification!=='skip').length;
+    const hdr=document.querySelector('#batch-list h3');
+    if(hdr){
+        const msgLabel=MSG_TYPES[STAGE_MSG[stage]]||'Message';
+        hdr.textContent=`Ready for: ${msgLabel} (${remaining} leads)`;
+    }
+}
+
+function renderSentLog() {
+    const filter = document.getElementById('sent-filter').value;
+    const sent = DB.messages
+        .filter(m => m.status === 'sent' && (!filter || m.message_type === filter))
+        .sort((a, b) => (b.sent_at || b.created_at).localeCompare(a.sent_at || a.created_at));
+
+    const logEl = document.getElementById('sent-log');
+    if (sent.length === 0) {
+        logEl.innerHTML = '<p class="text-s text-m" style="padding:12px 0">No sent messages yet.</p>';
+        return;
+    }
+
+    // Group by date
+    const groups = {};
+    for (const m of sent) {
+        const dt = m.sent_at || m.created_at || '';
+        const date = dt.substring(0, 10); // YYYY-MM-DD
+        if (!groups[date]) groups[date] = [];
+        groups[date].push(m);
+    }
+
+    let html = `<p class="text-s text-m mb-3">${sent.length} sent message${sent.length !== 1 ? 's' : ''}${filter ? ' (' + (MSG_TYPES[filter] || filter) + ')' : ''}</p>`;
+
+    for (const [date, msgs] of Object.entries(groups)) {
+        // Format date nicely
+        let dateLabel = date;
+        try {
+            const d = new Date(date + 'T00:00:00');
+            const today = new Date(); today.setHours(0,0,0,0);
+            const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+            if (d.getTime() === today.getTime()) dateLabel = 'Today';
+            else if (d.getTime() === yesterday.getTime()) dateLabel = 'Yesterday';
+            else dateLabel = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+        } catch(e) {}
+
+        html += `<div class="sent-date-group">
+            <div class="sent-date-hdr">${dateLabel} <span class="text-m">(${msgs.length})</span></div>`;
+
+        for (const m of msgs) {
+            const lead = DB.leads.find(l => l.id === m.lead_id);
+            const name = lead ? lead.name : 'Unknown';
+            const liUrl = lead ? (lead.linkedin_url || '') : '';
+            const snUrl = lead ? salesNavUrl(lead) : '';
+            const time = (m.sent_at || m.created_at || '').substring(11, 16); // HH:MM
+            const typeLabel = MSG_TYPES[m.message_type] || m.message_type;
+            const preview = m.content.length > 120 ? m.content.substring(0, 120) + '...' : m.content;
+
+            html += `<div class="sent-row">
+                <div class="flex jcb aic">
+                    <div class="flex aic gap-2">
+                        <span class="sent-time">${time}</span>
+                        <strong class="text-s">${name}</strong>
+                        <span class="badge b-sent" style="font-size:9px">${typeLabel}</span>
+                        ${liUrl ? `<a href="${liUrl}" target="_blank" class="text-s" style="color:var(--info);font-size:10px">LinkedIn</a>` : ''}
+                        ${snUrl ? `<a href="${snUrl}" target="_blank" class="text-s" style="color:var(--accent2);font-size:10px">Sales Nav</a>` : ''}
+                    </div>
+                    <div class="flex gap-2">
+                        <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="navigator.clipboard.writeText(DB.messages.find(x=>x.id===${m.id}).content);toast('Copied!','ok')">Copy</button>
+                        ${lead ? `<button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="openDetail(${lead.id})">View Lead</button>` : ''}
+                    </div>
+                </div>
+                <div class="sent-preview">${preview}</div>
+            </div>`;
+        }
+        html += '</div>';
+    }
+
+    logEl.innerHTML = html;
+}
+
+/* ═══════════════════════ TRASH PAGE ═══════════════════════════════════ */
+
+function updateTrashCount() {
+    const el = document.getElementById('trash-count');
+    if (el) el.textContent = DB.trash.length > 0 ? DB.trash.length : '';
+}
+
+function renderTrash() {
+    // Auto-purge items older than 30 days
+    const thirtyDaysAgo = new Date(Date.now() - 30*24*60*60*1000).toISOString();
+    const before = DB.trash.length;
+    DB.trash = DB.trash.filter(t => t.deleted_at > thirtyDaysAgo);
+    if (DB.trash.length !== before) saveDB();
+
+    updateTrashCount();
+    const list = document.getElementById('trash-list');
+    const empty = document.getElementById('trash-empty');
+
+    if (DB.trash.length === 0) {
+        list.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+    }
+    empty.style.display = 'none';
+
+    // Sort newest first
+    const sorted = [...DB.trash].sort((a, b) => b.deleted_at.localeCompare(a.deleted_at));
+
+    list.innerHTML = sorted.map((t, i) => {
+        const l = t.lead;
+        const msgCount = (t.messages || []).filter(m => m.status === 'sent').length;
+        const daysAgo = Math.floor((Date.now() - new Date(t.deleted_at).getTime()) / (1000*60*60*24));
+        const daysLabel = daysAgo === 0 ? 'Today' : daysAgo === 1 ? 'Yesterday' : daysAgo + ' days ago';
+        const daysLeft = 30 - daysAgo;
+        const liUrl = l.linkedin_url || '';
+        const stage = STAGES[l.pipeline_stage] || {};
+
+        return `<div class="card" style="padding:14px;margin-bottom:8px">
+            <div class="flex jcb aic">
+                <div>
+                    <strong class="text-s">${l.name}</strong>
+                    <span class="badge" style="font-size:9px;margin-left:6px;background:${stage.color || '#6b7280'}22;color:${stage.color || '#6b7280'}">${stage.label || l.pipeline_stage}</span>
+                    ${l.position ? `<span class="text-s text-m" style="margin-left:6px">${l.position}</span>` : ''}
+                    ${liUrl ? `<a href="${liUrl}" target="_blank" class="text-s" style="margin-left:6px;color:var(--info);font-size:11px">LinkedIn</a>` : ''}
+                    ${msgCount > 0 ? `<span class="text-s text-m" style="margin-left:6px">${msgCount} sent msg${msgCount>1?'s':''}</span>` : ''}
+                </div>
+                <div class="flex gap-2 aic">
+                    <span class="text-s text-m" style="font-size:10px">${daysLabel} &middot; ${daysLeft}d left</span>
+                    <button class="btn btn-primary btn-sm" onclick="restoreFromTrash(${i})">Restore</button>
+                    <button class="btn btn-danger btn-sm" onclick="permanentDelete(${i})">Delete</button>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function restoreFromTrash(idx) {
+    const sorted = [...DB.trash].sort((a, b) => b.deleted_at.localeCompare(a.deleted_at));
+    const item = sorted[idx];
+    if (!item) return;
+
+    // Restore lead, messages, events
+    DB.leads.push(item.lead);
+    if (item.messages) DB.messages.push(...item.messages);
+    if (item.events) DB.events.push(...item.events);
+
+    // Remove from trash
+    const realIdx = DB.trash.indexOf(item);
+    if (realIdx > -1) DB.trash.splice(realIdx, 1);
+
+    // Recalculate nextId
+    nextId.lead = Math.max(nextId.lead, ...DB.leads.map(l => l.id)) + 1;
+    nextId.msg = Math.max(nextId.msg, ...DB.messages.map(m => m.id)) + 1;
+    nextId.evt = Math.max(nextId.evt, ...DB.events.map(e => e.id)) + 1;
+
+    saveDB();
+    renderTrash();
+    renderDashboard();
+    toast(`${item.lead.name} restored!`, 'ok');
+}
+
+function restoreAllTrash() {
+    if (DB.trash.length === 0) { toast('Trash is empty', 'info'); return; }
+    if (!confirm(`Restore all ${DB.trash.length} leads from trash?`)) return;
+    for (const item of DB.trash) {
+        DB.leads.push(item.lead);
+        if (item.messages) DB.messages.push(...item.messages);
+        if (item.events) DB.events.push(...item.events);
+    }
+    DB.trash = [];
+    nextId.lead = Math.max(0, ...DB.leads.map(l => l.id)) + 1;
+    nextId.msg = Math.max(0, ...DB.messages.map(m => m.id)) + 1;
+    nextId.evt = Math.max(0, ...DB.events.map(e => e.id)) + 1;
+    saveDB();
+    renderTrash();
+    renderDashboard();
+    toast('All leads restored!', 'ok');
+}
+
+function permanentDelete(idx) {
+    const sorted = [...DB.trash].sort((a, b) => b.deleted_at.localeCompare(a.deleted_at));
+    const item = sorted[idx];
+    if (!item) return;
+    if (!confirm(`Permanently delete ${item.lead.name}? This cannot be undone.`)) return;
+    const realIdx = DB.trash.indexOf(item);
+    if (realIdx > -1) DB.trash.splice(realIdx, 1);
+    saveDB();
+    renderTrash();
+    toast('Permanently deleted', 'ok');
+}
+
+function emptyTrash() {
+    if (DB.trash.length === 0) { toast('Trash is already empty', 'info'); return; }
+    if (!confirm(`Permanently delete all ${DB.trash.length} leads in trash? This cannot be undone.`)) return;
+    DB.trash = [];
+    saveDB();
+    renderTrash();
+    toast('Trash emptied', 'ok');
+}
+
+// Update trash count on load
+setTimeout(updateTrashCount, 100);
+
+/* ═══════════════════════ SCOUT PAGE ═══════════════════════════════════ */
+
+let evalData = {};
+
+function renderScout() {
+    // Setup keyword chip toggles
+    document.querySelectorAll('#kw-grid .kw-chip').forEach(chip => {
+        chip.onclick = function() {
+            const cb = this.querySelector('input');
+            cb.checked = !cb.checked;
+            this.classList.toggle('on', cb.checked);
+        };
+    });
+
+    // Build and set the bookmarklet href
+    const bkmkCode = `javascript:void(function(){
+        try{
+            var links=document.querySelectorAll('a[href*="/in/"]');
+            var seen={},results=[];
+            links.forEach(function(a){
+                var href=a.href.split('?')[0].replace(/\\/$/,'');
+                var m=href.match(/\\/in\\/([a-zA-Z0-9_-]+)/);
+                if(!m||seen[m[1]])return;
+                seen[m[1]]=1;
+                var slug=m[1];
+                if(/^(signup|login|pulse|learning|jobs|company)$/.test(slug))return;
+                var name='';
+                var card=a.closest('[class*="entity-result"]')||a.closest('[class*="search-result"]')||a.closest('[class*="reusable-search"]')||a.closest('li')||a.parentElement.parentElement;
+                if(card){
+                    var spans=card.querySelectorAll('span');
+                    for(var i=0;i<spans.length;i++){
+                        var t=spans[i].textContent.trim();
+                        if(t.length>1&&t.length<80&&!t.match(/^(View|Connect|Follow|Message|Send|Pending|\\d|http|www|\\.\\.)/i)&&t.match(/^[A-Z]/)){
+                            name=t.replace(/\\s+/g,' ');break;
+                        }
+                    }
+                }
+                if(!name){name=slug.replace(/-/g,' ').replace(/\\d+$/,'').replace(/\\b\\w/g,function(c){return c.toUpperCase()}).trim();}
+                var title='';
+                if(card){
+                    var subs=card.querySelectorAll('[class*="subtitle"],span[class*="snippet"],div[class*="summary"],p');
+                    for(var j=0;j<subs.length;j++){
+                        var st=subs[j].textContent.trim();
+                        if(st.length>3&&st.length<150&&st!==name){title=st.replace(/\\s+/g,' ');break;}
+                    }
+                }
+                results.push(name+'|'+title+'|'+href);
+            });
+            if(results.length===0){alert('No LinkedIn profiles found on this page. Make sure you are on a LinkedIn search results page and have scrolled down to load results.');return;}
+            var output='LINKEDIN_EXTRACT\\n'+results.join('\\n');
+            if(navigator.clipboard&&navigator.clipboard.writeText){
+                navigator.clipboard.writeText(output).then(function(){
+                    alert('Copied '+results.length+' profiles to clipboard! Go back to the Outreach app and paste (Ctrl+V) in the text box.');
+                });
+            }else{
+                var ta=document.createElement('textarea');
+                ta.value=output;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                alert('Copied '+results.length+' profiles! Go paste in the Outreach app.');
+            }
+        }catch(e){alert('Bookmarklet error: '+e.message);}
+    }())`;
+
+    const bkmk = document.getElementById('bkmk-link');
+    if (bkmk) bkmk.href = bkmkCode.replace(/\n\s*/g, '');
+}
+
+// ── Search URL Builder ───────────────────────────────────────────────────
+
+function buildSearchURL() {
+    const keywords = [];
+    document.querySelectorAll('#kw-grid input:checked').forEach(cb => keywords.push(cb.value));
+    if (keywords.length === 0) { toast('Select at least one keyword', 'err'); return; }
+
+    const location = document.getElementById('scout-location').value.trim() || 'United States';
+    const type = document.getElementById('scout-type').value;
+    const query = keywords.join(' OR ');
+    let url;
+
+    if (type === 'sales_nav') {
+        url = `https://www.linkedin.com/sales/search/people?query=(keywords%3A${encodeURIComponent(query)})&geoRegion=${encodeURIComponent(location)}`;
+    } else {
+        url = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(query)}&origin=GLOBAL_SEARCH_HEADER&geo=${encodeURIComponent(location)}`;
+    }
+
+    const box = document.getElementById('search-url');
+    box.textContent = url;
+    box.dataset.url = url;
+    document.getElementById('search-result').classList.remove('hidden');
+    toast('Search URL generated!', 'ok');
+}
+
+// ── Lead Evaluator ───────────────────────────────────────────────────────
+
+function evaluateLead() {
+    const name = document.getElementById('ev-name').value.trim();
+    const position = document.getElementById('ev-position').value.trim();
+    const url = document.getElementById('ev-url').value.trim();
+    const biz = document.getElementById('ev-biz').value.trim();
+    const location = document.getElementById('ev-location').value.trim();
+    const notes = document.getElementById('ev-notes').value.trim();
+
+    if (!name && !position) { toast('Enter at least a name or position', 'err'); return; }
+
+    const pos = position.toLowerCase();
+    const allText = (name + ' ' + position + ' ' + notes).toLowerCase();
+
+    // ── Qualification ────────────────────────────────────────────────────
+    let qual = 'maybe';
+    const qualReasons = [];
+
+    // Core targets: always qualified
+    const coreKW = ['balloon decorator', 'balloon artist', 'balloon stylist', 'certified balloon artist', 'master balloon professional', 'corporate balloon specialist'];
+    const isCoreTarget = coreKW.some(kw => pos.includes(kw));
+    const hasCBA = /\bcba\b/.test(allText);
+    const hasMBP = /\bmbp\b/.test(allText);
+
+    if (isCoreTarget || hasCBA || hasMBP) {
+        qual = 'qualified';
+        if (isCoreTarget) qualReasons.push('Core target: title matches balloon professional role');
+        if (hasCBA) qualReasons.push('Has CBA (Certified Balloon Artist) credential');
+        if (hasMBP) qualReasons.push('Has MBP (Master Balloon Professional) credential');
+    }
+    // Broader event professionals
+    else if (/event decorator|event decor|event designer/.test(pos)) {
+        qual = 'maybe';
+        qualReasons.push('Event professional, needs review to confirm balloons are the focus');
+    }
+    // Check if "balloon" appears anywhere
+    else if (/balloon/.test(pos)) {
+        qual = 'qualified';
+        qualReasons.push('Position mentions balloons');
+    }
+    // Owner - needs review
+    else if (/owner|founder|ceo/.test(pos)) {
+        qual = 'maybe';
+        qualReasons.push('Owner/founder title, check if business is balloon-focused');
+    }
+    // Entertainment / multi-service
+    else if (/face paint|magic|comedy|entertainment|clown/.test(pos)) {
+        qual = 'maybe';
+        qualReasons.push('Multi-service entertainment, balloons may be secondary');
+    }
+    // Instructor / educator
+    else if (/instructor|educator|teacher|trainer/.test(pos)) {
+        qual = 'skip';
+        qualReasons.push('Instructor/educator, not running a decorating business');
+    }
+    // No balloon keywords at all
+    else {
+        qual = 'skip';
+        qualReasons.push('No balloon or event decor keywords found in position');
+    }
+
+    // LinkedIn URL check
+    if (url && url.includes('/company/')) {
+        qual = 'skip';
+        qualReasons.push('LinkedIn URL is a company page, not personal profile');
+    } else if (url && !url.includes('/in/') && url.includes('linkedin')) {
+        qualReasons.push('LinkedIn URL may not be a personal profile (missing /in/)');
+    }
+
+    // US check
+    const loc = location.toLowerCase();
+    const isUS = !location || /\bus\b|united states|usa/.test(loc) || /\b(al|ak|az|ar|ca|co|ct|de|fl|ga|hi|id|il|in|ia|ks|ky|la|me|md|ma|mi|mn|ms|mo|mt|ne|nv|nh|nj|nm|ny|nc|nd|oh|ok|or|pa|ri|sc|sd|tn|tx|ut|vt|va|wa|wv|wi|wy|alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming)\b/.test(loc);
+    if (location && !isUS) {
+        qualReasons.push('May not be US-based: ' + location);
+        if (qual === 'qualified') qual = 'maybe';
+    }
+
+    // ── Growth Stage ─────────────────────────────────────────────────────
+    let stage = 'beginner';
+    const stageSignals = [];
+
+    // Scaling signals
+    if (hasCBA || hasMBP) { stageSignals.push('Industry credentials (CBA/MBP)'); }
+    if (/corporate|large installation|high.?volume/.test(allText)) { stageSignals.push('Mentions corporate/large events'); }
+    if (biz && /\.com$|\.co$|\.net$|\.org$/.test(biz) && !/wix|weebly|square|wordpress\.com/.test(biz)) { stageSignals.push('Professional custom domain website'); }
+    if (/team|staff|employee|hire/.test(allText)) { stageSignals.push('Mentions team or staff'); }
+
+    // Beginner signals
+    if (!biz) { stageSignals.push('No website listed'); }
+    if (/wix\.com|weebly\.com|square\.site|squarespace/.test(biz)) { stageSignals.push('Website on free/basic builder'); }
+    if (/instagram|ig|dm me/.test(allText)) { stageSignals.push('Relies on Instagram/social DMs'); }
+
+    const scalingCount = stageSignals.filter(s => /credential|corporate|professional domain|team/.test(s.toLowerCase())).length;
+    if (scalingCount >= 2 || (hasCBA || hasMBP)) stage = 'scaling';
+
+    // ── Website Assessment ───────────────────────────────────────────────
+    let websiteAssess = 'none';
+    let websiteText = 'No website provided';
+    if (biz) {
+        const b = biz.toLowerCase();
+        if (/wix\.com|\.wixsite\.com/.test(b)) { websiteAssess = 'free_builder'; websiteText = 'Free builder (Wix). Invested some effort but not yet professional.'; }
+        else if (/weebly\.com/.test(b)) { websiteAssess = 'free_builder'; websiteText = 'Free builder (Weebly). Invested some effort but not yet professional.'; }
+        else if (/square\.site|squareup\.com/.test(b)) { websiteAssess = 'free_builder'; websiteText = 'Free builder (Square). Invested some effort but not yet professional.'; }
+        else if (/wordpress\.com/.test(b)) { websiteAssess = 'free_builder'; websiteText = 'Free builder (WordPress.com). Invested some effort but not yet professional.'; }
+        else if (/\.com|\.co|\.net|\.org|\.biz/.test(b)) { websiteAssess = 'custom_basic'; websiteText = 'Custom domain. Has ambition, may need professional polish.'; if (scalingCount >= 2) { websiteAssess = 'professional'; websiteText = 'Professional custom domain. Ready for strategic growth conversations.'; } }
+        else if (/instagram\.com|facebook\.com/.test(b)) { websiteAssess = 'none'; websiteText = 'Social media only, no dedicated website.'; }
+        else { websiteText = 'URL provided: ' + biz; }
+    }
+
+    // ── Credentials ──────────────────────────────────────────────────────
+    const creds = [];
+    if (hasCBA) creds.push('CBA (Certified Balloon Artist) - signals investment in the craft and industry seriousness');
+    if (hasMBP) creds.push('MBP (Master Balloon Professional) - higher-level credential, experienced professional');
+
+    // ── Conversation Hooks ───────────────────────────────────────────────
+    const hooks = [];
+    if (hasCBA) hooks.push("Your CBA certification really stands out. It's great to see that kind of dedication to the craft.");
+    if (hasMBP) hooks.push("Having your MBP credential says a lot about your commitment to excellence in this industry.");
+    if (/corporate/.test(allText)) hooks.push("I noticed you work with corporate clients. That's a great niche in this industry.");
+    if (/wedding/.test(allText)) hooks.push("Your wedding work caught my eye. The attention to detail really shows.");
+    if (biz && websiteAssess !== 'none') hooks.push("I took a look at your website and your portfolio really showcases your talent.");
+    if (/instagram/.test(allText)) hooks.push("Your Instagram feed is beautiful. Your work speaks for itself.");
+    if (notes) hooks.push("I noticed " + notes.charAt(0).toLowerCase() + notes.slice(1) + (notes.endsWith('.') ? '' : '.') + " Really impressive work.");
+    // Generic fallbacks
+    if (hooks.length === 0 && /balloon/.test(pos)) hooks.push("Your balloon work is beautiful. The creativity really comes through.");
+    if (hooks.length === 0) hooks.push("I came across your profile and was impressed by your work in the events space.");
+
+    // ── Store for "Add to Pipeline" ──────────────────────────────────────
+    evalData = { name, position, linkedin_url: url, business_name: biz, country: location, notes, growth_stage: stage, qualification: qual, website_assessment: websiteAssess, conversation_hook: hooks[0] || '' };
+
+    // ── Render Results ───────────────────────────────────────────────────
+    const qualColors = { qualified: { bg: 'rgba(34,197,94,.15)', color: 'var(--success)' }, maybe: { bg: 'rgba(245,158,11,.15)', color: 'var(--warning)' }, skip: { bg: 'rgba(239,68,68,.15)', color: 'var(--error)' } };
+    const qc = qualColors[qual];
+    document.getElementById('eval-qual-badge').innerHTML = `<span class="badge" style="background:${qc.bg};color:${qc.color}">${qual.toUpperCase()}</span>`;
+    document.getElementById('eval-qual-box').style.borderLeftColor = qc.color;
+    document.getElementById('eval-qual-reasons').innerHTML = qualReasons.map(r => `<li>${r}</li>`).join('');
+
+    const stColors = { beginner: { bg: 'rgba(59,130,246,.15)', color: 'var(--info)' }, scaling: { bg: 'rgba(192,132,252,.15)', color: 'var(--accent2)' } };
+    const sc = stColors[stage];
+    document.getElementById('eval-stage-badge').innerHTML = `<span class="badge" style="background:${sc.bg};color:${sc.color}">${stage.charAt(0).toUpperCase() + stage.slice(1)}</span>`;
+    document.getElementById('eval-stage-box').style.borderLeftColor = sc.color;
+    document.getElementById('eval-stage-signals').innerHTML = stageSignals.map(s => `<li>${s}</li>`).join('') || '<li>Default: beginner (no scaling signals detected)</li>';
+
+    document.getElementById('eval-website').textContent = websiteText;
+
+    if (creds.length > 0) {
+        document.getElementById('eval-creds-box').style.display = 'block';
+        document.getElementById('eval-creds').innerHTML = creds.join('<br>');
+    } else {
+        document.getElementById('eval-creds-box').style.display = 'none';
+    }
+
+    document.getElementById('eval-hooks').innerHTML = hooks.map(h => `<div class="hook-sug" onclick="this.classList.toggle('on');evalData.conversation_hook='${h.replace(/'/g,"\\'")}';">${h}</div>`).join('');
+
+    document.getElementById('eval-results').classList.remove('hidden');
+    toast('Evaluation complete!', 'ok');
+}
+
+function clearEval() {
+    ['ev-name','ev-position','ev-url','ev-biz','ev-location','ev-notes'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('eval-results').classList.add('hidden');
+    evalData = {};
+}
+
+function addEvalToPipeline() {
+    if (!evalData.name) { toast('No prospect evaluated yet', 'err'); return; }
+    const lead = { id: nextId.lead++, pipeline_stage: 'new', created_at: now(), updated_at: now(), ...evalData };
+    DB.leads.push(lead);
+    DB.events.push({ id: nextId.evt++, lead_id: lead.id, from_stage: null, to_stage: 'new', event_type: 'stage_change', detail: 'Lead added from Scout evaluator', created_at: now() });
+    saveDB();
+    toast(`${lead.name} added to pipeline!`, 'ok');
+    clearEval();
+}
+
+// ── Bulk Extract ─────────────────────────────────────────────────────────
+
+let extractedLeads = [];
+
+function parseBulkPaste() {
+    const raw = document.getElementById('bulk-paste').value.trim();
+    if (!raw) { toast('Paste some data first', 'err'); return; }
+
+    extractedLeads = [];
+
+    // Method 1: Bookmarklet format (LINKEDIN_EXTRACT header, name|title|url per line)
+    if (raw.startsWith('LINKEDIN_EXTRACT')) {
+        const lines = raw.split('\n').slice(1).filter(l => l.trim());
+        for (const line of lines) {
+            const parts = line.split('|');
+            if (parts.length >= 3) {
+                const url = parts[2].trim();
+                if (url.includes('/in/')) {
+                    extractedLeads.push({
+                        name: parts[0].trim(),
+                        position: parts[1].trim(),
+                        linkedin_url: url.split('?')[0],
+                        selected: true
+                    });
+                }
+            }
+        }
+    }
+    // Method 2 & 3: Parse raw text for LinkedIn URLs or page text
+    else {
+        // Find all LinkedIn profile URLs (full URLs)
+        const urlRegex = /https?:\/\/(?:www\.)?linkedin\.com\/in\/[a-zA-Z0-9\-_%]+\/?(?:\?[^\s)\"']*)?\s?/gi;
+        let urls = [...new Set((raw.match(urlRegex) || []).map(u => u.trim().split('?')[0].replace(/\/$/,'')))];
+
+        // Also find partial /in/username patterns
+        if (urls.length === 0) {
+            const partialRegex = /\/in\/([a-zA-Z0-9\-_%]{2,})/g;
+            const partials = [...raw.matchAll(partialRegex)];
+            for (const m of partials) {
+                const slug = m[1];
+                if (/^(signup|login|pulse|learning|jobs|company)$/i.test(slug)) continue;
+                const fullUrl = 'https://www.linkedin.com/in/' + slug;
+                if (!urls.includes(fullUrl)) urls.push(fullUrl);
+            }
+        }
+
+        if (urls.length > 0) {
+            // For each URL, try to extract name from nearby text and slug
+            for (const url of urls) {
+                const slug = url.match(/\/in\/([^/?]+)/);
+                let nameFromSlug = '';
+                if (slug) {
+                    nameFromSlug = slug[1]
+                        .replace(/-/g, ' ')
+                        .replace(/%20/g, ' ')
+                        .replace(/\b\w/g, c => c.toUpperCase())
+                        .replace(/\d+$/, '')
+                        .trim();
+                }
+
+                // Search for name and title near this URL in the raw text
+                let name = nameFromSlug;
+                let position = '';
+                const urlIdx = raw.indexOf(url);
+                if (urlIdx > -1) {
+                    const before = raw.substring(Math.max(0, urlIdx - 500), urlIdx);
+                    const after = raw.substring(urlIdx, Math.min(raw.length, urlIdx + 500));
+                    const context = before + after;
+
+                    // Look for title/position keywords near the URL
+                    const titleMatch = context.match(/(?:balloon|event|party|decorator|artist|stylist|CBA|MBP|certified|wedding|corporate|owner|founder|creative|design)[^\n|]{0,100}/i);
+                    if (titleMatch) position = titleMatch[0].trim().substring(0, 120);
+
+                    // Try to find a proper name in lines near the URL
+                    const nearbyLines = before.split('\n').slice(-5);
+                    for (const line of nearbyLines) {
+                        const t = line.trim();
+                        if (t.length >= 3 && t.length <= 60) {
+                            const words = t.split(/\s+/);
+                            if (words.length >= 2 && words.length <= 5 && words.every(w => /^[A-Z][a-z'-]+$/.test(w))) {
+                                name = t;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                extractedLeads.push({
+                    name: name,
+                    position: position,
+                    linkedin_url: url,
+                    selected: true
+                });
+            }
+        } else {
+            // No URLs found — parse as LinkedIn page text (Ctrl+A, Ctrl+C)
+            // LinkedIn search results when copied look like:
+            //   Robert Archer · 2nd
+            //   Balloon Artist
+            //   Charlotte, North Carolina, United States
+            //   Current: Balloon Artist at Self-employed
+            //   Jan liams is a mutual connection
+            // Key identifier: "· 1st" or "· 2nd" or "· 3rd+" after the name
+
+            const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+            // Primary method: find lines with LinkedIn degree markers (· 1st, · 2nd, · 3rd+)
+            const degreePattern = /^(.+?)\s*[·•]\s*(1st|2nd|3rd\+?)$/;
+
+            let i = 0;
+            while (i < lines.length) {
+                const line = lines[i];
+                const degreeMatch = line.match(degreePattern);
+
+                if (degreeMatch) {
+                    let name = degreeMatch[1].trim();
+                    // Clean up: remove leading numbers/badges like "3 •" prefix
+                    name = name.replace(/^\d+\s*[·•]\s*/, '');
+                    // Remove verified badge unicode chars
+                    name = name.replace(/[\u2713\u2714\u2611\u{1F5F8}\u{2705}]/gu, '').trim();
+
+                    let position = '';
+                    let location = '';
+
+                    // Next lines: title, location, "Current:", "mutual connection"
+                    const skipLine = /^(Connect|Follow|Message|Send InMail|Pending|View|Dismiss|Search|People|Home|My Network|Jobs|Messaging|Notifications|is a mutual|mutual connection|\d+ mutual)/i;
+
+                    for (let j = i + 1; j < Math.min(i + 8, lines.length); j++) {
+                        const next = lines[j];
+                        // Stop at next person's entry
+                        if (degreePattern.test(next)) break;
+                        if (skipLine.test(next)) continue;
+                        if (next.startsWith('Current:')) {
+                            if (!position) position = next.replace('Current:', '').trim();
+                            continue;
+                        }
+                        // First non-skip line after name = title/headline
+                        if (!position && next.length > 2 && next.length < 200) {
+                            position = next;
+                        }
+                        // Second non-skip line = likely location
+                        else if (!location && next.length > 2 && next.length < 100 && /,/.test(next)) {
+                            location = next;
+                        }
+                    }
+
+                    if (name.length >= 2) {
+                        extractedLeads.push({
+                            name: name,
+                            position: position,
+                            location: location,
+                            linkedin_url: '',
+                            selected: true
+                        });
+                    }
+                    i += 2; // Skip to next block
+                } else {
+                    i++;
+                }
+            }
+
+            // Fallback: if no degree markers found, try plain name pattern
+            if (extractedLeads.length === 0) {
+                const namePattern = /^[A-Z][a-z'-]+(\s+[A-Z][a-z'-]+){1,4}(,?\s+(CBA|MBP|CED|PhD|MBA))?$/;
+                const skipWords = /^(People|Connect|Follow|Message|Send|Pending|View|Dismiss|About|Posts|Experience|Results|Page|See all|Show|More|Premium|Try|Messaging|Notifications|Home|My Network|Jobs|Search|Actively hiring|Current|All filters|Locations)/i;
+                i = 0;
+                while (i < lines.length) {
+                    const line = lines[i];
+                    if (namePattern.test(line) && !skipWords.test(line) && line.length <= 60 && line.split(/\s+/).length >= 2) {
+                        let position = '';
+                        for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
+                            const next = lines[j];
+                            if (namePattern.test(next) || skipWords.test(next)) break;
+                            if (next.length > 3 && next.length < 150 && !position) { position = next; }
+                        }
+                        extractedLeads.push({ name: line, position: position, linkedin_url: '', selected: true });
+                        i += 3;
+                    } else { i++; }
+                }
+            }
+
+            if (extractedLeads.length === 0) {
+                toast('No profiles found. Try: Ctrl+A on the LinkedIn page to select all, then Ctrl+C to copy, then paste here.', 'err');
+                return;
+            }
+        }
+    }
+
+    // Deduplicate by URL
+    const seen = new Set();
+    extractedLeads = extractedLeads.filter(l => {
+        const key = l.linkedin_url || l.name;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+
+    // For leads without a direct profile URL, generate a LinkedIn search link
+    for (const el of extractedLeads) {
+        if (!el.linkedin_url && el.name) {
+            const searchQ = [el.name, el.position].filter(Boolean).join(' ');
+            el.search_url = 'https://www.linkedin.com/search/results/people/?keywords=' + encodeURIComponent(searchQ);
+        }
+    }
+
+    // Check for existing leads
+    for (const el of extractedLeads) {
+        const exists = DB.leads.some(l =>
+            (el.linkedin_url && l.linkedin_url && l.linkedin_url.includes(el.linkedin_url.replace(/\/$/, '').split('/in/')[1] || '___')) ||
+            (el.name && l.name && l.name.toLowerCase() === el.name.toLowerCase())
+        );
+        if (exists) {
+            el.duplicate = true;
+            el.selected = false;
+        }
+        // Auto-detect qualification
+        const pos = (el.position || '').toLowerCase();
+        if (/balloon decorator|balloon artist|balloon stylist|cba|mbp|certified balloon/.test(pos)) {
+            el.autoQual = 'qualified';
+        } else if (/event decor|event design|balloon|party decor/.test(pos)) {
+            el.autoQual = 'maybe';
+        } else if (pos) {
+            el.autoQual = 'skip';
+        } else {
+            el.autoQual = 'maybe';
+        }
+    }
+
+    renderExtracted();
+    toast(`Found ${extractedLeads.length} profiles!`, 'ok');
+}
+
+function renderExtracted() {
+    const total = extractedLeads.length;
+    const dupes = extractedLeads.filter(l => l.duplicate).length;
+    const qualified = extractedLeads.filter(l => l.autoQual === 'qualified').length;
+    const selected = extractedLeads.filter(l => l.selected).length;
+
+    document.getElementById('bulk-summary').innerHTML = `
+        <span class="es-item"><strong>${total}</strong> found</span>
+        <span class="es-item" style="color:var(--success)"><strong>${qualified}</strong> likely qualified</span>
+        <span class="es-item" style="color:var(--warning)"><strong>${dupes}</strong> duplicates</span>
+        <span class="es-item"><strong>${selected}</strong> selected</span>
+    `;
+
+    const qualColors = { qualified: 'b-qual', maybe: 'b-maybe', skip: 'b-skip' };
+
+    document.getElementById('bulk-list').innerHTML = extractedLeads.map((l, i) => {
+        let linkHtml = '';
+        if (l.linkedin_url) {
+            linkHtml = `<a href="${l.linkedin_url}" target="_blank" class="er-url" title="Open profile">${l.linkedin_url.split('/in/')[1] || 'Profile'}</a>`;
+        } else if (l.search_url) {
+            linkHtml = `<a href="${l.search_url}" target="_blank" class="er-url" title="Search on LinkedIn" style="color:var(--info)">LinkedIn</a>`;
+        }
+        // Sales Nav search link for every lead
+        const snQ = [l.name, l.position].filter(Boolean).join(' ');
+        const snUrl = l.linkedin_url
+            ? 'https://www.linkedin.com/sales/people/' + (l.linkedin_url.match(/\/in\/([^/?]+)/)||[])[1]
+            : 'https://www.linkedin.com/sales/search/people?query=(keywords%3A' + encodeURIComponent(snQ) + ')';
+        const snHtml = `<a href="${snUrl}" target="_blank" class="er-url" title="Open in Sales Navigator" style="color:var(--accent2)">Sales Nav</a>`;
+
+        return `
+        <div class="extract-row" style="${l.duplicate ? 'opacity:.5' : ''}">
+            <input type="checkbox" ${l.selected ? 'checked' : ''} onchange="extractedLeads[${i}].selected=this.checked;renderExtracted()">
+            <span class="er-name">${l.name || '(unknown)'}</span>
+            <span class="er-title">${l.position || '-'}</span>
+            <span class="badge ${qualColors[l.autoQual] || 'b-maybe'}" style="font-size:9px">${l.autoQual || '?'}</span>
+            ${linkHtml}
+            ${snHtml}
+            ${l.duplicate ? '<span class="badge b-maybe" style="font-size:9px">DUP</span>' : ''}
+            <button class="btn btn-ghost btn-sm" onclick="evaluateFromExtract(${i})" title="Evaluate this prospect">&#128270;</button>
+        </div>`;
+    }).join('');
+
+    document.getElementById('bulk-results').classList.remove('hidden');
+}
+
+function toggleAllExtracted() {
+    const allSelected = extractedLeads.filter(l => !l.duplicate).every(l => l.selected);
+    extractedLeads.forEach(l => { if (!l.duplicate) l.selected = !allSelected; });
+    renderExtracted();
+}
+
+function addSelectedToPipeline() {
+    const toAdd = extractedLeads.filter(l => l.selected && !l.duplicate);
+    if (toAdd.length === 0) { toast('No leads selected', 'err'); return; }
+
+    let added = 0;
+    for (const el of toAdd) {
+        const lead = {
+            id: nextId.lead++,
+            name: el.name || 'Unknown',
+            linkedin_url: el.linkedin_url || el.search_url || '',
+            business_name: '',
+            position: el.position || '',
+            country: el.location || '',
+            growth_stage: 'beginner',
+            qualification: el.autoQual || 'maybe',
+            conversation_hook: '',
+            website_assessment: '',
+            notes: el.linkedin_url ? 'Bulk imported from Scout' : 'Bulk imported (use LinkedIn link to find profile and update URL)',
+            handled_by: (DB.settings.team || ['You'])[0],
+            pipeline_stage: 'new',
+            created_at: now(),
+            updated_at: now()
+        };
+        DB.leads.push(lead);
+        DB.events.push({ id: nextId.evt++, lead_id: lead.id, from_stage: null, to_stage: 'new', event_type: 'stage_change', detail: 'Bulk imported from Scout extract', created_at: now() });
+        el.duplicate = true;
+        el.selected = false;
+        added++;
+    }
+    saveDB();
+    renderExtracted();
+    toast(`${added} leads added to pipeline!`, 'ok');
+}
+
+function evaluateFromExtract(idx) {
+    const l = extractedLeads[idx];
+    document.getElementById('ev-name').value = l.name || '';
+    document.getElementById('ev-position').value = l.position || '';
+    document.getElementById('ev-url').value = l.linkedin_url || '';
+    document.getElementById('ev-biz').value = '';
+    document.getElementById('ev-location').value = '';
+    document.getElementById('ev-notes').value = '';
+    // Scroll to evaluator
+    document.querySelector('#pg-scout .card:nth-child(2)').scrollIntoView({ behavior: 'smooth' });
+    toast('Pasted into evaluator. Fill in any extra details and click Evaluate.', 'info');
+}
+
+// ── Scouting Checklist ───────────────────────────────────────────────────
+
+function updateChecklistCount() {
+    const checks = document.querySelectorAll('#scout-checklist input[type=checkbox]');
+    const checked = [...checks].filter(c => c.checked).length;
+    document.getElementById('checklist-count').textContent = `${checked} / ${checks.length} checked`;
+    const verdict = document.getElementById('checklist-verdict');
+    if (checked === checks.length) {
+        verdict.style.display = 'inline-flex';
+        verdict.className = 'badge b-qual';
+        verdict.textContent = 'QUALIFIED';
+    } else if (checked >= 5) {
+        verdict.style.display = 'inline-flex';
+        verdict.className = 'badge b-maybe';
+        verdict.textContent = 'REVIEW';
+    } else {
+        verdict.style.display = 'none';
+    }
+}
+
+function resetScoutChecklist() {
+    document.querySelectorAll('#scout-checklist input[type=checkbox]').forEach(c => c.checked = false);
+    updateChecklistCount();
+}
+
+/* ═══════════════════════ STATS PAGE ═══════════════════════════════════ */
+
+function renderStats(){
+    const counts={};DB.leads.forEach(l=>{counts[l.pipeline_stage]=(counts[l.pipeline_stage]||0)+1});
+    const total=DB.leads.length;
+    const sent=counts.connection_sent||0;const accepted=BOARD_STAGES.slice(2).reduce((s,k)=>s+(counts[k]||0),0);
+    const accRate=sent+accepted>0?Math.round(accepted/(sent+accepted)*100):0;
+    const asked=counts.loom_permission_asked||0;const loomPlus=BOARD_STAGES.slice(4).reduce((s,k)=>s+(counts[k]||0),0);
+    const loomRate=asked+loomPlus>0?Math.round(loomPlus/(asked+loomPlus)*100):0;
+    const offered=counts.session_offered||0;const booked=counts.session_booked||0;
+    const sessRate=offered+booked>0?Math.round(booked/(offered+booked)*100):0;
+    document.getElementById('stats-overview').innerHTML=`
+        <div class="stat-c"><div class="stat-v">${total}</div><div class="stat-l">Total Leads</div></div>
+        <div class="stat-c"><div class="stat-v">${accRate}%</div><div class="stat-l">Acceptance Rate</div></div>
+        <div class="stat-c"><div class="stat-v">${loomRate}%</div><div class="stat-l">Loom Permission</div></div>
+        <div class="stat-c"><div class="stat-v">${sessRate}%</div><div class="stat-l">Sessions Booked</div></div>`;
+    const max=Math.max(...BOARD_STAGES.map(s=>counts[s]||0),1);
+    document.getElementById('funnel').innerHTML=BOARD_STAGES.map(s=>{
+        const c=counts[s]||0;const pct=Math.round(c/max*100);
+        return `<div class="funnel-bar"><span class="funnel-lbl">${STAGES[s].label}</span><div class="funnel-trk"><div class="funnel-fill" style="width:${Math.max(pct,4)}%;background:${STAGES[s].color}">${c}</div></div></div>`;
+    }).join('');
+    const byH={};DB.leads.forEach(l=>{const h=l.handled_by||'Unassigned';if(!byH[h])byH[h]={t:0,a:0,b:0};byH[h].t++;if(!['cold','permanently_cold','no_response'].includes(l.pipeline_stage))byH[h].a++;if(l.pipeline_stage==='session_booked')byH[h].b++});
+    document.getElementById('handler-body').innerHTML=Object.entries(byH).map(([n,d])=>`<tr><td><strong>${n}</strong></td><td>${d.t}</td><td>${d.a}</td><td style="color:var(--success)">${d.b}</td></tr>`).join('');
+}
+
+/* ═══════════════════════ SETTINGS PAGE ════════════════════════════════ */
+
+function renderSettings(){
+    const team=DB.settings.team||['You','Charlie','Ziv'];
+    document.getElementById('team-list').innerHTML=team.map((m,i)=>`<div class="flex jcb aic" style="padding:5px 0;border-bottom:1px solid var(--border)"><span class="text-s">${m}</span><button class="btn btn-ghost btn-sm" onclick="removeMember(${i})" style="color:var(--error)">&times;</button></div>`).join('');
+}
+function addMember(){
+    const inp=document.getElementById('new-member');const name=inp.value.trim();if(!name)return;
+    if(!DB.settings.team)DB.settings.team=['You','Charlie','Ziv'];
+    if(DB.settings.team.includes(name)){toast('Already exists','err');return}
+    DB.settings.team.push(name);saveDB();inp.value='';renderSettings();toast('Added','ok');
+}
+function removeMember(i){DB.settings.team.splice(i,1);saveDB();renderSettings();toast('Removed','ok')}
+
+/* ═══════════════════════ CSV IMPORT/EXPORT ═════════════════════════════ */
+
+function showImportModal(){document.getElementById('csv-input').value='';document.getElementById('import-preview').classList.add('hidden');showM('import-modal')}
+function doImport(){
+    const raw=document.getElementById('csv-input').value.trim();
+    if(!raw){toast('Paste CSV data first','err');return}
+    const lines=raw.split('\n').map(l=>l.trim()).filter(Boolean);
+    if(lines.length<2){toast('CSV needs a header row + data','err');return}
+    const headers=lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,''));
+    const colMap={'Lead Name':'name','LinkedIn Profile URL':'linkedin_url','Business Name':'business_name','Position':'position','Country':'country','Growth Stage':'growth_stage','Qualification':'qualification','Conversation Hook':'conversation_hook','Notes / Observations':'notes','Handled By':'handled_by','Current Status':'pipeline_stage','Website Assessment':'website_assessment'};
+    let imported=0;
+    for(let i=1;i<lines.length;i++){
+        const vals=lines[i].split(',').map(v=>v.trim().replace(/^"|"$/g,''));
+        const lead={id:nextId.lead++,pipeline_stage:'new',created_at:now(),updated_at:now()};
+        headers.forEach((h,j)=>{const field=colMap[h];if(field&&vals[j])lead[field]=vals[j]});
+        if(!lead.name)continue;
+        // Clean name
+        lead.name=lead.name.replace(/[\n\r]+/g,' ').replace(/^["']+|["']+$/g,'').trim();
+        if(!['beginner','scaling'].includes(lead.growth_stage))lead.growth_stage='beginner';
+        if(!['qualified','maybe','skip'].includes(lead.qualification))lead.qualification='maybe';
+        if(!STAGES[lead.pipeline_stage])lead.pipeline_stage='new';
+        DB.leads.push(lead);
+        DB.events.push({id:nextId.evt++,lead_id:lead.id,from_stage:null,to_stage:lead.pipeline_stage,event_type:'stage_change',detail:'Imported',created_at:now()});
+        imported++;
+    }
+    saveDB();closeM('import-modal');toast(`Imported ${imported} leads`,'ok');
+    if(currentPage==='leads')renderLeads();if(currentPage==='dashboard')renderDashboard();
+}
+function exportCSV(){
+    const cols=['Lead Name','LinkedIn Profile URL','Business Name','Position','Country','Growth Stage','Qualification','Conversation Hook','Website Assessment','Notes / Observations','Handled By','Current Status'];
+    const fieldMap={name:'Lead Name',linkedin_url:'LinkedIn Profile URL',business_name:'Business Name',position:'Position',country:'Country',growth_stage:'Growth Stage',qualification:'Qualification',conversation_hook:'Conversation Hook',website_assessment:'Website Assessment',notes:'Notes / Observations',handled_by:'Handled By',pipeline_stage:'Current Status'};
+    const flip={};Object.entries(fieldMap).forEach(([k,v])=>flip[v]=k);
+    let csv=cols.join(',')+'\n';
+    DB.leads.forEach(l=>{csv+=cols.map(c=>{const v=l[flip[c]]||'';return v.includes(',')?`"${v}"`:v}).join(',')+'\n'});
+    const blob=new Blob([csv],{type:'text/csv'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='outreach_leads.csv';a.click();
+    toast('CSV exported','ok');
+}
+
+/* ═══════════════════════ INIT ═════════════════════════════════════════ */
+
+populateFilters();
+renderDashboard();
+</script>
+</body>
+</html>
