@@ -29,23 +29,26 @@ export default function LoginForm() {
       setError(error.message);
       setLoading(false);
     } else {
-      // Check if the user is a client — redirect to client board
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (authUser) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('user_role, client_id')
-          .eq('id', authUser.id)
-          .single();
+      try {
+        // Check if the user is a client — redirect to client board
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (authUser) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('user_role, client_id')
+            .eq('id', authUser.id)
+            .single();
 
-        if (profile?.user_role === 'client' && profile?.client_id) {
-          router.push('/client-board');
-          router.refresh();
-          return;
+          if (profile?.user_role === 'client' && profile?.client_id) {
+            window.location.href = '/client-board';
+            return;
+          }
         }
+      } catch {
+        // Profile check failed - proceed to dashboard
       }
-      router.push('/');
-      router.refresh();
+      // Full page navigation to ensure middleware picks up the new session
+      window.location.href = '/';
     }
   };
 
