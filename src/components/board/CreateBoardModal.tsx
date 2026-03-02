@@ -39,18 +39,11 @@ export default function CreateBoardModal({ isOpen, onClose }: CreateBoardModalPr
 
     if (error || !board) {
       setLoading(false);
+      alert('Failed to create board. Please try again.');
       return;
     }
 
-    // Navigate immediately - board page will load lists as they appear
-    const boardSlug = slugify(board.name);
-    setName('');
-    setType('dev');
-    setLoading(false);
-    onClose();
-    router.push(`/board/${boardSlug}`);
-
-    // Everything below runs in background after navigation starts
+    // Create lists, labels, custom fields, and automation before navigating
     const config = BOARD_TYPE_CONFIG[type];
     const lists = config.defaultLists.map((listName, index) => ({
       board_id: board.id,
@@ -64,11 +57,21 @@ export default function CreateBoardModal({ isOpen, onClose }: CreateBoardModalPr
       { name: 'Done', color: '#10b981', board_id: board.id },
     ];
 
-    // Insert lists + labels + custom fields + automation all in parallel
-    const bgTasks: PromiseLike<unknown>[] = [
+    // Wait for lists + labels first (required for board to function)
+    const [listsResult, labelsResult] = await Promise.all([
       supabase.from('lists').insert(lists),
       supabase.from('labels').insert(defaultLabels),
-    ];
+    ]);
+
+    if (listsResult.error) {
+      console.error('Failed to create lists:', listsResult.error);
+    }
+    if (labelsResult.error) {
+      console.error('Failed to create labels:', labelsResult.error);
+    }
+
+    // Custom fields and automation can run in parallel (non-blocking)
+    const bgTasks: PromiseLike<unknown>[] = [];
 
     const defaultCustomFields = config.defaultCustomFields;
     if (defaultCustomFields && defaultCustomFields.length > 0) {
@@ -103,7 +106,19 @@ export default function CreateBoardModal({ isOpen, onClose }: CreateBoardModalPr
         })
       ));
     }
-    Promise.all(bgTasks).catch(() => {});
+
+    // Wait for all background tasks too
+    if (bgTasks.length > 0) {
+      await Promise.all(bgTasks).catch(err => console.error('Board setup error:', err));
+    }
+
+    // Navigate only after everything is ready
+    const boardSlug = slugify(board.name);
+    setName('');
+    setType('dev');
+    setLoading(false);
+    onClose();
+    router.push(`/board/${boardSlug}`);
   };
 
   return (
