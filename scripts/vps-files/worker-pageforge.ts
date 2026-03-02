@@ -780,16 +780,24 @@ ${siteProfile.global_css ? `\nSite Global CSS:\n${siteProfile.global_css.slice(0
 ${sectionDetails}
 
 ## QUALITY STANDARDS - THIS IS A PAID CLIENT PAGE
+
+### FULL-WIDTH IS NON-NEGOTIABLE
+WordPress themes constrain content to a narrow center column (~600px wide). Your page will look BROKEN unless EVERY top-level section has this on its outermost div:
+  style="width:100%;box-sizing:border-box;..."
+Then inside that, use a div with max-width:1200px;margin:0 auto for centered content.
+WITHOUT this, the page will appear crammed into 40% of the viewport with empty whitespace. THIS IS THE #1 CAUSE OF FAILURE.
+
+### Other Quality Rules
 1. EVERY element must have inline styles: font-family, font-size, font-weight, color, line-height, padding, margin, background-color
 2. Use "${primaryFont}", sans-serif as font-family on EVERY text element. Not just headings - EVERYTHING.
 3. Section backgrounds must alternate properly (dark/light/dark or as shown in Figma)
 4. Dark background sections (#001738, #1a1a2e, etc.) MUST have white/light text (#ffffff, #e0e0e0)
-5. All content inside max-width:1200px containers, centered with margin:0 auto
-6. Card grids: use display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:32px
-7. Hero sections: min-height:600px or more, with proper overlay, large headline, subtext, and CTA button
-8. Buttons: styled with background-color, color, padding:16px 40px, border-radius, font-weight:600, hover-ready
-9. Images: use src="https://placehold.co/800x500/001738/ffffff?text=Section+Name" as placeholder, width:100%, object-fit:cover
-10. For tent/event images, use realistic placeholder dimensions matching the Figma layout
+5. Card grids: use display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:32px
+6. Hero sections: min-height:600px or more, with proper overlay, large headline, subtext, and CTA button
+7. Buttons: styled inline with <a> tags (NOT wp:button blocks), background-color, padding:16px 40px, border-radius
+8. Images: use src="https://placehold.co/800x500/001738/ffffff?text=Section+Name" as placeholder, width:100%, object-fit:cover
+9. For tent/event images, use realistic placeholder dimensions matching the Figma layout
+10. Do NOT use wp:cover, wp:buttons, or wp:columns blocks - use wp:group with inline styles only
 
 RESPOND WITH JSON: {"markup":"the COMPLETE page markup","sections":[{"name":"section name","markup":"markup"}]}`;
 
@@ -995,12 +1003,66 @@ RESPOND WITH JSON: {"markup":"the COMPLETE page markup","sections":[{"name":"sec
 
       const wpClient = createWpClient({ restUrl: siteProfile.wp_rest_url, username: siteProfile.wp_username, appPassword: siteProfile.wp_app_password });
 
+      // Sanitize markup before deploying
+      let cleanMarkup = sanitizeMarkup(markupData.markup);
+
+      // Prepend a script that forces WP/Divi parent containers to be full-width
+      // This is more reliable than CSS breakout tricks which depend on container centering
+      const fullWidthScript = `<!-- wp:html -->
+<script>
+(function(){
+  function fix(){
+    var ids=['left-area','content-area','main-content','page-container'];
+    var cls=['entry-content','container','et_builder_inner_content','et_pb_post_content','et_pb_row','et_pb_column','et_post_meta_wrapper'];
+    ids.forEach(function(id){var el=document.getElementById(id);if(el){el.style.setProperty('max-width','100%','important');el.style.setProperty('width','100%','important');el.style.setProperty('padding','0','important');el.style.setProperty('margin','0','important');el.style.setProperty('float','none','important');}});
+    cls.forEach(function(c){document.querySelectorAll('.'+c).forEach(function(el){el.style.setProperty('max-width','100%','important');el.style.setProperty('width','100%','important');el.style.setProperty('padding-left','0','important');el.style.setProperty('padding-right','0','important');el.style.setProperty('float','none','important');});});
+    document.querySelectorAll('article.page,article.type-page').forEach(function(el){el.style.setProperty('max-width','100%','important');el.style.setProperty('width','100%','important');});
+  }
+  fix();
+  document.addEventListener('DOMContentLoaded',fix);
+  window.addEventListener('load',fix);
+  setTimeout(fix,500);setTimeout(fix,2000);
+})();
+</script>
+<!-- /wp:html -->`;
+      cleanMarkup = fullWidthScript + cleanMarkup;
+
+      // Try blank templates to eliminate sidebar/header/footer - query WP for available ones
+      const blankTemplates = [
+        'page-template-blank.php',     // Divi blank (most common)
+        'page-builder-blank.php',      // Alternate Divi blank
+        'page-full.php',               // Common full-width
+        'template-full-width.php',     // Another common pattern
+        'elementor_header_footer',     // Elementor canvas
+      ];
+      const configuredTemplate = (siteProfile as any).page_template;
+
+      // Try creating/updating the page with each template until one works
       let page;
-      if (build.wp_page_id) {
-        page = await wpUpdatePage(wpClient, build.wp_page_id, { title: build.page_title, content: markupData.markup, slug: build.page_slug || undefined, status: 'publish' });
-      } else {
-        page = await wpCreatePage(wpClient, { title: build.page_title, content: markupData.markup, slug: build.page_slug || undefined, status: 'publish' });
+      let usedTemplate = '';
+      const templatesToTry = configuredTemplate ? [configuredTemplate] : [...blankTemplates, ''];
+      for (const tmpl of templatesToTry) {
+        try {
+          // Use empty title to prevent WP from rendering an H1 above the content
+          // The actual page title is handled by SEO meta (Yoast) in the seo_config phase
+          const wpTitle = ' '; // space prevents "empty title" validation errors
+          if (build.wp_page_id) {
+            page = await wpUpdatePage(wpClient, build.wp_page_id, { title: wpTitle, content: cleanMarkup, slug: build.page_slug || undefined, status: 'publish', template: tmpl || undefined });
+          } else {
+            page = await wpCreatePage(wpClient, { title: wpTitle, content: cleanMarkup, slug: build.page_slug || undefined, status: 'publish', template: tmpl || undefined });
+          }
+          usedTemplate = tmpl;
+          console.log(`[pageforge] Page deployed with template: "${tmpl || 'default'}"`);
+          break;
+        } catch (err: any) {
+          if (err.message?.includes('rest_invalid_param') && err.message?.includes('template') && tmpl !== '') {
+            console.log(`[pageforge] Template "${tmpl}" not available, trying next...`);
+            continue;
+          }
+          throw err; // re-throw non-template errors
+        }
       }
+      if (!page) throw new Error('All template options exhausted - could not create WP page');
 
       const siteUrl = siteProfile.site_url.replace(/\/$/, '');
       // Use the published permalink for screenshots (draft URLs require auth)
@@ -1496,7 +1558,7 @@ Respond with JSON:
         // 4. Re-deploy with fixed markup
         if (build.wp_page_id && siteProfile.wp_username && siteProfile.wp_app_password) {
           const wpClient = createWpClient({ restUrl: siteProfile.wp_rest_url, username: siteProfile.wp_username, appPassword: siteProfile.wp_app_password });
-          await wpUpdatePage(wpClient, build.wp_page_id, { content: currentMarkup });
+          await wpUpdatePage(wpClient, build.wp_page_id, { content: sanitizeMarkup(currentMarkup) });
         }
 
         // 5. Wait briefly for WP to process the update
@@ -1652,32 +1714,42 @@ Score 0-100. Respond with JSON:
       if (!deployData?.draftUrl) throw new Error('Missing deploy_draft artifacts');
 
       const pageUrl = deployData.draftUrl;
-      const browserlessUrl = process.env.BROWSERLESS_URL || 'https://chrome.browserless.io';
-      const browserlessKey = process.env.BROWSERLESS_API_KEY || '';
 
       // Link validation
       const linkCheck = await runLinkValidation(pageUrl);
 
-      // Lighthouse audit
+      // Lighthouse audit (local Chrome via chrome-launcher)
       let lighthouseScores = { performance: 0, accessibility: 0, bestPractices: 0, seo: 0 };
       try {
-        const lhRes = await fetch(`${browserlessUrl}/lighthouse?token=${browserlessKey}`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: pageUrl, config: { extends: 'lighthouse:default', settings: { onlyCategories: ['performance', 'accessibility', 'best-practices', 'seo'] } } }),
-          signal: AbortSignal.timeout(60000),
+        const lighthouse = (await import('lighthouse')).default;
+        const chromeLauncher = await import('chrome-launcher');
+        if (!process.env.CHROME_PATH) {
+          process.env.CHROME_PATH = puppeteer.executablePath();
+        }
+        const chrome = await chromeLauncher.launch({
+          chromeFlags: ['--headless', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
         });
-        if (lhRes.ok) {
-          const lhData = await lhRes.json();
-          const cats = lhData.categories || {};
-          lighthouseScores = {
-            performance: Math.round((cats.performance?.score || 0) * 100),
-            accessibility: Math.round((cats.accessibility?.score || 0) * 100),
-            bestPractices: Math.round((cats['best-practices']?.score || 0) * 100),
-            seo: Math.round((cats.seo?.score || 0) * 100),
-          };
+        try {
+          const lhResult = await lighthouse(pageUrl, {
+            port: chrome.port,
+            output: 'json',
+            logLevel: 'error',
+            onlyCategories: ['performance', 'accessibility', 'best-practices', 'seo'],
+          });
+          if (lhResult?.lhr) {
+            const cats = lhResult.lhr.categories || {};
+            lighthouseScores = {
+              performance: Math.round((cats.performance?.score || 0) * 100),
+              accessibility: Math.round((cats.accessibility?.score || 0) * 100),
+              bestPractices: Math.round((cats['best-practices']?.score || 0) * 100),
+              seo: Math.round((cats.seo?.score || 0) * 100),
+            };
+          }
+        } finally {
+          await chrome.kill();
         }
       } catch (err) {
-        console.warn('[pageforge] Lighthouse failed:', err);
+        console.warn('[pageforge] Lighthouse failed:', err instanceof Error ? err.message : err);
       }
 
       // Update build with scores
@@ -1804,6 +1876,38 @@ async function resizeIfNeeded(base64: string, maxDim = 7500): Promise<string> {
   return jpg.toString('base64');
 }
 
+// Sanitize WordPress markup: strip <style> blocks, raw CSS, and problematic patterns
+function sanitizeMarkup(markup: string): string {
+  let clean = markup;
+  // Remove <style> tags and their content (Divi/WP themes override anyway)
+  clean = clean.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+  // Remove any raw CSS that leaked into visible content (e.g. @media queries as text)
+  clean = clean.replace(/@media\s*\([^)]*\)\s*\{[^}]*\{[^}]*\}[^}]*\}/g, '');
+  // Remove orphaned CSS selectors that might render as text
+  clean = clean.replace(/\.[a-zA-Z_][\w-]*\s*\{[^}]*\}/g, '');
+  // Remove <!-- wp:html --> blocks wrapping style tags (common AI mistake)
+  clean = clean.replace(/<!-- wp:html -->\s*<style[\s\S]*?<\/style>\s*<!-- \/wp:html -->/gi, '');
+  // Ensure no inline style attributes contain raw @media (invalid inline CSS)
+  // These render as visible text in some browsers
+  clean = clean.replace(/style="[^"]*@media[^"]*"/gi, (match) => {
+    // Strip @media portion from inline style, keep the rest
+    return match.replace(/@media[^;"]*/g, '');
+  });
+
+  // Ensure full-width: inject viewport-width styles on top-level wp:group alignfull divs
+  // If the markup has alignfull divs without the vw breakout trick, add it
+  clean = clean.replace(
+    /(<div\s+class="wp-block-group\s+alignfull"\s+style=")/gi,
+    (match) => {
+      // Check if it already has width:100vw
+      if (match.includes('100vw')) return match;
+      return match.replace(/style="/, 'style="width:100%;box-sizing:border-box;');
+    }
+  );
+
+  return clean;
+}
+
 // Crop a base64 image into vertical segments for section-by-section VQA comparison
 // segmentIndex: 0-based index of the segment to extract
 // totalSegments: total number of segments to divide the image into
@@ -1921,50 +2025,63 @@ function findUnclosedTags(html: string): string[] {
 
 const GUTENBERG_INSTRUCTIONS = `## Gutenberg Block Format - COMPLETE REFERENCE
 
+### CRITICAL: FULL-WIDTH LAYOUT (MOST IMPORTANT RULE)
+A script tag already handles forcing parent containers to 100% width. Your job is to ensure EVERY top-level section uses width:100%.
+
+**EVERY top-level section** must use this EXACT pattern:
+\`\`\`
+<!-- wp:group {"align":"full"} -->
+<div class="wp-block-group alignfull" style="width:100%;box-sizing:border-box;SECTION_STYLES_HERE">
+<div style="max-width:1200px;margin:0 auto;padding:0 40px;box-sizing:border-box">
+  CONTENT HERE
+</div>
+</div>
+<!-- /wp:group -->
+\`\`\`
+
+The outer div MUST always have: width:100%;box-sizing:border-box
+The inner div provides the centered content container with max-width:1200px.
+Without width:100%, sections will be constrained by the theme's narrow container.
+
 ### CRITICAL STYLING RULES
 1. EVERY element must have inline styles matching the Figma design exactly
 2. Use the EXACT hex colors, font families, font sizes, and spacing from the design tokens
 3. Set background-color, color, font-family, font-size, font-weight, line-height, padding, margin on EVERY element
 4. Use CSS gap, flexbox, and grid for layouts - NEVER rely on WordPress defaults
-5. ALL sections must have proper max-width containers (1200px typical) centered with margin: 0 auto
-6. Set explicit width/height on images and containers matching Figma dimensions
+5. Set explicit width/height on images and containers matching Figma dimensions
 
 ### Block Patterns
 
 **Full-width section with background:**
-<!-- wp:group {"align":"full","style":{"color":{"background":"#001738"},"spacing":{"padding":{"top":"80px","bottom":"80px","left":"40px","right":"40px"}}}} -->
-<div class="wp-block-group alignfull" style="background-color:#001738;padding:80px 40px">
+<!-- wp:group {"align":"full"} -->
+<div class="wp-block-group alignfull" style="width:100%;box-sizing:border-box;background-color:#001738;padding:80px 40px">
 <div style="max-width:1200px;margin:0 auto">
   <!-- content here -->
 </div>
 </div>
 <!-- /wp:group -->
 
-**Hero section with background image overlay:**
-<!-- wp:cover {"url":"IMAGE_URL","dimRatio":50,"overlayColor":"#001738","minHeight":700,"align":"full"} -->
-<div class="wp-block-cover alignfull" style="min-height:700px">
-<span class="wp-block-cover__background" style="background-color:#001738;opacity:0.5"></span>
-<img class="wp-block-cover__image-background" src="IMAGE_URL" style="object-fit:cover"/>
-<div class="wp-block-cover__inner-container" style="max-width:1200px;margin:0 auto;padding:0 40px">
-  <!-- wp:heading {"level":1,"style":{"typography":{"fontSize":"54px","fontWeight":"700","lineHeight":"1.2"},"color":{"text":"#ffffff"}}} -->
-  <h1 style="color:#ffffff;font-family:Poppins,sans-serif;font-size:54px;font-weight:700;line-height:1.2;margin-bottom:24px">Headline</h1>
-  <!-- /wp:heading -->
-  <!-- wp:paragraph {"style":{"typography":{"fontSize":"18px","lineHeight":"1.6"},"color":{"text":"#ffffff"}}} -->
-  <p style="color:#ffffff;font-family:Poppins,sans-serif;font-size:18px;line-height:1.6;max-width:600px">Description text</p>
-  <!-- /wp:paragraph -->
+**Hero section with background image:**
+<!-- wp:group {"align":"full"} -->
+<div class="wp-block-group alignfull" style="width:100%;box-sizing:border-box;position:relative;min-height:700px;background-image:url(IMAGE_URL);background-size:cover;background-position:center">
+<div style="position:absolute;inset:0;background:rgba(0,23,56,0.7)"></div>
+<div style="position:relative;z-index:1;max-width:1200px;margin:0 auto;padding:120px 40px;text-align:center">
+  <h1 style="color:#ffffff;font-family:Poppins,sans-serif;font-size:clamp(32px,5vw,54px);font-weight:700;line-height:1.2;margin-bottom:24px">Headline</h1>
+  <p style="color:#ffffff;font-family:Poppins,sans-serif;font-size:18px;line-height:1.6;max-width:600px;margin:0 auto 32px">Description text</p>
+  <a style="display:inline-block;background-color:#cc2336;color:#ffffff;font-family:Poppins,sans-serif;font-size:16px;font-weight:600;padding:16px 40px;border-radius:8px;text-decoration:none">Get Started</a>
 </div>
 </div>
-<!-- /wp:cover -->
+<!-- /wp:group -->
 
-**Card grid (2-4 columns):**
-<!-- wp:group {"align":"full","style":{"spacing":{"padding":{"top":"80px","bottom":"80px"}}}} -->
-<div class="wp-block-group alignfull" style="padding:80px 40px">
+**Card grid (responsive 2-3 columns):**
+<!-- wp:group {"align":"full"} -->
+<div class="wp-block-group alignfull" style="width:100%;box-sizing:border-box;padding:80px 40px">
 <div style="max-width:1200px;margin:0 auto">
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:32px">
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:32px">
     <div style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
-      <img src="IMAGE_URL" style="width:100%;height:240px;object-fit:cover" alt="Description"/>
+      <img src="IMAGE_URL" style="width:100%;height:240px;object-fit:cover;display:block" alt="Description"/>
       <div style="padding:24px">
-        <h3 style="font-family:Poppins,sans-serif;font-size:22px;font-weight:600;color:#001738;margin:0 0 12px">Card Title</h3>
+        <h3 style="font-family:Poppins,sans-serif;font-size:22px;font-weight:600;color:#001738;margin:0 0 12px;overflow:hidden;text-overflow:ellipsis">Card Title</h3>
         <p style="font-family:Poppins,sans-serif;font-size:16px;color:#555;line-height:1.6;margin:0">Card description</p>
       </div>
     </div>
@@ -1973,21 +2090,15 @@ const GUTENBERG_INSTRUCTIONS = `## Gutenberg Block Format - COMPLETE REFERENCE
 </div>
 <!-- /wp:group -->
 
-**Styled button:**
-<!-- wp:buttons -->
-<div class="wp-block-buttons">
-<!-- wp:button -->
-<div class="wp-block-button"><a class="wp-block-button__link" style="background-color:#cc2336;color:#ffffff;font-family:Poppins,sans-serif;font-size:16px;font-weight:600;padding:16px 40px;border-radius:8px;text-decoration:none;display:inline-block">Get Started</a></div>
-<!-- /wp:button -->
-</div>
-<!-- /wp:buttons -->
+**Styled button (inline, no wp:button block):**
+<a style="display:inline-block;background-color:#cc2336;color:#ffffff;font-family:Poppins,sans-serif;font-size:16px;font-weight:600;padding:16px 40px;border-radius:8px;text-decoration:none;cursor:pointer">Get Started</a>
 
 **Testimonial card:**
-<div style="background:#f8f8f8;border-radius:12px;padding:32px;display:flex;flex-direction:column;gap:16px">
-  <div style="display:flex;gap:4px">★★★★★</div>
-  <p style="font-family:Poppins,sans-serif;font-size:16px;color:#333;line-height:1.6;font-style:italic">"Quote text here"</p>
+<div style="background:#f8f8f8;border-radius:12px;padding:32px;display:flex;flex-direction:column;gap:16px;overflow:hidden">
+  <div style="display:flex;gap:4px;color:#f59e0b;font-size:20px">★★★★★</div>
+  <p style="font-family:Poppins,sans-serif;font-size:16px;color:#333;line-height:1.6;font-style:italic;margin:0">"Quote text here"</p>
   <div style="display:flex;align-items:center;gap:12px">
-    <img src="AVATAR_URL" style="width:48px;height:48px;border-radius:50%;object-fit:cover" alt="Name"/>
+    <div style="width:48px;height:48px;border-radius:50%;background:#001738;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:18px;flex-shrink:0">AB</div>
     <div>
       <p style="font-family:Poppins,sans-serif;font-size:14px;font-weight:600;color:#001738;margin:0">Customer Name</p>
       <p style="font-family:Poppins,sans-serif;font-size:13px;color:#777;margin:0">Role / Company</p>
@@ -1996,19 +2107,31 @@ const GUTENBERG_INSTRUCTIONS = `## Gutenberg Block Format - COMPLETE REFERENCE
 </div>
 
 ### Responsive Requirements
-- Use grid-template-columns with auto-fill/minmax for responsive grids
-- Buttons: min-width:200px, padding:16px 32px
+- Use grid-template-columns with auto-fill/minmax(280px,1fr) for responsive grids
+- Buttons: padding:16px 32px, use <a> with inline styles, NOT wp:button blocks
 - Font sizes: headings clamp(28px, 4vw, 54px), body 16-18px
 - Section padding: clamp(40px, 8vw, 100px) top/bottom
-- Image containers: width:100%, object-fit:cover
-- Max-width:1200px on all content containers
+- Image containers: width:100%, object-fit:cover, display:block
+- Max-width:1200px on inner content containers, width:100% on outer wrappers
 
-### FORBIDDEN
-- NEVER use placeholder SVGs for images - use real URLs or the WordPress media library URLs
+### FORBIDDEN - WILL BE STRIPPED AUTOMATICALLY
+- NEVER use <style> tags or <!-- wp:html --> blocks containing CSS - they render as visible text
+- NEVER put @media queries in the markup - use clamp() and minmax() in inline styles instead
+- NEVER use placeholder SVGs for images - use real URLs or placehold.co
 - NEVER use Unsplash or external stock photo URLs - use only images from the design
 - NEVER leave default WordPress styling (gray backgrounds, system fonts)
 - NEVER skip inline styles - EVERY element needs explicit styling
-- NEVER use <!-- wp:html --> blocks with <style> tags - use inline styles only`;
+- NEVER include responsive CSS classes that rely on theme stylesheets
+- NEVER use wp:cover blocks - use wp:group with background-image instead (wp:cover requires JS)
+- NEVER use wp:buttons blocks - use plain <a> tags with inline styles instead
+
+### OVERFLOW & LAYOUT SAFETY
+- EVERY top-level section: width:100%;box-sizing:border-box;overflow:hidden
+- Add overflow:hidden to all card containers and image wrappers
+- Add text-overflow:ellipsis;overflow:hidden on card titles
+- Images inside cards: width:100%;height:auto;display:block;object-fit:cover
+- Grids: use minmax(280px,1fr) not fixed column counts, add overflow:hidden on grid container
+- NEVER set font-size larger than the container width could hold`;
 
 const DIVI5_INSTRUCTIONS = `## Divi 5 Format
 Divi 5 uses JSON-based blocks. Generate Gutenberg-compatible markup (Divi 5 supports it natively) with inline styles for positioning and design tokens.`;
