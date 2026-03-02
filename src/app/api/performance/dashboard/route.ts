@@ -28,7 +28,7 @@ export async function GET() {
 
   // Build tracker summaries
   const trackers: PKTrackerSummary[] = (configs || [])
-    .filter((c: any) => c.tracker_type !== 'masterlist')
+    .filter((c: any) => c.tracker_type !== 'masterlist' && c.tracker_type !== 'sanity_tests')
     .map((config: any) => {
       const trackerType = config.tracker_type as PKTrackerType;
       const lastSynced = config.last_synced_at ? new Date(config.last_synced_at) : null;

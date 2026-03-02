@@ -617,9 +617,9 @@ async function syncPingdom(
 
   await supabase.from('pk_pingdom_tests').delete().neq('id', '00000000-0000-0000-0000-000000000000');
 
-  // Only sync year tabs with structured data (2025, 2026)
+  // Sync quarter tabs (e.g. "2026 | QUARTER 1") and plain year tabs (e.g. "2025")
   const dataTabs = doc.sheetsByIndex.filter(
-    s => /^\d{4}$/.test(s.title)
+    s => /^\d{4}(\s*\|.*)?$/.test(s.title)
   );
 
   for (const sheet of dataTabs) {
@@ -631,7 +631,7 @@ async function syncPingdom(
         test_date: parseDate(row['Test Date']),
         account_manager_name: row['Account Manager'] || null,
         client_name: row['Client'] || null,
-        client_website: row['Client Website'] || null,
+        client_website: row['Business Name'] || null,
         report_attachment: row['Attachments / Report'] || null,
         notes: row['Notes'] || null,
         quarter_label: sheet.title,

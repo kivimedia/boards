@@ -35,6 +35,10 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
       const res = await fetch('/api/performance/dashboard');
       if (res.ok) {
         const json = await res.json();
+        // Hide sanity_tests - main tracker is sanity_checks
+        json.trackers = (json.trackers || []).filter(
+          (t: any) => t.tracker_type !== 'sanity_tests'
+        );
         setData(json);
       }
     } finally {
