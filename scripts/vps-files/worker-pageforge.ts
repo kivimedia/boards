@@ -717,17 +717,19 @@ async function executePhase(
       if (siteProfile.figma_personal_token && build.figma_node_ids?.length > 0) {
         try {
           const figmaClient = createFigmaClient(siteProfile.figma_personal_token);
-          // Use JPG format and scale 0.5 to keep under Anthropic's 5MB limit
-          const imageResponse = await figmaGetImages(figmaClient, build.figma_file_key, [build.figma_node_ids[0]], { format: 'jpg', scale: 0.5 });
+          // Use JPG format at scale 1.0 for best quality, resize later if needed
+          const imageResponse = await figmaGetImages(figmaClient, build.figma_file_key, [build.figma_node_ids[0]], { format: 'jpg', scale: 1 });
           const firstUrl = Object.values(imageResponse.images).find(Boolean);
           if (firstUrl) {
             const buffer = await figmaDownloadImage(firstUrl);
-            figmaImage = buffer.toString('base64');
+            console.log(`[pageforge] Figma image raw: ${Math.round(buffer.length / 1024)}KB`);
+            // Resize to stay within Anthropic limits (max 7500px any dimension, under 4.5MB)
+            figmaImage = await resizeIfNeeded(buffer.toString('base64'));
             figmaImageMime = 'image/jpeg';
-            console.log(`[pageforge] Figma image for builder: ${Math.round(buffer.length / 1024)}KB`);
-            // If still too large (>4.5MB), skip image and rely on text descriptions
-            if (buffer.length > 4_500_000) {
-              console.warn(`[pageforge] Figma image too large (${Math.round(buffer.length / 1024)}KB), using text-only mode`);
+            const resizedSize = Buffer.from(figmaImage, 'base64').length;
+            console.log(`[pageforge] Figma image for builder: ${Math.round(resizedSize / 1024)}KB`);
+            if (resizedSize > 4_500_000) {
+              console.warn(`[pageforge] Figma image too large after resize (${Math.round(resizedSize / 1024)}KB), using text-only mode`);
               figmaImage = null;
             }
           }
@@ -743,54 +745,114 @@ async function executePhase(
         return `${i + 1}. "${c.sectionName}" (${c.type}, Tier ${c.tier}) - ${bounds.width || '?'}x${bounds.height || '?'}px, ${section?.childCount || 0} child elements${c.description ? ` - ${c.description}` : ''}`;
       }).join('\n');
 
-      const prompt = `Generate a COMPLETE WordPress ${builder} page. You MUST generate markup for EVERY section listed below - do not skip, abbreviate, or leave placeholders.
+      // Identify primary and secondary colors from the design
+      const colorList: string[] = figmaData.colors.map((c: any) => c.hex as string);
+      const uniqueColors: string[] = [...new Set(colorList)];
+      const primaryDark = uniqueColors.find(c => c.match(/^#[0-3]/)) || '#001738';
+      const primaryAccent = uniqueColors.find(c => c.match(/^#[c-f][0-9a-f][0-3]/i)) || '#cc2336';
+      const primaryFont = figmaData.fonts[0]?.family || 'Poppins';
+      const secondaryFont = figmaData.fonts.find((f: any) => f.family !== primaryFont)?.family || primaryFont;
 
-${figmaImage ? 'IMPORTANT: The attached image shows the Figma design. Study it carefully - match the layout, spacing, colors, typography, and visual hierarchy EXACTLY.' : ''}
+      // Get any uploaded WP media URLs from image_optimization phase (if resuming)
+      const uploadedMedia = artifacts.image_optimization?.mediaIds || [];
+
+      const prompt = `Generate a COMPLETE, production-quality WordPress ${builder} landing page.
+
+${figmaImage ? `IMPORTANT: The attached image shows the FULL Figma design for this page. Study it meticulously.
+- Match the exact layout structure, visual hierarchy, and content flow
+- Copy the exact colors, fonts, spacing, and visual treatments you see
+- If you see a dark navy hero section, build a dark navy hero section with the SAME proportions
+- If you see a card grid with images, build the EXACT same grid with the SAME number of cards
+- Every pixel matters. This must look PROFESSIONAL, not like a generic WordPress template.` : ''}
 
 ${builderInstructions}
 
-Design Tokens:
-- Colors: ${figmaData.colors.map((c: any) => `${c.hex} (${c.name})`).join(', ')}
-- Fonts: ${figmaData.fonts.map((f: any) => `${f.family} ${f.weight} ${f.size}px/${f.lineHeight || 'auto'}`).join(', ')}
+## Design System
+Primary font: "${primaryFont}", sans-serif (use on ALL text elements - headings, body, buttons, links, captions)
+Secondary font: "${secondaryFont}", sans-serif
+Dark color: ${primaryDark} (use for dark backgrounds, dark text)
+Accent color: ${primaryAccent} (use for buttons, highlights, CTAs)
+All colors: ${uniqueColors.slice(0, 12).join(', ')}
+Font scale: ${figmaData.fonts.slice(0, 8).map((f: any) => `${f.size}px/${f.weight}`).join(', ')}
 ${siteProfile.global_css ? `\nSite Global CSS:\n${siteProfile.global_css.slice(0, 2000)}` : ''}
 
-Sections to build (${classifications.length} total - ALL are required):
+## Sections to Build (${classifications.length} total - EVERY ONE is required)
 ${sectionDetails}
 
-CRITICAL RULES:
-1. Generate EVERY section - the output must cover the entire page top to bottom
-2. Use INLINE STYLES for exact color values, font sizes, spacing, and dimensions from the design tokens
-3. Match the Figma design pixel-for-pixel: correct padding, margin, gap, border-radius
-4. Make it responsive: use max-width, flexbox/grid, and mobile-friendly patterns
-5. Use real semantic HTML (proper headings hierarchy, sections, articles)
-6. Do NOT use placeholder text - use realistic content that fits the design intent
-7. Include background colors, gradients, and visual treatments shown in the design
+## QUALITY STANDARDS - THIS IS A PAID CLIENT PAGE
+1. EVERY element must have inline styles: font-family, font-size, font-weight, color, line-height, padding, margin, background-color
+2. Use "${primaryFont}", sans-serif as font-family on EVERY text element. Not just headings - EVERYTHING.
+3. Section backgrounds must alternate properly (dark/light/dark or as shown in Figma)
+4. Dark background sections (#001738, #1a1a2e, etc.) MUST have white/light text (#ffffff, #e0e0e0)
+5. All content inside max-width:1200px containers, centered with margin:0 auto
+6. Card grids: use display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:32px
+7. Hero sections: min-height:600px or more, with proper overlay, large headline, subtext, and CTA button
+8. Buttons: styled with background-color, color, padding:16px 40px, border-radius, font-weight:600, hover-ready
+9. Images: use src="https://placehold.co/800x500/001738/ffffff?text=Section+Name" as placeholder, width:100%, object-fit:cover
+10. For tent/event images, use realistic placeholder dimensions matching the Figma layout
 
-Respond with JSON: {"markup":"the COMPLETE page markup as a single string","sections":[{"name":"section name","markup":"that section's markup"}]}`;
+RESPOND WITH JSON: {"markup":"the COMPLETE page markup","sections":[{"name":"section name","markup":"markup"}]}`;
 
       const result = await callPageForgeAgent(supabase, buildId, 'pageforge_markup_gen', 'markup_generation',
         getSystemPrompt('pageforge_builder'),
         prompt,
         anthropic, {
-          maxTokens: 32768,
+          maxTokens: 64000,
           images: figmaImage ? [{ data: figmaImage, mimeType: figmaImageMime }] : undefined,
         }
       );
 
       let markup: string;
       let sections: any[] = [];
+      // Extract markup from AI response - handles JSON, truncated JSON, and raw markup
+      const rawText = result.text;
       try {
-        const jsonMatch = result.text.match(/\{[\s\S]*\}/);
+        // Strip code fence markers if present
+        const stripped = rawText.replace(/^```(?:json|html)?\s*\n?/m, '').replace(/\n?```\s*$/m, '');
+        const jsonMatch = stripped.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0]);
-          markup = parsed.markup || result.text;
+          markup = parsed.markup || stripped;
           sections = parsed.sections || [];
         } else {
-          markup = result.text;
+          markup = stripped;
         }
       } catch {
-        markup = result.text;
+        // JSON parse failed (likely truncated output) - extract markup via string search
+        const markupStart = rawText.indexOf('"markup"');
+        if (markupStart >= 0) {
+          // Find the opening quote of the markup value
+          const valueStart = rawText.indexOf('"', markupStart + 8);
+          if (valueStart >= 0) {
+            // Extract everything after the opening quote, unescape JSON string escapes
+            let extracted = rawText.slice(valueStart + 1);
+            // Remove trailing truncated content (unmatched quotes, code fences)
+            extracted = extracted.replace(/\n?"?\s*,?\s*"sections"[\s\S]*$/, '');
+            extracted = extracted.replace(/\n?```\s*$/, '');
+            // Remove trailing unmatched quote
+            extracted = extracted.replace(/"?\s*$/, '');
+            // Unescape JSON string escapes
+            extracted = extracted
+              .replace(/\\n/g, '\n')
+              .replace(/\\"/g, '"')
+              .replace(/\\\\/g, '\\')
+              .replace(/\\t/g, '\t');
+            if (extracted.includes('<!-- wp:') || extracted.includes('<div')) {
+              markup = extracted;
+              console.log(`[pageforge] Extracted markup from truncated JSON (${markup.length} chars)`);
+            } else {
+              markup = rawText;
+            }
+          } else {
+            markup = rawText;
+          }
+        } else {
+          // No JSON wrapper - use raw text, strip code fences
+          markup = rawText.replace(/^```(?:json|html)?\s*\n?/m, '').replace(/\n?```\s*$/m, '');
+        }
       }
+      // Final safety: strip any remaining code fence markers from markup
+      markup = markup.replace(/^```(?:json|html)?\s*\n?/m, '').replace(/\n?```\s*$/m, '').trim();
 
       await updateBuildArtifacts(supabase, buildId, 'markup_generation', { markup, builder, sections });
       console.log(`[pageforge] Generated ${builder} markup: ${markup.length} chars, ${sections.length} sections`);
@@ -1075,54 +1137,81 @@ Respond with JSON: {"markup":"the COMPLETE page markup as a single string","sect
         ? `\nPage sections (top to bottom):\n${classifications.map((c: any, i: number) => `${i + 1}. "${c.sectionName}" (${c.type})`).join('\n')}`
         : '';
 
-      // DESKTOP: Full Figma vs WP comparison (primary - this is where Figma image matches)
+      // DESKTOP: Section-by-section comparison at higher resolution
+      // Crop both Figma and WP screenshots into 3 vertical segments (top/middle/bottom)
+      // to preserve detail instead of downscaling the entire page to one image
       const figmaDesktop = figmaScreenshots?.desktop;
       const wpDesktop = wpScreenshots?.desktop;
 
       if (figmaDesktop && wpDesktop) {
         try {
-          const vqaResult = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa', 'vqa_comparison',
-            getSystemPrompt('pageforge_vqa'),
-            `Compare these two full-page screenshots at DESKTOP (1440px) breakpoint.
+          // Crop into 3 segments for higher-resolution comparison
+          const segments = ['top', 'middle', 'bottom'];
+          const segmentScores: number[] = [];
+          const allDifferences: any[] = [];
 
-Image 1: Original Figma design (the reference - this is what we're building toward)
-Image 2: WordPress page as currently built (the actual output)
+          for (let seg = 0; seg < 3; seg++) {
+            const segName = segments[seg];
+            try {
+              const figmaCrop = await cropSegment(figmaDesktop, seg, 3);
+              const wpCrop = await cropSegment(wpDesktop, seg, 3);
 
-Analyze the ENTIRE page from top to bottom. For each section, check:
-1. LAYOUT: Are elements positioned correctly? Correct widths, heights, spacing, alignment?
-2. TYPOGRAPHY: Right fonts, sizes, weights, colors, line heights?
-3. COLORS: Background colors, text colors, accent colors match?
-4. IMAGES/ICONS: Present, correct size, correct position?
-5. SPACING: Padding, margins, gaps between elements match?
-6. MISSING CONTENT: Are any sections from the Figma design missing entirely in the WP page?
-${sectionContext}
+              const segSections = sectionContext
+                ? `\nSections in this ${segName} portion of the page:\n${classifications
+                    .slice(Math.floor(seg * classifications.length / 3), Math.ceil((seg + 1) * classifications.length / 3))
+                    .map((c: any, i: number) => `- "${c.sectionName}" (${c.type})`).join('\n')}`
+                : '';
 
-IMPORTANT: Check if the WordPress page covers ALL sections shown in the Figma design. Missing sections are CRITICAL differences.
+              const vqaResult = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa', 'vqa_comparison',
+                getSystemPrompt('pageforge_vqa'),
+                `Compare these two screenshots showing the ${segName.toUpperCase()} third of the page at DESKTOP (1440px).
 
-Score the overall match from 0-100 (100 = pixel-perfect match).
-A score below 60 means major sections are missing or fundamentally broken.
-A score of 60-80 means the structure is there but details need work.
-A score above 80 means it's close with only minor differences.
+Image 1: Figma design (reference)
+Image 2: WordPress page (actual output)
+${segSections}
 
-For EACH difference found, provide a specific, actionable CSS/markup fix.
+Be STRICT and HONEST in your scoring. Check:
+1. STYLING: Does EVERY element have proper fonts, colors, and spacing? Or does it look like unstyled default HTML?
+2. LAYOUT: Are elements positioned, sized, and aligned correctly?
+3. TYPOGRAPHY: Correct font family (not system fonts), correct sizes, weights, colors?
+4. BACKGROUNDS: Correct background colors/images for each section?
+5. VISUAL POLISH: Rounded corners, shadows, proper button styling, card styling?
+6. MISSING CONTENT: Any sections or elements visible in Figma but missing in WP?
+
+A page with unstyled text, system fonts, missing backgrounds, or raw HTML elements should score BELOW 30.
+A page that has the right structure but wrong colors/fonts/spacing should score 40-60.
+A page that looks professionally styled but has minor differences should score 70-85.
+Only 85+ for near pixel-perfect match.
 
 Respond with JSON:
-{"score":N,"differences":[{"area":"section or element name","severity":"critical|major|minor","description":"specific description of what's different","suggestedFix":"exact CSS or markup change to apply"}]}`,
-            anthropic, {
-              images: [
-                { data: figmaDesktop, mimeType: 'image/jpeg' },
-                { data: wpDesktop, mimeType: 'image/jpeg' },
-              ],
-            }
-          );
+{"score":N,"differences":[{"area":"element","severity":"critical|major|minor","description":"specific issue","suggestedFix":"CSS fix"}]}`,
+                anthropic, {
+                  images: [
+                    { data: figmaCrop, mimeType: 'image/jpeg' },
+                    { data: wpCrop, mimeType: 'image/jpeg' },
+                  ],
+                }
+              );
 
-          const jsonMatch = vqaResult.text.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
-            results.desktop = { score: parsed.score || 0, differences: parsed.differences || [] };
-          } else {
-            results.desktop = { score: 50, differences: [] };
+              const jsonMatch = vqaResult.text.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                const parsed = JSON.parse(jsonMatch[0]);
+                segmentScores.push(parsed.score || 0);
+                allDifferences.push(...(parsed.differences || []).map((d: any) => ({ ...d, area: `[${segName}] ${d.area}` })));
+              } else {
+                segmentScores.push(40);
+              }
+              console.log(`[pageforge] VQA ${segName} segment: ${segmentScores[seg]}%`);
+            } catch (segErr) {
+              console.warn(`[pageforge] VQA ${segName} segment failed:`, segErr instanceof Error ? segErr.message : String(segErr));
+              segmentScores.push(0);
+            }
           }
+
+          // Average the segment scores
+          const avgScore = Math.round(segmentScores.reduce((a, b) => a + b, 0) / segmentScores.length);
+          results.desktop = { score: avgScore, differences: allDifferences };
+          console.log(`[pageforge] VQA desktop segments: ${segmentScores.join('/')} avg=${avgScore}%`);
         } catch (err) {
           results.desktop = { score: 0, differences: [{ area: 'comparison', severity: 'critical', description: `Failed: ${err instanceof Error ? err.message : String(err)}` }] };
         }
@@ -1436,7 +1525,12 @@ Image 1: Figma design (reference)
 Image 2: WordPress page (after fix)
 
 Previous score was ${lastScore}%. Check if the fixes improved the match.
-Focus on remaining differences only.
+
+STRICT SCORING RULES:
+- Unstyled/default HTML with system fonts = BELOW 30
+- Right structure but wrong colors/fonts/spacing = 40-60
+- Professionally styled with minor differences = 70-85
+- Near pixel-perfect = 85+
 
 Score 0-100. Respond with JSON:
 {"score":N,"differences":[{"area":"...","severity":"critical|major|minor","description":"...","suggestedFix":"..."}]}`,
@@ -1710,6 +1804,34 @@ async function resizeIfNeeded(base64: string, maxDim = 7500): Promise<string> {
   return jpg.toString('base64');
 }
 
+// Crop a base64 image into vertical segments for section-by-section VQA comparison
+// segmentIndex: 0-based index of the segment to extract
+// totalSegments: total number of segments to divide the image into
+async function cropSegment(base64: string, segmentIndex: number, totalSegments: number): Promise<string> {
+  const buf = Buffer.from(base64, 'base64');
+  const meta = await sharp(buf).metadata();
+  if (!meta.width || !meta.height) return base64;
+
+  const segHeight = Math.floor(meta.height / totalSegments);
+  const top = segmentIndex * segHeight;
+  // Last segment takes everything remaining (avoids rounding gaps)
+  const height = segmentIndex === totalSegments - 1 ? meta.height - top : segHeight;
+
+  const cropped = await sharp(buf)
+    .extract({ left: 0, top, width: meta.width, height })
+    .jpeg({ quality: 85 })
+    .toBuffer();
+
+  // Resize if the cropped segment is still too large for Anthropic
+  const croppedMeta = await sharp(cropped).metadata();
+  if (croppedMeta.width && croppedMeta.height && (croppedMeta.width > 7500 || croppedMeta.height > 7500)) {
+    return resizeIfNeeded(cropped.toString('base64'));
+  }
+
+  console.log(`[pageforge] Cropped segment ${segmentIndex + 1}/${totalSegments}: ${meta.width}x${height} (${Math.round(cropped.length / 1024)}KB)`);
+  return cropped.toString('base64');
+}
+
 async function captureScreenshots(pageUrl: string): Promise<Record<string, string | null>> {
   const screenshots: Record<string, string | null> = { desktop: null, tablet: null, mobile: null };
   const breakpoints: Record<string, number> = { desktop: 1440, tablet: 768, mobile: 375 };
@@ -1797,17 +1919,96 @@ function findUnclosedTags(html: string): string[] {
 // BUILDER INSTRUCTIONS (inline constants)
 // ============================================================================
 
-const GUTENBERG_INSTRUCTIONS = `## Gutenberg Block Format
-Generate valid WordPress Gutenberg block markup:
-<!-- wp:group {"layout":{"type":"constrained"}} -->
-<div class="wp-block-group">
-  <!-- wp:heading {"level":2} --><h2 class="wp-block-heading">Title</h2><!-- /wp:heading -->
-  <!-- wp:paragraph --><p>Content</p><!-- /wp:paragraph -->
+const GUTENBERG_INSTRUCTIONS = `## Gutenberg Block Format - COMPLETE REFERENCE
+
+### CRITICAL STYLING RULES
+1. EVERY element must have inline styles matching the Figma design exactly
+2. Use the EXACT hex colors, font families, font sizes, and spacing from the design tokens
+3. Set background-color, color, font-family, font-size, font-weight, line-height, padding, margin on EVERY element
+4. Use CSS gap, flexbox, and grid for layouts - NEVER rely on WordPress defaults
+5. ALL sections must have proper max-width containers (1200px typical) centered with margin: 0 auto
+6. Set explicit width/height on images and containers matching Figma dimensions
+
+### Block Patterns
+
+**Full-width section with background:**
+<!-- wp:group {"align":"full","style":{"color":{"background":"#001738"},"spacing":{"padding":{"top":"80px","bottom":"80px","left":"40px","right":"40px"}}}} -->
+<div class="wp-block-group alignfull" style="background-color:#001738;padding:80px 40px">
+<div style="max-width:1200px;margin:0 auto">
+  <!-- content here -->
+</div>
 </div>
 <!-- /wp:group -->
 
-Use <!-- wp:columns -->, <!-- wp:image -->, <!-- wp:cover -->, <!-- wp:buttons --> blocks.
-Use inline styles for exact design token values.`;
+**Hero section with background image overlay:**
+<!-- wp:cover {"url":"IMAGE_URL","dimRatio":50,"overlayColor":"#001738","minHeight":700,"align":"full"} -->
+<div class="wp-block-cover alignfull" style="min-height:700px">
+<span class="wp-block-cover__background" style="background-color:#001738;opacity:0.5"></span>
+<img class="wp-block-cover__image-background" src="IMAGE_URL" style="object-fit:cover"/>
+<div class="wp-block-cover__inner-container" style="max-width:1200px;margin:0 auto;padding:0 40px">
+  <!-- wp:heading {"level":1,"style":{"typography":{"fontSize":"54px","fontWeight":"700","lineHeight":"1.2"},"color":{"text":"#ffffff"}}} -->
+  <h1 style="color:#ffffff;font-family:Poppins,sans-serif;font-size:54px;font-weight:700;line-height:1.2;margin-bottom:24px">Headline</h1>
+  <!-- /wp:heading -->
+  <!-- wp:paragraph {"style":{"typography":{"fontSize":"18px","lineHeight":"1.6"},"color":{"text":"#ffffff"}}} -->
+  <p style="color:#ffffff;font-family:Poppins,sans-serif;font-size:18px;line-height:1.6;max-width:600px">Description text</p>
+  <!-- /wp:paragraph -->
+</div>
+</div>
+<!-- /wp:cover -->
+
+**Card grid (2-4 columns):**
+<!-- wp:group {"align":"full","style":{"spacing":{"padding":{"top":"80px","bottom":"80px"}}}} -->
+<div class="wp-block-group alignfull" style="padding:80px 40px">
+<div style="max-width:1200px;margin:0 auto">
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:32px">
+    <div style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
+      <img src="IMAGE_URL" style="width:100%;height:240px;object-fit:cover" alt="Description"/>
+      <div style="padding:24px">
+        <h3 style="font-family:Poppins,sans-serif;font-size:22px;font-weight:600;color:#001738;margin:0 0 12px">Card Title</h3>
+        <p style="font-family:Poppins,sans-serif;font-size:16px;color:#555;line-height:1.6;margin:0">Card description</p>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+<!-- /wp:group -->
+
+**Styled button:**
+<!-- wp:buttons -->
+<div class="wp-block-buttons">
+<!-- wp:button -->
+<div class="wp-block-button"><a class="wp-block-button__link" style="background-color:#cc2336;color:#ffffff;font-family:Poppins,sans-serif;font-size:16px;font-weight:600;padding:16px 40px;border-radius:8px;text-decoration:none;display:inline-block">Get Started</a></div>
+<!-- /wp:button -->
+</div>
+<!-- /wp:buttons -->
+
+**Testimonial card:**
+<div style="background:#f8f8f8;border-radius:12px;padding:32px;display:flex;flex-direction:column;gap:16px">
+  <div style="display:flex;gap:4px">★★★★★</div>
+  <p style="font-family:Poppins,sans-serif;font-size:16px;color:#333;line-height:1.6;font-style:italic">"Quote text here"</p>
+  <div style="display:flex;align-items:center;gap:12px">
+    <img src="AVATAR_URL" style="width:48px;height:48px;border-radius:50%;object-fit:cover" alt="Name"/>
+    <div>
+      <p style="font-family:Poppins,sans-serif;font-size:14px;font-weight:600;color:#001738;margin:0">Customer Name</p>
+      <p style="font-family:Poppins,sans-serif;font-size:13px;color:#777;margin:0">Role / Company</p>
+    </div>
+  </div>
+</div>
+
+### Responsive Requirements
+- Use grid-template-columns with auto-fill/minmax for responsive grids
+- Buttons: min-width:200px, padding:16px 32px
+- Font sizes: headings clamp(28px, 4vw, 54px), body 16-18px
+- Section padding: clamp(40px, 8vw, 100px) top/bottom
+- Image containers: width:100%, object-fit:cover
+- Max-width:1200px on all content containers
+
+### FORBIDDEN
+- NEVER use placeholder SVGs for images - use real URLs or the WordPress media library URLs
+- NEVER use Unsplash or external stock photo URLs - use only images from the design
+- NEVER leave default WordPress styling (gray backgrounds, system fonts)
+- NEVER skip inline styles - EVERY element needs explicit styling
+- NEVER use <!-- wp:html --> blocks with <style> tags - use inline styles only`;
 
 const DIVI5_INSTRUCTIONS = `## Divi 5 Format
 Divi 5 uses JSON-based blocks. Generate Gutenberg-compatible markup (Divi 5 supports it natively) with inline styles for positioning and design tokens.`;
