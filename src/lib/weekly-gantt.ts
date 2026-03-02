@@ -11,23 +11,31 @@ import type {
 // HELPERS
 // ============================================================================
 
-/** Get Monday of the week containing `date` (ISO string yyyy-mm-dd). */
+/** Get Monday of the week containing `date` (local yyyy-mm-dd string). */
 export function getMonday(date: Date): string {
   const d = new Date(date);
   const day = d.getDay(); // 0=Sun, 1=Mon ...
   const diff = d.getDate() - day + (day === 0 ? -6 : 1);
   d.setDate(diff);
-  return d.toISOString().split('T')[0];
+  return localDateStr(d);
+}
+
+/** Format a Date as local YYYY-MM-DD (avoids UTC shift from toISOString). */
+function localDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 /** Day labels for the week grid. */
 export const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 
-/** Get full date string for a given day index (1–7) within a week starting on `weekStart`. */
+/** Get full date string for a given day index (1-7) within a week starting on `weekStart`. */
 export function dayDate(weekStart: string, dayIndex: number): string {
   const d = new Date(weekStart);
   d.setDate(d.getDate() + (dayIndex - 1));
-  return d.toISOString().split('T')[0];
+  return localDateStr(d);
 }
 
 // ============================================================================
@@ -351,7 +359,7 @@ export function buildWeeklyEmailHtml(
 ): string {
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekEnd.getDate() + 6);
-  const weekLabel = `${formatDate(weekStart)} – ${formatDate(weekEnd.toISOString().split('T')[0])}`;
+  const weekLabel = `${formatDate(weekStart)} - ${formatDate(weekEnd.toISOString().split('T')[0])}`;
 
   const completedCount = tasks.filter((t) => t.completed).length;
   const totalCount = tasks.length;
@@ -363,7 +371,7 @@ export function buildWeeklyEmailHtml(
         : '<span style="color: #f59e0b; font-weight: 600;">In progress</span>';
       const dayRange = t.day_start === t.day_end
         ? DAY_LABELS[t.day_start - 1]
-        : `${DAY_LABELS[t.day_start - 1]}–${DAY_LABELS[t.day_end - 1]}`;
+        : `${DAY_LABELS[t.day_start - 1]}-${DAY_LABELS[t.day_end - 1]}`;
       const titleStyle = t.completed ? 'text-decoration: line-through; color: #9ca3af;' : 'color: #1f2937;';
 
       return `
@@ -379,7 +387,7 @@ export function buildWeeklyEmailHtml(
   return `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px 0;">
       <div style="background: #1a1f36; border-radius: 12px; padding: 16px 20px; margin-bottom: 20px;">
-        <h1 style="color: #fff; font-size: 16px; margin: 0;">Kivi Media — Weekly Plan</h1>
+        <h1 style="color: #fff; font-size: 16px; margin: 0;">Kivi Media - Weekly Plan</h1>
       </div>
 
       <p style="color: #333; font-size: 15px; font-weight: 600; margin-bottom: 4px;">
@@ -427,7 +435,7 @@ export async function sendWeeklyEmail(
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://kmboards.co';
   const fromEmail = process.env.RESEND_FROM_EMAIL || 'noreply@dailycookie.co';
-  const subject = `Weekly Plan — ${clientName} — ${formatDate(weekStart)}`;
+  const subject = `Weekly Plan - ${clientName} - ${formatDate(weekStart)}`;
 
   const html = buildWeeklyEmailHtml(clientName, weekStart, tasks, siteUrl);
 
@@ -482,13 +490,13 @@ export function buildPrintHtml(
 ): string {
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekEnd.getDate() + 6);
-  const weekLabel = `${formatDate(weekStart)} – ${formatDate(weekEnd.toISOString().split('T')[0])}`;
+  const weekLabel = `${formatDate(weekStart)} - ${formatDate(weekEnd.toISOString().split('T')[0])}`;
 
   const ownerMap = new Map((teamMembers ?? []).map((m) => [m.id, m.display_name]));
 
   const taskRows = tasks
     .map((t) => {
-      const owner = t.assignee_name || (t.owner_id ? (ownerMap.get(t.owner_id) ?? '—') : '—');
+      const owner = t.assignee_name || (t.owner_id ? (ownerMap.get(t.owner_id) ?? '-') : '-');
       const hex = taskBarHex(t);
       const dayCells = [1, 2, 3, 4, 5, 6, 7]
         .map((d) => {

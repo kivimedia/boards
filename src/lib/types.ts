@@ -1962,8 +1962,24 @@ export interface WeeklyPlan {
   status: WeeklyPlanStatus;
   created_from: string | null;
   created_by: string | null;
+  day_labels: Record<string, string>;
+  day_colors: Record<string, string>;
   created_at: string;
   updated_at: string;
+}
+
+export interface ClientTeamMember {
+  id: string;
+  client_id: string;
+  user_id: string;
+  role: string;
+  created_at: string;
+  profile?: {
+    id: string;
+    display_name: string;
+    avatar_url: string | null;
+    agency_role: string | null;
+  };
 }
 
 export type WeeklyTaskColor =

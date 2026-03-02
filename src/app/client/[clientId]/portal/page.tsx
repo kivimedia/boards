@@ -30,7 +30,7 @@ export default async function ClientPortalPage({ params }: PortalPageProps) {
     <div className="flex h-screen overflow-hidden">
       <SidebarWithBoards />
       <main className="flex-1 flex flex-col overflow-hidden">
-        <Header title={`${client.name} — Client Portal`} />
+        <Header title={`${client.name} - Client Portal`} />
         <PortalPageClient clientId={client.id} clientName={client.name} />
       </main>
     </div>

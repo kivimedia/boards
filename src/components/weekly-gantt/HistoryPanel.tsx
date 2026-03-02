@@ -101,7 +101,7 @@ export function HistoryPanel({ planId, clientId, onClose }: HistoryPanelProps) {
                   </span>
                   <span className="text-[9px] text-navy/30 dark:text-slate-500 font-body shrink-0">
                     {DAY_LABELS[t.day_start - 1]}
-                    {t.day_end !== t.day_start && `–${DAY_LABELS[t.day_end - 1]}`}
+                    {t.day_end !== t.day_start && `-${DAY_LABELS[t.day_end - 1]}`}
                   </span>
                 </div>
               ))}

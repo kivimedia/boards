@@ -7,6 +7,7 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
 import TrelloCardPicker from '@/components/trello/TrelloCardPicker';
+import { ClientTeamSection } from '@/components/clients/ClientTeamSection';
 
 interface CalendarEvent {
   id: string;
@@ -658,6 +659,11 @@ export default function ClientsListView() {
               </h3>
               <TrelloCardPicker clientId={editClient.id} />
             </div>
+          )}
+
+          {/* Team Members */}
+          {editClient && (
+            <ClientTeamSection clientId={editClient.id} />
           )}
 
           <div className="flex justify-end gap-3 mt-4">

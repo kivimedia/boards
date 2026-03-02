@@ -30,7 +30,7 @@ export default async function ClientMapPage({ params }: MapPageProps) {
     <div className="flex h-screen overflow-hidden">
       <SidebarWithBoards />
       <main className="flex-1 flex flex-col overflow-hidden">
-        <Header title={`${client.name} — Strategy Map`} />
+        <Header title={`${client.name} - Strategy Map`} />
         <MapBoardView clientId={client.id} />
       </main>
     </div>
