@@ -100,6 +100,10 @@ const TRACKER_COLUMNS: Record<string, Array<{ key: string; label: string; type?:
     { key: 'status', label: 'Status' },
     { key: 'notes', label: 'Notes' },
   ],
+  google_ads_reports: [
+    { key: 'month_label', label: 'Month' },
+    { key: 'raw_content', label: 'Report Details' },
+  ],
 };
 
 /** Trackers that support AM filtering */
@@ -107,6 +111,20 @@ const AM_FILTERABLE = new Set([
   'fathom_videos', 'client_updates', 'sanity_checks', 'sanity_tests',
   'pics_monitoring', 'pingdom_tests', 'update_schedule', 'website_status',
 ]);
+
+/** Trackers that have month_label and should default to the latest month */
+const MONTH_FILTERABLE = new Set(['google_ads_reports', 'monthly_summaries']);
+
+const MONTH_ABBRS: Record<string, number> = {
+  JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5,
+  JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11,
+};
+
+function monthLabelToSortKey(label: string): number {
+  const m = label.match(/^([A-Z]{3})'(\d{2})$/i);
+  if (!m) return 0;
+  return parseInt(m[2]) * 12 + (MONTH_ABBRS[m[1].toUpperCase()] ?? 0);
+}
 
 export default function TrackerDetailContent({ trackerType, label }: TrackerDetailContentProps) {
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
@@ -117,13 +135,41 @@ export default function TrackerDetailContent({ trackerType, label }: TrackerDeta
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(0);
   const pageSize = 50;
+  const isMonthType = MONTH_FILTERABLE.has(trackerType);
+  const [monthFilter, setMonthFilter] = useState('');
+  const [availableMonths, setAvailableMonths] = useState<string[]>([]);
+  const [monthsLoaded, setMonthsLoaded] = useState(!isMonthType);
 
   const columns = TRACKER_COLUMNS[trackerType] || [
     { key: 'id', label: 'ID' },
     { key: 'created_at', label: 'Created', type: 'date' as const },
   ];
 
+  // Load available months for month-filterable trackers
+  useEffect(() => {
+    if (!isMonthType) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/performance/tracker?type=${trackerType}&limit=1000`);
+        if (!res.ok || cancelled) return;
+        const json = await res.json();
+        const allRows: Record<string, unknown>[] = (json.data || json).rows || [];
+        const months = [...new Set(allRows.map(r => r.month_label as string).filter(Boolean))];
+        months.sort((a, b) => monthLabelToSortKey(b) - monthLabelToSortKey(a));
+        if (cancelled) return;
+        setAvailableMonths(months);
+        if (months.length > 0) setMonthFilter(months[0]);
+      } finally {
+        if (!cancelled) setMonthsLoaded(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackerType]);
+
   const fetchData = useCallback(async () => {
+    if (!monthsLoaded) return;
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -134,6 +180,7 @@ export default function TrackerDetailContent({ trackerType, label }: TrackerDeta
       if (amFilter) params.set('am', amFilter);
       if (dateFrom) params.set('from', dateFrom);
       if (dateTo) params.set('to', dateTo);
+      if (monthFilter) params.set('month', monthFilter);
 
       const res = await fetch(`/api/performance/tracker?${params}`);
       if (res.ok) {
@@ -145,7 +192,7 @@ export default function TrackerDetailContent({ trackerType, label }: TrackerDeta
     } finally {
       setLoading(false);
     }
-  }, [trackerType, amFilter, dateFrom, dateTo, page]);
+  }, [trackerType, amFilter, dateFrom, dateTo, page, monthFilter, monthsLoaded]);
 
   useEffect(() => {
     fetchData();
@@ -193,6 +240,21 @@ export default function TrackerDetailContent({ trackerType, label }: TrackerDeta
 
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-3 bg-white dark:bg-white/5 rounded-xl border border-cream-dark/60 dark:border-white/10 p-3">
+          {isMonthType && availableMonths.length > 0 && (
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium text-navy/60 dark:text-white/50">Month:</label>
+              <select
+                value={monthFilter}
+                onChange={e => { setMonthFilter(e.target.value); setPage(0); }}
+                className="px-2 py-1.5 rounded-lg border border-cream-dark dark:border-white/10 bg-white dark:bg-white/5 text-sm text-navy dark:text-white min-w-[120px]"
+              >
+                <option value="">All Months</option>
+                {availableMonths.map(month => (
+                  <option key={month} value={month}>{month}</option>
+                ))}
+              </select>
+            </div>
+          )}
           {AM_FILTERABLE.has(trackerType) && (
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium text-navy/60 dark:text-white/50">AM:</label>
@@ -226,9 +288,12 @@ export default function TrackerDetailContent({ trackerType, label }: TrackerDeta
               className="px-2 py-1.5 rounded-lg border border-cream-dark dark:border-white/10 bg-white dark:bg-white/5 text-sm text-navy dark:text-white"
             />
           </div>
-          {(amFilter || dateFrom || dateTo) && (
+          {(amFilter || dateFrom || dateTo || (isMonthType && monthFilter && monthFilter !== availableMonths[0])) && (
             <button
-              onClick={() => { setAmFilter(''); setDateFrom(''); setDateTo(''); setPage(0); }}
+              onClick={() => {
+                setAmFilter(''); setDateFrom(''); setDateTo(''); setPage(0);
+                if (isMonthType && availableMonths.length > 0) setMonthFilter(availableMonths[0]);
+              }}
               className="text-xs text-electric hover:text-electric/80 font-medium"
             >
               Clear filters

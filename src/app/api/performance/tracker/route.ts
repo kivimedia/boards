@@ -98,6 +98,12 @@ export async function GET(request: NextRequest) {
     query = query.eq('account_manager_name', amFilter);
   }
 
+  // Filter by month label (for month-based trackers like google_ads_reports)
+  const monthParam = searchParams.get('month');
+  if (monthParam) {
+    query = query.eq('month_label', monthParam);
+  }
+
   // Date range filter
   const dateCol = DATE_COLUMNS[trackerType];
   if (dateCol && fromDate) {
