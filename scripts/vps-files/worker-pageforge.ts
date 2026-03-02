@@ -19,6 +19,8 @@ import {
 } from '../lib/figma-client.js';
 import type { PageForgeSiteProfile, PageForgeBuild } from '../shared/types.js';
 import Anthropic from '@anthropic-ai/sdk';
+import puppeteer from 'puppeteer';
+import sharp from 'sharp';
 
 // ============================================================================
 // PAGEFORGE VPS WORKER
@@ -651,15 +653,23 @@ async function executePhase(
       // AI design summary
       const designResult = await callPageForgeAgent(supabase, buildId, 'pageforge_analyzer', 'figma_analysis',
         getSystemPrompt('pageforge_builder'),
-        `Analyze this Figma design and provide a 2-3 sentence summary:\n\nSections:\n${sections.map((s, i) => `${i + 1}. "${s.name}" (${s.type}) ${s.bounds.width}x${s.bounds.height}px`).join('\n')}\n\nTokens: ${colors.length} colors, ${fonts.length} fonts, ${imageNodeIds.length} images`,
+        `Analyze this Figma design and provide a 2-3 sentence summary:\n\nSections:\n${sections.map((s: any, i: number) => `${i + 1}. "${s.name}" (${s.type}) ${s.bounds.width}x${s.bounds.height}px`).join('\n')}\n\nTokens: ${colors.length} colors, ${fonts.length} fonts, ${imageNodeIds.length} images`,
         anthropic
       );
 
       const result = {
-        sections: sections.map(s => ({ id: s.id, name: s.name, type: s.type, bounds: s.bounds, childCount: s.children.length })),
+        sections: sections.map((s: any) => ({ id: s.id, name: s.name, type: s.type, bounds: s.bounds, childCount: s.children.length })),
         colors, fonts, imageNodeIds, designSummary: designResult.text,
       };
       await updateBuildArtifacts(supabase, buildId, 'figma_analysis', result);
+
+      // Update build's figma_node_ids if they were empty (discovered from file)
+      if (!build.figma_node_ids?.length && sections.length > 0) {
+        const sectionIds = sections.map(s => s.id);
+        await supabase.from('pageforge_builds').update({ figma_node_ids: sectionIds }).eq('id', buildId);
+        build.figma_node_ids = sectionIds; // update local reference for later phases
+      }
+
       console.log(`[pageforge] Figma analysis: ${sections.length} sections, ${colors.length} colors, ${fonts.length} fonts, ${imageNodeIds.length} images`);
       break;
     }
@@ -703,14 +713,23 @@ async function executePhase(
 
       // Export Figma screenshot so the builder AI can SEE the design
       let figmaImage: string | null = null;
+      let figmaImageMime = 'image/png';
       if (siteProfile.figma_personal_token && build.figma_node_ids?.length > 0) {
         try {
           const figmaClient = createFigmaClient(siteProfile.figma_personal_token);
-          const imageResponse = await figmaGetImages(figmaClient, build.figma_file_key, build.figma_node_ids, { format: 'png', scale: 1 });
+          // Use JPG format and scale 0.5 to keep under Anthropic's 5MB limit
+          const imageResponse = await figmaGetImages(figmaClient, build.figma_file_key, [build.figma_node_ids[0]], { format: 'jpg', scale: 0.5 });
           const firstUrl = Object.values(imageResponse.images).find(Boolean);
           if (firstUrl) {
             const buffer = await figmaDownloadImage(firstUrl);
             figmaImage = buffer.toString('base64');
+            figmaImageMime = 'image/jpeg';
+            console.log(`[pageforge] Figma image for builder: ${Math.round(buffer.length / 1024)}KB`);
+            // If still too large (>4.5MB), skip image and rely on text descriptions
+            if (buffer.length > 4_500_000) {
+              console.warn(`[pageforge] Figma image too large (${Math.round(buffer.length / 1024)}KB), using text-only mode`);
+              figmaImage = null;
+            }
           }
         } catch (err) {
           console.warn('[pageforge] Failed to export Figma image for builder:', err);
@@ -754,7 +773,7 @@ Respond with JSON: {"markup":"the COMPLETE page markup as a single string","sect
         prompt,
         anthropic, {
           maxTokens: 32768,
-          images: figmaImage ? [{ data: figmaImage, mimeType: 'image/png' }] : undefined,
+          images: figmaImage ? [{ data: figmaImage, mimeType: figmaImageMime }] : undefined,
         }
       );
 
@@ -785,14 +804,35 @@ Respond with JSON: {"markup":"the COMPLETE page markup as a single string","sect
       const markupData = artifacts.markup_generation;
       if (!markupData?.markup) throw new Error('Missing markup_generation artifacts');
 
-      const { markup, builder } = markupData;
+      let { markup } = markupData;
+      const { builder } = markupData;
       const errors: string[] = [];
       const warnings: string[] = [];
 
       if (builder === 'gutenberg') {
-        const open = (markup.match(/<!-- wp:/g) || []).length;
-        const close = (markup.match(/<!-- \/wp:/g) || []).length;
-        if (open !== close) errors.push(`Unbalanced blocks: ${open} open, ${close} close`);
+        const openCount = (markup.match(/<!-- wp:/g) || []).length;
+        const closeCount = (markup.match(/<!-- \/wp:/g) || []).length;
+        if (openCount !== closeCount) {
+          // Auto-repair: track open blocks and add missing closers
+          const blockStack: string[] = [];
+          const openPattern = /<!-- wp:(\S+?)[\s{]/g;
+          const closePattern = /<!-- \/wp:(\S+?) -->/g;
+          let m;
+          while ((m = openPattern.exec(markup)) !== null) blockStack.push(m[1]);
+          while ((m = closePattern.exec(markup)) !== null) {
+            const idx = blockStack.lastIndexOf(m[1]);
+            if (idx !== -1) blockStack.splice(idx, 1);
+          }
+          // Append missing closing tags in reverse order
+          if (blockStack.length > 0) {
+            const closers = blockStack.reverse().map(t => `<!-- /wp:${t} -->`).join('\n');
+            markup = markup.trimEnd() + '\n' + closers;
+            // Update stored markup with repaired version
+            markupData.markup = markup;
+            await updateBuildArtifacts(supabase, buildId, 'markup_generation', markupData);
+            warnings.push(`Auto-repaired ${blockStack.length} unclosed blocks (was ${openCount} open, ${closeCount} close)`);
+          }
+        }
         if (!markup.includes('<!-- wp:')) warnings.push('No Gutenberg block markers found');
       }
 
@@ -895,14 +935,16 @@ Respond with JSON: {"markup":"the COMPLETE page markup as a single string","sect
 
       let page;
       if (build.wp_page_id) {
-        page = await wpUpdatePage(wpClient, build.wp_page_id, { title: build.page_title, content: markupData.markup, slug: build.page_slug || undefined });
+        page = await wpUpdatePage(wpClient, build.wp_page_id, { title: build.page_title, content: markupData.markup, slug: build.page_slug || undefined, status: 'publish' });
       } else {
-        page = await wpCreatePage(wpClient, { title: build.page_title, content: markupData.markup, slug: build.page_slug || undefined, status: 'draft' });
+        page = await wpCreatePage(wpClient, { title: build.page_title, content: markupData.markup, slug: build.page_slug || undefined, status: 'publish' });
       }
 
       const siteUrl = siteProfile.site_url.replace(/\/$/, '');
-      const draftUrl = `${siteUrl}/?page_id=${page.id}&preview=true`;
-      const previewUrl = page.link || `${siteUrl}/${page.slug}/`;
+      // Use the published permalink for screenshots (draft URLs require auth)
+      const pageUrl = page.link || `${siteUrl}/?page_id=${page.id}`;
+      const draftUrl = pageUrl; // Use published URL for all screenshot capture
+      const previewUrl = pageUrl;
 
       await supabase.from('pageforge_builds').update({
         wp_page_id: page.id, wp_draft_url: draftUrl, wp_preview_url: previewUrl,
@@ -910,7 +952,7 @@ Respond with JSON: {"markup":"the COMPLETE page markup as a single string","sect
       }).eq('id', buildId);
 
       await updateBuildArtifacts(supabase, buildId, 'deploy_draft', { pageId: page.id, draftUrl, previewUrl });
-      console.log(`[pageforge] Deployed draft: page ${page.id}, ${draftUrl}`);
+      console.log(`[pageforge] Published page ${page.id}: ${pageUrl}`);
       break;
     }
 
@@ -989,21 +1031,29 @@ Respond with JSON: {"markup":"the COMPLETE page markup as a single string","sect
       // Capture WordPress screenshots via Browserless
       const wpScreenshots = await captureScreenshots(deployData.draftUrl);
 
-      // Export Figma screenshots
+      // Export Figma screenshots (JPG, scale 0.5 to stay under 5MB API limit)
       let figmaScreenshots: Record<string, string | null> = { desktop: null, tablet: null, mobile: null };
       if (siteProfile.figma_personal_token && build.figma_node_ids?.length > 0) {
-        const figmaClient = createFigmaClient(siteProfile.figma_personal_token);
-        const imageResponse = await figmaGetImages(figmaClient, build.figma_file_key, build.figma_node_ids, { format: 'png', scale: 1 });
-        const firstUrl = Object.values(imageResponse.images).find(Boolean);
-        if (firstUrl) {
-          const buffer = await figmaDownloadImage(firstUrl);
-          const base64 = buffer.toString('base64');
-          figmaScreenshots = { desktop: base64, tablet: base64, mobile: base64 };
+        try {
+          const figmaClient = createFigmaClient(siteProfile.figma_personal_token);
+          const imageResponse = await figmaGetImages(figmaClient, build.figma_file_key, [build.figma_node_ids[0]], { format: 'jpg', scale: 0.5 });
+          const firstUrl = Object.values(imageResponse.images).find(Boolean);
+          if (firstUrl) {
+            const buffer = await figmaDownloadImage(firstUrl);
+            console.log(`[pageforge] Figma VQA screenshot raw: ${Math.round(buffer.length / 1024)}KB`);
+            const base64 = await resizeIfNeeded(buffer.toString('base64'));
+            figmaScreenshots = { desktop: base64, tablet: base64, mobile: base64 };
+            console.log(`[pageforge] Figma VQA screenshot ready`);
+          }
+        } catch (err) {
+          console.warn('[pageforge] Failed to export Figma VQA screenshots:', err);
         }
       }
 
+      const wpCount = Object.values(wpScreenshots).filter(Boolean).length;
+      const figmaCount = Object.values(figmaScreenshots).filter(Boolean).length;
       await updateBuildArtifacts(supabase, buildId, 'vqa_capture', { wpScreenshots, figmaScreenshots });
-      console.log(`[pageforge] VQA capture complete`);
+      console.log(`[pageforge] VQA capture complete: ${wpCount} WP screenshots, ${figmaCount} Figma screenshots`);
       break;
     }
 
@@ -1060,8 +1110,8 @@ Respond with JSON:
 {"score":N,"differences":[{"area":"section or element name","severity":"critical|major|minor","description":"specific description of what's different","suggestedFix":"exact CSS or markup change to apply"}]}`,
             anthropic, {
               images: [
-                { data: figmaDesktop, mimeType: 'image/png' },
-                { data: wpDesktop, mimeType: 'image/png' },
+                { data: figmaDesktop, mimeType: 'image/jpeg' },
+                { data: wpDesktop, mimeType: 'image/jpeg' },
               ],
             }
           );
@@ -1109,7 +1159,7 @@ Score from 0-100 (100 = perfect responsive behavior).
 Respond with JSON:
 {"score":N,"differences":[{"area":"element","severity":"critical|major|minor","description":"responsive issue","suggestedFix":"CSS fix"}]}`,
             anthropic, {
-              images: [{ data: wpImg, mimeType: 'image/png' }],
+              images: [{ data: wpImg, mimeType: 'image/jpeg' }],
             }
           );
 
@@ -1206,7 +1256,7 @@ Respond with JSON:
         // 3. AI fix with visual context (Figma + current WP screenshot)
         const images: Array<{ data: string; mimeType: string }> = [];
         if (figmaDesktop) {
-          images.push({ data: figmaDesktop, mimeType: 'image/png' });
+          images.push({ data: figmaDesktop, mimeType: 'image/jpeg' });
         }
 
         // Capture current WP desktop screenshot for visual reference
@@ -1215,7 +1265,7 @@ Respond with JSON:
           const wpShots = await captureScreenshots(draftUrl);
           currentWpScreenshot = wpShots.desktop || null;
           if (currentWpScreenshot) {
-            images.push({ data: currentWpScreenshot, mimeType: 'image/png' });
+            images.push({ data: currentWpScreenshot, mimeType: 'image/jpeg' });
           }
         } catch (err) {
           console.warn('[pageforge] Failed to capture current WP screenshot for fix context:', err);
@@ -1227,36 +1277,50 @@ Respond with JSON:
             ? 'Image 1 is the Figma design reference. Fix the markup to match it.'
             : '';
 
+        // Format the markup into structured lines for easier patching
+        const formattedMarkup = currentMarkup
+          .replace(/(<!-- wp:[^ ]+ -->)/g, '\n$1\n')
+          .replace(/(<!-- \/wp:[^ ]+ -->)/g, '\n$1\n')
+          .replace(/(<\/div>)/g, '$1\n')
+          .replace(/(<div[^>]*>)/g, '\n$1')
+          .split('\n')
+          .filter((l: string) => l.trim())
+          .join('\n');
+        const markupLines = formattedMarkup.split('\n');
+        const numberedMarkup = markupLines.map((line: string, i: number) => `${i + 1}| ${line}`).join('\n');
+
         const fixPrompt = `Fix this WordPress page markup to better match the Figma design.
 
 ${imageContext}
 
 Iteration ${currentIteration}/${maxLoops} - Current VQA score: ${lastScore}% (target: ${threshold}%)
 
-Current markup (FULL page):
-\`\`\`html
-${currentMarkup}
+Current markup (${markupLines.length} lines, each prefixed with line number):
+\`\`\`
+${numberedMarkup}
 \`\`\`
 
 Visual differences to fix (${sortedDiffs.length} issues, priority order):
 ${sortedDiffs.map((d: any, i: number) => `${i + 1}. [${d.severity.toUpperCase()}] ${d.area}: ${d.description}${d.suggestedFix ? `\n   Suggested fix: ${d.suggestedFix}` : ''}`).join('\n')}
 
 RULES:
-1. Return the COMPLETE fixed markup - do not truncate or abbreviate ANY section
-2. Apply ALL suggested fixes where possible
-3. Preserve all existing content and structure that is correct
-4. Use inline styles for visual fixes (colors, spacing, fonts, layout)
-5. If sections are missing from the page, ADD them
-6. Make sure responsive styles are preserved (flexbox, max-width, etc.)
+1. Return an array of line edits. Each edit specifies a line number and the new content for that line.
+2. To replace a line, specify {"line": N, "content": "new line content"}.
+3. To insert new lines after a line, specify {"line": N, "insert_after": "new lines to insert"}.
+4. To delete a line, specify {"line": N, "content": ""}.
+5. Use inline styles for visual fixes (colors, spacing, fonts, layout).
+6. Line numbers refer to the numbers shown in the markup above (1-based).
+7. Make sure responsive styles are preserved (flexbox, max-width, etc.)
+8. Focus on the most impactful changes first - fix layout, colors, fonts, spacing.
 
 Respond with JSON:
-{"fixedMarkup":"the COMPLETE corrected markup","changesApplied":["description of each change"]}`;
+{"edits":[{"line":N,"content":"replacement line content","description":"what this fixes"}]}`;
 
         const fixResult = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa_fix', 'vqa_fix_loop',
           getSystemPrompt('pageforge_vqa'),
           fixPrompt,
           anthropic, {
-            maxTokens: 32768,
+            maxTokens: 16384,
             images: images.length > 0 ? images : undefined,
           }
         );
@@ -1266,16 +1330,69 @@ Respond with JSON:
           const jsonMatch = fixResult.text.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
             const parsed = JSON.parse(jsonMatch[0]);
-            if (parsed.fixedMarkup && parsed.fixedMarkup.length > currentMarkup.length * 0.5) {
-              // Only accept if the fix is at least 50% the size of original (prevent truncation)
+            // Line-based editing approach (uses formatted lines from prompt)
+            if (parsed.edits && Array.isArray(parsed.edits) && parsed.edits.length > 0) {
+              const lines = formattedMarkup.split('\n');
+              let appliedCount = 0;
+              const insertions: Array<{ afterLine: number; content: string }> = [];
+
+              for (const edit of parsed.edits) {
+                const lineIdx = (edit.line || 0) - 1; // convert 1-based to 0-based
+                if (lineIdx >= 0 && lineIdx < lines.length) {
+                  if (edit.content !== undefined) {
+                    lines[lineIdx] = edit.content;
+                    appliedCount++;
+                  }
+                  if (edit.insert_after) {
+                    insertions.push({ afterLine: lineIdx, content: edit.insert_after });
+                    appliedCount++;
+                  }
+                  allChanges.push(edit.description || `Line ${edit.line} edit`);
+                }
+              }
+
+              // Apply insertions in reverse order to preserve line numbers
+              insertions.sort((a, b) => b.afterLine - a.afterLine);
+              for (const ins of insertions) {
+                const newLines = ins.content.split('\n');
+                lines.splice(ins.afterLine + 1, 0, ...newLines);
+              }
+
+              if (appliedCount > 0) {
+                currentMarkup = lines.join('\n');
+                fixApplied = true;
+                console.log(`[pageforge] Applied ${appliedCount}/${parsed.edits.length} line edits`);
+              } else {
+                console.warn(`[pageforge] No valid line edits (${parsed.edits.length} edits, none in range)`);
+              }
+            }
+            // Search/replace patch fallback
+            else if (parsed.patches && Array.isArray(parsed.patches) && parsed.patches.length > 0) {
+              let patchedMarkup = currentMarkup;
+              let appliedCount = 0;
+              for (const patch of parsed.patches) {
+                if (patch.search && patch.replace !== undefined && patchedMarkup.includes(patch.search)) {
+                  patchedMarkup = patchedMarkup.replace(patch.search, patch.replace);
+                  appliedCount++;
+                  allChanges.push(patch.description || 'Applied patch');
+                }
+              }
+              if (appliedCount > 0) {
+                currentMarkup = patchedMarkup;
+                fixApplied = true;
+                console.log(`[pageforge] Applied ${appliedCount}/${parsed.patches.length} patches`);
+              }
+            }
+            // Full markup fallback
+            else if (parsed.fixedMarkup && parsed.fixedMarkup.length > currentMarkup.length * 0.5) {
               currentMarkup = parsed.fixedMarkup;
               allChanges.push(...(parsed.changesApplied || []));
               fixApplied = true;
-            } else if (parsed.fixedMarkup) {
-              console.warn(`[pageforge] Fix returned truncated markup (${parsed.fixedMarkup.length} vs ${currentMarkup.length} chars) - skipping`);
             }
           }
-        } catch { /* continue with current markup */ }
+        } catch (parseErr) {
+          console.warn(`[pageforge] Failed to parse fix result:`, parseErr instanceof Error ? parseErr.message : String(parseErr));
+        }
 
         if (!fixApplied) {
           console.warn(`[pageforge] Fix iteration ${currentIteration} produced no valid markup change`);
@@ -1325,8 +1442,8 @@ Score 0-100. Respond with JSON:
 {"score":N,"differences":[{"area":"...","severity":"critical|major|minor","description":"...","suggestedFix":"..."}]}`,
               anthropic, {
                 images: [
-                  { data: figmaDesktop, mimeType: 'image/png' },
-                  { data: newWpDesktop, mimeType: 'image/png' },
+                  { data: figmaDesktop, mimeType: 'image/jpeg' },
+                  { data: newWpDesktop, mimeType: 'image/jpeg' },
                 ],
               }
             );
@@ -1573,26 +1690,56 @@ Score 0-100. Respond with JSON:
 // HELPERS
 // ============================================================================
 
+// Resize a base64 image so neither dimension exceeds maxDim (Anthropic limit: 8000px)
+// Always outputs JPEG for consistent handling
+async function resizeIfNeeded(base64: string, maxDim = 7500): Promise<string> {
+  const buf = Buffer.from(base64, 'base64');
+  const meta = await sharp(buf).metadata();
+  if (!meta.width || !meta.height) return base64;
+  const needsResize = meta.width > maxDim || meta.height > maxDim;
+  if (needsResize) {
+    const ratio = Math.min(maxDim / meta.width, maxDim / meta.height);
+    const newW = Math.round(meta.width * ratio);
+    const newH = Math.round(meta.height * ratio);
+    const resized = await sharp(buf).resize(newW, newH, { fit: 'inside' }).jpeg({ quality: 85 }).toBuffer();
+    console.log(`[pageforge] Resized screenshot from ${meta.width}x${meta.height} to ${newW}x${newH} (${Math.round(resized.length / 1024)}KB)`);
+    return resized.toString('base64');
+  }
+  // Convert to JPEG even if no resize needed (consistent format, smaller size)
+  const jpg = await sharp(buf).jpeg({ quality: 90 }).toBuffer();
+  return jpg.toString('base64');
+}
+
 async function captureScreenshots(pageUrl: string): Promise<Record<string, string | null>> {
   const screenshots: Record<string, string | null> = { desktop: null, tablet: null, mobile: null };
-  const apiUrl = process.env.BROWSERLESS_URL || 'https://chrome.browserless.io';
-  const apiKey = process.env.BROWSERLESS_API_KEY || '';
-  const breakpoints = { desktop: 1440, tablet: 768, mobile: 375 };
+  const breakpoints: Record<string, number> = { desktop: 1440, tablet: 768, mobile: 375 };
 
-  for (const [bp, width] of Object.entries(breakpoints)) {
-    try {
-      const res = await fetch(`${apiUrl}/screenshot?token=${apiKey}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: pageUrl, options: { fullPage: true, type: 'png' }, viewport: { width, height: 900 }, waitFor: 3000 }),
-        signal: AbortSignal.timeout(30000),
-      });
-      if (res.ok) {
-        const buffer = await res.arrayBuffer();
-        screenshots[bp] = Buffer.from(buffer).toString('base64');
+  let browser;
+  try {
+    browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+    });
+
+    for (const [bp, width] of Object.entries(breakpoints)) {
+      try {
+        const page = await browser.newPage();
+        await page.setViewport({ width, height: 900 });
+        await page.goto(pageUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+        await new Promise(r => setTimeout(r, 2000)); // extra settle time
+        const buffer = await page.screenshot({ fullPage: true, type: 'png' });
+        const rawBase64 = Buffer.from(buffer).toString('base64');
+        console.log(`[pageforge] Screenshot ${bp} captured (${Math.round(Buffer.from(buffer).length / 1024)}KB)`);
+        screenshots[bp] = await resizeIfNeeded(rawBase64);
+        await page.close();
+      } catch (err) {
+        console.error(`[pageforge] Screenshot ${bp} failed:`, err);
       }
-    } catch (err) {
-      console.error(`[pageforge] Screenshot ${bp} failed:`, err);
     }
+  } catch (err) {
+    console.error(`[pageforge] Puppeteer launch failed:`, err);
+  } finally {
+    if (browser) await browser.close();
   }
   return screenshots;
 }

@@ -94,11 +94,13 @@ export async function callPageForgeAgent(
     }
     content.push({ type: 'text', text: userMessage });
 
-    const response = await anthropicClient.messages.create({
+    // Use streaming to avoid timeout for large token requests
+    const stream = anthropicClient.messages.stream({
       model, max_tokens: maxTokens, temperature,
       system: systemPrompt,
       messages: [{ role: 'user', content }],
     });
+    const response = await stream.finalMessage();
 
     const text = response.content
       .filter((b: any) => b.type === 'text')
