@@ -265,14 +265,14 @@ export async function getHealthMetrics(
     .from('li_failed_leads')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', userId)
-    .in('status', ['failed', 'retrying']);
+    .in('status', ['PENDING_RETRY']);
 
   // Get recovery queue (failed leads eligible for retry)
   const { count: recoveryQueue } = await supabase
     .from('li_failed_leads')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', userId)
-    .eq('status', 'retrying')
+    .eq('status', 'PENDING_RETRY')
     .lte('next_retry_at', new Date().toISOString());
 
   // Get job backlog
