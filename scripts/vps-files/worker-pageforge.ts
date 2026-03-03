@@ -774,7 +774,8 @@ async function executePhase(
         ? imageDetails.map((img: any) => `- FIGMA_IMG:${img.id} - "${img.name}" from section "${img.sectionName}" (${img.width}x${img.height}px)`).join('\n')
         : '';
 
-      const prompt = `Generate a COMPLETE, production-quality WordPress ${builder} landing page.
+      const builderLabel = builder === 'divi5' ? 'Gutenberg (auto-converted to Divi 5)' : builder;
+      const prompt = `Generate a COMPLETE, production-quality WordPress ${builderLabel} landing page.
 
 ## ABSOLUTE REQUIREMENT - SECTION STRUCTURE:
 You MUST output MULTIPLE separate <!-- wp:group --> blocks, one for EACH conceptual section of the page.
@@ -997,8 +998,9 @@ RESPOND WITH JSON: {"markup":"the COMPLETE page markup","sections":[{"name":"sec
       }
 
       if (builder === 'divi5') {
-        try { if (markup.startsWith('{') || markup.startsWith('[')) JSON.parse(markup); }
-        catch { warnings.push('Divi 5 markup does not parse as valid JSON'); }
+        // Divi 5 pages are generated as Gutenberg then converted at deploy time
+        // Validate the same way as Gutenberg (wp:group blocks)
+        if (!markup.includes('<!-- wp:')) warnings.push('No block markers found in Divi 5 source markup');
       }
 
       // Check unclosed HTML tags
@@ -1093,8 +1095,9 @@ RESPOND WITH JSON: {"markup":"the COMPLETE page markup","sections":[{"name":"sec
 
       const wpClient = createWpClient({ restUrl: siteProfile.wp_rest_url, username: siteProfile.wp_username, appPassword: siteProfile.wp_app_password });
 
-      // Sanitize markup and prepend full-width JS fix
-      let cleanMarkup = prepareMarkupForDeploy(markupData.markup);
+      // Sanitize markup and convert to target builder format (Divi 5 or Gutenberg)
+      const builder = build.page_builder || 'gutenberg';
+      let cleanMarkup = prepareMarkupForDeploy(markupData.markup, builder);
 
       // Try blank templates to eliminate sidebar/header/footer - query WP for available ones
       const blankTemplates = [
@@ -1257,7 +1260,8 @@ RESPOND WITH JSON: {"markup":"the COMPLETE page markup","sections":[{"name":"sec
             }
 
             if (replacements > 0) {
-              await wpUpdatePage(wpClient, build.wp_page_id, { content: prepareMarkupForDeploy(content) });
+              // Content already deployed in correct format - just update with replaced URLs
+              await wpUpdatePage(wpClient, build.wp_page_id, { content });
               console.log(`[pageforge] Replaced ${replacements} image placeholders with real WP URLs`);
             } else {
               // If no FIGMA_IMG: placeholders found, try replacing placehold.co URLs
@@ -1273,7 +1277,7 @@ RESPOND WITH JSON: {"markup":"the COMPLETE page markup","sections":[{"name":"sec
                   idx++;
                   replacements++;
                 }
-                await wpUpdatePage(wpClient, build.wp_page_id, { content: prepareMarkupForDeploy(content) });
+                await wpUpdatePage(wpClient, build.wp_page_id, { content });
                 console.log(`[pageforge] Replaced ${replacements} placehold.co URLs with real images (round-robin)`);
               } else {
                 console.log('[pageforge] No image placeholders found in page content to replace');
@@ -1733,10 +1737,11 @@ Respond with JSON:
           continue;
         }
 
-        // 4. Re-deploy with fixed markup
+        // 4. Re-deploy with fixed markup (converts to Divi 5 if needed)
         if (build.wp_page_id && siteProfile.wp_username && siteProfile.wp_app_password) {
+          const fixBuilder = build.page_builder || 'gutenberg';
           const wpClient = createWpClient({ restUrl: siteProfile.wp_rest_url, username: siteProfile.wp_username, appPassword: siteProfile.wp_app_password });
-          await wpUpdatePage(wpClient, build.wp_page_id, { content: prepareMarkupForDeploy(currentMarkup) });
+          await wpUpdatePage(wpClient, build.wp_page_id, { content: prepareMarkupForDeploy(currentMarkup, fixBuilder) });
         }
 
         // 5. Wait briefly for WP to process the update
@@ -2197,9 +2202,26 @@ const FULLWIDTH_SCRIPT = `<!-- wp:html -->
 </script>
 <!-- /wp:html -->`;
 
-/** Sanitize markup and prepend full-width script */
-function prepareMarkupForDeploy(markup: string): string {
-  return FULLWIDTH_SCRIPT + sanitizeMarkup(markup);
+// Lighter CSS-only overrides for Divi 5 native blocks (no fullwidth hack needed)
+const DIVI5_HEADER_SCRIPT = `<!-- wp:html -->
+<style>
+/* PageForge: Hide Divi header/nav, sidebar, ensure rows allow full content */
+#main-header, #top-header { display: none !important; }
+#et-main-area { padding-top: 0 !important; }
+.widget_recent_entries,.widget_recent_comments,.widget_categories,.widget_archive,.widget_meta,.sidebar,.widget-area,#sidebar,aside.widget-area { display: none !important; }
+/* Let Divi rows be full-width - our content handles its own centering via inline max-width */
+.et_pb_row { max-width: 100% !important; width: 100% !important; padding: 0 !important; }
+.et_pb_text_inner { padding: 0 !important; }
+</style>
+<!-- /wp:html -->`;
+
+/** Sanitize markup and prepare for deploy. For Divi 5, converts Gutenberg to native Divi 5 blocks. */
+function prepareMarkupForDeploy(markup: string, builder: string = 'gutenberg'): string {
+  const sanitized = sanitizeMarkup(markup);
+  if (builder === 'divi5') {
+    return DIVI5_HEADER_SCRIPT + '\n' + convertGutenbergToDivi5(sanitized);
+  }
+  return FULLWIDTH_SCRIPT + sanitized;
 }
 
 function sanitizeMarkup(markup: string): string {
@@ -2268,6 +2290,113 @@ function sanitizeMarkup(markup: string): string {
   clean = deduped.join('');
 
   return clean;
+}
+
+/** Convert Gutenberg wp:group markup to Divi 5 native section/row/column/text blocks */
+function convertGutenbergToDivi5(gutenbergMarkup: string): string {
+  const blocks: Array<{ content: string; bgColor: string | null }> = [];
+  let depth = 0;
+  let blockLines: string[] = [];
+  let outsideLines: string[] = [];
+
+  for (const line of gutenbergMarkup.split('\n')) {
+    const trimmed = line.trim();
+    const isGroupOpen = /^<!-- wp:group\b/.test(trimmed);
+    const isGroupClose = /^<!-- \/wp:group\b/.test(trimmed);
+
+    if (isGroupOpen) {
+      if (depth === 0) {
+        const outside = outsideLines.join('\n').trim();
+        if (outside && outside.length > 10) {
+          blocks.push({ content: outside, bgColor: null });
+        }
+        outsideLines = [];
+        blockLines = [line];
+      } else {
+        blockLines.push(line);
+      }
+      depth++;
+    } else if (isGroupClose) {
+      depth--;
+      if (depth === 0 && blockLines.length > 0) {
+        blockLines.push(line);
+        const fullBlock = blockLines.join('\n');
+
+        // Extract background color from wp:group JSON attrs or inline style
+        let bgColor: string | null = null;
+        const jsonMatch = fullBlock.match(/<!-- wp:group \{(.*?)\} -->/);
+        if (jsonMatch) {
+          try {
+            const attrs = JSON.parse(`{${jsonMatch[1]}}`);
+            bgColor = attrs?.style?.color?.background || null;
+          } catch {}
+        }
+        if (!bgColor) {
+          const styleMatch = fullBlock.match(/background-color:\s*([#\w]+(?:\([^)]+\))?)/);
+          if (styleMatch) bgColor = styleMatch[1];
+        }
+
+        // Extract inner HTML (everything between wp:group comment markers)
+        let innerHtml = fullBlock
+          .replace(/<!-- wp:group\b[^-]*-->\s*/g, '')
+          .replace(/\s*<!-- \/wp:group -->/g, '')
+          .trim();
+
+        blocks.push({ content: innerHtml, bgColor });
+        blockLines = [];
+      } else {
+        blockLines.push(line);
+      }
+    } else if (depth > 0) {
+      blockLines.push(line);
+    } else {
+      outsideLines.push(line);
+    }
+  }
+
+  const outside = outsideLines.join('\n').trim();
+  if (outside && outside.length > 10) {
+    blocks.push({ content: outside, bgColor: null });
+  }
+
+  // Convert each block to Divi 5 format
+  return blocks.map((block, i) => {
+    const sectionAttrs: Record<string, any> = {
+      builderVersion: "5.0.1",
+      modulePreset: "default",
+      module: {
+        meta: { adminLabel: { desktop: { value: `Section ${i + 1}` } } }
+      }
+    };
+
+    if (block.bgColor) {
+      sectionAttrs.module.decoration = {
+        background: { desktop: { value: { color: block.bgColor } } }
+      };
+    }
+
+    const colAttrs = {
+      builderVersion: "5.0.1",
+      module: { advanced: { type: { desktop: { value: "4_4" } } } }
+    };
+
+    const textAttrs = {
+      builderVersion: "5.0.1",
+      modulePreset: "default",
+      content: {
+        innerContent: { desktop: { value: block.content } }
+      }
+    };
+
+    return `<!-- wp:divi/section ${JSON.stringify(sectionAttrs)} -->
+<!-- wp:divi/row {"builderVersion":"5.0.1","modulePreset":"default"} -->
+<!-- wp:divi/column ${JSON.stringify(colAttrs)} -->
+<!-- wp:divi/text ${JSON.stringify(textAttrs)} -->
+<!-- /wp:divi/text -->
+<!-- /wp:divi/column -->
+<!-- /wp:divi/row -->
+<!-- /wp:divi/section -->`;
+  }).join('\n\n');
 }
 
 // Crop a base64 image into vertical segments for section-by-section VQA comparison
@@ -2350,7 +2479,12 @@ async function runLayoutValidation(pageUrl: string): Promise<{ passed: boolean; 
     await new Promise(r => setTimeout(r, 3000));
 
     const layoutData = await page.evaluate(() => {
-      const groups = Array.from(document.querySelectorAll('.entry-content > .wp-block-group'));
+      // Support both Gutenberg (wp-block-group) and Divi 5 (et_pb_section) DOM structures
+      let groups = Array.from(document.querySelectorAll('.entry-content > .wp-block-group'));
+      if (groups.length === 0) {
+        // Divi 5 native blocks render as et_pb_section elements
+        groups = Array.from(document.querySelectorAll('.et_pb_section'));
+      }
       const sectionData = groups.map((g, i) => {
         const rect = g.getBoundingClientRect();
         // Find the widest content child
@@ -2643,8 +2777,14 @@ Without width:100%, sections will be constrained by the theme's narrow container
 - Grids: use minmax(280px,1fr) not fixed column counts, add overflow:hidden on grid container
 - NEVER set font-size larger than the container width could hold`;
 
-const DIVI5_INSTRUCTIONS = `## Divi 5 Format
-Divi 5 uses JSON-based blocks. Generate Gutenberg-compatible markup (Divi 5 supports it natively) with inline styles for positioning and design tokens.`;
+const DIVI5_INSTRUCTIONS = `## Divi 5 Page (auto-converted)
+Generate standard WordPress Gutenberg block markup using <!-- wp:group --> blocks with inline HTML styles.
+Your markup will be automatically converted to native Divi 5 section/row/column/text blocks at deploy time.
+Each top-level <!-- wp:group --> block becomes its own Divi 5 section.
+Background colors set via inline style (background-color:...) will be transferred to the Divi section.
+Follow all the same Gutenberg rules below - the conversion is handled automatically.
+
+${GUTENBERG_INSTRUCTIONS}`;
 
 const DIVI4_INSTRUCTIONS = `## Divi 4 Format
 Generate Divi 4 shortcodes:
