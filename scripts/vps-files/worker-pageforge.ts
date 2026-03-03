@@ -825,16 +825,18 @@ ${sectionDetails}
 ${imageRules}
 
 ## QUALITY RULES
-1. Output 8-12 sections: Hero + content sections + Footer. MAXIMUM 10.
-2. Section backgrounds must match the Figma design (alternating dark/light as shown)
-3. Dark sections (#001738, #1a1a2e, etc.) MUST have light text colors (#ffffff, #e0e0e0) in font settings
+1. Output exactly ${classifications.length} sections, matching the Figma design section count precisely.
+2. Section backgrounds must EXACTLY match the Figma colors: ${uniqueColors.slice(0, 6).join(', ')}
+3. Dark sections (${primaryDark} or similar) MUST have light text colors (#ffffff, #e0e0e0) in font settings
 4. Card/feature grids: use columns + cards, NOT individual sections per card
 5. Stats/numbers: use columns (3-5) + cards where title="24+" and text="Years Experience"
 6. Hero: large h1 (48-60px), subtitle, CTA button. Use background.image + rgba overlay color
 7. Footer: dark background, use a single "code" element for multi-column HTML footer layout
-8. ALL content from the Figma design - NO placeholder/lorem ipsum text
+8. ALL content from the Figma design - NO placeholder/lorem ipsum text. Copy exact text visible in the design.
 9. Match column counts exactly from Figma (3 cards in design = columns:3)
 10. Each concept appears EXACTLY ONCE. Never duplicate sections.
+11. Font sizes MUST use the actual design system: ${figmaData.fonts.slice(0, 5).map((f: any) => `${f.size}px`).join(', ')}
+12. EVERY heading and text element MUST have explicit font.color set (dark text on light bg, light text on dark bg).
 
 RESPOND WITH JSON ONLY (no markdown fences): {"sections":[...]}`;
 
