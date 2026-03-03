@@ -1653,6 +1653,8 @@ Respond with JSON:
       const allChanges: string[] = [];
       let lastScore = comparisonData.overallScore || 0;
       let stallCount = 0;
+      let rollbackCount = 0;
+      let previousMarkup: string | null = null;
       const scoreHistory: Array<{ iteration: number; score: number }> = [];
 
       // Get the Figma reference screenshot (doesn't change between iterations)
@@ -1781,6 +1783,8 @@ Respond with JSON:
           }
         );
 
+        // Save markup before edits for potential rollback
+        previousMarkup = currentMarkup;
         let fixApplied = false;
         try {
           const jsonMatch = fixResult.text.match(/\{[\s\S]*\}/);
@@ -1858,6 +1862,20 @@ Respond with JSON:
             break;
           }
           continue;
+        }
+
+        // 3.5. Validate block structure integrity after edits (Divi 5)
+        if ((build.page_builder || 'gutenberg') === 'divi5') {
+          const openBlocks = (currentMarkup.match(/<!-- wp:divi\//g) || []).length;
+          const closeBlocks = (currentMarkup.match(/<!-- \/wp:divi\//g) || []).length;
+          if (openBlocks !== closeBlocks) {
+            console.warn(`[pageforge] Block structure broken after edits (${openBlocks} open, ${closeBlocks} close) - rolling back`);
+            currentMarkup = previousMarkup || currentMarkup;
+            fixApplied = false;
+            stallCount++;
+            if (stallCount >= 3) break;
+            continue;
+          }
         }
 
         // 4. Re-deploy with fixed markup (converts to Divi 5 if needed)
@@ -1939,6 +1957,27 @@ Score 0-100. Respond with JSON:
         const improvement = newScore - lastScore;
 
         console.log(`[pageforge] Iteration ${currentIteration}: score ${lastScore}% -> ${newScore}% (${improvement >= 0 ? '+' : ''}${improvement}%)`);
+
+        // ROLLBACK: If score dropped significantly, revert to previous markup
+        if (improvement < -5 && previousMarkup) {
+          console.log(`[pageforge] Score dropped ${Math.abs(improvement)}% - rolling back to previous markup`);
+          currentMarkup = previousMarkup;
+          newScore = lastScore; // restore previous score
+          // Re-deploy the rolled-back markup
+          if (build.wp_page_id && siteProfile.wp_username && siteProfile.wp_app_password) {
+            const fixBuilder = build.page_builder || 'gutenberg';
+            const wpClient = createWpClient({ restUrl: siteProfile.wp_rest_url, username: siteProfile.wp_username, appPassword: siteProfile.wp_app_password });
+            await wpUpdatePage(wpClient, build.wp_page_id, { content: prepareMarkupForDeploy(currentMarkup, fixBuilder) });
+          }
+          rollbackCount++;
+          if (rollbackCount >= 2) {
+            console.log(`[pageforge] 2 rollbacks - fix loop is unstable, stopping at ${newScore}%`);
+            await postBuildMessage(supabase, buildId,
+              `VQA fix loop stopped: edits are unstable (2 rollbacks), best score ${newScore}%`,
+              'vqa_fix_loop');
+            break;
+          }
+        }
 
         await postBuildMessage(supabase, buildId,
           `Fix iteration ${currentIteration}/${maxLoops}: score ${lastScore}% -> ${newScore}% (${improvement >= 0 ? '+' : ''}${improvement}%)${newScore >= threshold ? ' - PASSED!' : ''}`,
