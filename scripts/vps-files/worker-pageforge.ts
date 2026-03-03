@@ -2426,7 +2426,7 @@ const DIVI5_HEADER_SCRIPT = `<!-- wp:html -->
 
 /** Sanitize markup and prepare for deploy. For Divi 5, converts Gutenberg to native Divi 5 blocks. */
 function prepareMarkupForDeploy(markup: string, builder: string = 'gutenberg'): string {
-  const sanitized = sanitizeMarkup(markup);
+  const sanitized = sanitizeMarkup(markup, builder === 'divi5');
   if (builder === 'divi5') {
     // Divi 5 markup is already in native block format from markup_generation
     return DIVI5_HEADER_SCRIPT + '\n' + sanitized;
@@ -2434,16 +2434,38 @@ function prepareMarkupForDeploy(markup: string, builder: string = 'gutenberg'): 
   return FULLWIDTH_SCRIPT + sanitized;
 }
 
-function sanitizeMarkup(markup: string): string {
+function sanitizeMarkup(markup: string, preservePageForgeCss: boolean = false): string {
   let clean = markup;
-  // Remove <style> tags and their content (Divi/WP themes override anyway)
-  clean = clean.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
-  // Remove any raw CSS that leaked into visible content (e.g. @media queries as text)
-  clean = clean.replace(/@media\s*\([^)]*\)\s*\{[^}]*\{[^}]*\}[^}]*\}/g, '');
-  // Remove orphaned CSS selectors that might render as text
-  clean = clean.replace(/\.[a-zA-Z_][\w-]*\s*\{[^}]*\}/g, '');
-  // Remove <!-- wp:html --> blocks wrapping style tags (common AI mistake)
-  clean = clean.replace(/<!-- wp:html -->\s*<style[\s\S]*?<\/style>\s*<!-- \/wp:html -->/gi, '');
+
+  if (preservePageForgeCss) {
+    // For Divi 5: preserve PageForge CSS blocks (section backgrounds, spacing fallback)
+    // Extract them, sanitize the rest, then re-inject
+    const pageforgeBlocks: string[] = [];
+    clean = clean.replace(/<!-- wp:html -->\s*<style>\s*\/\* PageForge:[\s\S]*?<\/style>\s*<!-- \/wp:html -->/gi, (match) => {
+      pageforgeBlocks.push(match);
+      return `__PAGEFORGE_CSS_${pageforgeBlocks.length - 1}__`;
+    });
+
+    // Strip non-PageForge styles
+    clean = clean.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+    clean = clean.replace(/@media\s*\([^)]*\)\s*\{[^}]*\{[^}]*\}[^}]*\}/g, '');
+    clean = clean.replace(/\.[a-zA-Z_][\w-]*\s*\{[^}]*\}/g, '');
+    clean = clean.replace(/<!-- wp:html -->\s*<style[\s\S]*?<\/style>\s*<!-- \/wp:html -->/gi, '');
+
+    // Re-inject PageForge CSS blocks
+    for (let i = 0; i < pageforgeBlocks.length; i++) {
+      clean = clean.replace(`__PAGEFORGE_CSS_${i}__`, pageforgeBlocks[i]);
+    }
+  } else {
+    // Remove <style> tags and their content (Divi/WP themes override anyway)
+    clean = clean.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+    // Remove any raw CSS that leaked into visible content (e.g. @media queries as text)
+    clean = clean.replace(/@media\s*\([^)]*\)\s*\{[^}]*\{[^}]*\}[^}]*\}/g, '');
+    // Remove orphaned CSS selectors that might render as text
+    clean = clean.replace(/\.[a-zA-Z_][\w-]*\s*\{[^}]*\}/g, '');
+    // Remove <!-- wp:html --> blocks wrapping style tags (common AI mistake)
+    clean = clean.replace(/<!-- wp:html -->\s*<style[\s\S]*?<\/style>\s*<!-- \/wp:html -->/gi, '');
+  }
   // Ensure no inline style attributes contain raw @media (invalid inline CSS)
   // These render as visible text in some browsers
   clean = clean.replace(/style="[^"]*@media[^"]*"/gi, (match) => {
