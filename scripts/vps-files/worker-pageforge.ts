@@ -1925,14 +1925,22 @@ Respond with JSON:
           await wpUpdatePage(wpClient, build.wp_page_id, { content: prepareMarkupForDeploy(currentMarkup, fixBuilder) });
         }
 
-        // 5. Wait briefly for WP to process the update
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // 5. Wait for WP to process the update and Divi CSS to render
+        // 2s was too short - Divi 5 needs time to rebuild CSS cache
+        await new Promise(resolve => setTimeout(resolve, 5000));
 
-        // 6. Re-capture desktop screenshot
+        // 6. Re-capture desktop screenshot (retry once if first capture looks broken)
         let newWpDesktop: string | null = null;
         try {
           const newShots = await captureScreenshots(draftUrl);
           newWpDesktop = newShots.desktop || null;
+          // If screenshot is suspiciously small (< 50KB), wait and retry
+          if (newWpDesktop && Buffer.from(newWpDesktop, 'base64').length < 50000) {
+            console.log('[pageforge] Screenshot looks small, waiting 5s and retrying...');
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            const retryShots = await captureScreenshots(draftUrl);
+            if (retryShots.desktop) newWpDesktop = retryShots.desktop;
+          }
         } catch (err) {
           console.warn('[pageforge] Failed to recapture WP screenshot:', err);
         }
