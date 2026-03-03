@@ -774,7 +774,113 @@ async function executePhase(
         ? imageDetails.map((img: any) => `- FIGMA_IMG:${img.id} - "${img.name}" from section "${img.sectionName}" (${img.width}x${img.height}px)`).join('\n')
         : '';
 
-      const builderLabel = builder === 'divi5' ? 'Gutenberg (auto-converted to Divi 5)' : builder;
+      // ========== DIVI 5 PATH: Structured JSON -> native Divi 5 modules ==========
+      if (builder === 'divi5') {
+        const figmaImageContext = figmaImage ? `IMPORTANT: The attached image shows the FULL Figma design for this page. Study it closely.
+- Match exact layout structure, visual hierarchy, colors, fonts, and spacing
+- If you see a dark navy hero, build one with the SAME proportions and colors
+- If you see N cards side-by-side, use columns:N with that many cards
+- Every section must match the Figma design precisely.` : '';
+
+        const imageRules = imageListForPrompt ? `
+## Available Images from Figma
+${imageListForPrompt}
+
+IMAGE RULES:
+- Use FIGMA_IMG:nodeId as image value (e.g. "FIGMA_IMG:1:234")
+- For section backgrounds: use in background.image field
+- For card images: use in cards[].image field
+- For standalone images: use in elements[].src field
+- Match images to sections by name context
+- Use EVERY available image at least once
+- Do NOT modify the node IDs` : '';
+
+        const divi5Prompt = `Generate a structured JSON page layout for a native Divi 5 WordPress landing page.
+
+${figmaImageContext}
+
+${DIVI5_INSTRUCTIONS}
+
+## Design System
+Primary font: "${primaryFont}", sans-serif (ALL text uses this font)
+Secondary font: "${secondaryFont}", sans-serif
+Dark color: ${primaryDark}
+Accent color: ${primaryAccent}
+All colors: ${uniqueColors.slice(0, 12).join(', ')}
+Font scale: ${figmaData.fonts.slice(0, 8).map((f: any) => `${f.size}px/${f.weight}`).join(', ')}
+
+## Sections to Build (${classifications.length} total - EVERY ONE is required)
+${sectionDetails}
+${imageRules}
+
+## QUALITY RULES
+1. Output 8-12 sections: Hero + content sections + Footer. MAXIMUM 10.
+2. Section backgrounds must match the Figma design (alternating dark/light as shown)
+3. Dark sections (#001738, #1a1a2e, etc.) MUST have light text colors (#ffffff, #e0e0e0) in font settings
+4. Card/feature grids: use columns + cards, NOT individual sections per card
+5. Stats/numbers: use columns (3-5) + cards where title="24+" and text="Years Experience"
+6. Hero: large h1 (48-60px), subtitle, CTA button. Use background.image + rgba overlay color
+7. Footer: dark background, use a single "code" element for multi-column HTML footer layout
+8. ALL content from the Figma design - NO placeholder/lorem ipsum text
+9. Match column counts exactly from Figma (3 cards in design = columns:3)
+10. Each concept appears EXACTLY ONCE. Never duplicate sections.
+
+RESPOND WITH JSON ONLY (no markdown fences): {"sections":[...]}`;
+
+        const divi5Result = await callPageForgeAgent(supabase, buildId, 'pageforge_markup_gen', 'markup_generation',
+          getSystemPrompt('pageforge_builder'),
+          divi5Prompt,
+          anthropic, {
+            maxTokens: 32000,
+            images: figmaImage ? [{ data: figmaImage, mimeType: figmaImageMime }] : undefined,
+          }
+        );
+
+        // Parse structured JSON response into Divi5Section[]
+        let divi5Sections: Divi5Section[] = [];
+        const rawText = divi5Result.text;
+        try {
+          const stripped = rawText.replace(/^```(?:json)?\s*\n?/m, '').replace(/\n?```\s*$/m, '');
+          const jsonMatch = stripped.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            divi5Sections = parsed.sections || [];
+          }
+        } catch (parseErr) {
+          console.warn('[pageforge] Divi 5 JSON parse failed, trying partial extract:', parseErr instanceof Error ? parseErr.message : String(parseErr));
+          // Try to extract sections array even from malformed/truncated JSON
+          try {
+            const sectionsMatch = rawText.match(/"sections"\s*:\s*(\[[\s\S]*)/);
+            if (sectionsMatch) {
+              let sectionsStr = sectionsMatch[1].replace(/,\s*([}\]])/g, '$1');
+              // Fix truncation: close open brackets
+              const openBrackets = (sectionsStr.match(/\[/g) || []).length;
+              const closeBrackets = (sectionsStr.match(/\]/g) || []).length;
+              for (let i = 0; i < openBrackets - closeBrackets; i++) sectionsStr += ']';
+              const openBraces = (sectionsStr.match(/\{/g) || []).length;
+              const closeBraces = (sectionsStr.match(/\}/g) || []).length;
+              for (let i = 0; i < openBraces - closeBraces; i++) sectionsStr += '}';
+              divi5Sections = JSON.parse(sectionsStr);
+            }
+          } catch {
+            console.error('[pageforge] Divi 5 JSON parsing completely failed');
+          }
+        }
+
+        if (divi5Sections.length === 0) {
+          throw new Error('AI returned no valid Divi 5 sections - JSON parsing failed. Raw response length: ' + rawText.length);
+        }
+
+        const divi5Markup = buildDivi5Markup(divi5Sections, primaryFont, primaryAccent);
+        const diviSectionCount = (divi5Markup.match(/<!-- wp:divi\/section/g) || []).length;
+        console.log(`[pageforge] Generated Divi 5 markup: ${divi5Markup.length} chars, ${diviSectionCount} native sections from ${divi5Sections.length} JSON sections`);
+
+        await updateBuildArtifacts(supabase, buildId, 'markup_generation', { markup: divi5Markup, builder, sections: divi5Sections });
+        break;
+      }
+
+      // ========== GUTENBERG / OTHER BUILDERS PATH ==========
+      const builderLabel = builder;
       const prompt = `Generate a COMPLETE, production-quality WordPress ${builderLabel} landing page.
 
 ## ABSOLUTE REQUIREMENT - SECTION STRUCTURE:
@@ -998,9 +1104,14 @@ RESPOND WITH JSON: {"markup":"the COMPLETE page markup","sections":[{"name":"sec
       }
 
       if (builder === 'divi5') {
-        // Divi 5 pages are generated as Gutenberg then converted at deploy time
-        // Validate the same way as Gutenberg (wp:group blocks)
-        if (!markup.includes('<!-- wp:')) warnings.push('No block markers found in Divi 5 source markup');
+        // Validate native Divi 5 blocks
+        const diviSectionCount = (markup.match(/<!-- wp:divi\/section/g) || []).length;
+        if (diviSectionCount === 0) errors.push('No Divi 5 section blocks found');
+        else if (diviSectionCount < 3) warnings.push(`Only ${diviSectionCount} Divi 5 sections (expected 5+)`);
+        // Validate block balance
+        const openDivi = (markup.match(/<!-- wp:divi\//g) || []).length;
+        const closeDivi = (markup.match(/<!-- \/wp:divi\//g) || []).length;
+        if (openDivi !== closeDivi) warnings.push(`Divi 5 block mismatch: ${openDivi} open, ${closeDivi} close`);
       }
 
       // Check unclosed HTML tags
@@ -1610,9 +1721,10 @@ Respond with JSON:
             : '';
 
         // Format the markup into structured lines for easier patching
+        // Use non-greedy match to handle both Gutenberg and Divi 5 block comments with JSON attrs
         const formattedMarkup = currentMarkup
-          .replace(/(<!-- wp:[^ ]+ -->)/g, '\n$1\n')
-          .replace(/(<!-- \/wp:[^ ]+ -->)/g, '\n$1\n')
+          .replace(/(<!-- wp:[^\n]*?-->)/g, '\n$1\n')
+          .replace(/(<!-- \/wp:[^\n]*?-->)/g, '\n$1\n')
           .replace(/(<\/div>)/g, '$1\n')
           .replace(/(<div[^>]*>)/g, '\n$1')
           .split('\n')
@@ -1621,9 +1733,20 @@ Respond with JSON:
         const markupLines = formattedMarkup.split('\n');
         const numberedMarkup = markupLines.map((line: string, i: number) => `${i + 1}| ${line}`).join('\n');
 
+        const isDivi5Fix = (build.page_builder || 'gutenberg') === 'divi5';
+        const divi5FixHint = isDivi5Fix ? `
+NOTE: This is native Divi 5 block markup (<!-- wp:divi/section -->, <!-- wp:divi/row -->, etc.).
+Each block has JSON attributes controlling appearance. To fix visual issues:
+- Change colors: modify "color" values in the JSON attributes
+- Change fonts: modify "size", "weight", "family" values in font objects
+- Change spacing: modify padding values in spacing/decoration objects
+- Change backgrounds: modify background color/image values in decoration objects
+- DO NOT convert to Gutenberg/HTML - keep native Divi 5 block format` : '';
+
         const fixPrompt = `Fix this WordPress page markup to better match the Figma design.
 
 ${imageContext}
+${divi5FixHint}
 
 Iteration ${currentIteration}/${maxLoops} - Current VQA score: ${lastScore}% (target: ${threshold}%)
 
@@ -1641,7 +1764,7 @@ RULES:
 2. To replace a line, specify {"line": N, "content": "new line content"}.
 3. To insert new lines after a line, specify {"line": N, "insert_after": "new lines to insert"}.
 4. To delete a line, specify {"line": N, "content": ""}.
-5. Use inline styles for visual fixes (colors, spacing, fonts, layout).
+5. ${isDivi5Fix ? 'Modify JSON attribute values in the Divi 5 block comments to fix visual issues.' : 'Use inline styles for visual fixes (colors, spacing, fonts, layout).'}
 6. Line numbers refer to the numbers shown in the markup above (1-based).
 7. Make sure responsive styles are preserved (flexbox, max-width, etc.)
 8. Focus on the most impactful changes first - fix layout, colors, fonts, spacing.
@@ -2219,7 +2342,8 @@ const DIVI5_HEADER_SCRIPT = `<!-- wp:html -->
 function prepareMarkupForDeploy(markup: string, builder: string = 'gutenberg'): string {
   const sanitized = sanitizeMarkup(markup);
   if (builder === 'divi5') {
-    return DIVI5_HEADER_SCRIPT + '\n' + convertGutenbergToDivi5(sanitized);
+    // Divi 5 markup is already in native block format from markup_generation
+    return DIVI5_HEADER_SCRIPT + '\n' + sanitized;
   }
   return FULLWIDTH_SCRIPT + sanitized;
 }
@@ -2292,8 +2416,294 @@ function sanitizeMarkup(markup: string): string {
   return clean;
 }
 
-/** Convert Gutenberg wp:group markup to Divi 5 native section/row/column/text blocks */
+// ============================================================================
+// DIVI 5 NATIVE BLOCK BUILDER
+// Builds proper divi/section > divi/row > divi/column > module structure
+// from structured JSON page data. Each element gets its own Divi module
+// so the page is fully editable in Divi 5's visual builder.
+// ============================================================================
+
+interface Divi5Section {
+  name: string;
+  background?: { color?: string; image?: string; overlay?: number };
+  padding?: { top?: string; bottom?: string };
+  elements?: Divi5Element[];
+  columns?: number;
+  cards?: Divi5Card[];
+}
+
+interface Divi5Element {
+  type: 'heading' | 'text' | 'image' | 'button' | 'divider' | 'code';
+  text?: string;
+  content?: string;
+  level?: string;
+  src?: string;
+  alt?: string;
+  url?: string;
+  font?: { family?: string; size?: string; weight?: string; color?: string; lineHeight?: string };
+  style?: { bgColor?: string; textColor?: string; padding?: string; borderRadius?: string };
+}
+
+interface Divi5Card {
+  title?: string;
+  text?: string;
+  image?: string;
+  icon?: string;
+  url?: string;
+}
+
+const D5V = "5.0.1"; // Divi 5 builder version
+const D5_AREA = { desktop: { value: "post_content" } };
+
+function d5Val(v: any) { return { desktop: { value: v } }; }
+
+function buildDivi5Section(attrs: Record<string, any>, innerBlocks: string): string {
+  return `<!-- wp:divi/section ${JSON.stringify(attrs)} -->\n${innerBlocks}\n<!-- /wp:divi/section -->`;
+}
+
+function buildDivi5Row(attrs: Record<string, any>, innerBlocks: string): string {
+  return `<!-- wp:divi/row ${JSON.stringify(attrs)} -->\n${innerBlocks}\n<!-- /wp:divi/row -->`;
+}
+
+function buildDivi5Column(attrs: Record<string, any>, innerBlocks: string): string {
+  return `<!-- wp:divi/column ${JSON.stringify(attrs)} -->\n${innerBlocks}\n<!-- /wp:divi/column -->`;
+}
+
+function buildDivi5Text(html: string, fontOpts?: { family?: string; size?: string; weight?: string; color?: string; lineHeight?: string }): string {
+  const attrs: Record<string, any> = {
+    builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA,
+    content: { innerContent: d5Val(html) }
+  };
+  if (fontOpts && (fontOpts.family || fontOpts.color || fontOpts.size)) {
+    const fontVal: Record<string, string> = {};
+    if (fontOpts.family) fontVal.family = fontOpts.family;
+    if (fontOpts.color) fontVal.color = fontOpts.color;
+    if (fontOpts.size) fontVal.size = fontOpts.size;
+    if (fontOpts.weight) fontVal.weight = fontOpts.weight;
+    if (fontOpts.lineHeight) fontVal.lineHeight = fontOpts.lineHeight;
+    attrs.content.decoration = { bodyFont: { body: { font: d5Val(fontVal) } } };
+  }
+  return `<!-- wp:divi/text ${JSON.stringify(attrs)} -->\n<!-- /wp:divi/text -->`;
+}
+
+function buildDivi5Image(src: string, alt?: string, borderRadius?: string): string {
+  const attrs: Record<string, any> = {
+    builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA,
+    image: { innerContent: d5Val({ src, alt: alt || "", title: "" }) },
+    module: { decoration: { sizing: d5Val({ width: "100%" }) } }
+  };
+  if (borderRadius) {
+    attrs.module.decoration.border = d5Val({
+      radius: { topLeft: borderRadius, topRight: borderRadius, bottomLeft: borderRadius, bottomRight: borderRadius }
+    });
+  }
+  return `<!-- wp:divi/image ${JSON.stringify(attrs)} -->\n<!-- /wp:divi/image -->`;
+}
+
+function buildDivi5Button(text: string, url: string, style?: { bgColor?: string; textColor?: string; padding?: string; borderRadius?: string }): string {
+  const attrs: Record<string, any> = {
+    builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA,
+    button: {
+      innerContent: d5Val({ text, linkUrl: url || "#", linkTarget: "_self" }),
+      decoration: {
+        button: d5Val({ enable: "on" }),
+        background: d5Val({ color: style?.bgColor || "#2ea3f2" }),
+        font: { font: d5Val({ color: style?.textColor || "#ffffff", size: "16px", weight: "600" }) },
+        spacing: d5Val({ padding: { top: "14px", bottom: "14px", left: "32px", right: "32px" } }),
+        border: d5Val({ radius: { topLeft: style?.borderRadius || "8px", topRight: style?.borderRadius || "8px", bottomLeft: style?.borderRadius || "8px", bottomRight: style?.borderRadius || "8px" } })
+      }
+    },
+    module: { advanced: { alignment: d5Val("center") } }
+  };
+  return `<!-- wp:divi/button ${JSON.stringify(attrs)} -->\n<!-- /wp:divi/button -->`;
+}
+
+function buildDivi5Blurb(title: string, content: string, imageOrIcon?: string, titleFont?: Record<string, string>, bodyFont?: Record<string, string>): string {
+  const attrs: Record<string, any> = {
+    builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA,
+    title: {
+      innerContent: d5Val({ text: title, url: "", target: "_self" }),
+      decoration: { font: { font: d5Val({ headingLevel: "h4", color: titleFont?.color || "#333333", size: titleFont?.size || "20px", weight: titleFont?.weight || "700" }) } }
+    },
+    content: {
+      innerContent: d5Val(content),
+      decoration: { bodyFont: { body: { font: d5Val({ color: bodyFont?.color || "#666666", size: bodyFont?.size || "14px", lineHeight: bodyFont?.lineHeight || "1.8em" }) } } }
+    },
+    module: {
+      decoration: {
+        background: d5Val({ color: "#ffffff" }),
+        border: d5Val({ radius: { topLeft: "12px", topRight: "12px", bottomLeft: "12px", bottomRight: "12px" } }),
+        boxShadow: d5Val({ horizontal: "0px", vertical: "4px", blur: "20px", spread: "0px", color: "rgba(0,0,0,0.08)" }),
+        spacing: d5Val({ padding: { top: "30px", bottom: "30px", left: "30px", right: "30px" } })
+      }
+    }
+  };
+  // Image or icon
+  if (imageOrIcon && (imageOrIcon.startsWith('http') || imageOrIcon.startsWith('FIGMA_IMG'))) {
+    attrs.imageIcon = {
+      innerContent: d5Val({ useIcon: "off", src: imageOrIcon, alt: title, animation: "top" }),
+      advanced: { placement: d5Val("top"), alignment: d5Val("center"), width: { image: d5Val("100%") } },
+      decoration: { border: d5Val({ radius: { topLeft: "8px", topRight: "8px", bottomLeft: "0px", bottomRight: "0px" } }) }
+    };
+  }
+  return `<!-- wp:divi/blurb ${JSON.stringify(attrs)} -->\n<!-- /wp:divi/blurb -->`;
+}
+
+function buildDivi5Divider(): string {
+  return `<!-- wp:divi/divider {"builderVersion":"${D5V}","modulePreset":"default","themeBuilderArea":${JSON.stringify(D5_AREA)}} -->\n<!-- /wp:divi/divider -->`;
+}
+
+function buildDivi5Code(html: string): string {
+  const attrs = { builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA, content: { innerContent: d5Val(html) } };
+  return `<!-- wp:divi/code ${JSON.stringify(attrs)} -->\n<!-- /wp:divi/code -->`;
+}
+
+/** Build a complete Divi 5 page from structured section data */
+function buildDivi5Markup(sections: Divi5Section[], primaryFont: string, accentColor: string): string {
+  const output: string[] = [];
+
+  for (const section of sections) {
+    // Section attributes
+    const sectionAttrs: Record<string, any> = {
+      builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA,
+      module: {
+        meta: { adminLabel: d5Val(section.name || "Section") },
+        decoration: {
+          spacing: d5Val({
+            padding: { top: section.padding?.top || "80px", bottom: section.padding?.bottom || "80px", left: "0px", right: "0px" }
+          })
+        }
+      }
+    };
+
+    // Section background
+    if (section.background?.color) {
+      sectionAttrs.module.decoration.background = d5Val({ color: section.background.color });
+    }
+    if (section.background?.image) {
+      const bgVal: Record<string, any> = { ...(section.background.color ? { color: section.background.color } : {}) };
+      bgVal.image = section.background.image;
+      sectionAttrs.module.decoration.background = d5Val(bgVal);
+    }
+
+    // Row attributes - full width for content to control its own centering
+    const rowAttrs: Record<string, any> = {
+      builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA,
+      module: { decoration: { sizing: d5Val({ maxWidth: "1200px" }) } }
+    };
+
+    // Multi-column layout
+    if (section.columns && section.columns > 1 && section.cards && section.cards.length > 0) {
+      const gridCols = Array(section.columns).fill("1fr").join(" ");
+      rowAttrs.module.advanced = { grid: d5Val({ gridTemplateColumns: gridCols }) };
+
+      // Build column per card
+      const colBlocks: string[] = [];
+      for (let c = 0; c < section.cards.length; c++) {
+        const card = section.cards[c];
+        const colAttrs = { builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA };
+        const blurb = buildDivi5Blurb(
+          card.title || `Card ${c + 1}`,
+          card.text ? `<p>${card.text}</p>` : "<p></p>",
+          card.image,
+          { color: section.background?.color && isDarkBg(section.background.color) ? "#ffffff" : "#333333" },
+          { color: section.background?.color && isDarkBg(section.background.color) ? "#cccccc" : "#666666" }
+        );
+        colBlocks.push(buildDivi5Column(colAttrs, blurb));
+      }
+
+      // Section heading row (if elements include headings)
+      let headingRow = "";
+      if (section.elements) {
+        const headingModules: string[] = [];
+        for (const el of section.elements) {
+          headingModules.push(buildElementModule(el, primaryFont, section.background));
+        }
+        if (headingModules.length > 0) {
+          const headRowAttrs = { builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA, module: { decoration: { sizing: d5Val({ maxWidth: "1200px" }) } } };
+          const headColAttrs = { builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA };
+          headingRow = buildDivi5Row(headRowAttrs, buildDivi5Column(headColAttrs, headingModules.join('\n')));
+        }
+      }
+
+      const cardsRow = buildDivi5Row(rowAttrs, colBlocks.join('\n'));
+      output.push(buildDivi5Section(sectionAttrs, headingRow + '\n' + cardsRow));
+
+    } else {
+      // Single column - stack elements vertically
+      const modules: string[] = [];
+      if (section.elements) {
+        for (const el of section.elements) {
+          modules.push(buildElementModule(el, primaryFont, section.background));
+        }
+      }
+      const colAttrs = { builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA };
+      const colBlock = buildDivi5Column(colAttrs, modules.join('\n'));
+      output.push(buildDivi5Section(sectionAttrs, buildDivi5Row(rowAttrs, colBlock)));
+    }
+  }
+
+  return output.join('\n\n');
+}
+
+function buildElementModule(el: Divi5Element, primaryFont: string, bg?: { color?: string }): string {
+  const isDark = bg?.color ? isDarkBg(bg.color) : false;
+  const defaultTextColor = isDark ? "#ffffff" : "#333333";
+  const defaultSubColor = isDark ? "#cccccc" : "#666666";
+
+  switch (el.type) {
+    case 'heading': {
+      const level = el.level || 'h2';
+      const html = `<${level}>${el.text || ''}</${level}>`;
+      return buildDivi5Text(html, {
+        family: el.font?.family || primaryFont,
+        size: el.font?.size || (level === 'h1' ? '54px' : level === 'h2' ? '36px' : '24px'),
+        weight: el.font?.weight || '700',
+        color: el.font?.color || defaultTextColor,
+      });
+    }
+    case 'text': {
+      const html = el.content || `<p>${el.text || ''}</p>`;
+      return buildDivi5Text(html, {
+        family: el.font?.family || primaryFont,
+        size: el.font?.size || '16px',
+        weight: el.font?.weight || '400',
+        color: el.font?.color || defaultSubColor,
+        lineHeight: el.font?.lineHeight || '1.6em',
+      });
+    }
+    case 'image':
+      return buildDivi5Image(el.src || '', el.alt, el.style?.borderRadius || '8px');
+    case 'button':
+      return buildDivi5Button(el.text || 'Click Here', el.url || '#', el.style);
+    case 'divider':
+      return buildDivi5Divider();
+    case 'code':
+      return buildDivi5Code(el.content || '');
+    default:
+      return buildDivi5Text(`<p>${el.text || ''}</p>`);
+  }
+}
+
+function isDarkBg(color: string): boolean {
+  if (!color) return false;
+  const hex = color.replace('#', '');
+  if (hex.length === 6) {
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.4;
+  }
+  if (color.startsWith('rgba')) {
+    const m = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (m) return (0.299 * +m[1] + 0.587 * +m[2] + 0.114 * +m[3]) / 255 < 0.4;
+  }
+  return false;
+}
+
+/** Legacy converter kept for fallback - wraps HTML in divi/code blocks instead of divi/text */
 function convertGutenbergToDivi5(gutenbergMarkup: string): string {
+  // Fallback: parse wp:group blocks and wrap each in divi/section > row > col > code
   const blocks: Array<{ content: string; bgColor: string | null }> = [];
   let depth = 0;
   let blockLines: string[] = [];
@@ -2301,113 +2711,32 @@ function convertGutenbergToDivi5(gutenbergMarkup: string): string {
 
   for (const line of gutenbergMarkup.split('\n')) {
     const trimmed = line.trim();
-    const isGroupOpen = /^<!-- wp:group\b/.test(trimmed);
-    const isGroupClose = /^<!-- \/wp:group\b/.test(trimmed);
-
-    if (isGroupOpen) {
-      if (depth === 0) {
-        const outside = outsideLines.join('\n').trim();
-        if (outside && outside.length > 10) {
-          blocks.push({ content: outside, bgColor: null });
-        }
-        outsideLines = [];
-        blockLines = [line];
-      } else {
-        blockLines.push(line);
-      }
+    if (/^<!-- wp:group\b/.test(trimmed)) {
+      if (depth === 0) { outsideLines = []; blockLines = [line]; } else { blockLines.push(line); }
       depth++;
-    } else if (isGroupClose) {
+    } else if (/^<!-- \/wp:group\b/.test(trimmed)) {
       depth--;
       if (depth === 0 && blockLines.length > 0) {
         blockLines.push(line);
-        const fullBlock = blockLines.join('\n');
-
-        // Extract background color from wp:group JSON attrs or inline style
+        const full = blockLines.join('\n');
         let bgColor: string | null = null;
-        const jsonMatch = fullBlock.match(/<!-- wp:group \{(.*?)\} -->/);
-        if (jsonMatch) {
-          try {
-            const attrs = JSON.parse(`{${jsonMatch[1]}}`);
-            bgColor = attrs?.style?.color?.background || null;
-          } catch {}
-        }
-        if (!bgColor) {
-          const styleMatch = fullBlock.match(/background-color:\s*([#\w]+(?:\([^)]+\))?)/);
-          if (styleMatch) bgColor = styleMatch[1];
-        }
-
-        // Extract inner HTML (everything between wp:group comment markers)
-        let innerHtml = fullBlock
-          .replace(/<!-- wp:group\b[^-]*-->\s*/g, '')
-          .replace(/\s*<!-- \/wp:group -->/g, '')
-          .trim();
-
-        blocks.push({ content: innerHtml, bgColor });
+        const jm = full.match(/<!-- wp:group \{(.*?)\} -->/);
+        if (jm) { try { bgColor = JSON.parse(`{${jm[1]}}`).style?.color?.background || null; } catch {} }
+        if (!bgColor) { const sm = full.match(/background-color:\s*([#\w]+(?:\([^)]+\))?)/); if (sm) bgColor = sm[1]; }
+        const inner = full.replace(/<!-- wp:group\b[^-]*-->\s*/g, '').replace(/\s*<!-- \/wp:group -->/g, '').trim();
+        blocks.push({ content: inner, bgColor });
         blockLines = [];
-      } else {
-        blockLines.push(line);
-      }
-    } else if (depth > 0) {
-      blockLines.push(line);
-    } else {
-      outsideLines.push(line);
-    }
+      } else { blockLines.push(line); }
+    } else if (depth > 0) { blockLines.push(line); } else { outsideLines.push(line); }
   }
 
-  const outside = outsideLines.join('\n').trim();
-  if (outside && outside.length > 10) {
-    blocks.push({ content: outside, bgColor: null });
-  }
-
-  // Convert each block to Divi 5 format
   return blocks.map((block, i) => {
-    const sectionAttrs: Record<string, any> = {
-      builderVersion: "5.0.1",
-      modulePreset: "default",
-      module: {
-        meta: { adminLabel: { desktop: { value: `Section ${i + 1}` } } }
-      }
-    };
-
-    // Ensure section is fullwidth + set background color if present
-    sectionAttrs.module.decoration = {
-      sizing: { desktop: { value: { width: "100%", maxWidth: "100%" } } },
-      ...(block.bgColor ? { background: { desktop: { value: { color: block.bgColor } } } } : {}),
-    };
-
-    const colAttrs = {
-      builderVersion: "5.0.1",
-      module: { advanced: { type: { desktop: { value: "4_4" } } } }
-    };
-
-    const textAttrs = {
-      builderVersion: "5.0.1",
-      modulePreset: "default",
-      content: {
-        innerContent: { desktop: { value: block.content } }
-      }
-    };
-
-    const rowAttrs = {
-      builderVersion: "5.0.1",
-      modulePreset: "default",
-      module: {
-        decoration: {
-          sizing: {
-            desktop: { value: { width: "100%", maxWidth: "100%" } }
-          }
-        }
-      }
-    };
-
-    return `<!-- wp:divi/section ${JSON.stringify(sectionAttrs)} -->
-<!-- wp:divi/row ${JSON.stringify(rowAttrs)} -->
-<!-- wp:divi/column ${JSON.stringify(colAttrs)} -->
-<!-- wp:divi/text ${JSON.stringify(textAttrs)} -->
-<!-- /wp:divi/text -->
-<!-- /wp:divi/column -->
-<!-- /wp:divi/row -->
-<!-- /wp:divi/section -->`;
+    const secA: Record<string, any> = { builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA, module: { meta: { adminLabel: d5Val(`Section ${i + 1}`) }, decoration: {} } };
+    if (block.bgColor) secA.module.decoration.background = d5Val({ color: block.bgColor });
+    const rowA = { builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA, module: { decoration: { sizing: d5Val({ maxWidth: "1200px" }) } } };
+    const colA = { builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA };
+    const codeBlock = buildDivi5Code(block.content);
+    return buildDivi5Section(secA, buildDivi5Row(rowA, buildDivi5Column(colA, codeBlock)));
   }).join('\n\n');
 }
 
@@ -2789,14 +3118,64 @@ Without width:100%, sections will be constrained by the theme's narrow container
 - Grids: use minmax(280px,1fr) not fixed column counts, add overflow:hidden on grid container
 - NEVER set font-size larger than the container width could hold`;
 
-const DIVI5_INSTRUCTIONS = `## Divi 5 Page (auto-converted)
-Generate standard WordPress Gutenberg block markup using <!-- wp:group --> blocks with inline HTML styles.
-Your markup will be automatically converted to native Divi 5 section/row/column/text blocks at deploy time.
-Each top-level <!-- wp:group --> block becomes its own Divi 5 section.
-Background colors set via inline style (background-color:...) will be transferred to the Divi section.
-Follow all the same Gutenberg rules below - the conversion is handled automatically.
+const DIVI5_INSTRUCTIONS = `## DIVI 5 NATIVE MODULES - Structured JSON Output
+You are generating a structured JSON page description for a Divi 5 WordPress page.
+Each element becomes its own editable Divi 5 visual builder module.
+Do NOT output HTML or Gutenberg blocks. Output ONLY a JSON object.
 
-${GUTENBERG_INSTRUCTIONS}`;
+### JSON Structure
+{
+  "sections": [
+    {
+      "name": "Hero",
+      "background": { "color": "rgba(0,23,56,0.85)", "image": "FIGMA_IMG:1:234" },
+      "padding": { "top": "120px", "bottom": "120px" },
+      "elements": [
+        { "type": "heading", "text": "Main Headline", "level": "h1", "font": { "size": "54px", "weight": "700", "color": "#ffffff" } },
+        { "type": "text", "text": "Subtitle text", "font": { "size": "18px", "color": "#cccccc", "lineHeight": "1.6em" } },
+        { "type": "button", "text": "Get Started", "url": "#contact", "style": { "bgColor": "#cc2336", "textColor": "#ffffff", "borderRadius": "8px" } }
+      ]
+    },
+    {
+      "name": "Services",
+      "background": { "color": "#f5f5f5" },
+      "columns": 3,
+      "elements": [
+        { "type": "heading", "text": "Our Services", "level": "h2", "font": { "size": "36px", "weight": "700", "color": "#333333" } }
+      ],
+      "cards": [
+        { "title": "Service 1", "text": "Description", "image": "FIGMA_IMG:2:345" },
+        { "title": "Service 2", "text": "Description", "image": "FIGMA_IMG:2:346" }
+      ]
+    }
+  ]
+}
+
+### Element Types
+- heading: { type: "heading", text, level: "h1"|"h2"|"h3", font: { size, weight, color } }
+- text: { type: "text", text (plain) OR content (HTML like "<p>...</p><ul><li>...</li></ul>"), font: { size, weight, color, lineHeight } }
+- image: { type: "image", src: "FIGMA_IMG:nodeId" or URL, alt: "description", style: { borderRadius: "8px" } }
+- button: { type: "button", text, url, style: { bgColor, textColor, borderRadius } }
+- divider: { type: "divider" }
+- code: { type: "code", content: "<raw HTML>" } - ONLY for complex layouts that cannot be expressed with other types (e.g. multi-column footer HTML)
+
+### Section Fields
+- name: Label (Hero, Services, About, Gallery, Testimonials, CTA, Footer)
+- background: { color: hex or rgba, image: FIGMA_IMG:id or URL }
+  For dark overlays on hero images: use rgba color like "rgba(0,23,56,0.85)" combined with image
+- padding: { top: "Npx", bottom: "Npx" } for vertical spacing
+- elements: Array of elements for single-column content (headings, text, images, buttons)
+- columns: Number (2-4) for card grid layouts
+- cards: Array of { title, text, image, url } for multi-column card/feature grids
+
+### Section Patterns
+- Hero: Large h1 heading (48-60px), subtext, button. Dark background with image overlay.
+- Stats/Numbers: Use columns (3-5) + cards where title=number ("24+"), text=label ("Years Experience")
+- Services/Features: Section heading in elements[], then columns + cards with image/title/text
+- Gallery: columns (3) + cards with image only (title optional)
+- Testimonials: columns (2-3) + cards with title=name, text=quote
+- CTA: Centered heading + text + button in elements[]
+- Footer: Dark background, use a single "code" element type for multi-column HTML footer layout`;
 
 const DIVI4_INSTRUCTIONS = `## Divi 4 Format
 Generate Divi 4 shortcodes:
