@@ -95,11 +95,22 @@ export async function processPageForgeJob(job: Job<PageForgeJobData>): Promise<v
   const siteProfile = build.site_profile as PageForgeSiteProfile;
   const anthropic = getAnthropicClient();
 
+  // Prevent wasteful re-processing: if build was already scored and we're starting from 0,
+  // resume from the VQA fix loop instead of regenerating everything from scratch
+  let effectiveStartIdx = startPhaseIdx;
+  if (startPhaseIdx === 0 && build.vqa_fix_iteration > 0 && build.vqa_score_desktop > 0) {
+    const vqaFixIdx = PAGEFORGE_PHASE_ORDER.indexOf('vqa_fix_loop');
+    if (vqaFixIdx > 0) {
+      console.log(`[pageforge] Build already has VQA scores (D=${build.vqa_score_desktop}%, iter=${build.vqa_fix_iteration}) - resuming from VQA fix loop instead of restarting`);
+      effectiveStartIdx = vqaFixIdx;
+    }
+  }
+
   // Track per-phase retry attempts
   const phaseRetryCount: Record<string, number> = {};
 
   // Process phases sequentially
-  for (let i = startPhaseIdx; i < PAGEFORGE_PHASE_ORDER.length; i++) {
+  for (let i = effectiveStartIdx; i < PAGEFORGE_PHASE_ORDER.length; i++) {
     const phase = PAGEFORGE_PHASE_ORDER[i];
     console.log(`[pageforge] Phase ${i + 1}/${PAGEFORGE_PHASE_ORDER.length}: ${phase}`);
 
