@@ -1504,8 +1504,16 @@ Scoring guide:
 - 85-95: Excellent recreation, professional quality, very close to design
 - 95-100: Near pixel-perfect match
 
+DIVI 5 CSS SELECTORS (use these in suggestedFix, NOT made-up class names):
+- Sections: .et_pb_section_0, .et_pb_section_1, etc. (0-indexed, top to bottom)
+- Text: .et_pb_section_N .et_pb_text_inner
+- Headings: .et_pb_section_N h1, .et_pb_section_N h2
+- Cards: .et_pb_section_N .et_pb_blurb_content
+- Images: .et_pb_section_N .et_pb_image_wrap img
+- Buttons: .et_pb_button
+
 Respond with JSON:
-{"score":N,"differences":[{"area":"element","severity":"critical|major|minor","description":"specific issue","suggestedFix":"CSS fix"}]}`,
+{"score":N,"differences":[{"area":"element","severity":"critical|major|minor","description":"specific issue","suggestedFix":"CSS rule using Divi 5 selectors above"}]}`,
             anthropic, {
               images: [
                 { data: figmaDesktop, mimeType: 'image/jpeg' },
@@ -1744,6 +1752,9 @@ Respond with JSON:
           // Show markup as-is (blocks are already one-per-line)
           formattedMarkup = currentMarkup;
 
+          // Limit to top 5 most impactful differences to avoid overwhelming the fix agent
+          const topDiffs = sortedDiffs.slice(0, 5);
+
           fixPrompt = `Fix this Divi 5 WordPress page to better match the Figma design.
 
 ${imageContext}
@@ -1758,24 +1769,38 @@ Current markup:
 ${currentMarkup}
 \`\`\`
 
-Visual differences to fix (${sortedDiffs.length} issues, priority order):
-${sortedDiffs.map((d: any, i: number) => `${i + 1}. [${d.severity.toUpperCase()}] ${d.area}: ${d.description}${d.suggestedFix ? `\n   Suggested fix: ${d.suggestedFix}` : ''}`).join('\n')}
+TOP ${topDiffs.length} visual differences to fix (priority order):
+${topDiffs.map((d: any, i: number) => `${i + 1}. [${d.severity.toUpperCase()}] ${d.area}: ${d.description}${d.suggestedFix ? `\n   Suggested fix: ${d.suggestedFix}` : ''}`).join('\n')}
 ${layoutIssuesContext}
 
-HOW TO FIX Divi 5 blocks:
+TWO FIX STRATEGIES (use both as needed):
+
+STRATEGY A - JSON attribute patches (for Divi 5 module properties):
 - Background colors: find "background" in section JSON, change "color":{"desktop":{"value":"#XXXXXX"}}
 - Text colors: find "font" objects, change "color" value
 - Font sizes: find "size" in font objects, change the value
 - Spacing: find "padding" objects, change top/bottom/left/right values
 - Each value is wrapped in {"desktop":{"value":"..."}} breakpoint format
 
+STRATEGY B - CSS rule additions (for visual fixes that JSON can't handle):
+The markup starts with a <style> block containing CSS fallback rules. You can ADD new CSS rules.
+Divi 5 CSS selectors:
+- .et_pb_section_0, .et_pb_section_1, etc. (sections, 0-indexed top to bottom)
+- .et_pb_section_N .et_pb_text_inner (text inside section N)
+- .et_pb_section_N h1, h2, h3 (headings in section N)
+- .et_pb_section_N .et_pb_blurb_content (card content in section N)
+- .et_pb_section_N .et_pb_image_wrap img (images in section N)
+- .et_pb_button (all buttons)
+Use CSS for: overlays on bg images, grid gaps, font stacks, border-radius, box-shadows, hover effects.
+To add CSS: search for "</style>" and replace with "NEW_RULES_HERE\\n</style>"
+
 IMPORTANT RULES:
 1. Use search/replace patches. Find an exact string in the markup and specify its replacement.
-2. Keep patches SMALL and TARGETED - change one value at a time. Max 8 patches per iteration.
+2. Keep patches SMALL and TARGETED. Max 12 patches per iteration.
 3. Make sure the "search" string is unique and exists exactly as-is in the markup.
-4. DO NOT modify anything inside <style>...</style> blocks - those are CSS fallbacks that must stay intact.
+4. DO NOT remove or modify EXISTING CSS rules in the <style> block. Only ADD new rules before </style>.
 5. DO NOT add new HTML elements or convert Divi 5 blocks to Gutenberg/HTML.
-6. Focus on the JSON attributes inside <!-- wp:divi/... --> block comments.
+6. Focus on the TOP 2-3 most impactful changes. Quality over quantity.
 
 Respond with JSON:
 {"patches":[{"search":"exact string to find","replace":"replacement string","description":"what this fixes"}]}`;
@@ -1975,6 +2000,8 @@ Previous score was ${lastScore}%. Check if the fixes improved the match.
 
 IMPORTANT: The images may have different heights/proportions. Focus on whether the SAME SECTIONS and CONTENT exist in both, not on exact pixel alignment.
 
+SCORING CONSISTENCY: Your score should reflect ONLY visual changes between iterations. If the page looks the same as last time, give the same score. Do NOT re-evaluate from scratch each time - anchor on the previous score (${lastScore}%) and adjust up/down based on what actually changed.
+
 Evaluate:
 1. SECTION PRESENCE: Are all major sections from Figma present in WP?
 2. VISUAL STYLE: Correct background colors, styled fonts (not system defaults)?
@@ -1993,8 +2020,19 @@ Scoring:
 - 85-95: Excellent recreation, professional quality, very close to design
 - 95-100: Near pixel-perfect match
 
+DIVI 5 CSS CLASS STRUCTURE (use these in suggestedFix, NOT made-up class names):
+- Sections: .et_pb_section_0, .et_pb_section_1, .et_pb_section_2, etc. (0-indexed, top to bottom)
+- Rows: .et_pb_row (or .et_pb_row_N for specific rows)
+- Columns: .et_pb_column
+- Text modules: .et_pb_text_inner (wraps text content)
+- Blurb modules: .et_pb_blurb_content (wraps blurb cards)
+- Headings: .et_pb_section_N h1, .et_pb_section_N h2, etc.
+- Buttons: .et_pb_button
+- Images: .et_pb_image_wrap img
+The page has a <style> block at the top with CSS fallback rules. Suggested fixes should target these real selectors.
+
 Score 0-100. Respond with JSON:
-{"score":N,"differences":[{"area":"...","severity":"critical|major|minor","description":"...","suggestedFix":"..."}]}`,
+{"score":N,"differences":[{"area":"...","severity":"critical|major|minor","description":"...","suggestedFix":"CSS rule using real Divi 5 selectors, e.g.: .et_pb_section_0 { background-color: #001738 !important; }"}]}`,
               anthropic, {
                 images: [
                   { data: figmaDesktop, mimeType: 'image/jpeg' },
@@ -2070,11 +2108,11 @@ Score 0-100. Respond with JSON:
           break;
         }
 
-        // 10. Stall detection: if score didn't improve by at least 2 points for 3 consecutive iterations
-        if (improvement < 2) {
+        // 10. Stall detection: if score didn't improve at all for 4 consecutive iterations
+        if (improvement <= 0) {
           stallCount++;
-          if (stallCount >= 3) {
-            console.log(`[pageforge] Score stalled for 3 iterations (${newScore}%), stopping fix loop`);
+          if (stallCount >= 4) {
+            console.log(`[pageforge] Score stalled for 4 iterations (${newScore}%), stopping fix loop`);
             await postBuildMessage(supabase, buildId,
               `VQA fix loop stopped: score plateaued at ${newScore}% after ${currentIteration} iterations`,
               'vqa_fix_loop');
@@ -2916,6 +2954,25 @@ function buildDivi5Markup(sections: Divi5Section[], primaryFont: string, accentC
       cssFallback.push(`.et_pb_section_${i} h1, .et_pb_section_${i} h2, .et_pb_section_${i} h3, .et_pb_section_${i} h4 { color: #ffffff !important; }`);
     }
   });
+
+  // Background image overlay for sections with images + text (improves text readability)
+  sections.forEach((section, i) => {
+    const hasImage = section.background?.image && !section.background.image.startsWith('FIGMA_IMG');
+    const hasText = (section.elements && section.elements.length > 0) || (section.cards && section.cards.length > 0);
+    if (hasImage && hasText) {
+      cssFallback.push(`.et_pb_section_${i} { position: relative; }`);
+      cssFallback.push(`.et_pb_section_${i}::before { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.5) 100%); z-index: 0; pointer-events: none; }`);
+      cssFallback.push(`.et_pb_section_${i} > .et_pb_row { position: relative; z-index: 1; }`);
+      // Ensure white text on image backgrounds
+      cssFallback.push(`.et_pb_section_${i} .et_pb_text_inner, .et_pb_section_${i} .et_pb_blurb_content { color: #ffffff !important; }`);
+      cssFallback.push(`.et_pb_section_${i} h1, .et_pb_section_${i} h2, .et_pb_section_${i} h3 { color: #ffffff !important; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }`);
+    }
+  });
+
+  // Global font family fallback (ensures Google Fonts actually apply to all text)
+  if (primaryFont && primaryFont !== 'inherit') {
+    cssFallback.push(`.et_pb_text_inner, .et_pb_blurb_content, .et_pb_button, h1, h2, h3, h4, h5, h6, p { font-family: '${primaryFont}', sans-serif !important; }`);
+  }
 
   let cssBlock = '';
   if (cssFallback.length > 0) {
