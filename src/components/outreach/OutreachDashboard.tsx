@@ -181,6 +181,24 @@ export default function OutreachDashboard() {
             Browse Leads
           </Link>
           <Link
+            href="/outreach/pipeline"
+            className="px-4 py-2 text-xs font-semibold bg-cream dark:bg-dark-surface text-navy/60 dark:text-slate-400 rounded-lg hover:bg-cream-dark dark:hover:bg-slate-700 transition-colors"
+          >
+            Pipeline Board
+          </Link>
+          <Link
+            href="/outreach/engagement"
+            className="px-4 py-2 text-xs font-semibold bg-cream dark:bg-dark-surface text-navy/60 dark:text-slate-400 rounded-lg hover:bg-cream-dark dark:hover:bg-slate-700 transition-colors"
+          >
+            Engagement
+          </Link>
+          <Link
+            href="/outreach/jobs"
+            className="px-4 py-2 text-xs font-semibold bg-cream dark:bg-dark-surface text-navy/60 dark:text-slate-400 rounded-lg hover:bg-cream-dark dark:hover:bg-slate-700 transition-colors"
+          >
+            Job Queue
+          </Link>
+          <Link
             href="/outreach/costs"
             className="px-4 py-2 text-xs font-semibold bg-cream dark:bg-dark-surface text-navy/60 dark:text-slate-400 rounded-lg hover:bg-cream-dark dark:hover:bg-slate-700 transition-colors"
           >

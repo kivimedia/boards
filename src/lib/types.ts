@@ -3985,3 +3985,34 @@ export const LI_TECH_RED_FLAGS = [
   'code magician', 'spreadsheet wizard', 'data sorcerer', 'tech illusionist',
 ];
 
+// ============================================================================
+// Research Dossier - built by Claude web research agent
+// ============================================================================
+export interface LIResearchDossier {
+  website_analysis: {
+    has_booking: boolean;
+    has_testimonials: boolean;
+    has_video: boolean;
+    has_packages: boolean;
+    performance_style: string | null;
+    audience_type: string | null;
+    geographic_coverage: string | null;
+  };
+  portfolio_highlights: string[];
+  talking_points: string[];
+  competitive_position: string;
+  pain_points: string[];
+  research_sources: string[];
+  research_cost_usd: number;
+  researched_at: string;
+}
+
+// ============================================================================
+// Orchestrator callback types
+// ============================================================================
+export interface OrchestratorCallbacks {
+  onProgress?: (message: string) => void;
+  onStepData?: (data: Record<string, unknown>) => void;
+  onCostEvent?: (event: { service_name: string; operation: string; cost_usd: number }) => void;
+}
+

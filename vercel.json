@@ -25,7 +25,9 @@
     "src/app/api/cron/knowledge-index/route.ts": { "maxDuration": 300 },
     "src/app/api/cron/board-summaries/route.ts": { "maxDuration": 300 },
     "src/app/api/admin/bootstrap-knowledge/route.ts": { "maxDuration": 300 },
-    "src/app/api/settings/knowledge-sync/route.ts": { "maxDuration": 300 }
+    "src/app/api/settings/knowledge-sync/route.ts": { "maxDuration": 300 },
+    "src/app/api/cron/outreach-orchestrator/route.ts": { "maxDuration": 300 },
+    "src/app/api/outreach/jobs/stream/route.ts": { "maxDuration": 300 }
   },
   "crons": [
     {
@@ -71,6 +73,10 @@
     {
       "path": "/api/cron/outreach-ab-eval",
       "schedule": "0 3 * * 1"
+    },
+    {
+      "path": "/api/cron/outreach-orchestrator",
+      "schedule": "*/15 * * * *"
     }
   ]
 }
