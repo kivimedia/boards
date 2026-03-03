@@ -1683,6 +1683,22 @@ Respond with JSON:
 
       if (!draftUrl) throw new Error('Missing draft URL for VQA fix loop');
 
+      // Build section name mapping for CSS selectors
+      const sectionNames: string[] = [];
+      const sectionMatches = currentMarkup.matchAll(/<!-- wp:divi\/section\s+(\{[\s\S]*?\})\s*-->/g);
+      let sectionIdx = 0;
+      for (const match of sectionMatches) {
+        try {
+          const attrs = JSON.parse(match[1]);
+          const label = attrs?.module?.meta?.adminLabel?.desktop?.value || `Section ${sectionIdx}`;
+          sectionNames.push(`.et_pb_section_${sectionIdx} = "${label}"`);
+        } catch { sectionNames.push(`.et_pb_section_${sectionIdx} = "Section ${sectionIdx}"`); }
+        sectionIdx++;
+      }
+      const sectionMapContext = sectionNames.length > 0
+        ? `\nSECTION CSS MAPPING:\n${sectionNames.join('\n')}\n`
+        : '';
+
       await postBuildMessage(supabase, buildId,
         `Starting VQA fix loop: score=${lastScore}%, threshold=${threshold}%, max iterations=${maxLoops}`,
         'vqa_fix_loop');
@@ -1763,7 +1779,7 @@ This is NATIVE Divi 5 block markup using <!-- wp:divi/{module} {JSON} --> format
 Each block has JSON attributes that control its appearance. DO NOT convert to Gutenberg or HTML.
 
 Iteration ${currentIteration}/${maxLoops} - Current VQA score: ${lastScore}% (target: ${threshold}%)
-
+${sectionMapContext}
 Current markup:
 \`\`\`
 ${currentMarkup}
@@ -2001,7 +2017,7 @@ Previous score was ${lastScore}%. Check if the fixes improved the match.
 IMPORTANT: The images may have different heights/proportions. Focus on whether the SAME SECTIONS and CONTENT exist in both, not on exact pixel alignment.
 
 SCORING CONSISTENCY: Your score should reflect ONLY visual changes between iterations. If the page looks the same as last time, give the same score. Do NOT re-evaluate from scratch each time - anchor on the previous score (${lastScore}%) and adjust up/down based on what actually changed.
-
+${sectionMapContext}
 Evaluate:
 1. SECTION PRESENCE: Are all major sections from Figma present in WP?
 2. VISUAL STYLE: Correct background colors, styled fonts (not system defaults)?
