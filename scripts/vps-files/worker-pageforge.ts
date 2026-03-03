@@ -1929,16 +1929,18 @@ Respond with JSON:
         // 2s was too short - Divi 5 needs time to rebuild CSS cache
         await new Promise(resolve => setTimeout(resolve, 5000));
 
-        // 6. Re-capture desktop screenshot (retry once if first capture looks broken)
+        // 6. Re-capture desktop screenshot with cache-busting
+        // Add timestamp to URL to prevent WP/CDN/browser cache from serving stale page
+        const cacheBustUrl = draftUrl + (draftUrl.includes('?') ? '&' : '?') + `_cb=${Date.now()}`;
         let newWpDesktop: string | null = null;
         try {
-          const newShots = await captureScreenshots(draftUrl);
+          const newShots = await captureScreenshots(cacheBustUrl);
           newWpDesktop = newShots.desktop || null;
           // If screenshot is suspiciously small (< 50KB), wait and retry
           if (newWpDesktop && Buffer.from(newWpDesktop, 'base64').length < 50000) {
             console.log('[pageforge] Screenshot looks small, waiting 5s and retrying...');
             await new Promise(resolve => setTimeout(resolve, 5000));
-            const retryShots = await captureScreenshots(draftUrl);
+            const retryShots = await captureScreenshots(cacheBustUrl);
             if (retryShots.desktop) newWpDesktop = retryShots.desktop;
           }
         } catch (err) {
@@ -3050,6 +3052,9 @@ async function captureScreenshots(pageUrl: string): Promise<Record<string, strin
     for (const [bp, width] of Object.entries(breakpoints)) {
       try {
         const page = await browser.newPage();
+        // Disable caching to always get fresh content after WP page updates
+        await page.setCacheEnabled(false);
+        await page.setExtraHTTPHeaders({ 'Cache-Control': 'no-cache, no-store', 'Pragma': 'no-cache' });
         await page.setViewport({ width, height: 900 });
         await page.goto(pageUrl, { waitUntil: 'networkidle2', timeout: 45000 });
         await new Promise(r => setTimeout(r, 5000)); // extra settle time for large images
