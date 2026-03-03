@@ -2969,10 +2969,29 @@ function buildDivi5Markup(sections: Divi5Section[], primaryFont: string, accentC
     }
   });
 
+  // Grid gap CSS for multi-column sections
+  sections.forEach((section, i) => {
+    if (section.columns && section.columns > 1) {
+      cssFallback.push(`.et_pb_section_${i} .et_pb_row { display: grid !important; grid-template-columns: repeat(${section.columns}, 1fr) !important; gap: 30px !important; }`);
+      cssFallback.push(`@media (max-width: 768px) { .et_pb_section_${i} .et_pb_row { grid-template-columns: 1fr !important; gap: 20px !important; } }`);
+    }
+  });
+
   // Global font family fallback (ensures Google Fonts actually apply to all text)
   if (primaryFont && primaryFont !== 'inherit') {
     cssFallback.push(`.et_pb_text_inner, .et_pb_blurb_content, .et_pb_button, h1, h2, h3, h4, h5, h6, p { font-family: '${primaryFont}', sans-serif !important; }`);
   }
+
+  // Typography refinements
+  cssFallback.push(`h1, h2, h3 { line-height: 1.2 !important; letter-spacing: -0.02em !important; }`);
+  cssFallback.push(`p, .et_pb_text_inner { line-height: 1.6 !important; }`);
+  cssFallback.push(`.et_pb_button { display: inline-block !important; padding: 12px 30px !important; border-radius: 8px !important; font-weight: 600 !important; text-decoration: none !important; transition: all 0.3s ease !important; }`);
+  cssFallback.push(`.et_pb_button:hover { transform: translateY(-2px) !important; box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important; }`);
+  cssFallback.push(`.et_pb_image_wrap img { border-radius: 8px; object-fit: cover; }`);
+  cssFallback.push(`.et_pb_blurb_content { border-radius: 12px; overflow: hidden; }`);
+
+  // Responsive base
+  cssFallback.push(`@media (max-width: 768px) { h1 { font-size: 32px !important; } h2 { font-size: 28px !important; } h3 { font-size: 22px !important; } .et_pb_section { padding-left: 20px !important; padding-right: 20px !important; } }`);
 
   let cssBlock = '';
   if (cssFallback.length > 0) {
