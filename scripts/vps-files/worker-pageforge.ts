@@ -1722,33 +1722,65 @@ Respond with JSON:
             ? 'Image 1 is the Figma design reference. Fix the markup to match it.'
             : '';
 
-        // Format the markup into structured lines for easier patching
-        // Use non-greedy match to handle both Gutenberg and Divi 5 block comments with JSON attrs
-        const formattedMarkup = currentMarkup
-          .replace(/(<!-- wp:[^\n]*?-->)/g, '\n$1\n')
-          .replace(/(<!-- \/wp:[^\n]*?-->)/g, '\n$1\n')
-          .replace(/(<\/div>)/g, '$1\n')
-          .replace(/(<div[^>]*>)/g, '\n$1')
-          .split('\n')
-          .filter((l: string) => l.trim())
-          .join('\n');
-        const markupLines = formattedMarkup.split('\n');
-        const numberedMarkup = markupLines.map((line: string, i: number) => `${i + 1}| ${line}`).join('\n');
-
         const isDivi5Fix = (build.page_builder || 'gutenberg') === 'divi5';
-        const divi5FixHint = isDivi5Fix ? `
-NOTE: This is native Divi 5 block markup (<!-- wp:divi/section -->, <!-- wp:divi/row -->, etc.).
-Each block has JSON attributes controlling appearance. To fix visual issues:
-- Change colors: modify "color" values in the JSON attributes
-- Change fonts: modify "size", "weight", "family" values in font objects
-- Change spacing: modify padding values in spacing/decoration objects
-- Change backgrounds: modify background color/image values in decoration objects
-- DO NOT convert to Gutenberg/HTML - keep native Divi 5 block format` : '';
 
-        const fixPrompt = `Fix this WordPress page markup to better match the Figma design.
+        // For Divi 5: use search/replace patches (safer for long JSON lines)
+        // For Gutenberg: use line-based edits
+        let fixPrompt: string;
+        let formattedMarkup: string;
+
+        if (isDivi5Fix) {
+          // Show markup as-is (blocks are already one-per-line)
+          formattedMarkup = currentMarkup;
+
+          fixPrompt = `Fix this Divi 5 WordPress page to better match the Figma design.
 
 ${imageContext}
-${divi5FixHint}
+
+This is NATIVE Divi 5 block markup using <!-- wp:divi/{module} {JSON} --> format.
+Each block has JSON attributes that control its appearance. DO NOT convert to Gutenberg or HTML.
+
+Iteration ${currentIteration}/${maxLoops} - Current VQA score: ${lastScore}% (target: ${threshold}%)
+
+Current markup:
+\`\`\`
+${currentMarkup}
+\`\`\`
+
+Visual differences to fix (${sortedDiffs.length} issues, priority order):
+${sortedDiffs.map((d: any, i: number) => `${i + 1}. [${d.severity.toUpperCase()}] ${d.area}: ${d.description}${d.suggestedFix ? `\n   Suggested fix: ${d.suggestedFix}` : ''}`).join('\n')}
+${layoutIssuesContext}
+
+HOW TO FIX Divi 5 blocks:
+- Background colors: find "background" in section JSON, change "color":{"desktop":{"value":"#XXXXXX"}}
+- Text colors: find "font" objects, change "color" value
+- Font sizes: find "size" in font objects, change the value
+- Spacing: find "padding" objects, change top/bottom/left/right values
+- Each value is wrapped in {"desktop":{"value":"..."}} breakpoint format
+
+IMPORTANT: Use search/replace patches. Find an exact string in the markup and specify its replacement.
+Keep patches SMALL and TARGETED - change one value at a time. Max 8 patches per iteration.
+Make sure the "search" string is unique and exists exactly as-is in the markup.
+
+Respond with JSON:
+{"patches":[{"search":"exact string to find","replace":"replacement string","description":"what this fixes"}]}`;
+
+        } else {
+          // Gutenberg: use line-based edits
+          formattedMarkup = currentMarkup
+            .replace(/(<!-- wp:[^\n]*?-->)/g, '\n$1\n')
+            .replace(/(<!-- \/wp:[^\n]*?-->)/g, '\n$1\n')
+            .replace(/(<\/div>)/g, '$1\n')
+            .replace(/(<div[^>]*>)/g, '\n$1')
+            .split('\n')
+            .filter((l: string) => l.trim())
+            .join('\n');
+          const markupLines = formattedMarkup.split('\n');
+          const numberedMarkup = markupLines.map((line: string, i: number) => `${i + 1}| ${line}`).join('\n');
+
+          fixPrompt = `Fix this WordPress page markup to better match the Figma design.
+
+${imageContext}
 
 Iteration ${currentIteration}/${maxLoops} - Current VQA score: ${lastScore}% (target: ${threshold}%)
 
@@ -1766,13 +1798,14 @@ RULES:
 2. To replace a line, specify {"line": N, "content": "new line content"}.
 3. To insert new lines after a line, specify {"line": N, "insert_after": "new lines to insert"}.
 4. To delete a line, specify {"line": N, "content": ""}.
-5. ${isDivi5Fix ? 'Modify JSON attribute values in the Divi 5 block comments to fix visual issues.' : 'Use inline styles for visual fixes (colors, spacing, fonts, layout).'}
+5. Use inline styles for visual fixes (colors, spacing, fonts, layout).
 6. Line numbers refer to the numbers shown in the markup above (1-based).
 7. Make sure responsive styles are preserved (flexbox, max-width, etc.)
 8. Focus on the most impactful changes first - fix layout, colors, fonts, spacing.
 
 Respond with JSON:
 {"edits":[{"line":N,"content":"replacement line content","description":"what this fixes"}]}`;
+        }
 
         const fixResult = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa_fix', 'vqa_fix_loop',
           getSystemPrompt('pageforge_vqa'),
@@ -1790,8 +1823,28 @@ Respond with JSON:
           const jsonMatch = fixResult.text.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
             const parsed = JSON.parse(jsonMatch[0]);
-            // Line-based editing approach (uses formatted lines from prompt)
-            if (parsed.edits && Array.isArray(parsed.edits) && parsed.edits.length > 0) {
+            // Search/replace patches (PRIMARY for Divi 5, fallback for Gutenberg)
+            if (parsed.patches && Array.isArray(parsed.patches) && parsed.patches.length > 0) {
+              let patchedMarkup = currentMarkup;
+              let appliedCount = 0;
+              let skippedCount = 0;
+              for (const patch of parsed.patches) {
+                if (patch.search && patch.replace !== undefined && patchedMarkup.includes(patch.search)) {
+                  patchedMarkup = patchedMarkup.replace(patch.search, patch.replace);
+                  appliedCount++;
+                  allChanges.push(patch.description || 'Applied patch');
+                } else if (patch.search) {
+                  skippedCount++;
+                }
+              }
+              if (appliedCount > 0) {
+                currentMarkup = patchedMarkup;
+                fixApplied = true;
+                console.log(`[pageforge] Applied ${appliedCount}/${parsed.patches.length} patches (${skippedCount} skipped - search string not found)`);
+              }
+            }
+            // Line-based editing approach (PRIMARY for Gutenberg)
+            else if (parsed.edits && Array.isArray(parsed.edits) && parsed.edits.length > 0) {
               const lines = formattedMarkup.split('\n');
               let appliedCount = 0;
               const insertions: Array<{ afterLine: number; content: string }> = [];
@@ -1824,23 +1877,6 @@ Respond with JSON:
                 console.log(`[pageforge] Applied ${appliedCount}/${parsed.edits.length} line edits`);
               } else {
                 console.warn(`[pageforge] No valid line edits (${parsed.edits.length} edits, none in range)`);
-              }
-            }
-            // Search/replace patch fallback
-            else if (parsed.patches && Array.isArray(parsed.patches) && parsed.patches.length > 0) {
-              let patchedMarkup = currentMarkup;
-              let appliedCount = 0;
-              for (const patch of parsed.patches) {
-                if (patch.search && patch.replace !== undefined && patchedMarkup.includes(patch.search)) {
-                  patchedMarkup = patchedMarkup.replace(patch.search, patch.replace);
-                  appliedCount++;
-                  allChanges.push(patch.description || 'Applied patch');
-                }
-              }
-              if (appliedCount > 0) {
-                currentMarkup = patchedMarkup;
-                fixApplied = true;
-                console.log(`[pageforge] Applied ${appliedCount}/${parsed.patches.length} patches`);
               }
             }
             // Full markup fallback
@@ -2035,11 +2071,43 @@ Score 0-100. Respond with JSON:
             wpScreenshots: finalShots,
           });
 
-          // Update tablet/mobile scores
-          const tabletScore = finalShots.tablet ? 70 : 0; // Will be properly scored in next comparison
-          const mobileScore = finalShots.mobile ? 70 : 0;
+          // Actually score tablet and mobile with AI instead of hardcoding
           const finalDesktop = comparisonData.overallScore || lastScore;
+          let tabletScore = 0;
+          let mobileScore = 0;
+
+          for (const bp of ['tablet', 'mobile'] as const) {
+            const wpImg = finalShots[bp];
+            if (!wpImg) continue;
+            const width = bp === 'tablet' ? 768 : 375;
+            try {
+              const bpResult = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa', 'vqa_fix_loop',
+                getSystemPrompt('pageforge_vqa'),
+                `Evaluate this WordPress page screenshot at ${bp.toUpperCase()} (${width}px) for responsive quality.
+Image 1: WordPress page rendered at ${width}px width.
+Check: content visible/readable, layouts stack properly, no horizontal scroll, font sizes appropriate, images sized correctly, spacing reasonable, buttons tappable.
+Score 0-100 (100 = perfect responsive behavior).
+Respond with JSON: {"score":N,"differences":[{"area":"...","severity":"critical|major|minor","description":"..."}]}`,
+                anthropic, { images: [{ data: wpImg, mimeType: 'image/jpeg' }] }
+              );
+              const jsonMatch = bpResult.text.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                const parsed = JSON.parse(jsonMatch[0]);
+                if (bp === 'tablet') tabletScore = parsed.score || 70;
+                else mobileScore = parsed.score || 70;
+              } else {
+                if (bp === 'tablet') tabletScore = 75;
+                else mobileScore = 75;
+              }
+            } catch (err) {
+              console.warn(`[pageforge] Final ${bp} scoring failed:`, err);
+              if (bp === 'tablet') tabletScore = 70;
+              else mobileScore = 70;
+            }
+          }
+
           const finalOverall = Math.round(finalDesktop * 0.7 + tabletScore * 0.15 + mobileScore * 0.15);
+          console.log(`[pageforge] Final scores: D=${finalDesktop} T=${tabletScore} M=${mobileScore} Overall=${finalOverall}`);
 
           await supabase.from('pageforge_builds').update({
             vqa_score_overall: finalOverall,
@@ -2548,8 +2616,8 @@ interface Divi5Element {
   src?: string;
   alt?: string;
   url?: string;
-  font?: { family?: string; size?: string; weight?: string; color?: string; lineHeight?: string };
-  style?: { bgColor?: string; textColor?: string; padding?: string; borderRadius?: string };
+  font?: { family?: string; size?: string; weight?: string; color?: string; lineHeight?: string; textAlign?: string };
+  style?: { bgColor?: string; textColor?: string; padding?: string; borderRadius?: string; textAlign?: string };
 }
 
 interface Divi5Card {
@@ -2577,7 +2645,7 @@ function buildDivi5Column(attrs: Record<string, any>, innerBlocks: string): stri
   return `<!-- wp:divi/column ${JSON.stringify(attrs)} -->\n${innerBlocks}\n<!-- /wp:divi/column -->`;
 }
 
-function buildDivi5Text(html: string, fontOpts?: { family?: string; size?: string; weight?: string; color?: string; lineHeight?: string }): string {
+function buildDivi5Text(html: string, fontOpts?: { family?: string; size?: string; weight?: string; color?: string; lineHeight?: string; textAlign?: string }): string {
   const attrs: Record<string, any> = {
     builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA,
     content: { innerContent: d5Val(html) }
@@ -2589,7 +2657,13 @@ function buildDivi5Text(html: string, fontOpts?: { family?: string; size?: strin
     if (fontOpts.size) fontVal.size = fontOpts.size;
     if (fontOpts.weight) fontVal.weight = fontOpts.weight;
     if (fontOpts.lineHeight) fontVal.lineHeight = fontOpts.lineHeight;
+    if (fontOpts.textAlign) fontVal.textAlign = fontOpts.textAlign;
     attrs.content.decoration = { bodyFont: { body: { font: d5Val(fontVal) } } };
+  }
+  // Module-level text alignment
+  if (fontOpts?.textAlign) {
+    attrs.module = attrs.module || {};
+    attrs.module.advanced = { ...attrs.module.advanced, textAlign: d5Val(fontOpts.textAlign) };
   }
   return `<!-- wp:divi/text ${JSON.stringify(attrs)} -->\n<!-- /wp:divi/text -->`;
 }
@@ -2760,9 +2834,33 @@ function buildDivi5Markup(sections: Divi5Section[], primaryFont: string, accentC
     }
   }
 
-  // Generate CSS fallback for backgrounds and spacing that Divi 5 server-side renderer
-  // doesn't reliably process from JSON attributes. Visual builder still reads JSON attrs.
+  // Generate CSS fallback for backgrounds, spacing, and font loading that
+  // Divi 5 server-side renderer doesn't reliably process from JSON attributes.
+  // Visual builder still reads JSON attrs; this CSS is for the front-end render.
   const cssFallback: string[] = [];
+
+  // Collect unique fonts from all sections for Google Fonts loading
+  const usedFonts = new Set<string>();
+  if (primaryFont && primaryFont !== 'inherit') usedFonts.add(primaryFont);
+  for (const section of sections) {
+    if (section.elements) {
+      for (const el of section.elements) {
+        if (el.font?.family && el.font.family !== 'inherit') usedFonts.add(el.font.family);
+      }
+    }
+    if (section.cards) {
+      for (const card of section.cards) {
+        if ((card as any).font?.family) usedFonts.add((card as any).font.family);
+      }
+    }
+  }
+
+  // Google Fonts import for all used fonts
+  if (usedFonts.size > 0) {
+    const fontFamilies = [...usedFonts].map(f => f.replace(/\s+/g, '+')).map(f => `family=${f}:wght@400;500;600;700`).join('&');
+    cssFallback.push(`@import url('https://fonts.googleapis.com/css2?${fontFamilies}&display=swap');`);
+  }
+
   sections.forEach((section, i) => {
     const sel = `.et_pb_section_${i}`;
     const rules: string[] = [];
@@ -2786,9 +2884,17 @@ function buildDivi5Markup(sections: Divi5Section[], primaryFont: string, accentC
     }
   });
 
+  // Global text color fallback per section (dark bg = white text, light bg = dark text)
+  sections.forEach((section, i) => {
+    if (section.background?.color && isDarkBg(section.background.color)) {
+      cssFallback.push(`.et_pb_section_${i} .et_pb_text_inner, .et_pb_section_${i} .et_pb_blurb_content { color: #ffffff !important; }`);
+      cssFallback.push(`.et_pb_section_${i} h1, .et_pb_section_${i} h2, .et_pb_section_${i} h3, .et_pb_section_${i} h4 { color: #ffffff !important; }`);
+    }
+  });
+
   let cssBlock = '';
   if (cssFallback.length > 0) {
-    cssBlock = `<!-- wp:html -->\n<style>\n/* PageForge: section background & spacing fallback */\n${cssFallback.join('\n')}\n</style>\n<!-- /wp:html -->\n\n`;
+    cssBlock = `<!-- wp:html -->\n<style>\n/* PageForge: font loading, backgrounds & text color fallback */\n${cssFallback.join('\n')}\n</style>\n<!-- /wp:html -->\n\n`;
   }
 
   return cssBlock + output.join('\n\n');
@@ -2808,6 +2914,7 @@ function buildElementModule(el: Divi5Element, primaryFont: string, bg?: { color?
         size: el.font?.size || (level === 'h1' ? '54px' : level === 'h2' ? '36px' : '24px'),
         weight: el.font?.weight || '700',
         color: el.font?.color || defaultTextColor,
+        textAlign: el.font?.textAlign || el.style?.textAlign || 'center',
       });
     }
     case 'text': {
@@ -2818,6 +2925,7 @@ function buildElementModule(el: Divi5Element, primaryFont: string, bg?: { color?
         weight: el.font?.weight || '400',
         color: el.font?.color || defaultSubColor,
         lineHeight: el.font?.lineHeight || '1.6em',
+        textAlign: el.font?.textAlign || el.style?.textAlign,
       });
     }
     case 'image':
