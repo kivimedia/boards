@@ -3686,3 +3686,302 @@ export interface PageForgeDesignerFixRequest {
   resolved_at?: string;
 }
 
+// ============================================================================
+// LinkedIn Outreach Types
+// ============================================================================
+
+export type LIPipelineStage =
+  | 'TO_ENRICH' | 'ENRICHING' | 'TO_QUALIFY' | 'QUALIFYING'
+  | 'TO_SEND_CONNECTION' | 'CONNECTION_SENT' | 'CONNECTED'
+  | 'MESSAGE_SENT' | 'NUDGE_SENT'
+  | 'LOOM_PERMISSION' | 'LOOM_SENT' | 'REPLIED'
+  | 'BOOKED' | 'NOT_INTERESTED' | 'COLD_CONNECTION'
+  | 'FROZEN' | 'PERMANENTLY_COLD';
+
+export type LIQualificationStatus = 'pending' | 'qualified' | 'disqualified' | 'needs_review';
+
+export type LIGrowthStage = 'early' | 'growing' | 'established';
+
+export type LIWebsiteConfidence = 'HIGH' | 'MEDIUM' | 'LOW';
+
+export type LIEmailSource = 'import' | 'hunter' | 'snov' | 'serpapi' | 'manual';
+
+export type LIWebsiteSource = 'import' | 'hunter' | 'snov' | 'serpapi' | 'manual';
+
+export type LIBatchSourceType = 'csv' | 'paste' | 'scout_wizard' | 'manual' | 'sales_navigator';
+
+export type LIJobType =
+  | 'SCOUT_IMPORT' | 'SCOUT_ENRICH' | 'QUALIFY'
+  | 'GENERATE_OUTREACH' | 'FOLLOW_UP_CHECK'
+  | 'RECOVERY' | 'FEEDBACK_COLLECT'
+  | 'AB_EVALUATE' | 'PURGE_TRASH';
+
+export type LIJobStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+
+export type LICompetitorType =
+  | 'coach_consultant' | 'entertainment_agency' | 'event_planner'
+  | 'web_marketing_provider' | 'magic_retailer' | 'inactive_performer';
+
+export interface LILead {
+  id: string;
+  user_id: string;
+  batch_id: string | null;
+  full_name: string;
+  first_name: string | null;
+  last_name: string | null;
+  linkedin_url: string | null;
+  email: string | null;
+  email_source: LIEmailSource | null;
+  email_verified: boolean;
+  company_name: string | null;
+  job_position: string | null;
+  company_url: string | null;
+  website: string | null;
+  website_source: LIWebsiteSource | null;
+  website_confidence: LIWebsiteConfidence | null;
+  website_copyright_year: number | null;
+  website_validated: boolean;
+  country: string | null;
+  city: string | null;
+  state: string | null;
+  connection_degree: number | null;
+  connections_count: number | null;
+  qualification_status: LIQualificationStatus;
+  disqualification_reason: string | null;
+  growth_stage: LIGrowthStage | null;
+  lead_score: number;
+  score_breakdown: Record<string, number>;
+  is_competitor: boolean;
+  competitor_type: LICompetitorType | null;
+  pipeline_stage: LIPipelineStage;
+  template_variant: 'A' | 'B' | null;
+  rotation_variant: number | null;
+  test_group: 'control' | 'test' | null;
+  loom_consent: boolean;
+  loom_response_positive: boolean | null;
+  followup_count_at_stage: number;
+  re_engagement_count: number;
+  previously_engaged: boolean;
+  session_attended: boolean | null;
+  last_contacted_at: string | null;
+  next_followup_at: string | null;
+  enrichment_tier: number;
+  enrichment_data: Record<string, unknown>;
+  notes: string | null;
+  deleted_at: string | null;
+  purge_after: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LIBatch {
+  id: string;
+  user_id: string;
+  source_type: LIBatchSourceType;
+  source_file: string | null;
+  total_imported: number;
+  duplicates_found: number;
+  qualified_count: number;
+  disqualified_count: number;
+  needs_review_count: number;
+  cost_total_usd: number;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  error_message: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface LIJob {
+  id: string;
+  user_id: string;
+  job_type: LIJobType;
+  status: LIJobStatus;
+  payload: Record<string, unknown>;
+  result: Record<string, unknown>;
+  priority: number;
+  attempts: number;
+  max_attempts: number;
+  locked_by: string | null;
+  lock_expires_at: string | null;
+  error_message: string | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+export interface LICostEvent {
+  id: string;
+  user_id: string;
+  lead_id: string | null;
+  batch_id: string | null;
+  service_name: 'hunter' | 'snov' | 'serpapi' | 'anthropic' | 'scrapling';
+  operation: string | null;
+  credits_used: number;
+  cost_usd: number;
+  success: boolean;
+  error_message: string | null;
+  created_at: string;
+}
+
+export interface LIPipelineEvent {
+  id: string;
+  lead_id: string;
+  from_stage: LIPipelineStage | null;
+  to_stage: LIPipelineStage;
+  triggered_by: 'scout' | 'qualifier' | 'outreach' | 'orchestrator' | 'manual';
+  notes: string | null;
+  created_at: string;
+}
+
+export interface LITemplate {
+  id: string;
+  user_id: string;
+  template_number: number;
+  stage: string;
+  variant: 'A' | 'B';
+  template_text: string;
+  prerequisite: Record<string, unknown>;
+  max_length: number | null;
+  is_followup: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LIRotationVariant {
+  id: string;
+  user_id: string;
+  variant_number: number;
+  template_text: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface LIOutreachMessage {
+  id: string;
+  lead_id: string;
+  template_id: string | null;
+  template_number: number | null;
+  variant: string | null;
+  rotation_variant: number | null;
+  message_text: string;
+  quality_check: Record<string, unknown>;
+  quality_passed: boolean;
+  status: 'draft' | 'approved' | 'sent' | 'failed' | 'dry_run';
+  sent_at: string | null;
+  created_at: string;
+}
+
+export interface LIDailyBatch {
+  id: string;
+  user_id: string;
+  target_date: string;
+  lead_ids: string[];
+  batch_size: number;
+  approved: boolean;
+  approved_at: string | null;
+  is_dry_run: boolean;
+  warmup_week: number | null;
+  status: 'pending' | 'approved' | 'sent' | 'cancelled';
+  created_at: string;
+}
+
+export interface LIABTest {
+  id: string;
+  user_id: string;
+  template_number: number;
+  template_stage: string;
+  variant_a_id: string | null;
+  variant_b_id: string | null;
+  sample_a: number;
+  sample_b: number;
+  conversions_a: number;
+  conversions_b: number;
+  rate_a: number;
+  rate_b: number;
+  p_value: number | null;
+  confidence_met: boolean;
+  consecutive_wins: number;
+  status: 'running' | 'winner_a' | 'winner_b' | 'no_winner' | 'insufficient_data' | 'paused';
+  started_at: string;
+  last_evaluated_at: string | null;
+  completed_at: string | null;
+}
+
+export interface LISettings {
+  id: string;
+  user_id: string;
+  warmup_week: number;
+  daily_send_limit: number;
+  weekly_send_limit: number;
+  budget_cap_usd: number;
+  budget_alert_pct: number;
+  shadow_mode: boolean;
+  dry_run_mode: boolean;
+  auto_generate_batches: boolean;
+  pause_outreach: boolean;
+  pause_reason: string | null;
+  slack_webhook_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LIQualificationOverride {
+  id: string;
+  user_id: string;
+  lead_id: string;
+  original_decision: string;
+  new_decision: string;
+  reason: string | null;
+  created_at: string;
+}
+
+export interface LIScoreBreakdown {
+  growth_stage: number;
+  website_quality: number;
+  website_recency: number;
+  connection_count: number;
+  enrichment_confidence: number;
+  historical_conversion: number;
+  total: number;
+}
+
+// Pipeline stage display config
+export const LI_PIPELINE_STAGES: Record<LIPipelineStage, { label: string; color: string; order: number }> = {
+  TO_ENRICH: { label: 'To Enrich', color: '#94a3b8', order: 0 },
+  ENRICHING: { label: 'Enriching', color: '#60a5fa', order: 1 },
+  TO_QUALIFY: { label: 'To Qualify', color: '#a78bfa', order: 2 },
+  QUALIFYING: { label: 'Qualifying', color: '#818cf8', order: 3 },
+  TO_SEND_CONNECTION: { label: 'To Send Connection', color: '#f59e0b', order: 4 },
+  CONNECTION_SENT: { label: 'Connection Sent', color: '#fb923c', order: 5 },
+  CONNECTED: { label: 'Connected', color: '#34d399', order: 6 },
+  MESSAGE_SENT: { label: 'Message Sent', color: '#2dd4bf', order: 7 },
+  NUDGE_SENT: { label: 'Nudge Sent', color: '#22d3ee', order: 8 },
+  LOOM_PERMISSION: { label: 'Loom Permission', color: '#a78bfa', order: 9 },
+  LOOM_SENT: { label: 'Loom Sent', color: '#8b5cf6', order: 10 },
+  REPLIED: { label: 'Replied', color: '#10b981', order: 11 },
+  BOOKED: { label: 'Booked', color: '#059669', order: 12 },
+  NOT_INTERESTED: { label: 'Not Interested', color: '#ef4444', order: 13 },
+  COLD_CONNECTION: { label: 'Cold Connection', color: '#9ca3af', order: 14 },
+  FROZEN: { label: 'Frozen', color: '#6b7280', order: 15 },
+  PERMANENTLY_COLD: { label: 'Permanently Cold', color: '#374151', order: 16 },
+};
+
+// Approved job titles for qualification
+export const LI_APPROVED_TITLES = [
+  'magician', 'professional magician', 'close-up magician',
+  'kids entertainer', 'children\'s entertainer', 'party entertainer',
+  'birthday party magician', 'family entertainer',
+  'illusionist', 'variety entertainer', 'comedy magician',
+  'strolling magician', 'mentalist', 'children\'s party entertainer',
+];
+
+// IT/Tech false positive red flags
+export const LI_TECH_RED_FLAGS = [
+  'technology', 'software', 'it', 'data', 'finance', 'consulting',
+  'microsoft', 'google', 'startup', 'saas', 'agency',
+  'programming', 'framework', 'cloud', 'developer', 'engineer',
+  'computer science', 'engineering', 'mba',
+  'code magician', 'spreadsheet wizard', 'data sorcerer', 'tech illusionist',
+];
+

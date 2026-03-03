@@ -289,7 +289,7 @@ export async function notifyAMsPendingTasks(
   const amNames = Array.from(amMap.keys());
   const nameToProfile = await resolveAMProfiles(supabase, amNames);
 
-  for (const [name, tasks] of amMap) {
+  for (const [name, tasks] of Array.from(amMap)) {
     tasks.profileId = nameToProfile.get(name) || null;
   }
 
@@ -298,7 +298,7 @@ export async function notifyAMsPendingTasks(
   const skipped: string[] = [];
   const noProfile: string[] = [];
 
-  for (const [, tasks] of amMap) {
+  for (const [, tasks] of Array.from(amMap)) {
     const totalPending =
       tasks.fathomNotWatched.length +
       tasks.fathomNoActionItems.length +
@@ -325,7 +325,7 @@ export async function notifyAMsPendingTasks(
         `Fathom Videos - Not Watched (${tasks.fathomNotWatched.length}): ` +
           tasks.fathomNotWatched
             .slice(0, 5)
-            .map((i) => i.client_name || 'Unknown client')
+            .map((i: PendingItem) => i.client_name || 'Unknown client')
             .join(', ') +
           (tasks.fathomNotWatched.length > 5
             ? ` +${tasks.fathomNotWatched.length - 5} more`
@@ -338,7 +338,7 @@ export async function notifyAMsPendingTasks(
         `Fathom Videos - Action Items Not Sent (${tasks.fathomNoActionItems.length}): ` +
           tasks.fathomNoActionItems
             .slice(0, 5)
-            .map((i) => i.client_name || 'Unknown client')
+            .map((i: PendingItem) => i.client_name || 'Unknown client')
             .join(', ') +
           (tasks.fathomNoActionItems.length > 5
             ? ` +${tasks.fathomNoActionItems.length - 5} more`
@@ -351,7 +351,7 @@ export async function notifyAMsPendingTasks(
         `Client Updates - Not Sent On Time (${tasks.clientUpdatesNotOnTime.length}): ` +
           tasks.clientUpdatesNotOnTime
             .slice(0, 5)
-            .map((i) => i.client_name || 'Unknown client')
+            .map((i: PendingItem) => i.client_name || 'Unknown client')
             .join(', ') +
           (tasks.clientUpdatesNotOnTime.length > 5
             ? ` +${tasks.clientUpdatesNotOnTime.length - 5} more`

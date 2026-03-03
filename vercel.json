@@ -63,6 +63,14 @@
     {
       "path": "/api/cron/am-reminders",
       "schedule": "0 6 * * 1-5"
+    },
+    {
+      "path": "/api/cron/outreach-batch",
+      "schedule": "0 6 * * 1-5"
+    },
+    {
+      "path": "/api/cron/outreach-ab-eval",
+      "schedule": "0 3 * * 1"
     }
   ]
 }
