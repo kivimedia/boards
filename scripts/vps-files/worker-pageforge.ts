@@ -1758,9 +1758,13 @@ HOW TO FIX Divi 5 blocks:
 - Spacing: find "padding" objects, change top/bottom/left/right values
 - Each value is wrapped in {"desktop":{"value":"..."}} breakpoint format
 
-IMPORTANT: Use search/replace patches. Find an exact string in the markup and specify its replacement.
-Keep patches SMALL and TARGETED - change one value at a time. Max 8 patches per iteration.
-Make sure the "search" string is unique and exists exactly as-is in the markup.
+IMPORTANT RULES:
+1. Use search/replace patches. Find an exact string in the markup and specify its replacement.
+2. Keep patches SMALL and TARGETED - change one value at a time. Max 8 patches per iteration.
+3. Make sure the "search" string is unique and exists exactly as-is in the markup.
+4. DO NOT modify anything inside <style>...</style> blocks - those are CSS fallbacks that must stay intact.
+5. DO NOT add new HTML elements or convert Divi 5 blocks to Gutenberg/HTML.
+6. Focus on the JSON attributes inside <!-- wp:divi/... --> block comments.
 
 Respond with JSON:
 {"patches":[{"search":"exact string to find","replace":"replacement string","description":"what this fixes"}]}`;
@@ -3408,8 +3412,8 @@ Do NOT output HTML or Gutenberg blocks. Output ONLY a JSON object.
 }
 
 ### Element Types
-- heading: { type: "heading", text, level: "h1"|"h2"|"h3", font: { size, weight, color } }
-- text: { type: "text", text (plain) OR content (HTML like "<p>...</p><ul><li>...</li></ul>"), font: { size, weight, color, lineHeight } }
+- heading: { type: "heading", text, level: "h1"|"h2"|"h3", font: { size, weight, color, textAlign: "center"|"left"|"right" } }
+- text: { type: "text", text (plain) OR content (HTML like "<p>...</p><ul><li>...</li></ul>"), font: { size, weight, color, lineHeight, textAlign: "center"|"left" } }
 - image: { type: "image", src: "FIGMA_IMG:nodeId" or URL, alt: "description", style: { borderRadius: "8px" } }
 - button: { type: "button", text, url, style: { bgColor, textColor, borderRadius } }
 - divider: { type: "divider" }
