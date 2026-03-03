@@ -2,7 +2,7 @@
 -- Adds strategic indexes for cursor-based pagination and N+1 query fixes
 
 -- Card placements: the most queried join
-CREATE INDEX IF NOT EXISTS idx_card_placements_board_list ON card_placements(board_id, list_id, position);
+CREATE INDEX IF NOT EXISTS idx_card_placements_list_pos ON card_placements(list_id, position);
 CREATE INDEX IF NOT EXISTS idx_card_placements_card ON card_placements(card_id);
 
 -- Cards: cursor-based pagination support
