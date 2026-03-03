@@ -2325,17 +2325,64 @@ const FULLWIDTH_SCRIPT = `<!-- wp:html -->
 </script>
 <!-- /wp:html -->`;
 
-// Lighter CSS-only overrides for Divi 5 native blocks
-// Row width is handled via JSON attributes (module.decoration.sizing), not CSS
+// Full-width overrides for Divi 5 native blocks.
+// Row/section sizing is controlled via JSON attributes, but the WP/Divi parent
+// containers (article, .container, #left-area) still constrain width without CSS overrides.
 const DIVI5_HEADER_SCRIPT = `<!-- wp:html -->
 <style>
-/* PageForge: Hide Divi header/nav, sidebar */
+/* PageForge: Force parent containers to full-width */
+#page-container, #main-content, #left-area, #content-area,
+.container, .entry-content, article.page, article.type-page,
+.et-l, .et-l--post, .et_builder_inner_content {
+  max-width: 100% !important;
+  width: 100% !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  float: none !important;
+}
+/* Divi 5 sections: full viewport width */
+.et_pb_section { max-width: 100% !important; width: 100% !important; }
+/* Divi 5 rows: 1200px max centered within full-width sections */
+.et_pb_row { width: 100% !important; max-width: 1200px !important; margin-left: auto !important; margin-right: auto !important; }
+/* Hide WP default widgets/sidebar */
+.widget_recent_entries,.widget_recent_comments,.widget_categories,.widget_archive,.widget_meta,.sidebar,.widget-area,#sidebar,aside.widget-area { display: none !important; }
+/* Hide Divi header/nav */
 #main-header, #top-header { display: none !important; }
 #et-main-area { padding-top: 0 !important; }
-.widget_recent_entries,.widget_recent_comments,.widget_categories,.widget_archive,.widget_meta,.sidebar,.widget-area,#sidebar,aside.widget-area { display: none !important; }
 /* Remove default Divi text module padding so our inline styles control spacing */
 .et_pb_text_inner { padding: 0 !important; }
 </style>
+<script>
+(function(){
+  function fix(){
+    document.querySelectorAll('#page-container,#main-content,#left-area,#content-area,.container,.entry-content,article.page,article.type-page,.et-l,.et-l--post,.et_builder_inner_content').forEach(function(el){
+      el.style.setProperty('max-width','100%','important');
+      el.style.setProperty('width','100%','important');
+      el.style.setProperty('padding-left','0','important');
+      el.style.setProperty('padding-right','0','important');
+      el.style.setProperty('margin-left','0','important');
+      el.style.setProperty('margin-right','0','important');
+      el.style.setProperty('float','none','important');
+    });
+    document.querySelectorAll('.et_pb_section').forEach(function(el){
+      el.style.setProperty('max-width','100%','important');
+      el.style.setProperty('width','100%','important');
+    });
+    document.querySelectorAll('.et_pb_row').forEach(function(el){
+      el.style.setProperty('width','100%','important');
+    });
+    document.querySelectorAll('.sidebar,.widget-area,#sidebar,aside.widget-area').forEach(function(el){
+      el.style.setProperty('display','none','important');
+    });
+  }
+  fix();
+  document.addEventListener('DOMContentLoaded',fix);
+  window.addEventListener('load',fix);
+  setTimeout(fix,500);setTimeout(fix,2000);setTimeout(fix,5000);
+})();
+</script>
 <!-- /wp:html -->`;
 
 /** Sanitize markup and prepare for deploy. For Divi 5, converts Gutenberg to native Divi 5 blocks. */
@@ -2652,7 +2699,38 @@ function buildDivi5Markup(sections: Divi5Section[], primaryFont: string, accentC
     }
   }
 
-  return output.join('\n\n');
+  // Generate CSS fallback for backgrounds and spacing that Divi 5 server-side renderer
+  // doesn't reliably process from JSON attributes. Visual builder still reads JSON attrs.
+  const cssFallback: string[] = [];
+  sections.forEach((section, i) => {
+    const sel = `.et_pb_section_${i}`;
+    const rules: string[] = [];
+    if (section.background?.color) {
+      rules.push(`background-color: ${section.background.color} !important`);
+    }
+    if (section.background?.image) {
+      // FIGMA_IMG placeholders get replaced later; real URLs get set here
+      if (!section.background.image.startsWith('FIGMA_IMG')) {
+        rules.push(`background-image: url(${section.background.image}) !important`);
+        rules.push(`background-size: cover !important`);
+        rules.push(`background-position: center !important`);
+      }
+    }
+    if (section.padding?.top || section.padding?.bottom) {
+      rules.push(`padding-top: ${section.padding?.top || '80px'} !important`);
+      rules.push(`padding-bottom: ${section.padding?.bottom || '80px'} !important`);
+    }
+    if (rules.length > 0) {
+      cssFallback.push(`${sel} { ${rules.join('; ')} }`);
+    }
+  });
+
+  let cssBlock = '';
+  if (cssFallback.length > 0) {
+    cssBlock = `<!-- wp:html -->\n<style>\n/* PageForge: section background & spacing fallback */\n${cssFallback.join('\n')}\n</style>\n<!-- /wp:html -->\n\n`;
+  }
+
+  return cssBlock + output.join('\n\n');
 }
 
 function buildElementModule(el: Divi5Element, primaryFont: string, bg?: { color?: string }): string {
