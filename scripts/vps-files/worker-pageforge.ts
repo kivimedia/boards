@@ -2490,12 +2490,12 @@ function buildDivi5Image(src: string, alt?: string, borderRadius?: string): stri
   const attrs: Record<string, any> = {
     builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA,
     image: { innerContent: d5Val({ src, alt: alt || "", title: "" }) },
-    module: { decoration: { sizing: d5Val({ width: "100%" }) } }
+    module: { decoration: { sizing: { width: d5Val("100%") } } }
   };
   if (borderRadius) {
-    attrs.module.decoration.border = d5Val({
-      radius: { topLeft: borderRadius, topRight: borderRadius, bottomLeft: borderRadius, bottomRight: borderRadius }
-    });
+    attrs.module.decoration.border = {
+      radius: { topLeft: d5Val(borderRadius), topRight: d5Val(borderRadius), bottomLeft: d5Val(borderRadius), bottomRight: d5Val(borderRadius) }
+    };
   }
   return `<!-- wp:divi/image ${JSON.stringify(attrs)} -->\n<!-- /wp:divi/image -->`;
 }
@@ -2509,8 +2509,8 @@ function buildDivi5Button(text: string, url: string, style?: { bgColor?: string;
         button: d5Val({ enable: "on" }),
         background: { color: d5Val(style?.bgColor || "#2ea3f2"), useColor: d5Val("on") },
         font: { font: d5Val({ color: style?.textColor || "#ffffff", size: "16px", weight: "600" }) },
-        spacing: d5Val({ padding: { top: "14px", bottom: "14px", left: "32px", right: "32px" } }),
-        border: d5Val({ radius: { topLeft: style?.borderRadius || "8px", topRight: style?.borderRadius || "8px", bottomLeft: style?.borderRadius || "8px", bottomRight: style?.borderRadius || "8px" } })
+        spacing: { padding: { top: d5Val("14px"), bottom: d5Val("14px"), left: d5Val("32px"), right: d5Val("32px") } },
+        border: { radius: { topLeft: d5Val(style?.borderRadius || "8px"), topRight: d5Val(style?.borderRadius || "8px"), bottomLeft: d5Val(style?.borderRadius || "8px"), bottomRight: d5Val(style?.borderRadius || "8px") } }
       }
     },
     module: { advanced: { alignment: d5Val("center") } }
@@ -2532,9 +2532,9 @@ function buildDivi5Blurb(title: string, content: string, imageOrIcon?: string, t
     module: {
       decoration: {
         background: { color: d5Val("#ffffff"), useColor: d5Val("on") },
-        border: d5Val({ radius: { topLeft: "12px", topRight: "12px", bottomLeft: "12px", bottomRight: "12px" } }),
-        boxShadow: d5Val({ horizontal: "0px", vertical: "4px", blur: "20px", spread: "0px", color: "rgba(0,0,0,0.08)" }),
-        spacing: d5Val({ padding: { top: "30px", bottom: "30px", left: "30px", right: "30px" } })
+        border: { radius: { topLeft: d5Val("12px"), topRight: d5Val("12px"), bottomLeft: d5Val("12px"), bottomRight: d5Val("12px") } },
+        boxShadow: { horizontal: d5Val("0px"), vertical: d5Val("4px"), blur: d5Val("20px"), spread: d5Val("0px"), color: d5Val("rgba(0,0,0,0.08)") },
+        spacing: { padding: { top: d5Val("30px"), bottom: d5Val("30px"), left: d5Val("30px"), right: d5Val("30px") } }
       }
     }
   };
@@ -2543,7 +2543,7 @@ function buildDivi5Blurb(title: string, content: string, imageOrIcon?: string, t
     attrs.imageIcon = {
       innerContent: d5Val({ useIcon: "off", src: imageOrIcon, alt: title, animation: "top" }),
       advanced: { placement: d5Val("top"), alignment: d5Val("center"), width: { image: d5Val("100%") } },
-      decoration: { border: d5Val({ radius: { topLeft: "8px", topRight: "8px", bottomLeft: "0px", bottomRight: "0px" } }) }
+      decoration: { border: { radius: { topLeft: d5Val("8px"), topRight: d5Val("8px"), bottomLeft: d5Val("0px"), bottomRight: d5Val("0px") } } }
     };
   }
   return `<!-- wp:divi/blurb ${JSON.stringify(attrs)} -->\n<!-- /wp:divi/blurb -->`;
@@ -2563,15 +2563,21 @@ function buildDivi5Markup(sections: Divi5Section[], primaryFont: string, accentC
   const output: string[] = [];
 
   for (const section of sections) {
-    // Section attributes
+    // Section attributes - sizing and spacing use per-property breakpoint wrapping
     const sectionAttrs: Record<string, any> = {
       builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA,
       module: {
         meta: { adminLabel: d5Val(section.name || "Section") },
         decoration: {
-          spacing: d5Val({
-            padding: { top: section.padding?.top || "80px", bottom: section.padding?.bottom || "80px", left: "0px", right: "0px" }
-          })
+          sizing: { width: d5Val("100%") },
+          spacing: {
+            padding: {
+              top: d5Val(section.padding?.top || "80px"),
+              bottom: d5Val(section.padding?.bottom || "80px"),
+              left: d5Val("0px"),
+              right: d5Val("0px")
+            }
+          }
         }
       }
     };
@@ -2589,16 +2595,16 @@ function buildDivi5Markup(sections: Divi5Section[], primaryFont: string, accentC
       sectionAttrs.module.decoration.background = bg;
     }
 
-    // Row attributes - full width for content to control its own centering
+    // Row attributes - each sizing sub-property needs its own breakpoint wrapper
     const rowAttrs: Record<string, any> = {
       builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA,
-      module: { decoration: { sizing: d5Val({ maxWidth: "1200px" }) } }
+      module: { decoration: { sizing: { width: d5Val("100%"), maxWidth: d5Val("1200px") } } }
     };
 
     // Multi-column layout
     if (section.columns && section.columns > 1 && section.cards && section.cards.length > 0) {
       const gridCols = Array(section.columns).fill("1fr").join(" ");
-      rowAttrs.module.advanced = { grid: d5Val({ gridTemplateColumns: gridCols }) };
+      rowAttrs.module.advanced = { grid: { gridTemplateColumns: d5Val(gridCols) } };
 
       // Build column per card
       const colBlocks: string[] = [];
@@ -2623,7 +2629,7 @@ function buildDivi5Markup(sections: Divi5Section[], primaryFont: string, accentC
           headingModules.push(buildElementModule(el, primaryFont, section.background));
         }
         if (headingModules.length > 0) {
-          const headRowAttrs = { builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA, module: { decoration: { sizing: d5Val({ maxWidth: "1200px" }) } } };
+          const headRowAttrs = { builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA, module: { decoration: { sizing: { width: d5Val("100%"), maxWidth: d5Val("1200px") } } } };
           const headColAttrs = { builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA };
           headingRow = buildDivi5Row(headRowAttrs, buildDivi5Column(headColAttrs, headingModules.join('\n')));
         }
@@ -2736,7 +2742,7 @@ function convertGutenbergToDivi5(gutenbergMarkup: string): string {
   return blocks.map((block, i) => {
     const secA: Record<string, any> = { builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA, module: { meta: { adminLabel: d5Val(`Section ${i + 1}`) }, decoration: {} } };
     if (block.bgColor) secA.module.decoration.background = { color: d5Val(block.bgColor), useColor: d5Val("on") };
-    const rowA = { builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA, module: { decoration: { sizing: d5Val({ maxWidth: "1200px" }) } } };
+    const rowA = { builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA, module: { decoration: { sizing: { width: d5Val("100%"), maxWidth: d5Val("1200px") } } } };
     const colA = { builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA };
     const codeBlock = buildDivi5Code(block.content);
     return buildDivi5Section(secA, buildDivi5Row(rowA, buildDivi5Column(colA, codeBlock)));
