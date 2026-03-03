@@ -891,6 +891,45 @@ RESPOND WITH JSON ONLY (no markdown fences): {"sections":[...]}`;
           throw new Error('AI returned no valid Divi 5 sections - JSON parsing failed. Raw response length: ' + rawText.length);
         }
 
+        // Post-process: ensure hero sections have background images from Figma
+        // The AI sometimes omits background.image even when instructed, causing hero to render as solid color
+        const imageDetails: { id: string; name: string; sectionName: string; width: number; height: number }[] = figmaData.imageNodeDetails || [];
+        for (let si = 0; si < divi5Sections.length; si++) {
+          const section = divi5Sections[si];
+          const classification = classifications[si];
+          if (!classification) continue;
+
+          // Check if this section should have a background image
+          const isHeroLike = classification.type === 'hero' ||
+            section.name?.toLowerCase().includes('hero') ||
+            (si === 0 && section.background?.color);
+
+          if (isHeroLike && !section.background?.image) {
+            // Find the largest image from this Figma section
+            const sectionImages = imageDetails.filter(img =>
+              img.sectionName === classification.sectionName ||
+              img.sectionName?.toLowerCase().includes('hero')
+            );
+            // Pick the largest image (likely the background)
+            const bgImage = sectionImages.sort((a, b) => (b.width * b.height) - (a.width * a.height))[0];
+            if (bgImage) {
+              if (!section.background) section.background = {};
+              section.background.image = `FIGMA_IMG:${bgImage.id}`;
+              // Ensure dark overlay color if no color set
+              if (!section.background.color) {
+                section.background.color = 'rgba(0,23,56,0.75)';
+              }
+              console.log(`[pageforge] Post-process: injected background.image FIGMA_IMG:${bgImage.id} into hero section "${section.name}" (AI omitted it)`);
+            }
+          }
+
+          // Also ensure any section with a background image placeholder has proper color overlay
+          if (section.background?.image?.startsWith('FIGMA_IMG') && !section.background.color) {
+            section.background.color = 'rgba(0,23,56,0.75)';
+            console.log(`[pageforge] Post-process: added overlay color to section "${section.name}" with background image`);
+          }
+        }
+
         const divi5Markup = buildDivi5Markup(divi5Sections, primaryFont, primaryAccent);
         const diviSectionCount = (divi5Markup.match(/<!-- wp:divi\/section/g) || []).length;
         console.log(`[pageforge] Generated Divi 5 markup: ${divi5Markup.length} chars, ${diviSectionCount} native sections from ${divi5Sections.length} JSON sections`);
