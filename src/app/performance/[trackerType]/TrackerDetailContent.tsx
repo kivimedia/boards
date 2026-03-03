@@ -155,7 +155,7 @@ export default function TrackerDetailContent({ trackerType, label }: TrackerDeta
         if (!res.ok || cancelled) return;
         const json = await res.json();
         const allRows: Record<string, unknown>[] = (json.data || json).rows || [];
-        const months = [...new Set(allRows.map(r => r.month_label as string).filter(Boolean))];
+        const months = Array.from(new Set(allRows.map(r => r.month_label as string).filter(Boolean)));
         months.sort((a, b) => monthLabelToSortKey(b) - monthLabelToSortKey(a));
         if (cancelled) return;
         setAvailableMonths(months);
