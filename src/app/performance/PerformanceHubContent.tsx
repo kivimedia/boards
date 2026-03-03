@@ -28,6 +28,8 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [bumping, setBumping] = useState(false);
+  const [bumpResult, setBumpResult] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'scorecard' | 'trackers'>('overview');
 
   const fetchDashboard = useCallback(async () => {
@@ -49,6 +51,34 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
   useEffect(() => {
     fetchDashboard();
   }, [fetchDashboard]);
+
+  const triggerBumpReminder = async () => {
+    if (bumping) return;
+    setBumping(true);
+    setBumpResult(null);
+    try {
+      const res = await fetch('/api/performance/bump-reminder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const { total_reminded, total_skipped, total_no_profile } = json.summary;
+        setBumpResult(
+          `Reminded ${total_reminded} AM${total_reminded !== 1 ? 's' : ''}` +
+          (total_skipped > 0 ? `, ${total_skipped} skipped` : '') +
+          (total_no_profile > 0 ? `, ${total_no_profile} no profile` : '')
+        );
+        setTimeout(() => setBumpResult(null), 6000);
+      } else {
+        const json = await res.json().catch(() => ({}));
+        setBumpResult(json.error || 'Failed to send reminders');
+        setTimeout(() => setBumpResult(null), 6000);
+      }
+    } finally {
+      setBumping(false);
+    }
+  };
 
   const triggerSync = async () => {
     if (syncing) return;
@@ -136,24 +166,48 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
             )}
           </div>
           {(canSync || isAdmin) && (
-            <button
-              onClick={triggerSync}
-              disabled={syncing}
-              className={`
-                flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all
-                ${syncing
-                  ? 'bg-navy/10 dark:bg-white/10 text-navy/40 dark:text-white/40 cursor-not-allowed'
-                  : 'bg-electric text-white hover:bg-electric/90 shadow-sm'
-                }
-              `}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={syncing ? 'animate-spin' : ''}>
-                <polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-              </svg>
-              {syncing ? 'Syncing...' : 'Sync Now'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={triggerBumpReminder}
+                disabled={bumping}
+                className={`
+                  flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all
+                  ${bumping
+                    ? 'bg-navy/10 dark:bg-white/10 text-navy/40 dark:text-white/40 cursor-not-allowed'
+                    : 'bg-amber-500 text-white hover:bg-amber-600 shadow-sm'
+                  }
+                `}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={bumping ? 'animate-pulse' : ''}>
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                </svg>
+                {bumping ? 'Sending...' : 'Bump Reminder'}
+              </button>
+              <button
+                onClick={triggerSync}
+                disabled={syncing}
+                className={`
+                  flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all
+                  ${syncing
+                    ? 'bg-navy/10 dark:bg-white/10 text-navy/40 dark:text-white/40 cursor-not-allowed'
+                    : 'bg-electric text-white hover:bg-electric/90 shadow-sm'
+                  }
+                `}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={syncing ? 'animate-spin' : ''}>
+                  <polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                </svg>
+                {syncing ? 'Syncing...' : 'Sync Now'}
+              </button>
+            </div>
           )}
         </div>
+
+        {bumpResult && (
+          <div className="px-4 py-2 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 text-sm text-amber-700 dark:text-amber-400">
+            {bumpResult}
+          </div>
+        )}
 
         {/* Tab navigation */}
         <div className="flex items-center gap-1 p-1 rounded-xl bg-cream-dark/40 dark:bg-white/5">
