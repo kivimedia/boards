@@ -2987,11 +2987,11 @@ function buildDivi5Markup(sections: Divi5Section[], primaryFont: string, accentC
     }
   });
 
-  // Grid gap CSS for multi-column sections
+  // Grid gap CSS for multi-column sections (target last row - the cards row, not the heading row)
   sections.forEach((section, i) => {
     if (section.columns && section.columns > 1) {
-      cssFallback.push(`.et_pb_section_${i} .et_pb_row { display: grid !important; grid-template-columns: repeat(${section.columns}, 1fr) !important; gap: 30px !important; }`);
-      cssFallback.push(`@media (max-width: 768px) { .et_pb_section_${i} .et_pb_row { grid-template-columns: 1fr !important; gap: 20px !important; } }`);
+      cssFallback.push(`.et_pb_section_${i} .et_pb_row:last-of-type { display: grid !important; grid-template-columns: repeat(${section.columns}, 1fr) !important; gap: 30px !important; }`);
+      cssFallback.push(`@media (max-width: 768px) { .et_pb_section_${i} .et_pb_row:last-of-type { grid-template-columns: 1fr !important; gap: 20px !important; } }`);
     }
   });
 
