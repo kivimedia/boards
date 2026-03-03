@@ -3144,7 +3144,11 @@ async function captureScreenshots(pageUrl: string): Promise<Record<string, strin
         await page.setExtraHTTPHeaders({ 'Cache-Control': 'no-cache, no-store', 'Pragma': 'no-cache' });
         await page.setViewport({ width, height: 900 });
         await page.goto(pageUrl, { waitUntil: 'networkidle2', timeout: 45000 });
-        await new Promise(r => setTimeout(r, 5000)); // extra settle time for large images
+        // Wait for Google Fonts and other web fonts to fully load
+        try {
+          await page.evaluate(() => (document as any).fonts?.ready);
+        } catch { /* fonts API not available, fallback to timeout */ }
+        await new Promise(r => setTimeout(r, 3000)); // extra settle time for large images + Divi CSS
         const buffer = await page.screenshot({ fullPage: true, type: 'png' });
         const rawBase64 = Buffer.from(buffer).toString('base64');
         console.log(`[pageforge] Screenshot ${bp} captured (${Math.round(Buffer.from(buffer).length / 1024)}KB)`);
