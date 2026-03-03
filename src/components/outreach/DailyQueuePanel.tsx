@@ -58,6 +58,52 @@ export default function DailyQueuePanel() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [previewMessage, setPreviewMessage] = useState<QueueMessage | null>(null);
+  const [sending, setSending] = useState(false);
+  const [sendProgress, setSendProgress] = useState<string | null>(null);
+
+  const handleSendBatch = async () => {
+    if (!batch) return;
+    if (!confirm(`Send ${batch.batch_size} messages via LinkedIn browser automation? This will take several minutes.`)) return;
+    setSending(true);
+    setSendProgress('Starting...');
+    try {
+      const res = await fetch('/api/outreach/queue/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batch_id: batch.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Failed to send batch');
+        return;
+      }
+      setSendProgress(`Job queued (${data.data.batch_size} messages). Processing on VPS...`);
+      // Poll for completion
+      const jobId = data.data.job_id;
+      const pollInterval = setInterval(async () => {
+        try {
+          const jobRes = await fetch(`/api/outreach/jobs/${jobId}`);
+          const jobData = await jobRes.json();
+          if (jobData.data?.status === 'COMPLETED') {
+            clearInterval(pollInterval);
+            setSendProgress(null);
+            setSending(false);
+            fetchQueue();
+          } else if (jobData.data?.status === 'FAILED') {
+            clearInterval(pollInterval);
+            setSendProgress(null);
+            setSending(false);
+            alert(`Send batch failed: ${jobData.data.error_message || 'Unknown error'}`);
+            fetchQueue();
+          } else if (jobData.data?.result?.sent !== undefined) {
+            setSendProgress(`Sending... ${jobData.data.result.sent}/${batch.batch_size} sent`);
+          }
+        } catch { /* continue polling */ }
+      }, 5000);
+    } finally {
+      // Don't reset sending here - let polling handle it
+    }
+  };
 
   const fetchQueue = async () => {
     setLoading(true);
@@ -252,6 +298,32 @@ export default function DailyQueuePanel() {
                     Approving...
                   </>
                 ) : `Approve ${selected.size} Messages`}
+              </button>
+            </div>
+          )}
+
+          {/* Send Batch button - shows when approved */}
+          {batch?.status === 'approved' && (
+            <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/10 rounded-lg border border-green-200 dark:border-green-800">
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-green-800 dark:text-green-300 font-heading">
+                  Batch approved - ready to send
+                </p>
+                {sendProgress && (
+                  <p className="text-xs text-green-700 dark:text-green-400 mt-1 font-body">{sendProgress}</p>
+                )}
+              </div>
+              <button
+                onClick={handleSendBatch}
+                disabled={sending}
+                className="px-4 py-2 text-sm font-semibold text-white bg-electric hover:bg-electric-bright rounded-lg disabled:opacity-50 transition-colors flex items-center gap-2"
+              >
+                {sending ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Sending...
+                  </>
+                ) : `Send ${batch.batch_size} via LinkedIn`}
               </button>
             </div>
           )}

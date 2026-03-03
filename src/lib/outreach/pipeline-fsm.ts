@@ -95,7 +95,7 @@ export async function transitionStage(
   leadId: string,
   fromStage: LIPipelineStage,
   toStage: LIPipelineStage,
-  triggeredBy: 'scout' | 'qualifier' | 'outreach' | 'orchestrator' | 'manual',
+  triggeredBy: 'scout' | 'qualifier' | 'outreach' | 'orchestrator' | 'manual' | 'browser',
   notes?: string
 ): Promise<{ success: boolean; error?: string }> {
   const isManual = triggeredBy === 'manual';
@@ -171,7 +171,7 @@ export async function batchTransitionStage(
   leadIds: string[],
   fromStage: LIPipelineStage,
   toStage: LIPipelineStage,
-  triggeredBy: 'scout' | 'qualifier' | 'outreach' | 'orchestrator' | 'manual',
+  triggeredBy: 'scout' | 'qualifier' | 'outreach' | 'orchestrator' | 'manual' | 'browser',
   notes?: string
 ): Promise<{ succeeded: number; failed: number; errors: string[] }> {
   let succeeded = 0;

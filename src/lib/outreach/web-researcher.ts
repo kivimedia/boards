@@ -301,8 +301,8 @@ async function fetchWebsiteContent(url: string): Promise<string> {
     const available = await isScraplingAvailable();
 
     if (available) {
-      const result = await scraplingFetch(url);
-      if (result?.text) return result.text;
+      const result = await scraplingFetch({ url });
+      if (result?.content) return result.content;
     }
   } catch {
     // Scrapling not available - fall through

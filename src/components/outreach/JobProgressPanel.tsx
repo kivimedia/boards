@@ -199,7 +199,7 @@ export default function JobProgressPanel({ jobType, payload, onComplete, onClose
             <span className="text-navy/30 dark:text-slate-600 mr-2">
               {new Date(event.timestamp).toLocaleTimeString('en-US', { hour12: false })}
             </span>
-            {event.data.message || event.data.error || JSON.stringify(event.data)}
+            {String(event.data.message || event.data.error || JSON.stringify(event.data))}
           </div>
         ))}
         {events.length === 0 && status === 'idle' && (

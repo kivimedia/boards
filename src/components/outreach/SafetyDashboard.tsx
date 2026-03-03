@@ -46,6 +46,91 @@ interface SafetyData {
   };
 }
 
+function BrowserSessionCard() {
+  const [session, setSession] = useState<{
+    status: string;
+    health_status: string;
+    linkedin_email: string | null;
+    daily_actions_count: number;
+    last_health_check_at: string | null;
+    last_error: string | null;
+  } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/outreach/browser-session')
+      .then(r => r.json())
+      .then(d => { if (d.data?.session) setSession(d.data.session); })
+      .catch(() => {});
+  }, []);
+
+  if (!session) {
+    return (
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-cream-dark dark:border-slate-700 p-5">
+        <h3 className="text-xs font-semibold text-navy/60 dark:text-slate-400 uppercase font-heading mb-3">
+          Browser Session
+        </h3>
+        <p className="text-xs text-navy/40 dark:text-slate-500 font-body">No browser session configured. Set one up in Settings.</p>
+      </div>
+    );
+  }
+
+  const statusDot = session.status === 'active' && session.health_status === 'healthy'
+    ? 'bg-green-500'
+    : session.status === 'active'
+    ? 'bg-amber-500'
+    : 'bg-red-500';
+
+  const statusText = session.status === 'active' && session.health_status === 'healthy'
+    ? 'Active & Healthy'
+    : session.status === 'active'
+    ? `Active - ${session.health_status || 'unknown'}`
+    : session.status;
+
+  return (
+    <div className="bg-white dark:bg-dark-card rounded-xl border border-cream-dark dark:border-slate-700 p-5">
+      <h3 className="text-xs font-semibold text-navy/60 dark:text-slate-400 uppercase font-heading mb-3">
+        LinkedIn Browser Session
+      </h3>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="p-3 bg-cream dark:bg-dark-surface rounded-lg">
+          <p className="text-[10px] text-navy/40 dark:text-slate-500 mb-1">Status</p>
+          <div className="flex items-center gap-1.5">
+            <div className={`w-2 h-2 rounded-full ${statusDot}`} />
+            <span className="text-xs font-semibold text-navy dark:text-white font-heading capitalize">
+              {statusText}
+            </span>
+          </div>
+        </div>
+        <div className="p-3 bg-cream dark:bg-dark-surface rounded-lg">
+          <p className="text-[10px] text-navy/40 dark:text-slate-500 mb-1">Account</p>
+          <span className="text-xs text-navy dark:text-white font-body truncate block">
+            {session.linkedin_email || 'Not set'}
+          </span>
+        </div>
+        <div className="p-3 bg-cream dark:bg-dark-surface rounded-lg">
+          <p className="text-[10px] text-navy/40 dark:text-slate-500 mb-1">Daily Actions</p>
+          <span className="text-xs font-semibold text-navy dark:text-white font-heading">
+            {session.daily_actions_count || 0}
+          </span>
+        </div>
+        <div className="p-3 bg-cream dark:bg-dark-surface rounded-lg">
+          <p className="text-[10px] text-navy/40 dark:text-slate-500 mb-1">Last Health Check</p>
+          <span className="text-xs text-navy dark:text-white font-body">
+            {session.last_health_check_at
+              ? new Date(session.last_health_check_at).toLocaleTimeString()
+              : 'Never'}
+          </span>
+        </div>
+      </div>
+      {session.last_error && (
+        <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/10 rounded-lg border border-red-200 dark:border-red-800">
+          <p className="text-[10px] text-red-600 dark:text-red-400 font-body">{session.last_error}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SafetyDashboard() {
   const [safety, setSafety] = useState<SafetyData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -274,13 +359,19 @@ export default function SafetyDashboard() {
           {safety.circuitBreakers.map((cb) => {
             const statusColor = cb.status === 'closed' ? 'bg-green-500' : cb.status === 'half_open' ? 'bg-amber-500' : 'bg-red-500';
             const statusLabel = cb.status === 'closed' ? 'OK' : cb.status === 'half_open' ? 'Warning' : 'Tripped';
+            const isBrowser = cb.service === 'linkedin-browser';
             return (
-              <div key={cb.service} className="p-3 bg-cream dark:bg-dark-surface rounded-lg">
+              <div key={cb.service} className={`p-3 rounded-lg ${isBrowser ? 'bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-200 dark:border-indigo-800' : 'bg-cream dark:bg-dark-surface'}`}>
                 <div className="flex items-center gap-1.5 mb-1">
                   <div className={`w-2 h-2 rounded-full ${statusColor}`} />
                   <span className="text-[10px] font-semibold text-navy dark:text-white font-heading truncate">
                     {cb.service}
                   </span>
+                  {isBrowser && (
+                    <span className="text-[8px] px-1 py-0.5 bg-indigo-100 dark:bg-indigo-800 text-indigo-600 dark:text-indigo-300 rounded font-semibold">
+                      BROWSER
+                    </span>
+                  )}
                 </div>
                 <p className="text-[9px] text-navy/40 dark:text-slate-500">
                   {statusLabel} - {cb.failureCount}/{cb.threshold} failures
@@ -290,6 +381,9 @@ export default function SafetyDashboard() {
           })}
         </div>
       </div>
+
+      {/* Browser Session Status */}
+      <BrowserSessionCard />
     </div>
   );
 }

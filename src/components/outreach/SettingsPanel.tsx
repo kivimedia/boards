@@ -16,6 +16,21 @@ interface Settings {
   pause_outreach: boolean;
   pause_reason: string | null;
   slack_webhook_url: string | null;
+  auto_send_approved: boolean;
+  min_delay_between_actions_ms: number;
+  max_delay_between_actions_ms: number;
+  enable_response_detection: boolean;
+  response_check_interval_hours: number;
+}
+
+interface BrowserSession {
+  id: string;
+  linkedin_email: string | null;
+  status: string;
+  health_status: string;
+  daily_actions_count: number;
+  last_health_check_at: string | null;
+  last_used_at: string | null;
 }
 
 export default function SettingsPanel() {
@@ -23,6 +38,9 @@ export default function SettingsPanel() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [edited, setEdited] = useState<Partial<Settings>>({});
+  const [browserSession, setBrowserSession] = useState<BrowserSession | null>(null);
+  const [checkingHealth, setCheckingHealth] = useState(false);
+  const [stoppingEmergency, setStoppingEmergency] = useState(false);
 
   const fetchSettings = async () => {
     setLoading(true);
@@ -35,7 +53,53 @@ export default function SettingsPanel() {
     }
   };
 
-  useEffect(() => { fetchSettings(); }, []);
+  const fetchBrowserSession = async () => {
+    try {
+      const res = await fetch('/api/outreach/browser-session');
+      const data = await res.json();
+      if (res.ok && data.data?.session) setBrowserSession(data.data.session);
+    } catch { /* ignore */ }
+  };
+
+  const handleCheckHealth = async () => {
+    setCheckingHealth(true);
+    try {
+      const res = await fetch('/api/outreach/browser-session/health', { method: 'POST' });
+      const data = await res.json();
+      if (data.data?.health) {
+        setBrowserSession(prev => prev ? { ...prev, health_status: data.data.health, last_health_check_at: new Date().toISOString() } : prev);
+      }
+    } finally {
+      setCheckingHealth(false);
+    }
+  };
+
+  const handleEmergencyStop = async () => {
+    if (!confirm('Emergency Stop: This will kill the browser and pause all outreach. Continue?')) return;
+    setStoppingEmergency(true);
+    try {
+      await fetch('/api/outreach/emergency-stop', { method: 'POST' });
+      fetchSettings();
+      fetchBrowserSession();
+    } finally {
+      setStoppingEmergency(false);
+    }
+  };
+
+  const handleCreateSession = async () => {
+    const email = prompt('Enter your LinkedIn email:');
+    if (!email) return;
+    try {
+      await fetch('/api/outreach/browser-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ linkedin_email: email, status: 'active' }),
+      });
+      fetchBrowserSession();
+    } catch { /* ignore */ }
+  };
+
+  useEffect(() => { fetchSettings(); fetchBrowserSession(); }, []);
 
   const handleSave = async () => {
     if (Object.keys(edited).length === 0) return;
@@ -246,6 +310,133 @@ export default function SettingsPanel() {
             <p className="text-[9px] text-navy/30 dark:text-slate-600 mt-1">
               Receive alerts for auto-pause events, budget warnings, and batch completions
             </p>
+          </div>
+        </div>
+
+        {/* LinkedIn Browser Session */}
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-cream-dark dark:border-slate-700 p-5">
+          <h3 className="text-xs font-semibold text-navy/60 dark:text-slate-400 uppercase font-heading mb-4">
+            LinkedIn Browser Session
+          </h3>
+
+          {browserSession ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className={`w-2.5 h-2.5 rounded-full ${
+                  browserSession.health_status === 'healthy' ? 'bg-green-500' :
+                  browserSession.health_status === 'degraded' ? 'bg-amber-500' :
+                  browserSession.health_status === 'logged_out' || browserSession.health_status === 'blocked' ? 'bg-red-500' :
+                  'bg-gray-400'
+                }`} />
+                <span className="text-xs font-semibold text-navy dark:text-white font-heading capitalize">
+                  {browserSession.health_status || 'Unknown'}
+                </span>
+                <span className="text-[10px] text-navy/30 dark:text-slate-600">
+                  ({browserSession.status})
+                </span>
+              </div>
+
+              {browserSession.linkedin_email && (
+                <p className="text-[10px] text-navy/50 dark:text-slate-400 font-body">
+                  Account: {browserSession.linkedin_email}
+                </p>
+              )}
+
+              <p className="text-[10px] text-navy/40 dark:text-slate-500 font-body">
+                Daily actions: {browserSession.daily_actions_count} | Last check: {browserSession.last_health_check_at ? new Date(browserSession.last_health_check_at).toLocaleTimeString() : 'Never'}
+              </p>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCheckHealth}
+                  disabled={checkingHealth}
+                  className="px-3 py-1.5 text-[10px] font-semibold bg-cream dark:bg-dark-surface text-navy dark:text-white border border-navy/10 dark:border-slate-700 rounded-lg hover:border-electric/30 transition-colors disabled:opacity-50"
+                >
+                  {checkingHealth ? 'Checking...' : 'Check Health'}
+                </button>
+                <button
+                  onClick={handleEmergencyStop}
+                  disabled={stoppingEmergency}
+                  className="px-3 py-1.5 text-[10px] font-semibold bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors disabled:opacity-50"
+                >
+                  {stoppingEmergency ? 'Stopping...' : 'Emergency Stop'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-4">
+              <p className="text-[10px] text-navy/40 dark:text-slate-500 font-body mb-3">No browser session configured</p>
+              <button
+                onClick={handleCreateSession}
+                className="px-3 py-1.5 text-[10px] font-semibold bg-electric text-white rounded-lg hover:bg-electric-bright transition-colors"
+              >
+                Set Up Session
+              </button>
+              <p className="text-[9px] text-navy/30 dark:text-slate-600 mt-2">
+                You'll need to log into LinkedIn on the VPS browser first
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Browser Automation */}
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-cream-dark dark:border-slate-700 p-5">
+          <h3 className="text-xs font-semibold text-navy/60 dark:text-slate-400 uppercase font-heading mb-4">
+            Browser Automation
+          </h3>
+          <div className="space-y-3">
+            <ToggleRow
+              label="Auto-Send Approved Batches"
+              description="Automatically send batches after approval"
+              checked={currentValue('auto_send_approved')}
+              onChange={(v) => updateField('auto_send_approved', v)}
+            />
+            <ToggleRow
+              label="Response Detection"
+              description="Periodically check for connection acceptances and replies"
+              checked={currentValue('enable_response_detection')}
+              onChange={(v) => updateField('enable_response_detection', v)}
+            />
+            <div>
+              <label className="block text-[10px] font-semibold text-navy/50 dark:text-slate-400 uppercase mb-1.5">
+                Min Delay Between Actions (seconds)
+              </label>
+              <input
+                type="number"
+                value={Math.round((currentValue('min_delay_between_actions_ms') || 45000) / 1000)}
+                onChange={(e) => updateField('min_delay_between_actions_ms', (parseInt(e.target.value) || 45) * 1000)}
+                min={30}
+                max={300}
+                className="w-full px-3 py-2 text-sm rounded-lg bg-cream dark:bg-dark-surface border border-navy/10 dark:border-slate-700 text-navy dark:text-white font-body"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-navy/50 dark:text-slate-400 uppercase mb-1.5">
+                Max Delay Between Actions (seconds)
+              </label>
+              <input
+                type="number"
+                value={Math.round((currentValue('max_delay_between_actions_ms') || 120000) / 1000)}
+                onChange={(e) => updateField('max_delay_between_actions_ms', (parseInt(e.target.value) || 120) * 1000)}
+                min={60}
+                max={600}
+                className="w-full px-3 py-2 text-sm rounded-lg bg-cream dark:bg-dark-surface border border-navy/10 dark:border-slate-700 text-navy dark:text-white font-body"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-navy/50 dark:text-slate-400 uppercase mb-1.5">
+                Response Check Interval (hours)
+              </label>
+              <select
+                value={currentValue('response_check_interval_hours') || 4}
+                onChange={(e) => updateField('response_check_interval_hours', parseInt(e.target.value))}
+                className="w-full px-3 py-2 text-sm rounded-lg bg-cream dark:bg-dark-surface border border-navy/10 dark:border-slate-700 text-navy dark:text-white font-body"
+              >
+                {[2, 4, 6, 8, 12].map(h => (
+                  <option key={h} value={h}>Every {h} hours</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       </div>

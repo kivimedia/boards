@@ -3712,9 +3712,10 @@ export type LIBatchSourceType = 'csv' | 'paste' | 'scout_wizard' | 'manual' | 's
 
 export type LIJobType =
   | 'SCOUT_IMPORT' | 'SCOUT_ENRICH' | 'QUALIFY'
-  | 'GENERATE_OUTREACH' | 'FOLLOW_UP_CHECK'
-  | 'RECOVERY' | 'FEEDBACK_COLLECT'
-  | 'AB_EVALUATE' | 'PURGE_TRASH';
+  | 'GENERATE_OUTREACH' | 'WEB_RESEARCH' | 'PERSONALIZE_MESSAGE'
+  | 'FOLLOW_UP_CHECK' | 'RECOVERY' | 'FEEDBACK_COLLECT'
+  | 'AB_EVALUATE' | 'PURGE_TRASH'
+  | 'SEND_BATCH' | 'CHECK_RESPONSES' | 'SESSION_HEALTH';
 
 export type LIJobStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 
@@ -3869,6 +3870,8 @@ export interface LIOutreachMessage {
   quality_passed: boolean;
   status: 'draft' | 'approved' | 'sent' | 'failed' | 'dry_run';
   sent_at: string | null;
+  browser_action_id: string | null;
+  send_error: string | null;
   created_at: string;
 }
 
@@ -3883,6 +3886,9 @@ export interface LIDailyBatch {
   is_dry_run: boolean;
   warmup_week: number | null;
   status: 'pending' | 'approved' | 'sent' | 'cancelled';
+  send_started_at: string | null;
+  send_completed_at: string | null;
+  send_result: Record<string, unknown>;
   created_at: string;
 }
 
@@ -3922,8 +3928,60 @@ export interface LISettings {
   pause_outreach: boolean;
   pause_reason: string | null;
   slack_webhook_url: string | null;
+  browser_session_id: string | null;
+  auto_send_approved: boolean;
+  min_delay_between_actions_ms: number;
+  max_delay_between_actions_ms: number;
+  enable_response_detection: boolean;
+  response_check_interval_hours: number;
   created_at: string;
   updated_at: string;
+}
+
+export type LIBrowserSessionStatus = 'active' | 'inactive' | 'expired' | 'blocked' | 'cooldown';
+export type LIBrowserHealthStatus = 'healthy' | 'degraded' | 'logged_out' | 'blocked' | 'unknown';
+export type LIBrowserActionType =
+  | 'connect_with_note' | 'send_message' | 'check_inbox'
+  | 'check_connections' | 'view_profile' | 'session_health_check'
+  | 'withdraw_connection';
+export type LIBrowserActionStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'skipped';
+
+export interface LIBrowserSession {
+  id: string;
+  user_id: string;
+  session_name: string;
+  linkedin_email: string | null;
+  status: LIBrowserSessionStatus;
+  cookies_encrypted: string | null;
+  user_data_dir: string | null;
+  last_health_check_at: string | null;
+  last_used_at: string | null;
+  health_status: LIBrowserHealthStatus;
+  daily_actions_count: number;
+  daily_actions_reset_at: string;
+  error_count: number;
+  last_error: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LIBrowserAction {
+  id: string;
+  session_id: string;
+  user_id: string;
+  lead_id: string | null;
+  message_id: string | null;
+  batch_id: string | null;
+  action_type: LIBrowserActionType;
+  status: LIBrowserActionStatus;
+  input_data: Record<string, unknown>;
+  result_data: Record<string, unknown>;
+  error_message: string | null;
+  duration_ms: number | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
 }
 
 export interface LIQualificationOverride {

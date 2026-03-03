@@ -68,7 +68,7 @@ export async function personalizeMessage(
 
   // If no dossier, just return the interpolated template
   if (!dossier || dossier.talking_points.length === 0) {
-    const quality = checkMessageQuality(baseMessage, template);
+    const quality = checkMessageQuality(baseMessage, { maxLength: template.max_length || undefined, templateNumber: template.template_number });
     return {
       original_template: baseMessage,
       personalized_message: baseMessage,
@@ -83,7 +83,7 @@ export async function personalizeMessage(
   // Step 2: Try Claude personalization
   const apiKey = await getProviderKey(supabase, 'anthropic');
   if (!apiKey) {
-    const quality = checkMessageQuality(baseMessage, template);
+    const quality = checkMessageQuality(baseMessage, { maxLength: template.max_length || undefined, templateNumber: template.template_number });
     return {
       original_template: baseMessage,
       personalized_message: baseMessage,
@@ -158,12 +158,12 @@ export async function personalizeMessage(
     personalizedText = personalizedText.trim();
 
     // Step 3: Quality check the personalized message
-    const quality = checkMessageQuality(personalizedText, template);
+    const quality = checkMessageQuality(personalizedText, { maxLength: template.max_length || undefined, templateNumber: template.template_number });
 
     if (!quality.passed && quality.hardBlocks.length > 0) {
       // Hard block - fall back to base template
       callbacks?.onProgress?.(`Personalization for ${lead.full_name} had quality issues, using base template`);
-      const baseQuality = checkMessageQuality(baseMessage, template);
+      const baseQuality = checkMessageQuality(baseMessage, { maxLength: template.max_length || undefined, templateNumber: template.template_number });
       return {
         original_template: baseMessage,
         personalized_message: baseMessage,
@@ -206,7 +206,7 @@ export async function personalizeMessage(
 
     // Fall back to base template
     callbacks?.onProgress?.(`Personalization failed for ${lead.full_name}: ${msg}`);
-    const quality = checkMessageQuality(baseMessage, template);
+    const quality = checkMessageQuality(baseMessage, { maxLength: template.max_length || undefined, templateNumber: template.template_number });
     return {
       original_template: baseMessage,
       personalized_message: baseMessage,

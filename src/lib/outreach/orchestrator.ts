@@ -17,7 +17,14 @@ import { transitionStage } from './pipeline-fsm';
 import { processRecoveryQueue } from './recovery-processor';
 import { researchLeadBatch } from './web-researcher';
 import { personalizeMessageBatch } from './message-personalizer';
-import type { LIJob, LIJobType, LIJobStatus, OrchestratorCallbacks } from '../types';
+import {
+  executeBatchSend as browserSendBatch,
+  checkInbox,
+  checkPendingConnections,
+  getSessionHealth,
+  isLinkedInServiceAvailable,
+} from './linkedin-browser';
+import type { LIJob, LIJobType, LIJobStatus, OrchestratorCallbacks, LIPipelineStage } from '../types';
 
 // ============================================================================
 // TYPES
@@ -283,7 +290,7 @@ async function executeJob(
     }
 
     case 'RECOVERY': {
-      return await processRecoveryQueue(supabase, job.user_id);
+      return await processRecoveryQueue(supabase, job.user_id) as unknown as Record<string, unknown>;
     }
 
     case 'FEEDBACK_COLLECT': {
@@ -307,6 +314,20 @@ async function executeJob(
       // Import is typically handled synchronously via API/SSE
       // This job type exists for scheduled/deferred imports
       return { message: 'Import jobs should use the streaming endpoint' };
+    }
+
+    case 'SEND_BATCH': {
+      const batchId = payload.batch_id as string;
+      if (!batchId) throw new Error('No batch_id in payload');
+      return await executeSendBatch(supabase, job.user_id, batchId, callbacks);
+    }
+
+    case 'CHECK_RESPONSES': {
+      return await executeCheckResponses(supabase, job.user_id, callbacks);
+    }
+
+    case 'SESSION_HEALTH': {
+      return await executeSessionHealthCheck(supabase, job.user_id);
     }
 
     default:
@@ -341,7 +362,7 @@ async function checkFollowUps(
   for (const lead of leads) {
     try {
       // Determine next stage based on current stage
-      const stageMap: Record<string, string> = {
+      const stageMap: Record<string, LIPipelineStage> = {
         'MESSAGE_SENT': 'NUDGE_SENT',
         'NUDGE_SENT': 'NOT_INTERESTED',
         'LOOM_SENT': 'NUDGE_SENT',
@@ -388,6 +409,328 @@ async function purgeExpiredTrash(
 }
 
 // ============================================================================
+// BROWSER AUTOMATION HANDLERS
+// ============================================================================
+
+async function executeSendBatch(
+  supabase: SupabaseClient,
+  userId: string,
+  batchId: string,
+  callbacks?: OrchestratorCallbacks
+): Promise<Record<string, unknown>> {
+  callbacks?.onProgress?.('Checking LinkedIn service availability...');
+
+  const available = await isLinkedInServiceAvailable();
+  if (!available) {
+    throw new Error('LinkedIn browser service is not available');
+  }
+
+  // Get settings for delay config
+  const { data: settings } = await supabase
+    .from('li_settings')
+    .select('browser_session_id, min_delay_between_actions_ms, max_delay_between_actions_ms')
+    .eq('user_id', userId)
+    .single();
+
+  // Get the active browser session
+  const sessionId = settings?.browser_session_id;
+  if (sessionId) {
+    const { data: session } = await supabase
+      .from('li_browser_sessions')
+      .select('id, status, health_status')
+      .eq('id', sessionId)
+      .single();
+    if (!session || session.status !== 'active' || session.health_status === 'logged_out') {
+      throw new Error('Browser session is not active or healthy');
+    }
+  }
+
+  // Mark batch as sending
+  await supabase
+    .from('li_daily_batches')
+    .update({ send_started_at: new Date().toISOString() })
+    .eq('id', batchId);
+
+  // Fetch approved messages for this batch
+  const { data: messages } = await supabase
+    .from('li_outreach_messages')
+    .select(`
+      id, lead_id, message_text, template_number, status,
+      li_leads!inner(id, linkedin_url, pipeline_stage, full_name)
+    `)
+    .eq('status', 'approved')
+    .in('lead_id', (
+      await supabase
+        .from('li_daily_batches')
+        .select('lead_ids')
+        .eq('id', batchId)
+        .single()
+    ).data?.lead_ids || []);
+
+  if (!messages?.length) {
+    return { sent: 0, failed: 0, message: 'No approved messages found for batch' };
+  }
+
+  callbacks?.onProgress?.(`Sending ${messages.length} messages via LinkedIn browser...`);
+
+  // Build batch messages for the VPS service
+  const batchMessages = messages.map((msg: any) => ({
+    lead_id: msg.lead_id,
+    message_id: msg.id,
+    linkedin_url: msg.li_leads?.linkedin_url || '',
+    message_text: msg.message_text,
+    action_type: (msg.li_leads?.pipeline_stage === 'TO_SEND_CONNECTION'
+      ? 'connect_with_note' : 'send_message') as 'connect_with_note' | 'send_message',
+    pipeline_stage: msg.li_leads?.pipeline_stage || '',
+  }));
+
+  // Call VPS service to execute batch
+  const result = await browserSendBatch(batchId, batchMessages, {
+    sessionId: 'default',
+    minDelayMs: settings?.min_delay_between_actions_ms || 45000,
+    maxDelayMs: settings?.max_delay_between_actions_ms || 120000,
+  });
+
+  // Process results - update messages and pipeline stages
+  let sent = 0;
+  let failed = 0;
+
+  for (const actionResult of result.results) {
+    if (actionResult.success) {
+      // Mark message as sent
+      await supabase
+        .from('li_outreach_messages')
+        .update({
+          status: 'sent',
+          sent_at: new Date().toISOString(),
+        })
+        .eq('id', actionResult.message_id);
+
+      // Find the lead's current stage and transition
+      const msg = messages.find((m: any) => m.id === actionResult.message_id);
+      if (msg?.li_leads) {
+        const lead = msg.li_leads as any;
+        const fromStage = lead.pipeline_stage as LIPipelineStage;
+        let toStage: LIPipelineStage = fromStage;
+
+        if (fromStage === 'TO_SEND_CONNECTION') toStage = 'CONNECTION_SENT';
+        else if (fromStage === 'CONNECTED') toStage = 'MESSAGE_SENT';
+        else if (fromStage === 'LOOM_PERMISSION') toStage = 'LOOM_SENT';
+
+        if (toStage !== fromStage) {
+          await transitionStage(supabase, lead.id, fromStage, toStage, 'browser', 'Sent via browser automation');
+        }
+
+        // Update last_contacted_at
+        await supabase
+          .from('li_leads')
+          .update({ last_contacted_at: new Date().toISOString() })
+          .eq('id', lead.id);
+      }
+
+      sent++;
+    } else {
+      // Mark message as failed
+      await supabase
+        .from('li_outreach_messages')
+        .update({
+          send_error: actionResult.error || 'Unknown error',
+        })
+        .eq('id', actionResult.message_id);
+      failed++;
+    }
+
+    // Log browser action
+    await supabase.from('li_browser_actions').insert({
+      session_id: sessionId || '00000000-0000-0000-0000-000000000000',
+      user_id: userId,
+      lead_id: actionResult.lead_id,
+      message_id: actionResult.message_id,
+      batch_id: batchId,
+      action_type: batchMessages.find(m => m.message_id === actionResult.message_id)?.action_type || 'send_message',
+      status: actionResult.success ? 'completed' : 'failed',
+      input_data: { linkedin_url: batchMessages.find(m => m.message_id === actionResult.message_id)?.linkedin_url },
+      result_data: actionResult.data || {},
+      error_message: actionResult.error || null,
+      duration_ms: actionResult.duration_ms,
+      started_at: new Date().toISOString(),
+      completed_at: new Date().toISOString(),
+    });
+
+    callbacks?.onProgress?.(`Sent ${sent}/${messages.length} (${failed} failed)`);
+  }
+
+  // Update batch status
+  await supabase
+    .from('li_daily_batches')
+    .update({
+      status: 'sent',
+      send_completed_at: new Date().toISOString(),
+      send_result: { sent, failed, total: messages.length },
+    })
+    .eq('id', batchId);
+
+  // Update session daily count
+  if (sessionId) {
+    const { error: rpcError } = await supabase.rpc('increment_li_browser_daily_actions', {
+      p_session_id: sessionId,
+      p_count: sent,
+    });
+    if (rpcError) {
+      // Non-critical: just increment manually
+      await supabase
+        .from('li_browser_sessions')
+        .update({
+          daily_actions_count: sent,
+          last_used_at: new Date().toISOString(),
+        })
+        .eq('id', sessionId);
+    }
+  }
+
+  return { sent, failed, total: messages.length, batch_id: batchId };
+}
+
+async function executeCheckResponses(
+  supabase: SupabaseClient,
+  userId: string,
+  callbacks?: OrchestratorCallbacks
+): Promise<Record<string, unknown>> {
+  const available = await isLinkedInServiceAvailable();
+  if (!available) {
+    throw new Error('LinkedIn browser service is not available');
+  }
+
+  let connectionsAccepted = 0;
+  let repliesDetected = 0;
+
+  // 1. Check pending connections
+  callbacks?.onProgress?.('Checking pending connection requests...');
+  const pendingResult = await checkPendingConnections();
+  const pendingUrls = new Set(pendingResult.pending.map(p => p.linkedin_url).filter(Boolean));
+
+  // Find leads at CONNECTION_SENT stage
+  const { data: connectionSentLeads } = await supabase
+    .from('li_leads')
+    .select('id, linkedin_url, pipeline_stage')
+    .eq('user_id', userId)
+    .eq('pipeline_stage', 'CONNECTION_SENT')
+    .is('deleted_at', null);
+
+  if (connectionSentLeads?.length) {
+    for (const lead of connectionSentLeads) {
+      if (!lead.linkedin_url) continue;
+      // If NOT in pending list anymore, they accepted (or declined)
+      const normalizedUrl = lead.linkedin_url.replace(/\/$/, '');
+      const stillPending = Array.from(pendingUrls).some(url =>
+        url.includes(normalizedUrl) || normalizedUrl.includes(url)
+      );
+
+      if (!stillPending) {
+        // Assume accepted (we can't easily distinguish accepted vs withdrawn)
+        await transitionStage(supabase, lead.id, 'CONNECTION_SENT', 'CONNECTED', 'browser', 'Connection accepted (detected via browser)');
+        connectionsAccepted++;
+      }
+    }
+  }
+
+  // 2. Check inbox for replies
+  callbacks?.onProgress?.('Checking inbox for replies...');
+  const inboxResult = await checkInbox();
+  const unreadConvos = inboxResult.conversations.filter(c => c.unread);
+
+  if (unreadConvos.length) {
+    // Try to match unread conversations to leads
+    const { data: activeLeads } = await supabase
+      .from('li_leads')
+      .select('id, full_name, pipeline_stage')
+      .eq('user_id', userId)
+      .in('pipeline_stage', ['CONNECTION_SENT', 'CONNECTED', 'MESSAGE_SENT', 'NUDGE_SENT', 'LOOM_SENT'])
+      .is('deleted_at', null);
+
+    if (activeLeads?.length) {
+      for (const convo of unreadConvos) {
+        const matchedLead = activeLeads.find(lead => {
+          const leadName = (lead.full_name || '').toLowerCase();
+          const convoName = (convo.name || '').toLowerCase();
+          return leadName && convoName && (
+            convoName.includes(leadName) || leadName.includes(convoName)
+          );
+        });
+
+        if (matchedLead) {
+          const currentStage = matchedLead.pipeline_stage as LIPipelineStage;
+          if (['MESSAGE_SENT', 'NUDGE_SENT', 'LOOM_SENT'].includes(currentStage)) {
+            await transitionStage(supabase, matchedLead.id, currentStage, 'REPLIED', 'browser', `Reply detected: "${convo.snippet?.substring(0, 100)}"`);
+            repliesDetected++;
+          }
+        }
+      }
+    }
+  }
+
+  return {
+    connections_accepted: connectionsAccepted,
+    replies_detected: repliesDetected,
+    total_pending: pendingResult.total_pending,
+    unread_conversations: unreadConvos.length,
+  };
+}
+
+async function executeSessionHealthCheck(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<Record<string, unknown>> {
+  const available = await isLinkedInServiceAvailable();
+  if (!available) {
+    return { status: 'service_unavailable' };
+  }
+
+  const health = await getSessionHealth();
+
+  // Update browser session in DB
+  const { data: session } = await supabase
+    .from('li_browser_sessions')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .single();
+
+  if (session) {
+    await supabase
+      .from('li_browser_sessions')
+      .update({
+        health_status: health.health === 'inactive' ? 'unknown' : health.health,
+        last_health_check_at: new Date().toISOString(),
+      })
+      .eq('id', session.id);
+
+    // Auto-pause if logged out or blocked
+    if (health.health === 'logged_out' || health.health === 'blocked') {
+      await supabase
+        .from('li_settings')
+        .update({
+          pause_outreach: true,
+          pause_reason: `Browser session ${health.health} - re-authentication required`,
+        })
+        .eq('user_id', userId);
+
+      await notifySafetyTrigger(supabase, userId, {
+        name: 'browser_session_unhealthy',
+        reason: `LinkedIn session is ${health.health}. Outreach auto-paused.`,
+        severity: 'critical',
+      });
+    }
+  }
+
+  return {
+    health: health.health,
+    logged_in: health.logged_in,
+    session_id: session?.id || null,
+  };
+}
+
+// ============================================================================
 // SAFETY CHECK
 // ============================================================================
 
@@ -403,15 +746,15 @@ async function checkSafety(
   try {
     const safety = await getSafetyStatus(supabase, userId);
 
-    if (safety.pause_outreach) {
+    if (safety.isPaused) {
       return false;
     }
 
-    if (safety.account_health === 'red') {
+    if (safety.accountHealth === 'red') {
       await notifySafetyTrigger(supabase, userId, {
-        trigger: 'orchestrator_block',
-        message: `Job ${jobType} blocked - account health is RED`,
-        severity: 'high',
+        name: 'orchestrator_block',
+        reason: `Job ${jobType} blocked - account health is RED`,
+        severity: 'critical',
       });
       return false;
     }

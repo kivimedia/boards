@@ -1,0 +1,5 @@
+fastapi==0.115.6
+uvicorn==0.34.0
+camoufox[geoip]==0.4.11
+playwright==1.49.1
+pydantic==2.10.4

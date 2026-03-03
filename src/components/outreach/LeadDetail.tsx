@@ -449,6 +449,34 @@ export default function LeadDetail({ leadId }: LeadDetailProps) {
                 <p className="text-xs text-navy/70 dark:text-slate-300 font-body whitespace-pre-wrap">
                   {msg.message_text}
                 </p>
+                {msg.status === 'sent' && (msg as any).sent_at && (
+                  <div className="mt-2 flex items-center gap-1.5">
+                    <svg className="w-3 h-3 text-green-500" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-[10px] text-green-600 dark:text-green-400 font-semibold">
+                      Sent via LinkedIn Browser
+                    </span>
+                    <span className="text-[9px] text-navy/30 dark:text-slate-600">
+                      {new Date((msg as any).sent_at).toLocaleString()}
+                    </span>
+                    {(msg as any).browser_action_id && (
+                      <Link
+                        href={`/outreach/browser-actions`}
+                        className="text-[9px] text-electric hover:text-electric-bright transition-colors"
+                      >
+                        View log
+                      </Link>
+                    )}
+                  </div>
+                )}
+                {(msg as any).send_error && (
+                  <div className="mt-2 p-1.5 bg-red-50 dark:bg-red-900/10 rounded border border-red-200 dark:border-red-800">
+                    <p className="text-[10px] text-red-600 dark:text-red-400 font-body">
+                      Send error: {(msg as any).send_error}
+                    </p>
+                  </div>
+                )}
               </div>
             ))
           )}

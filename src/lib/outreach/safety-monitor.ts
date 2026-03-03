@@ -113,6 +113,18 @@ const PAUSE_TRIGGERS = {
     threshold: 'Sat/Sun',
     severity: 'warning' as const,
   },
+  BROWSER_SESSION_UNHEALTHY: {
+    name: 'Browser Session Unhealthy',
+    description: 'LinkedIn browser session is logged out or blocked',
+    threshold: 'logged_out/blocked',
+    severity: 'critical' as const,
+  },
+  DAILY_BROWSER_LIMIT: {
+    name: 'Daily Browser Action Limit',
+    description: 'Maximum browser actions for today reached',
+    threshold: 'warmup limit',
+    severity: 'warning' as const,
+  },
 };
 
 // ============================================================================
@@ -125,6 +137,7 @@ const CIRCUIT_BREAKER_CONFIG: Record<string, { threshold: number; cooldownMinute
   'serpapi': { threshold: 3, cooldownMinutes: 60 },
   'scrapling': { threshold: 5, cooldownMinutes: 15 },
   'claude': { threshold: 3, cooldownMinutes: 10 },
+  'linkedin-browser': { threshold: 3, cooldownMinutes: 60 },
 };
 
 // ============================================================================

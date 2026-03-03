@@ -63,6 +63,8 @@ export async function PATCH(request: NextRequest) {
     'warmup_week', 'daily_send_limit', 'weekly_send_limit',
     'budget_cap_usd', 'budget_alert_pct', 'shadow_mode', 'dry_run_mode',
     'auto_generate_batches', 'pause_outreach', 'pause_reason', 'slack_webhook_url',
+    'auto_send_approved', 'min_delay_between_actions_ms', 'max_delay_between_actions_ms',
+    'enable_response_detection', 'response_check_interval_hours',
   ];
 
   const updates: Record<string, unknown> = {};
