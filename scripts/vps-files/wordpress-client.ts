@@ -89,11 +89,11 @@ export async function wpTestConnection(config: WpClientConfig): Promise<{
 
 export async function wpCreatePage(
   client: WpClient,
-  page: { title: string; content: string; slug?: string; status?: string }
+  page: { title: string; content: string; slug?: string; status?: string; template?: string }
 ): Promise<WpPage> {
   const res = await fetch(`${client.config.restUrl}/pages`, {
     method: 'POST', headers: client.headers,
-    body: JSON.stringify({ title: page.title, content: page.content, slug: page.slug, status: page.status || 'draft' }),
+    body: JSON.stringify({ title: page.title, content: page.content, slug: page.slug, status: page.status || 'draft', template: page.template || '' }),
   });
   if (!res.ok) { const err = await res.text(); throw new Error(`WP create page failed (${res.status}): ${err}`); }
   return res.json();
@@ -101,7 +101,7 @@ export async function wpCreatePage(
 
 export async function wpUpdatePage(
   client: WpClient, pageId: number,
-  updates: { title?: string; content?: string; slug?: string; status?: string }
+  updates: { title?: string; content?: string; slug?: string; status?: string; template?: string }
 ): Promise<WpPage> {
   const res = await fetch(`${client.config.restUrl}/pages/${pageId}`, {
     method: 'PUT', headers: client.headers, body: JSON.stringify(updates),

@@ -638,15 +638,30 @@ async function executePhase(
         originalName: s.name,
       }));
 
-      // Find image nodes
+      // Find image nodes with context (which section they belong to, dimensions, name)
       const imageNodeIds: string[] = [];
-      function findImages(node: FigmaNode) {
+      const imageNodeDetails: { id: string; name: string; sectionName: string; width: number; height: number }[] = [];
+      function findImages(node: FigmaNode, parentSectionName?: string) {
+        // Determine section name - top-level children of the page are sections
+        const sectionName = parentSectionName || node.name || 'Unknown';
         if (node.fills) {
           for (const fill of node.fills) {
-            if (fill.type === 'IMAGE' && fill.imageRef) { imageNodeIds.push(node.id); break; }
+            if (fill.type === 'IMAGE' && fill.imageRef) {
+              imageNodeIds.push(node.id);
+              imageNodeDetails.push({
+                id: node.id,
+                name: node.name || `image-${node.id}`,
+                sectionName,
+                width: Math.round(node.absoluteBoundingBox?.width || (node as any).size?.x || 400),
+                height: Math.round(node.absoluteBoundingBox?.height || (node as any).size?.y || 300),
+              });
+              break;
+            }
           }
         }
-        if (node.children) for (const child of node.children) findImages(child);
+        if (node.children) {
+          for (const child of node.children) findImages(child, parentSectionName || node.name);
+        }
       }
       findImages(pageNode);
 
@@ -659,7 +674,7 @@ async function executePhase(
 
       const result = {
         sections: sections.map((s: any) => ({ id: s.id, name: s.name, type: s.type, bounds: s.bounds, childCount: s.children.length })),
-        colors, fonts, imageNodeIds, designSummary: designResult.text,
+        colors, fonts, imageNodeIds, imageNodeDetails, designSummary: designResult.text,
       };
       await updateBuildArtifacts(supabase, buildId, 'figma_analysis', result);
 
@@ -753,10 +768,26 @@ async function executePhase(
       const primaryFont = figmaData.fonts[0]?.family || 'Poppins';
       const secondaryFont = figmaData.fonts.find((f: any) => f.family !== primaryFont)?.family || primaryFont;
 
-      // Get any uploaded WP media URLs from image_optimization phase (if resuming)
-      const uploadedMedia = artifacts.image_optimization?.mediaIds || [];
+      // Build image placeholder list for the AI prompt
+      const imageDetails: typeof figmaData.imageNodeDetails = figmaData.imageNodeDetails || [];
+      const imageListForPrompt = imageDetails.length > 0
+        ? imageDetails.map((img: any) => `- FIGMA_IMG:${img.id} - "${img.name}" from section "${img.sectionName}" (${img.width}x${img.height}px)`).join('\n')
+        : '';
 
       const prompt = `Generate a COMPLETE, production-quality WordPress ${builder} landing page.
+
+## ABSOLUTE REQUIREMENT - SECTION STRUCTURE:
+You MUST output MULTIPLE separate <!-- wp:group --> blocks, one for EACH conceptual section of the page.
+Example structure (8-12 separate wp:group blocks):
+- <!-- wp:group --> Hero <!-- /wp:group -->
+- <!-- wp:group --> Stats <!-- /wp:group -->
+- <!-- wp:group --> Services/Products <!-- /wp:group -->
+- <!-- wp:group --> Features/About <!-- /wp:group -->
+- <!-- wp:group --> Gallery <!-- /wp:group -->
+- <!-- wp:group --> Testimonials <!-- /wp:group -->
+- <!-- wp:group --> Contact/CTA <!-- /wp:group -->
+- <!-- wp:group --> Footer <!-- /wp:group -->
+NEVER put ALL content inside 1-2 giant wp:group blocks. If you generate fewer than 5 wp:group blocks, the page is BROKEN.
 
 ${figmaImage ? `IMPORTANT: The attached image shows the FULL Figma design for this page. Study it meticulously.
 - Match the exact layout structure, visual hierarchy, and content flow
@@ -778,6 +809,20 @@ ${siteProfile.global_css ? `\nSite Global CSS:\n${siteProfile.global_css.slice(0
 
 ## Sections to Build (${classifications.length} total - EVERY ONE is required)
 ${sectionDetails}
+${imageListForPrompt ? `
+## Available Images from Figma Design
+These are REAL images extracted from the Figma file. Use them as image sources by writing the EXACT placeholder token as the src/url value. They will be automatically replaced with real uploaded URLs after deployment.
+
+${imageListForPrompt}
+
+CRITICAL IMAGE RULES:
+- For <img> tags: use src="FIGMA_IMG:nodeId" (e.g. src="FIGMA_IMG:1:234")
+- For background images: use background-image:url(FIGMA_IMG:nodeId)
+- Match images to the correct sections based on the section name and image name
+- Use EVERY available image at least once - these are the real design assets
+- If a section needs more images than available, you may reuse images or use placehold.co as fallback
+- The FIGMA_IMG: prefix is required - do NOT modify the node IDs
+` : ''}
 
 ## QUALITY STANDARDS - THIS IS A PAID CLIENT PAGE
 
@@ -793,11 +838,37 @@ WITHOUT this, the page will appear crammed into 40% of the viewport with empty w
 3. Section backgrounds must alternate properly (dark/light/dark or as shown in Figma)
 4. Dark background sections (#001738, #1a1a2e, etc.) MUST have white/light text (#ffffff, #e0e0e0)
 5. Card grids: use display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:32px
-6. Hero sections: min-height:600px or more, with proper overlay, large headline, subtext, and CTA button
+6. Hero sections: min-height:600px or more, with OPAQUE overlay (rgba opacity 0.85+), large headline, subtext, and CTA button. The overlay must FULLY hide the placeholder image text.
 7. Buttons: styled inline with <a> tags (NOT wp:button blocks), background-color, padding:16px 40px, border-radius
-8. Images: use src="https://placehold.co/800x500/001738/ffffff?text=Section+Name" as placeholder, width:100%, object-fit:cover
-9. For tent/event images, use realistic placeholder dimensions matching the Figma layout
+8. Images: Use FIGMA_IMG:nodeId placeholders from the "Available Images" list above. Only fall back to placehold.co if no matching Figma image exists. Always set width:100%, object-fit:cover on images.
+9. Match Figma images to sections by name context (e.g. a "Hero Background" image goes in the hero section, "Tent Photo" goes in tent cards)
 10. Do NOT use wp:cover, wp:buttons, or wp:columns blocks - use wp:group with inline styles only
+11. Stats/numbers sections (e.g. 24+ years, 11,000 events): MUST be in a HORIZONTAL ROW using display:flex;flex-direction:row;flex-wrap:wrap;justify-content:space-around;align-items:center. Each stat item is a flex child with text-align:center;flex:1;min-width:150px. The number goes ABOVE the label. NEVER stack stats vertically - they MUST appear side-by-side in a single row.
+12. If the Figma shows N items side-by-side in a section, they MUST be in a grid or flex row, NEVER stacked vertically. Match the column count from Figma.
+13. NEVER duplicate sections. Each conceptual section from Figma appears EXACTLY ONCE. If a section appears in multiple Figma frames, only use it once.
+## CRITICAL STRUCTURAL RULES (violating these produces broken pages):
+
+14. ONE SECTION = ONE wp:group. EVERY conceptual section (hero, stats, services, gallery, testimonials, contact, footer) MUST be its OWN separate top-level <!-- wp:group --> block. NEVER nest multiple conceptual sections inside a single wp:group. The page should have 8-12 top-level wp:group blocks.
+
+15. FULL-WIDTH CONTENT: Every section's inner content container MUST use max-width:1200px;margin:0 auto;padding:0 40px as its centering method. NEVER use a multi-column grid (e.g. grid-template-columns:200px 600px 200px) to center content - this creates a narrow column with dark sidebars. NEVER set max-width below 1000px on any content container.
+
+16. NO DECORATOR COLUMNS: NEVER create grid or flex layouts where side columns exist purely for spacing or background color. All columns in a grid must contain actual content. For dark backgrounds, set the background on the wp:group itself and center the inner content with max-width + margin:auto.
+
+17. FOOTER IS REQUIRED: Page MUST end with a dark footer in its own wp:group. 3-4 column layout with company info, quick links, services, contact + copyright.
+
+18. Gallery/portfolio: UNIFORM grid repeat(3,1fr) gap:16px, all images SAME height via object-fit:cover. NEVER asymmetric/masonry.
+
+19. Cards/categories/event types: ALWAYS in a GRID inside ONE wp:group. NEVER separate full-width sections for each item. NEVER duplicate the same concept (e.g. event types listed twice with different visual styles).
+
+20. Hero overlay rgba 0.85 minimum opacity. Background image text must be invisible.
+
+21. Stats/numbers: HORIZONTAL row using display:flex;flex-direction:row;flex-wrap:wrap;justify-content:space-around. Each stat: text-align:center;flex:1;min-width:150px. NEVER stack vertically.
+
+22. MAXIMUM 10 SECTIONS. Typical: Hero, Stats, Services/Products, About/Features, Gallery, Testimonials, CTA/Contact, Footer. Each concept appears EXACTLY ONCE.
+
+23. SECTION WIDTH CHECK: The visible content area of every section must span at least 1000px on a 1440px desktop viewport. If any section renders narrower than this, the page is broken.
+
+REMINDER: Output 8-12 separate top-level <!-- wp:group --> blocks. NEVER fewer than 5. Each section gets its OWN wp:group.
 
 RESPOND WITH JSON: {"markup":"the COMPLETE page markup","sections":[{"name":"section name","markup":"markup"}]}`;
 
@@ -862,8 +933,27 @@ RESPOND WITH JSON: {"markup":"the COMPLETE page markup","sections":[{"name":"sec
       // Final safety: strip any remaining code fence markers from markup
       markup = markup.replace(/^```(?:json|html)?\s*\n?/m, '').replace(/\n?```\s*$/m, '').trim();
 
+      // Count ACTUAL top-level wp:group blocks (not nested ones)
+      const topLevelGroups = (markup.match(/<!-- wp:group \{/g) || []).length;
+      console.log(`[pageforge] Generated ${builder} markup: ${markup.length} chars, ${topLevelGroups} top-level wp:group blocks`);
+
+      // SECTION COUNT VALIDATION: If fewer than 5 top-level groups, the AI crammed everything into mega-sections.
+      // Split mega-sections by injecting section breaks before major headings (h2).
+      if (topLevelGroups < 5) {
+        console.log(`[pageforge] WARNING: Only ${topLevelGroups} wp:group blocks (need 5+). Attempting auto-split...`);
+        // Find h2 headings that are deeply nested and should start new sections
+        // Strategy: Split the markup at <!-- wp:heading --> with h2 level that appear inside an existing group
+        const splitMarkup = autoSplitMegaSections(markup);
+        const newCount = (splitMarkup.match(/<!-- wp:group \{/g) || []).length;
+        if (newCount >= 5) {
+          markup = splitMarkup;
+          console.log(`[pageforge] Auto-split increased sections from ${topLevelGroups} to ${newCount}`);
+        } else {
+          console.log(`[pageforge] Auto-split result: ${newCount} sections (still low, proceeding anyway)`);
+        }
+      }
+
       await updateBuildArtifacts(supabase, buildId, 'markup_generation', { markup, builder, sections });
-      console.log(`[pageforge] Generated ${builder} markup: ${markup.length} chars, ${sections.length} sections`);
       break;
     }
 
@@ -1003,29 +1093,8 @@ RESPOND WITH JSON: {"markup":"the COMPLETE page markup","sections":[{"name":"sec
 
       const wpClient = createWpClient({ restUrl: siteProfile.wp_rest_url, username: siteProfile.wp_username, appPassword: siteProfile.wp_app_password });
 
-      // Sanitize markup before deploying
-      let cleanMarkup = sanitizeMarkup(markupData.markup);
-
-      // Prepend a script that forces WP/Divi parent containers to be full-width
-      // This is more reliable than CSS breakout tricks which depend on container centering
-      const fullWidthScript = `<!-- wp:html -->
-<script>
-(function(){
-  function fix(){
-    var ids=['left-area','content-area','main-content','page-container'];
-    var cls=['entry-content','container','et_builder_inner_content','et_pb_post_content','et_pb_row','et_pb_column','et_post_meta_wrapper'];
-    ids.forEach(function(id){var el=document.getElementById(id);if(el){el.style.setProperty('max-width','100%','important');el.style.setProperty('width','100%','important');el.style.setProperty('padding','0','important');el.style.setProperty('margin','0','important');el.style.setProperty('float','none','important');}});
-    cls.forEach(function(c){document.querySelectorAll('.'+c).forEach(function(el){el.style.setProperty('max-width','100%','important');el.style.setProperty('width','100%','important');el.style.setProperty('padding-left','0','important');el.style.setProperty('padding-right','0','important');el.style.setProperty('float','none','important');});});
-    document.querySelectorAll('article.page,article.type-page').forEach(function(el){el.style.setProperty('max-width','100%','important');el.style.setProperty('width','100%','important');});
-  }
-  fix();
-  document.addEventListener('DOMContentLoaded',fix);
-  window.addEventListener('load',fix);
-  setTimeout(fix,500);setTimeout(fix,2000);
-})();
-</script>
-<!-- /wp:html -->`;
-      cleanMarkup = fullWidthScript + cleanMarkup;
+      // Sanitize markup and prepend full-width JS fix
+      let cleanMarkup = prepareMarkupForDeploy(markupData.markup);
 
       // Try blank templates to eliminate sidebar/header/footer - query WP for available ones
       const blankTemplates = [
@@ -1105,7 +1174,7 @@ RESPOND WITH JSON: {"markup":"the COMPLETE page markup","sections":[{"name":"sec
         const totalBatches = Math.ceil(imageNodeIds.length / BATCH_SIZE);
         console.log(`[pageforge] Exporting image batch ${batchNum}/${totalBatches} (${batch.length} images)`);
         try {
-          const batchResponse = await figmaGetImages(figmaClient, build.figma_file_key, batch, { format: 'png', scale: 2 });
+          const batchResponse = await figmaGetImages(figmaClient, build.figma_file_key, batch, { format: 'png', scale: 1 });
           Object.assign(allImages, batchResponse.images);
         } catch (err) {
           console.error(`[pageforge] Image batch ${batchNum} failed, retrying at scale 1...`);
@@ -1124,24 +1193,100 @@ RESPOND WITH JSON: {"markup":"the COMPLETE page markup","sections":[{"name":"sec
         'image_optimization');
 
       const mediaIds: number[] = [];
+      const imageUrlMap: Record<string, string> = {}; // nodeId -> WP media URL
       let uploaded = 0, failed = 0;
 
       for (const [nodeId, imageUrl] of Object.entries(allImages)) {
         if (!imageUrl) { failed++; continue; }
         try {
-          const buffer = await figmaDownloadImage(imageUrl);
-          const filename = `pageforge-${buildId.slice(0, 8)}-${nodeId.replace(/[^a-zA-Z0-9]/g, '-')}.png`;
-          const media = await wpUploadMedia(wpClient, buffer, filename, 'image/png');
+          let buffer = await figmaDownloadImage(imageUrl);
+          // Compress: resize to max 1920px wide, convert to JPEG at quality 82
+          const origSize = buffer.length;
+          const img = sharp(buffer);
+          const meta = await img.metadata();
+          if (meta.width && meta.width > 1920) {
+            buffer = await img.resize(1920, undefined, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 82 }).toBuffer();
+          } else {
+            buffer = await img.jpeg({ quality: 82 }).toBuffer();
+          }
+          console.log(`[pageforge] Image ${nodeId}: ${Math.round(origSize/1024)}KB -> ${Math.round(buffer.length/1024)}KB`);
+          const filename = `pageforge-${buildId.slice(0, 8)}-${nodeId.replace(/[^a-zA-Z0-9]/g, '-')}.jpg`;
+          const media = await wpUploadMedia(wpClient, buffer, filename, 'image/jpeg');
           mediaIds.push(media.id);
+          imageUrlMap[nodeId] = media.source_url;
           uploaded++;
+          // Small delay between uploads to avoid WP 503 rate limiting
+          await new Promise(r => setTimeout(r, 1500));
         } catch (err) {
           console.error(`[pageforge] Image upload failed for ${nodeId}:`, err);
-          failed++;
+          // Retry once after 5s delay
+          try {
+            await new Promise(r => setTimeout(r, 5000));
+            let buffer = await figmaDownloadImage(imageUrl);
+            buffer = await sharp(buffer).resize(1920, undefined, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 82 }).toBuffer();
+            const filename = `pageforge-${buildId.slice(0, 8)}-${nodeId.replace(/[^a-zA-Z0-9]/g, '-')}.jpg`;
+            const media = await wpUploadMedia(wpClient, buffer, filename, 'image/jpeg');
+            mediaIds.push(media.id);
+            imageUrlMap[nodeId] = media.source_url;
+            uploaded++;
+            console.log(`[pageforge] Image retry succeeded for ${nodeId}`);
+          } catch (retryErr) {
+            console.error(`[pageforge] Image retry also failed for ${nodeId}`);
+            failed++;
+          }
         }
       }
 
-      await updateBuildArtifacts(supabase, buildId, 'image_optimization', { uploaded, failed, mediaIds });
-      console.log(`[pageforge] Images: ${uploaded} uploaded, ${failed} failed`);
+      // Replace FIGMA_IMG: placeholders in page content with real WP media URLs
+      if (build.wp_page_id && Object.keys(imageUrlMap).length > 0) {
+        try {
+          const pageRes = await fetch(`${wpClient.config.restUrl}/pages/${build.wp_page_id}?context=edit`, { headers: wpClient.headers });
+          if (pageRes.ok) {
+            const pageData = await pageRes.json();
+            let content: string = pageData.content?.raw || pageData.content?.rendered || '';
+            let replacements = 0;
+
+            for (const [nodeId, wpUrl] of Object.entries(imageUrlMap)) {
+              // Replace both src="FIGMA_IMG:nodeId" and url(FIGMA_IMG:nodeId) patterns
+              const pattern = new RegExp(`FIGMA_IMG:${nodeId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g');
+              const matches = content.match(pattern);
+              if (matches) {
+                content = content.replace(pattern, wpUrl);
+                replacements += matches.length;
+              }
+            }
+
+            if (replacements > 0) {
+              await wpUpdatePage(wpClient, build.wp_page_id, { content: prepareMarkupForDeploy(content) });
+              console.log(`[pageforge] Replaced ${replacements} image placeholders with real WP URLs`);
+            } else {
+              // If no FIGMA_IMG: placeholders found, try replacing placehold.co URLs
+              // with real images by section name matching
+              const placeholderPattern = /https:\/\/placehold\.co\/[^"'\s)]+/g;
+              const placeholders = [...new Set(content.match(placeholderPattern) || [])];
+              const availableUrls = Object.values(imageUrlMap);
+              if (placeholders.length > 0 && availableUrls.length > 0) {
+                let idx = 0;
+                for (const placeholder of placeholders) {
+                  if (idx >= availableUrls.length) idx = 0; // cycle through available images
+                  content = content.split(placeholder).join(availableUrls[idx]);
+                  idx++;
+                  replacements++;
+                }
+                await wpUpdatePage(wpClient, build.wp_page_id, { content: prepareMarkupForDeploy(content) });
+                console.log(`[pageforge] Replaced ${replacements} placehold.co URLs with real images (round-robin)`);
+              } else {
+                console.log('[pageforge] No image placeholders found in page content to replace');
+              }
+            }
+          }
+        } catch (err) {
+          console.error('[pageforge] Failed to replace image placeholders:', err);
+        }
+      }
+
+      await updateBuildArtifacts(supabase, buildId, 'image_optimization', { uploaded, failed, mediaIds, imageUrlMap });
+      console.log(`[pageforge] Images: ${uploaded} uploaded, ${failed} failed, ${Object.keys(imageUrlMap).length} mapped`);
       break;
     }
 
@@ -1199,81 +1344,58 @@ RESPOND WITH JSON: {"markup":"the COMPLETE page markup","sections":[{"name":"sec
         ? `\nPage sections (top to bottom):\n${classifications.map((c: any, i: number) => `${i + 1}. "${c.sectionName}" (${c.type})`).join('\n')}`
         : '';
 
-      // DESKTOP: Section-by-section comparison at higher resolution
-      // Crop both Figma and WP screenshots into 3 vertical segments (top/middle/bottom)
-      // to preserve detail instead of downscaling the entire page to one image
+      // DESKTOP: Full-page comparison using both images (already resized to max 7500px)
       const figmaDesktop = figmaScreenshots?.desktop;
       const wpDesktop = wpScreenshots?.desktop;
 
       if (figmaDesktop && wpDesktop) {
         try {
-          // Crop into 3 segments for higher-resolution comparison
-          const segments = ['top', 'middle', 'bottom'];
-          const segmentScores: number[] = [];
-          const allDifferences: any[] = [];
+          const vqaResult = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa', 'vqa_comparison',
+            getSystemPrompt('pageforge_vqa'),
+            `Compare the FULL Figma design against the FULL WordPress page at DESKTOP (1440px).
+${sectionContext}
 
-          for (let seg = 0; seg < 3; seg++) {
-            const segName = segments[seg];
-            try {
-              const figmaCrop = await cropSegment(figmaDesktop, seg, 3);
-              const wpCrop = await cropSegment(wpDesktop, seg, 3);
+Image 1: Figma design (reference - the original design)
+Image 2: WordPress page (actual output - what was built)
 
-              const segSections = sectionContext
-                ? `\nSections in this ${segName} portion of the page:\n${classifications
-                    .slice(Math.floor(seg * classifications.length / 3), Math.ceil((seg + 1) * classifications.length / 3))
-                    .map((c: any, i: number) => `- "${c.sectionName}" (${c.type})`).join('\n')}`
-                : '';
+IMPORTANT: The images may have slightly different heights/proportions. Focus on whether the SAME SECTIONS and CONTENT exist in both, not on exact pixel alignment. The Figma design and WP page will naturally have different spacing.
 
-              const vqaResult = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa', 'vqa_comparison',
-                getSystemPrompt('pageforge_vqa'),
-                `Compare these two screenshots showing the ${segName.toUpperCase()} third of the page at DESKTOP (1440px).
+Evaluate these aspects:
+1. SECTION PRESENCE: Are all major sections from Figma present in WP? (hero, services, gallery, testimonials, contact, footer)
+2. VISUAL STYLE: Do sections have correct background colors (dark navy, white, cream)? Are fonts styled (not system defaults)?
+3. CARD/GRID LAYOUTS: Are multi-column layouts (3-column cards, grids) properly implemented?
+4. IMAGES: Are real images showing in the right places? Or are there gray boxes/broken images?
+5. COLOR SCHEME: Does the WP page use the same color palette as the Figma design?
+6. TYPOGRAPHY: Are headings styled with correct hierarchy (H1 > H2 > H3)?
+7. BUTTONS/CTAs: Are buttons styled and visible?
+8. FOOTER: Is a proper multi-column footer present?
 
-Image 1: Figma design (reference)
-Image 2: WordPress page (actual output)
-${segSections}
-
-Be STRICT and HONEST in your scoring. Check:
-1. STYLING: Does EVERY element have proper fonts, colors, and spacing? Or does it look like unstyled default HTML?
-2. LAYOUT: Are elements positioned, sized, and aligned correctly?
-3. TYPOGRAPHY: Correct font family (not system fonts), correct sizes, weights, colors?
-4. BACKGROUNDS: Correct background colors/images for each section?
-5. VISUAL POLISH: Rounded corners, shadows, proper button styling, card styling?
-6. MISSING CONTENT: Any sections or elements visible in Figma but missing in WP?
-
-A page with unstyled text, system fonts, missing backgrounds, or raw HTML elements should score BELOW 30.
-A page that has the right structure but wrong colors/fonts/spacing should score 40-60.
-A page that looks professionally styled but has minor differences should score 70-85.
-Only 85+ for near pixel-perfect match.
+Scoring guide:
+- 0-30: Unstyled HTML, missing sections, broken layout
+- 30-50: Basic structure but wrong colors/fonts, missing backgrounds
+- 50-70: Good structure, some styling issues, a few missing elements
+- 70-85: All sections present, well-styled, minor spacing/color differences
+- 85-95: Excellent recreation, professional quality, very close to design
+- 95-100: Near pixel-perfect match
 
 Respond with JSON:
 {"score":N,"differences":[{"area":"element","severity":"critical|major|minor","description":"specific issue","suggestedFix":"CSS fix"}]}`,
-                anthropic, {
-                  images: [
-                    { data: figmaCrop, mimeType: 'image/jpeg' },
-                    { data: wpCrop, mimeType: 'image/jpeg' },
-                  ],
-                }
-              );
-
-              const jsonMatch = vqaResult.text.match(/\{[\s\S]*\}/);
-              if (jsonMatch) {
-                const parsed = JSON.parse(jsonMatch[0]);
-                segmentScores.push(parsed.score || 0);
-                allDifferences.push(...(parsed.differences || []).map((d: any) => ({ ...d, area: `[${segName}] ${d.area}` })));
-              } else {
-                segmentScores.push(40);
-              }
-              console.log(`[pageforge] VQA ${segName} segment: ${segmentScores[seg]}%`);
-            } catch (segErr) {
-              console.warn(`[pageforge] VQA ${segName} segment failed:`, segErr instanceof Error ? segErr.message : String(segErr));
-              segmentScores.push(0);
+            anthropic, {
+              images: [
+                { data: figmaDesktop, mimeType: 'image/jpeg' },
+                { data: wpDesktop, mimeType: 'image/jpeg' },
+              ],
             }
-          }
+          );
 
-          // Average the segment scores
-          const avgScore = Math.round(segmentScores.reduce((a, b) => a + b, 0) / segmentScores.length);
-          results.desktop = { score: avgScore, differences: allDifferences };
-          console.log(`[pageforge] VQA desktop segments: ${segmentScores.join('/')} avg=${avgScore}%`);
+          const jsonMatch = vqaResult.text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            results.desktop = { score: parsed.score || 0, differences: parsed.differences || [] };
+          } else {
+            results.desktop = { score: 40, differences: [] };
+          }
+          console.log(`[pageforge] VQA desktop score: ${results.desktop.score}%`);
         } catch (err) {
           results.desktop = { score: 0, differences: [{ area: 'comparison', severity: 'critical', description: `Failed: ${err instanceof Error ? err.message : String(err)}` }] };
         }
@@ -1326,11 +1448,39 @@ Respond with JSON:
         }
       }
 
+      // Run layout validation to detect narrow columns, mega-sections, decorator grids
+      let layoutPenalty = 0;
+      const deployData = artifacts.deploy_draft;
+      if (deployData?.draftUrl) {
+        try {
+          const layoutResult = await runLayoutValidation(deployData.draftUrl);
+          if (layoutResult.issues.length > 0) {
+            // Each layout issue is a 5% penalty, max 30%
+            layoutPenalty = Math.min(layoutResult.issues.length * 5, 30);
+            // Add layout issues as critical differences
+            for (const issue of layoutResult.issues) {
+              results.desktop?.differences.push({
+                area: '[layout]',
+                severity: 'critical',
+                description: issue,
+                suggestedFix: 'Split mega-sections into separate wp:group blocks. Use max-width:1200px;margin:0 auto for centering instead of multi-column grids.',
+              });
+            }
+          }
+        } catch (err) {
+          console.warn('[pageforge] Layout validation failed in VQA comparison:', err);
+        }
+      }
+
       // Desktop is primary (70% weight since it's the only real Figma comparison)
       const desktopScore = results.desktop?.score || 0;
       const tabletScore = results.tablet?.score || 0;
       const mobileScore = results.mobile?.score || 0;
-      const overallScore = Math.round(desktopScore * 0.7 + tabletScore * 0.15 + mobileScore * 0.15);
+      const rawScore = Math.round(desktopScore * 0.7 + tabletScore * 0.15 + mobileScore * 0.15);
+      const overallScore = Math.max(0, rawScore - layoutPenalty);
+      if (layoutPenalty > 0) {
+        console.log(`[pageforge] Layout penalty: -${layoutPenalty}% (raw: ${rawScore}%, adjusted: ${overallScore}%)`);
+      }
       const passed = overallScore >= threshold;
 
       await supabase.from('pageforge_builds').update({
@@ -1368,7 +1518,23 @@ Respond with JSON:
       const maxLoops = siteProfile.max_vqa_fix_loops || 15;
       const threshold = siteProfile.vqa_pass_threshold || 80;
       let currentIteration = build.vqa_fix_iteration || 0;
+      // Apply real image URLs from image_optimization to the markup
       let currentMarkup = markupData.markup;
+      const imageUrlMap: Record<string, string> = artifacts.image_optimization?.imageUrlMap || {};
+      if (Object.keys(imageUrlMap).length > 0 && currentMarkup.includes('FIGMA_IMG:')) {
+        let imgReplacements = 0;
+        for (const [nodeId, wpUrl] of Object.entries(imageUrlMap)) {
+          const pattern = new RegExp(`FIGMA_IMG:${nodeId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g');
+          const matches = currentMarkup.match(pattern);
+          if (matches) {
+            currentMarkup = currentMarkup.replace(pattern, wpUrl as string);
+            imgReplacements += matches.length;
+          }
+        }
+        if (imgReplacements > 0) {
+          console.log(`[pageforge] VQA fix loop: replaced ${imgReplacements} FIGMA_IMG placeholders with real WP URLs`);
+        }
+      }
       const allChanges: string[] = [];
       let lastScore = comparisonData.overallScore || 0;
       let stallCount = 0;
@@ -1422,6 +1588,17 @@ Respond with JSON:
           console.warn('[pageforge] Failed to capture current WP screenshot for fix context:', err);
         }
 
+        // Run layout validation to detect narrow columns, mega-sections, decorator grids
+        let layoutIssuesContext = '';
+        try {
+          const layoutResult = await runLayoutValidation(draftUrl);
+          if (layoutResult.issues.length > 0) {
+            layoutIssuesContext = `\n\nCRITICAL LAYOUT ISSUES DETECTED (fix these FIRST - they make the page look broken):\n${layoutResult.issues.map((issue, i) => `${i + 1}. ${issue}`).join('\n')}\n\nTo fix layout issues:\n- Split mega-sections into separate <!-- wp:group --> blocks (one per conceptual section)\n- Replace 3-column decorator grids with: max-width:1200px;margin:0 auto;padding:0 40px\n- Ensure every section's inner content container is at least 1000px wide\n- NEVER use grid-template-columns with empty side columns for centering`;
+          }
+        } catch (err) {
+          console.warn('[pageforge] Layout validation failed in fix loop:', err);
+        }
+
         const imageContext = images.length >= 2
           ? 'Image 1 is the Figma design reference. Image 2 is the current WordPress page. Fix the WordPress markup to match the Figma design.'
           : images.length === 1
@@ -1453,6 +1630,7 @@ ${numberedMarkup}
 
 Visual differences to fix (${sortedDiffs.length} issues, priority order):
 ${sortedDiffs.map((d: any, i: number) => `${i + 1}. [${d.severity.toUpperCase()}] ${d.area}: ${d.description}${d.suggestedFix ? `\n   Suggested fix: ${d.suggestedFix}` : ''}`).join('\n')}
+${layoutIssuesContext}
 
 RULES:
 1. Return an array of line edits. Each edit specifies a line number and the new content for that line.
@@ -1558,7 +1736,7 @@ Respond with JSON:
         // 4. Re-deploy with fixed markup
         if (build.wp_page_id && siteProfile.wp_username && siteProfile.wp_app_password) {
           const wpClient = createWpClient({ restUrl: siteProfile.wp_rest_url, username: siteProfile.wp_username, appPassword: siteProfile.wp_app_password });
-          await wpUpdatePage(wpClient, build.wp_page_id, { content: sanitizeMarkup(currentMarkup) });
+          await wpUpdatePage(wpClient, build.wp_page_id, { content: prepareMarkupForDeploy(currentMarkup) });
         }
 
         // 5. Wait briefly for WP to process the update
@@ -1581,18 +1759,32 @@ Respond with JSON:
           try {
             const compareResult = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa', 'vqa_fix_loop',
               getSystemPrompt('pageforge_vqa'),
-              `Re-evaluate after fix iteration ${currentIteration}. Compare these two full-page screenshots.
+              `Re-evaluate after fix iteration ${currentIteration}. Compare the full-page Figma design against the WordPress page.
 
-Image 1: Figma design (reference)
-Image 2: WordPress page (after fix)
+Image 1: Figma design (reference - the original design)
+Image 2: WordPress page (after fix iteration ${currentIteration})
 
 Previous score was ${lastScore}%. Check if the fixes improved the match.
 
-STRICT SCORING RULES:
-- Unstyled/default HTML with system fonts = BELOW 30
-- Right structure but wrong colors/fonts/spacing = 40-60
-- Professionally styled with minor differences = 70-85
-- Near pixel-perfect = 85+
+IMPORTANT: The images may have different heights/proportions. Focus on whether the SAME SECTIONS and CONTENT exist in both, not on exact pixel alignment.
+
+Evaluate:
+1. SECTION PRESENCE: Are all major sections from Figma present in WP?
+2. VISUAL STYLE: Correct background colors, styled fonts (not system defaults)?
+3. CARD/GRID LAYOUTS: Multi-column layouts properly implemented?
+4. IMAGES: Real images in correct places?
+5. COLOR SCHEME: Same color palette as Figma?
+6. TYPOGRAPHY: Styled headings with correct hierarchy?
+7. BUTTONS/CTAs: Styled and visible?
+8. FOOTER: Proper multi-column footer present?
+
+Scoring:
+- 0-30: Unstyled HTML, missing sections, broken layout
+- 30-50: Basic structure but wrong colors/fonts, missing backgrounds
+- 50-70: Good structure, some styling issues, few missing elements
+- 70-85: All sections present, well-styled, minor differences
+- 85-95: Excellent recreation, professional quality, very close to design
+- 95-100: Near pixel-perfect match
 
 Score 0-100. Respond with JSON:
 {"score":N,"differences":[{"area":"...","severity":"critical|major|minor","description":"...","suggestedFix":"..."}]}`,
@@ -1856,6 +2048,82 @@ Score 0-100. Respond with JSON:
 // HELPERS
 // ============================================================================
 
+/**
+ * Auto-split mega-sections: When the AI generates too few top-level wp:group blocks,
+ * this function finds h2 headings that should be section boundaries and wraps content
+ * between them into separate wp:group blocks.
+ */
+function autoSplitMegaSections(markup: string): string {
+  // Find all wp:heading blocks with level 2 (these are section boundaries)
+  // Pattern: <!-- wp:heading {"level":2 ...} --> or <!-- wp:heading --> (default h2)
+  const lines = markup.split('\n');
+
+  // Find indices of h2 heading comment blocks
+  const h2Indices: number[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    // Match wp:heading with level 2, or wp:heading without explicit level (defaults to h2)
+    if (line.match(/<!-- wp:heading\s*(\{[^}]*"level"\s*:\s*2[^}]*\})?\s*-->/)) {
+      h2Indices.push(i);
+    }
+    // Also match raw <h2 tags
+    if (line.match(/<h2[\s>]/i) && !line.match(/<!-- wp:heading/)) {
+      h2Indices.push(i);
+    }
+  }
+
+  if (h2Indices.length < 3) return markup; // Not enough h2s to split meaningfully
+
+  // Strategy: Find the opening/closing of the outermost wp:group blocks
+  // Then split interior content at h2 boundaries into new top-level groups
+
+  // Simpler approach: Just ensure each h2 starts a new top-level wp:group
+  // Find runs of content between h2s and wrap each in its own group
+
+  // Extract the background style from the parent group if available
+  const defaultGroupOpen = '<!-- wp:group {"layout":{"type":"constrained"}} -->\n<div class="wp-block-group" style="width:100%;max-width:100%">';
+  const defaultGroupClose = '</div>\n<!-- /wp:group -->';
+
+  const darkGroupOpen = '<!-- wp:group {"layout":{"type":"constrained"}} -->\n<div class="wp-block-group" style="width:100%;max-width:100%;background-color:#001738;color:#ffffff;padding:60px 0">';
+
+  // Build new markup by splitting at h2 boundaries
+  // First, find the content before the first h2 (likely hero section) - leave as-is
+  // Then, for each h2, create a new wp:group containing everything until the next h2
+
+  const resultParts: string[] = [];
+  let inGroup = false;
+  let currentGroupLines: string[] = [];
+  let groupDepth = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Track wp:group nesting depth
+    if (trimmed.match(/<!-- wp:group/)) groupDepth++;
+    if (trimmed.match(/<!-- \/wp:group/)) groupDepth--;
+
+    // Check if this is an h2 at group depth > 0 (nested h2 that should be a section boundary)
+    const isH2 = h2Indices.includes(i);
+
+    if (isH2 && groupDepth > 0 && currentGroupLines.length > 20) {
+      // Close the current section and start a new one
+      // Insert a group close before this h2, and a group open at the h2
+      currentGroupLines.push(defaultGroupClose);
+      resultParts.push(currentGroupLines.join('\n'));
+      currentGroupLines = [defaultGroupOpen];
+    }
+
+    currentGroupLines.push(line);
+  }
+
+  if (currentGroupLines.length > 0) {
+    resultParts.push(currentGroupLines.join('\n'));
+  }
+
+  return resultParts.join('\n');
+}
+
 // Resize a base64 image so neither dimension exceeds maxDim (Anthropic limit: 8000px)
 // Always outputs JPEG for consistent handling
 async function resizeIfNeeded(base64: string, maxDim = 7500): Promise<string> {
@@ -1877,6 +2145,63 @@ async function resizeIfNeeded(base64: string, maxDim = 7500): Promise<string> {
 }
 
 // Sanitize WordPress markup: strip <style> blocks, raw CSS, and problematic patterns
+// Script that forces WP/Divi parent containers to be full-width.
+// SURGICAL: only removes width constraints + side padding. Keeps centering intact.
+// Must be prepended to content on EVERY page update (deploy + fix loop).
+const FULLWIDTH_SCRIPT = `<!-- wp:html -->
+<style>
+/* PageForge full-width override - CSS beats Divi theme constraints immediately */
+#page-container, #main-content, #left-area, #content-area,
+.container, .entry-content, article.page, article.type-page,
+.et-l, .et-l--post, .et_builder_inner_content,
+.et_pb_section, .et_pb_row, .et_pb_column,
+.et_pb_text, .et_pb_text_inner, .et_pb_post_content,
+.et_pb_module {
+  max-width: 100% !important;
+  width: 100% !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  float: none !important;
+}
+/* Hide WP default widgets/sidebar */
+.widget_recent_entries,.widget_recent_comments,.widget_categories,
+.widget_archive,.widget_meta,.sidebar,.widget-area,
+#sidebar,aside.widget-area { display: none !important; }
+/* Divi nav/header - hide if present (PageForge pages have their own header) */
+#main-header, #top-header { display: none !important; }
+#et-main-area { padding-top: 0 !important; }
+</style>
+<script>
+(function(){
+  function fix(){
+    document.querySelectorAll('.et_pb_row,.et_pb_section,.et_pb_column,.et_pb_text,.et_pb_text_inner,.et_pb_module,.et-l,.et-l--post,.et_builder_inner_content,.container,.entry-content,article.page,article.type-page,#page-container,#main-content,#left-area,#content-area').forEach(function(el){
+      el.style.setProperty('max-width','100%','important');
+      el.style.setProperty('width','100%','important');
+      el.style.setProperty('padding-left','0','important');
+      el.style.setProperty('padding-right','0','important');
+      el.style.setProperty('margin-left','0','important');
+      el.style.setProperty('margin-right','0','important');
+      el.style.setProperty('float','none','important');
+    });
+    document.querySelectorAll('.widget_recent_entries,.widget_recent_comments,.widget_categories,.widget_archive,.widget_meta,.sidebar,.widget-area,#sidebar,aside.widget-area').forEach(function(el){
+      el.style.setProperty('display','none','important');
+    });
+  }
+  fix();
+  document.addEventListener('DOMContentLoaded',fix);
+  window.addEventListener('load',fix);
+  setTimeout(fix,500);setTimeout(fix,2000);setTimeout(fix,5000);
+})();
+</script>
+<!-- /wp:html -->`;
+
+/** Sanitize markup and prepend full-width script */
+function prepareMarkupForDeploy(markup: string): string {
+  return FULLWIDTH_SCRIPT + sanitizeMarkup(markup);
+}
+
 function sanitizeMarkup(markup: string): string {
   let clean = markup;
   // Remove <style> tags and their content (Divi/WP themes override anyway)
@@ -1895,15 +2220,52 @@ function sanitizeMarkup(markup: string): string {
   });
 
   // Ensure full-width: inject viewport-width styles on top-level wp:group alignfull divs
-  // If the markup has alignfull divs without the vw breakout trick, add it
   clean = clean.replace(
     /(<div\s+class="wp-block-group\s+alignfull"\s+style=")/gi,
     (match) => {
-      // Check if it already has width:100vw
       if (match.includes('100vw')) return match;
       return match.replace(/style="/, 'style="width:100%;box-sizing:border-box;');
     }
   );
+
+  // Boost hero overlay opacity: if any overlay div uses rgba with opacity < 0.8, increase to 0.85
+  clean = clean.replace(
+    /background:\s*rgba\((\d+),\s*(\d+),\s*(\d+),\s*(0\.\d+)\)/g,
+    (match, r, g, b, a) => {
+      const opacity = parseFloat(a);
+      // Only boost dark overlays (r+g+b < 200) with low opacity
+      if (parseInt(r) + parseInt(g) + parseInt(b) < 200 && opacity < 0.8) {
+        return `background:rgba(${r},${g},${b},0.88)`;
+      }
+      return match;
+    }
+  );
+
+  // De-duplicate sections: if the same heading text appears in multiple wp:group blocks, remove duplicates
+  const sectionBlocks = clean.split(/(<!-- wp:group)/);
+  const seenHeadings = new Set<string>();
+  const deduped: string[] = [];
+  for (let i = 0; i < sectionBlocks.length; i++) {
+    const block = sectionBlocks[i];
+    // Extract the first heading text from this block
+    const headingMatch = block.match(/<h[1-6][^>]*>([^<]{10,})<\/h[1-6]>/i);
+    if (headingMatch) {
+      const headingText = headingMatch[1].trim().toLowerCase().replace(/\s+/g, ' ');
+      if (seenHeadings.has(headingText)) {
+        // Find the end of this wp:group block and skip it
+        // The block starts with "<!-- wp:group" and ends with "<!-- /wp:group -->"
+        const endIdx = block.indexOf('<!-- /wp:group -->');
+        if (endIdx >= 0) {
+          // Skip this entire block, keep anything after the closing tag
+          deduped.push(block.substring(endIdx + '<!-- /wp:group -->'.length));
+          continue;
+        }
+      }
+      seenHeadings.add(headingText);
+    }
+    deduped.push(block);
+  }
+  clean = deduped.join('');
 
   return clean;
 }
@@ -1951,8 +2313,8 @@ async function captureScreenshots(pageUrl: string): Promise<Record<string, strin
       try {
         const page = await browser.newPage();
         await page.setViewport({ width, height: 900 });
-        await page.goto(pageUrl, { waitUntil: 'networkidle2', timeout: 30000 });
-        await new Promise(r => setTimeout(r, 2000)); // extra settle time
+        await page.goto(pageUrl, { waitUntil: 'networkidle2', timeout: 45000 });
+        await new Promise(r => setTimeout(r, 5000)); // extra settle time for large images
         const buffer = await page.screenshot({ fullPage: true, type: 'png' });
         const rawBase64 = Buffer.from(buffer).toString('base64');
         console.log(`[pageforge] Screenshot ${bp} captured (${Math.round(Buffer.from(buffer).length / 1024)}KB)`);
@@ -1968,6 +2330,110 @@ async function captureScreenshots(pageUrl: string): Promise<Record<string, strin
     if (browser) await browser.close();
   }
   return screenshots;
+}
+
+// Layout validation - checks that content uses full viewport width (not trapped in narrow column)
+async function runLayoutValidation(pageUrl: string): Promise<{ passed: boolean; issues: string[]; avgContentWidth: number }> {
+  const issues: string[] = [];
+  let avgContentWidth = 0;
+
+  let browser;
+  try {
+    browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    });
+
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1440, height: 900 });
+    await page.goto(pageUrl, { waitUntil: 'networkidle2', timeout: 45000 });
+    await new Promise(r => setTimeout(r, 3000));
+
+    const layoutData = await page.evaluate(() => {
+      const groups = Array.from(document.querySelectorAll('.entry-content > .wp-block-group'));
+      const sectionData = groups.map((g, i) => {
+        const rect = g.getBoundingClientRect();
+        // Find the widest content child
+        const children = Array.from(g.children);
+        let maxChildWidth = 0;
+        for (const child of children) {
+          const cr = child.getBoundingClientRect();
+          if (cr.width > maxChildWidth) maxChildWidth = cr.width;
+        }
+        // Find any heading to identify the section
+        const h = g.querySelector('h1,h2,h3');
+        const heading = h ? h.textContent?.trim().substring(0, 40) : '(no heading)';
+        // Check for multi-column grids used for centering (decorator columns)
+        const grids = Array.from(g.querySelectorAll('*')).filter(el => {
+          const cs = window.getComputedStyle(el);
+          return cs.display === 'grid' && cs.gridTemplateColumns.split(' ').length === 3;
+        }).map(el => ({
+          cols: window.getComputedStyle(el).gridTemplateColumns,
+          width: Math.round(el.getBoundingClientRect().width),
+        }));
+        return {
+          heading,
+          sectionWidth: Math.round(rect.width),
+          contentWidth: Math.round(maxChildWidth),
+          height: Math.round(rect.height),
+          threeColGrids: grids,
+        };
+      });
+      return { sectionData, totalSections: groups.length, viewportWidth: 1440 };
+    });
+
+    const { sectionData, totalSections } = layoutData;
+    const contentWidths: number[] = [];
+
+    // Check 1: Minimum section count
+    if (totalSections < 5) {
+      issues.push(`Only ${totalSections} top-level sections (expected 8-12). Content likely nested in mega-sections.`);
+    }
+
+    // Check 2: Content width utilization
+    for (const s of sectionData) {
+      contentWidths.push(s.contentWidth);
+      if (s.contentWidth < 1000 && s.height > 200) {
+        issues.push(`Section "${s.heading}" content is only ${s.contentWidth}px wide (minimum 1000px). Looks like narrow column.`);
+      }
+      // Check 3: Decorator 3-column grids (NOT equal-width content grids)
+      for (const grid of s.threeColGrids) {
+        const cols = grid.cols.split(' ').map((c: string) => parseFloat(c));
+        if (cols.length === 3 && cols[0] > 100 && cols[2] > 100) {
+          const centerWidth = cols[1];
+          const sideAvg = (cols[0] + cols[2]) / 2;
+          // Decorator pattern: center is much wider than sides (ratio > 1.5) with narrow sides
+          // Equal content grid: all columns roughly same width (ratio ~1.0) - this is FINE
+          const ratio = centerWidth / sideAvg;
+          if (ratio > 1.5 && centerWidth < 800) {
+            issues.push(`Section "${s.heading}" uses 3-column decorator grid (${grid.cols}) - center column only ${Math.round(centerWidth)}px. Must use max-width+margin:auto instead.`);
+          }
+        }
+      }
+    }
+
+    // Check 4: Mega section detection (any section > 5000px tall)
+    for (const s of sectionData) {
+      if (s.height > 5000) {
+        issues.push(`Section "${s.heading}" is ${s.height}px tall - likely a mega-section containing multiple conceptual sections. Split into separate wp:group blocks.`);
+      }
+    }
+
+    avgContentWidth = contentWidths.length > 0 ? Math.round(contentWidths.reduce((a, b) => a + b, 0) / contentWidths.length) : 0;
+    await page.close();
+  } catch (err) {
+    console.error('[pageforge] Layout validation failed:', err);
+    issues.push('Layout validation could not run');
+  } finally {
+    if (browser) await browser.close();
+  }
+
+  const passed = issues.length === 0;
+  console.log(`[pageforge] Layout validation: ${passed ? 'PASSED' : 'FAILED'} (${issues.length} issues, avg content width: ${avgContentWidth}px)`);
+  if (issues.length > 0) {
+    console.log(`[pageforge] Layout issues:\n  ${issues.join('\n  ')}`);
+  }
+  return { passed, issues, avgContentWidth };
 }
 
 async function runLinkValidation(pageUrl: string): Promise<{ passed: boolean; details: string; broken: number }> {
@@ -2090,6 +2556,18 @@ Without width:100%, sections will be constrained by the theme's narrow container
 </div>
 <!-- /wp:group -->
 
+**Stats row (numbers/metrics displayed horizontally):**
+<div style="display:flex;flex-wrap:wrap;justify-content:space-around;gap:40px;padding:40px 0">
+  <div style="text-align:center">
+    <div style="font-family:Poppins,sans-serif;font-size:48px;font-weight:700;color:#001738">24+</div>
+    <div style="font-family:Poppins,sans-serif;font-size:16px;color:#555;margin-top:8px">Years Experience</div>
+  </div>
+  <div style="text-align:center">
+    <div style="font-family:Poppins,sans-serif;font-size:48px;font-weight:700;color:#001738">11,000+</div>
+    <div style="font-family:Poppins,sans-serif;font-size:16px;color:#555;margin-top:8px">Events Served</div>
+  </div>
+</div>
+
 **Styled button (inline, no wp:button block):**
 <a style="display:inline-block;background-color:#cc2336;color:#ffffff;font-family:Poppins,sans-serif;font-size:16px;font-weight:600;padding:16px 40px;border-radius:8px;text-decoration:none;cursor:pointer">Get Started</a>
 
@@ -2104,6 +2582,38 @@ Without width:100%, sections will be constrained by the theme's narrow container
       <p style="font-family:Poppins,sans-serif;font-size:13px;color:#777;margin:0">Role / Company</p>
     </div>
   </div>
+</div>
+
+**Footer section (REQUIRED - must be last section):**
+<!-- wp:group {"align":"full"} -->
+<div class="wp-block-group alignfull" style="width:100%;box-sizing:border-box;background-color:#001738;padding:60px 40px 30px">
+<div style="max-width:1200px;margin:0 auto">
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:40px;margin-bottom:40px">
+    <div>
+      <h4 style="font-family:Poppins,sans-serif;font-size:20px;font-weight:700;color:#ffffff;margin:0 0 16px">Company Name</h4>
+      <p style="font-family:Poppins,sans-serif;font-size:14px;color:#ccc;line-height:1.8;margin:0">Brief company description providing context about the business.</p>
+    </div>
+    <div>
+      <h4 style="font-family:Poppins,sans-serif;font-size:16px;font-weight:600;color:#ffffff;margin:0 0 16px">Quick Links</h4>
+      <p style="font-family:Poppins,sans-serif;font-size:14px;color:#ccc;line-height:2.2;margin:0">Home<br/>Services<br/>About Us<br/>Gallery<br/>Contact</p>
+    </div>
+    <div>
+      <h4 style="font-family:Poppins,sans-serif;font-size:16px;font-weight:600;color:#ffffff;margin:0 0 16px">Contact Us</h4>
+      <p style="font-family:Poppins,sans-serif;font-size:14px;color:#ccc;line-height:2.2;margin:0">123 Business St, City, ST 12345<br/>Phone: (555) 123-4567<br/>Email: info@company.com<br/>Mon-Fri: 9am-6pm</p>
+    </div>
+  </div>
+  <div style="border-top:1px solid rgba(255,255,255,0.15);padding-top:20px;text-align:center">
+    <p style="font-family:Poppins,sans-serif;font-size:13px;color:#888;margin:0">© 2026 Company Name. All rights reserved.</p>
+  </div>
+</div>
+</div>
+<!-- /wp:group -->
+
+**Gallery grid (uniform):**
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+  <div style="border-radius:8px;overflow:hidden"><img src="IMAGE_URL" style="width:100%;height:280px;object-fit:cover;display:block" alt="Gallery 1"/></div>
+  <div style="border-radius:8px;overflow:hidden"><img src="IMAGE_URL" style="width:100%;height:280px;object-fit:cover;display:block" alt="Gallery 2"/></div>
+  <div style="border-radius:8px;overflow:hidden"><img src="IMAGE_URL" style="width:100%;height:280px;object-fit:cover;display:block" alt="Gallery 3"/></div>
 </div>
 
 ### Responsive Requirements
