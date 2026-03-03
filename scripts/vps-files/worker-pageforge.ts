@@ -2949,12 +2949,11 @@ function buildDivi5Markup(sections: Divi5Section[], primaryFont: string, accentC
       rules.push(`background-color: ${section.background.color} !important`);
     }
     if (section.background?.image) {
-      // FIGMA_IMG placeholders get replaced later; real URLs get set here
-      if (!section.background.image.startsWith('FIGMA_IMG')) {
-        rules.push(`background-image: url(${section.background.image}) !important`);
-        rules.push(`background-size: cover !important`);
-        rules.push(`background-position: center !important`);
-      }
+      // Include FIGMA_IMG placeholders in CSS - they get globally replaced with real WP URLs
+      // before rendering (both in JSON attrs AND in CSS). This is essential for hero backgrounds.
+      rules.push(`background-image: url(${section.background.image}) !important`);
+      rules.push(`background-size: cover !important`);
+      rules.push(`background-position: center !important`);
     }
     if (section.padding?.top || section.padding?.bottom) {
       rules.push(`padding-top: ${section.padding?.top || '80px'} !important`);
@@ -2975,7 +2974,7 @@ function buildDivi5Markup(sections: Divi5Section[], primaryFont: string, accentC
 
   // Background image overlay for sections with images + text (improves text readability)
   sections.forEach((section, i) => {
-    const hasImage = section.background?.image && !section.background.image.startsWith('FIGMA_IMG');
+    const hasImage = !!section.background?.image;
     const hasText = (section.elements && section.elements.length > 0) || (section.cards && section.cards.length > 0);
     if (hasImage && hasText) {
       cssFallback.push(`.et_pb_section_${i} { position: relative; }`);
