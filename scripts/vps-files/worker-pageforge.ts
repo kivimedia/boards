@@ -2202,15 +2202,15 @@ const FULLWIDTH_SCRIPT = `<!-- wp:html -->
 </script>
 <!-- /wp:html -->`;
 
-// Lighter CSS-only overrides for Divi 5 native blocks (no fullwidth hack needed)
+// Lighter CSS-only overrides for Divi 5 native blocks
+// Row width is handled via JSON attributes (module.decoration.sizing), not CSS
 const DIVI5_HEADER_SCRIPT = `<!-- wp:html -->
 <style>
-/* PageForge: Hide Divi header/nav, sidebar, ensure rows allow full content */
+/* PageForge: Hide Divi header/nav, sidebar */
 #main-header, #top-header { display: none !important; }
 #et-main-area { padding-top: 0 !important; }
 .widget_recent_entries,.widget_recent_comments,.widget_categories,.widget_archive,.widget_meta,.sidebar,.widget-area,#sidebar,aside.widget-area { display: none !important; }
-/* Let Divi rows be full-width - our content handles its own centering via inline max-width */
-.et_pb_row { max-width: 100% !important; width: 100% !important; padding: 0 !important; }
+/* Remove default Divi text module padding so our inline styles control spacing */
 .et_pb_text_inner { padding: 0 !important; }
 </style>
 <!-- /wp:html -->`;
@@ -2369,11 +2369,11 @@ function convertGutenbergToDivi5(gutenbergMarkup: string): string {
       }
     };
 
-    if (block.bgColor) {
-      sectionAttrs.module.decoration = {
-        background: { desktop: { value: { color: block.bgColor } } }
-      };
-    }
+    // Ensure section is fullwidth + set background color if present
+    sectionAttrs.module.decoration = {
+      sizing: { desktop: { value: { width: "100%", maxWidth: "100%" } } },
+      ...(block.bgColor ? { background: { desktop: { value: { color: block.bgColor } } } } : {}),
+    };
 
     const colAttrs = {
       builderVersion: "5.0.1",
@@ -2388,8 +2388,20 @@ function convertGutenbergToDivi5(gutenbergMarkup: string): string {
       }
     };
 
+    const rowAttrs = {
+      builderVersion: "5.0.1",
+      modulePreset: "default",
+      module: {
+        decoration: {
+          sizing: {
+            desktop: { value: { width: "100%", maxWidth: "100%" } }
+          }
+        }
+      }
+    };
+
     return `<!-- wp:divi/section ${JSON.stringify(sectionAttrs)} -->
-<!-- wp:divi/row {"builderVersion":"5.0.1","modulePreset":"default"} -->
+<!-- wp:divi/row ${JSON.stringify(rowAttrs)} -->
 <!-- wp:divi/column ${JSON.stringify(colAttrs)} -->
 <!-- wp:divi/text ${JSON.stringify(textAttrs)} -->
 <!-- /wp:divi/text -->
