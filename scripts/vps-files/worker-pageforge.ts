@@ -2507,7 +2507,7 @@ function buildDivi5Button(text: string, url: string, style?: { bgColor?: string;
       innerContent: d5Val({ text, linkUrl: url || "#", linkTarget: "_self" }),
       decoration: {
         button: d5Val({ enable: "on" }),
-        background: d5Val({ color: style?.bgColor || "#2ea3f2" }),
+        background: { color: d5Val(style?.bgColor || "#2ea3f2"), useColor: d5Val("on") },
         font: { font: d5Val({ color: style?.textColor || "#ffffff", size: "16px", weight: "600" }) },
         spacing: d5Val({ padding: { top: "14px", bottom: "14px", left: "32px", right: "32px" } }),
         border: d5Val({ radius: { topLeft: style?.borderRadius || "8px", topRight: style?.borderRadius || "8px", bottomLeft: style?.borderRadius || "8px", bottomRight: style?.borderRadius || "8px" } })
@@ -2531,7 +2531,7 @@ function buildDivi5Blurb(title: string, content: string, imageOrIcon?: string, t
     },
     module: {
       decoration: {
-        background: d5Val({ color: "#ffffff" }),
+        background: { color: d5Val("#ffffff"), useColor: d5Val("on") },
         border: d5Val({ radius: { topLeft: "12px", topRight: "12px", bottomLeft: "12px", bottomRight: "12px" } }),
         boxShadow: d5Val({ horizontal: "0px", vertical: "4px", blur: "20px", spread: "0px", color: "rgba(0,0,0,0.08)" }),
         spacing: d5Val({ padding: { top: "30px", bottom: "30px", left: "30px", right: "30px" } })
@@ -2576,14 +2576,17 @@ function buildDivi5Markup(sections: Divi5Section[], primaryFont: string, accentC
       }
     };
 
-    // Section background
-    if (section.background?.color) {
-      sectionAttrs.module.decoration.background = d5Val({ color: section.background.color });
-    }
-    if (section.background?.image) {
-      const bgVal: Record<string, any> = { ...(section.background.color ? { color: section.background.color } : {}) };
-      bgVal.image = section.background.image;
-      sectionAttrs.module.decoration.background = d5Val(bgVal);
+    // Section background - each sub-property is individually breakpoint-wrapped
+    if (section.background?.color || section.background?.image) {
+      const bg: Record<string, any> = {};
+      if (section.background.color) {
+        bg.color = d5Val(section.background.color);
+        bg.useColor = d5Val("on");
+      }
+      if (section.background.image) {
+        bg.image = d5Val(section.background.image);
+      }
+      sectionAttrs.module.decoration.background = bg;
     }
 
     // Row attributes - full width for content to control its own centering
@@ -2732,7 +2735,7 @@ function convertGutenbergToDivi5(gutenbergMarkup: string): string {
 
   return blocks.map((block, i) => {
     const secA: Record<string, any> = { builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA, module: { meta: { adminLabel: d5Val(`Section ${i + 1}`) }, decoration: {} } };
-    if (block.bgColor) secA.module.decoration.background = d5Val({ color: block.bgColor });
+    if (block.bgColor) secA.module.decoration.background = { color: d5Val(block.bgColor), useColor: d5Val("on") };
     const rowA = { builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA, module: { decoration: { sizing: d5Val({ maxWidth: "1200px" }) } } };
     const colA = { builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA };
     const codeBlock = buildDivi5Code(block.content);
