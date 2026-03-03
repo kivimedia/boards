@@ -95,6 +95,13 @@ export async function processPageForgeJob(job: Job<PageForgeJobData>): Promise<v
   const siteProfile = build.site_profile as PageForgeSiteProfile;
   const anthropic = getAnthropicClient();
 
+  // Copy page_builder from site profile if build doesn't have one (or has default 'gutenberg')
+  if (siteProfile.page_builder && siteProfile.page_builder !== 'gutenberg' && build.page_builder === 'gutenberg') {
+    build.page_builder = siteProfile.page_builder;
+    await supabase.from('pageforge_builds').update({ page_builder: siteProfile.page_builder }).eq('id', build_id);
+    console.log(`[pageforge] Set page_builder to '${siteProfile.page_builder}' from site profile`);
+  }
+
   // Prevent wasteful re-processing: if build was already scored and we're starting from 0,
   // resume from the VQA fix loop instead of regenerating everything from scratch
   let effectiveStartIdx = startPhaseIdx;
@@ -1709,9 +1716,11 @@ Respond with JSON:
         currentIteration++;
         console.log(`[pageforge] VQA fix iteration ${currentIteration}/${maxLoops} (score: ${lastScore}%, target: ${threshold}%)`);
 
-        // 1. Gather differences from latest comparison (critical + major only)
+        // 1. Gather differences from latest comparison
+        // Include minor diffs when score is far from target (they add up)
+        const includeMinor = lastScore < (threshold - 10);
         const allDiffs = Object.values(comparisonData.results as Record<string, any>)
-          .flatMap((r: any) => (r.differences || []).filter((d: any) => d.severity !== 'minor'));
+          .flatMap((r: any) => (r.differences || []).filter((d: any) => includeMinor || d.severity !== 'minor'));
 
         if (allDiffs.length === 0) {
           console.log('[pageforge] No more differences to fix');
@@ -2973,13 +2982,25 @@ function buildDivi5Markup(sections: Divi5Section[], primaryFont: string, accentC
   });
 
   // Background image overlay for sections with images + text (improves text readability)
+  // Use section's own rgba color as overlay if available, otherwise light gradient
   sections.forEach((section, i) => {
     const hasImage = !!section.background?.image;
     const hasText = (section.elements && section.elements.length > 0) || (section.cards && section.cards.length > 0);
     if (hasImage && hasText) {
+      // If section has rgba background color, use it as the overlay (it's the designer's intent)
+      // and remove the background-color from the section itself to prevent double-darkening
+      const bgColor = section.background?.color || '';
+      const isRgba = bgColor.includes('rgba');
+      const overlayBg = isRgba
+        ? bgColor  // Use the designer's chosen overlay color
+        : 'linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.35) 100%)'; // Light default
       cssFallback.push(`.et_pb_section_${i} { position: relative; }`);
-      cssFallback.push(`.et_pb_section_${i}::before { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.5) 100%); z-index: 0; pointer-events: none; }`);
+      cssFallback.push(`.et_pb_section_${i}::before { content: ''; position: absolute; inset: 0; background: ${overlayBg}; z-index: 0; pointer-events: none; }`);
       cssFallback.push(`.et_pb_section_${i} > .et_pb_row { position: relative; z-index: 1; }`);
+      // If we used rgba as overlay, clear background-color so it doesn't double up
+      if (isRgba) {
+        cssFallback.push(`.et_pb_section_${i} { background-color: transparent !important; }`);
+      }
       // Ensure white text on image backgrounds
       cssFallback.push(`.et_pb_section_${i} .et_pb_text_inner, .et_pb_section_${i} .et_pb_blurb_content { color: #ffffff !important; }`);
       cssFallback.push(`.et_pb_section_${i} h1, .et_pb_section_${i} h2, .et_pb_section_${i} h3 { color: #ffffff !important; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }`);
