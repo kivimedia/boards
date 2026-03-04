@@ -249,7 +249,7 @@ async function syncFathomVideos(
   await supabase.from('pk_fathom_videos').delete().neq('id', '00000000-0000-0000-0000-000000000000');
 
   for (const sheet of doc.sheetsByIndex) {
-    if (['Summary'].includes(sheet.title)) continue;
+    if (!isAMTab(sheet.title)) { console.log(`[PK Fathom] Skipping non-AM tab "${sheet.title}"`); continue; }
     if (doc.sheetsByIndex.indexOf(sheet) >= MAX_TABS_PER_SHEET) break;
 
     try {
@@ -257,7 +257,7 @@ async function syncFathomVideos(
       const tabData = await fetchTabData(spreadsheetId, sheet.title, auth);
       const amName = extractAMName(sheet.title);
 
-      console.log(`[PK Fathom] Tab "${sheet.title}" headers:`, tabData.headers.join(', '));
+      console.log(`[PK Fathom] Tab "${sheet.title}" -> AM "${amName}", headers:`, tabData.headers.join(', '));
       // Use case-insensitive lookup with multiple column name variants so all
       // AM tabs are parsed correctly regardless of their exact header format.
       const records = tabData.rows.map((row, idx) => {
@@ -310,7 +310,7 @@ async function syncClientUpdates(
   await supabase.from('pk_client_updates').delete().neq('id', '00000000-0000-0000-0000-000000000000');
 
   for (const sheet of doc.sheetsByIndex) {
-    if (['Summary'].includes(sheet.title)) continue;
+    if (!isAMTab(sheet.title)) { console.log(`[PK ClientUpdates] Skipping non-AM tab "${sheet.title}"`); continue; }
     if (doc.sheetsByIndex.indexOf(sheet) >= MAX_TABS_PER_SHEET) break;
 
     try {
@@ -357,7 +357,7 @@ async function syncSanityChecks(
   await supabase.from('pk_sanity_checks').delete().neq('id', '00000000-0000-0000-0000-000000000000');
 
   for (const sheet of doc.sheetsByIndex) {
-    if (['Dashboard', 'Summary'].includes(sheet.title)) continue;
+    if (!isAMTab(sheet.title)) { console.log(`[PK SanityChecks] Skipping non-AM tab "${sheet.title}"`); continue; }
     if (doc.sheetsByIndex.indexOf(sheet) >= MAX_TABS_PER_SHEET) break;
 
     try {
