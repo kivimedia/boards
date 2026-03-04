@@ -110,16 +110,32 @@ export async function POST(request: NextRequest, { params }: Params) {
   const db = getAdminClient();
   if (!db) return errorResponse('Service role key not configured', 500);
 
-  // Find primary placement
-  const { data: placements } = await db
+  // Find primary placement (is_mirror=false). If none exists, fall back to any placement
+  // and promote it to primary. This handles cards that lost their primary during migration.
+  let { data: placements } = await db
     .from('card_placements')
-    .select('id')
+    .select('id, is_mirror')
     .eq('card_id', cardId)
     .eq('is_mirror', false)
     .limit(1);
 
-  const placement = placements?.[0];
-  if (!placement) return errorResponse('Primary card placement not found', 404);
+  let placement = placements?.[0];
+
+  if (!placement) {
+    // No primary - try to find any placement and promote it
+    const { data: anyPlacements } = await db
+      .from('card_placements')
+      .select('id')
+      .eq('card_id', cardId)
+      .limit(1);
+
+    if (anyPlacements?.[0]) {
+      await db.from('card_placements').update({ is_mirror: false }).eq('id', anyPlacements[0].id);
+      placement = anyPlacements[0];
+    }
+  }
+
+  if (!placement) return errorResponse('No placement found for this card', 404);
 
   const position = await resolvePosition(listId, positionIndex, db);
 
