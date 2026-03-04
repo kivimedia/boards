@@ -222,11 +222,9 @@ export async function generateMarkup(
 ): Promise<MarkupResult> {
   const systemPrompt = getSystemPrompt('pageforge_builder');
 
-  const builderInstructions = builder === 'gutenberg'
-    ? getGutenbergInstructions()
-    : builder === 'divi5'
-      ? getDivi5Instructions()
-      : getDivi4Instructions();
+  const builderInstructions = builder === 'divi5'
+    ? getDivi5Instructions()
+    : getGutenbergInstructions();
 
   const userMessage = `Generate WordPress ${builder} markup for this page.
 
@@ -310,20 +308,55 @@ export async function validateMarkup(
   }
 
   if (builder === 'divi5') {
-    // Basic JSON validation for Divi 5 format
-    try {
-      if (markup.startsWith('{') || markup.startsWith('[')) {
-        JSON.parse(markup);
+    // Divi 5 uses wp:divi/* block comments, not raw JSON
+    if (!markup.includes('<!-- wp:divi/')) {
+      errors.push('No Divi 5 block markers found (expected <!-- wp:divi/... -->)');
+    }
+    if (!markup.includes('<!-- wp:divi/placeholder')) {
+      warnings.push('Missing divi/placeholder wrapper — page may not render in Divi 5 visual builder');
+    }
+    if (!markup.includes('<!-- wp:divi/section')) {
+      errors.push('No divi/section blocks found — page needs at least one section');
+    }
+    // Validate nesting: sections should exist
+    const openSections = (markup.match(/<!-- wp:divi\/section\b/g) || []).length;
+    const closeSections = (markup.match(/<!-- \/wp:divi\/section/g) || []).length;
+    if (openSections !== closeSections) {
+      errors.push(`Unbalanced divi/section blocks: ${openSections} open, ${closeSections} close`);
+    }
+    const openRows = (markup.match(/<!-- wp:divi\/row\b/g) || []).length;
+    const closeRows = (markup.match(/<!-- \/wp:divi\/row/g) || []).length;
+    if (openRows !== closeRows) {
+      errors.push(`Unbalanced divi/row blocks: ${openRows} open, ${closeRows} close`);
+    }
+    const openCols = (markup.match(/<!-- wp:divi\/column\b/g) || []).length;
+    const closeCols = (markup.match(/<!-- \/wp:divi\/column/g) || []).length;
+    // Self-closing columns are valid, so only flag if close > open
+    if (closeCols > openCols) {
+      errors.push(`More closing divi/column tags (${closeCols}) than opening (${openCols})`);
+    }
+    // Validate JSON in block attributes
+    const blockJsonMatches = markup.match(/<!-- wp:divi\/\w+\s+(\{.*?\})\s*\/?-->/g) || [];
+    for (const block of blockJsonMatches) {
+      const jsonMatch = block.match(/\{.*\}/);
+      if (jsonMatch) {
+        try {
+          JSON.parse(jsonMatch[0]);
+        } catch {
+          const blockType = block.match(/wp:divi\/(\w+)/)?.[1] || 'unknown';
+          errors.push(`Invalid JSON in divi/${blockType} block`);
+          break; // Report first error only
+        }
       }
-    } catch {
-      warnings.push('Divi 5 markup does not parse as valid JSON');
     }
   }
 
-  // General HTML validation
-  const unclosedTags = findUnclosedTags(markup);
-  if (unclosedTags.length > 0) {
-    warnings.push(`Potentially unclosed tags: ${unclosedTags.join(', ')}`);
+  if (builder === 'gutenberg') {
+    // General HTML validation — only for Gutenberg (Divi 5 is block comments, not HTML)
+    const unclosedTags = findUnclosedTags(markup);
+    if (unclosedTags.length > 0) {
+      warnings.push(`Potentially unclosed tags: ${unclosedTags.join(', ')}`);
+    }
   }
 
   // Check for empty content
@@ -485,26 +518,104 @@ Use inline styles for exact design token values. Use custom CSS classes only if 
 }
 
 function getDivi5Instructions(): string {
-  return `## Divi 5 Format
-Divi 5 uses JSON-based block storage. Generate content using Gutenberg blocks (Divi 5 supports them natively) with Divi-specific wrapper if needed.
+  return `## Divi 5 Native Block Format
 
-For now, generate Gutenberg block markup that Divi 5 can render. We will research the native Divi 5 JSON format separately.
+Divi 5 uses WordPress block comments with JSON attributes. The page is wrapped in \`<!-- wp:divi/placeholder -->\` and uses a strict nesting hierarchy:
 
-Use inline styles for exact positioning and design token values.`;
+### Nesting Rules
+section → row → column → module (text, image, button, heading, blurb, divider, code)
+Columns can also contain nested rows. Groups (\`divi/group\`) can wrap modules inside columns.
+
+### Block Syntax
+- **Structural blocks** (section, row, column, group) use open/close comments:
+  \`<!-- wp:divi/section {JSON} -->...<!-- /wp:divi/section -->\`
+- **Content modules** (text, image, button, heading, blurb, divider, code) are self-closing:
+  \`<!-- wp:divi/text {JSON} /-->\`
+
+### Responsive Breakpoints
+All style values use breakpoint wrappers: \`desktop\`, \`phone\`, \`tablet\`, \`tabletWide\`
+Format: \`{ "desktop": { "value": ... }, "phone": { "value": ... } }\`
+
+### Module Attribute Schema
+
+**divi/section** — Top-level page section
+\`\`\`json
+{"module":{"decoration":{"background":{"desktop":{"value":{"color":"#000000","image":{"url":"URL","size":"cover","position":"center center"}}}},"spacing":{"desktop":{"value":{"padding":{"top":"100px","bottom":"100px","syncVertical":"off","syncHorizontal":"off"}}}}}},"builderVersion":"5.0.0-public-beta.1"}
+\`\`\`
+
+**divi/row** — Container for columns
+\`\`\`json
+{"module":{"advanced":{"flexColumnStructure":{"desktop":{"value":"equal-columns_1"}}},"decoration":{"layout":{"desktop":{"value":{"flexWrap":"nowrap"}}}}},"builderVersion":"5.0.0-public-beta.1"}
+\`\`\`
+
+**divi/column** — Container for modules
+\`\`\`json
+{"module":{"decoration":{"sizing":{"desktop":{"value":{"flexType":"24_24"}}}}},"builderVersion":"5.0.0-public-beta.1"}
+\`\`\`
+Column widths use flexType fractions of 24: "24_24" (full), "12_24" (half), "8_24" (third), "6_24" (quarter).
+
+**divi/text** — Rich text content
+\`\`\`json
+{"module":{"decoration":{"layout":{"desktop":{"value":{"display":"block"}}}}},"content":{"innerContent":{"desktop":{"value":"Your text here"}},"decoration":{"bodyFont":{"body":{"font":{"desktop":{"value":{"family":"Poppins","color":"#ffffff","size":"18px","weight":"400","lineHeight":"1.6em","textAlign":"center"}}}}}}},"builderVersion":"5.0.0-public-beta.1"}
+\`\`\`
+
+**divi/heading** — Heading element
+\`\`\`json
+{"module":{"decoration":{"layout":{"desktop":{"value":{"display":"block"}}}}},"title":{"innerContent":{"desktop":{"value":"Heading Text"}},"decoration":{"font":{"font":{"desktop":{"value":{"headingLevel":"h2","color":"#333333","size":"36px","weight":"700","textAlign":"center"}}}}}},"builderVersion":"5.0.0-public-beta.1"}
+\`\`\`
+
+**divi/image** — Image module
+\`\`\`json
+{"module":{"advanced":{"align":{"desktop":{"value":"center"}},"sizing":{"desktop":{"value":{"width":"100%"}}}},"decoration":{"layout":{"desktop":{"value":{"display":"block"}}}}},"image":{"innerContent":{"desktop":{"value":{"src":"IMAGE_URL","alt":"description"}}}},"builderVersion":"5.0.0-public-beta.1"}
+\`\`\`
+
+**divi/button** — Button module
+\`\`\`json
+{"module":{"advanced":{"alignment":{"desktop":{"value":"center"}}},"decoration":{"spacing":{"desktop":{"value":{"padding":{"left":"45px","right":"45px","top":"15px","bottom":"15px","syncVertical":"on","syncHorizontal":"on"}}}},"background":{"desktop":{"value":{"color":"#cc2336"}}},"border":{"desktop":{"value":{"radius":{"sync":"on","topLeft":"8px"}}}},"layout":{"desktop":{"value":{"display":"block"}}}}},"button":{"innerContent":{"desktop":{"value":{"text":"Button Text","url":"#"}}},"decoration":{"font":{"font":{"desktop":{"value":{"color":"#ffffff","size":"16px","weight":"600"}}}}}},"builderVersion":"5.0.0-public-beta.1"}
+\`\`\`
+
+**divi/blurb** — Card with image, title, and body text
+\`\`\`json
+{"imageIcon":{"innerContent":{"desktop":{"value":{"src":"IMAGE_URL"}}},"advanced":{"width":{"desktop":{"value":{"image":"50%"}}}}},"module":{"advanced":{"text":{"text":{"desktop":{"value":{"orientation":"center"}}}}},"decoration":{"layout":{"desktop":{"value":{"display":"block"}}}}},"title":{"innerContent":{"desktop":{"value":{"text":"Card Title"}}},"decoration":{"font":{"font":{"desktop":{"value":{"family":"Poppins","color":"#333333","size":"24px","weight":"600"}}}}}},"content":{"innerContent":{"desktop":{"value":"Card description text"}},"decoration":{"bodyFont":{"body":{"font":{"desktop":{"value":{"family":"Poppins","color":"#666666","size":"16px"}}}}}}},"builderVersion":"5.0.0-public-beta.1"}
+\`\`\`
+
+**divi/divider** — Visual separator
+\`\`\`json
+{"divider":{"advanced":{"line":{"desktop":{"value":{"color":"#ebebeb","position":"center"}}}}},"builderVersion":"5.0.0-public-beta.1"}
+\`\`\`
+Use \`"show":"off"\` for spacing-only dividers.
+
+**divi/code** — Raw HTML/shortcode embed
+\`\`\`json
+{"content":{"innerContent":{"desktop":{"value":"<div>Raw HTML here</div>"}}},"builderVersion":"5.0.0-public-beta.1"}
+\`\`\`
+
+### Page Template
+\`\`\`
+<!-- wp:divi/placeholder -->
+<!-- wp:divi/section {SECTION_ATTRS} -->
+<!-- wp:divi/row {ROW_ATTRS} -->
+<!-- wp:divi/column {COL_ATTRS} -->
+<!-- wp:divi/text {TEXT_ATTRS} /-->
+<!-- wp:divi/button {BTN_ATTRS} /-->
+<!-- /wp:divi/column -->
+<!-- /wp:divi/row -->
+<!-- /wp:divi/section -->
+<!-- /wp:divi/placeholder -->
+\`\`\`
+
+### Important Rules
+1. Always wrap the entire page in \`<!-- wp:divi/placeholder -->...<!-- /wp:divi/placeholder -->\`
+2. Always include \`"builderVersion":"5.0.0-public-beta.1"\` in every block
+3. Content modules are SELF-CLOSING: \`<!-- wp:divi/text {...} /-->\` (note the \`/-->\`)
+4. Structural blocks have open AND close tags
+5. JSON must be valid — no trailing commas, proper escaping
+6. Use Figma design tokens for colors, fonts, and spacing
+7. For dark overlays on images, use background color with rgba: \`"color":"rgba(0,0,0,0.7)"\` plus image
+8. Use \`disabledOn\` to hide elements per breakpoint: \`"disabledOn":{"phone":{"value":"on"}}\`
+9. For multi-column layouts, use multiple columns in a single row with appropriate flexType values`;
 }
 
-function getDivi4Instructions(): string {
-  return `## Divi 4 Format
-Generate Divi 4 shortcode markup using these patterns:
-
-[et_pb_section][et_pb_row][et_pb_column type="4_4"]
-[et_pb_text]Content[/et_pb_text]
-[/et_pb_column][/et_pb_row][/et_pb_section]
-
-[et_pb_section fullwidth="on"][et_pb_fullwidth_header title="Hero Title" subhead="Subtitle" button_one_text="CTA" background_color="#000000"][/et_pb_fullwidth_header][/et_pb_section]
-
-Use custom_css attributes for exact styling.`;
-}
 
 // ============================================================================
 // HELPERS

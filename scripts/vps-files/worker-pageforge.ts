@@ -313,7 +313,7 @@ async function executePhase(
       // Check builder plugin
       if (siteProfile.wp_username && siteProfile.wp_app_password) {
         const wpClient = createWpClient({ restUrl: siteProfile.wp_rest_url, username: siteProfile.wp_username, appPassword: siteProfile.wp_app_password });
-        if (siteProfile.page_builder === 'divi5' || siteProfile.page_builder === 'divi4') {
+        if (siteProfile.page_builder === 'divi5') {
           const diviActive = await wpIsPluginActive(wpClient, 'divi');
           checks.push({ name: `Builder (${siteProfile.page_builder})`, passed: diviActive, message: diviActive ? 'Divi active' : 'Divi not detected' });
         } else {
@@ -742,7 +742,7 @@ async function executePhase(
       if (!figmaData || !classifications) throw new Error('Missing upstream artifacts');
 
       const builder = build.page_builder || 'gutenberg';
-      const builderInstructions = builder === 'divi5' ? DIVI5_INSTRUCTIONS : builder === 'divi4' ? DIVI4_INSTRUCTIONS : GUTENBERG_INSTRUCTIONS;
+      const builderInstructions = builder === 'divi5' ? DIVI5_INSTRUCTIONS : GUTENBERG_INSTRUCTIONS;
 
       // Export Figma screenshot so the builder AI can SEE the design
       let figmaImage: string | null = null;
@@ -3618,9 +3618,3 @@ Do NOT output HTML or Gutenberg blocks. Output ONLY a JSON object.
 - CTA: Centered heading + text + button in elements[]
 - Footer: Dark background, use a single "code" element type for multi-column HTML footer layout`;
 
-const DIVI4_INSTRUCTIONS = `## Divi 4 Format
-Generate Divi 4 shortcodes:
-[et_pb_section][et_pb_row][et_pb_column type="4_4"]
-[et_pb_text]Content[/et_pb_text]
-[/et_pb_column][/et_pb_row][/et_pb_section]
-Use custom_css attributes for styling.`;

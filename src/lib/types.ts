@@ -3480,7 +3480,7 @@ export interface SeoAgentCall {
 // PageForge - Figma-to-WordPress Build System
 // ---------------------------------------------------------------------------
 
-export type PageForgeBuilderType = 'gutenberg' | 'divi5' | 'divi4';
+export type PageForgeBuilderType = 'gutenberg' | 'divi5';
 
 export type PageForgeBuildStatus =
   | 'pending'

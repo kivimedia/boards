@@ -106,7 +106,7 @@ export async function runPreflight(
       const { wpIsPluginActive } = await import('../../integrations/wordpress-client');
       const builder = siteProfile.page_builder;
 
-      if (builder === 'divi5' || builder === 'divi4') {
+      if (builder === 'divi5') {
         const diviActive = await wpIsPluginActive(client, 'divi');
         checks.push({
           name: `Page Builder (${builder})`,

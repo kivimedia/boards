@@ -632,20 +632,6 @@ describe('PageForge Builder', () => {
       );
     });
 
-    it('generates Divi 4 shortcodes markup', async () => {
-      const supabase = mockSupabase();
-      const aiResponse = JSON.stringify({
-        markup: '[et_pb_section][et_pb_row][et_pb_column type="4_4"][et_pb_text]Hero[/et_pb_text][/et_pb_column][/et_pb_row][/et_pb_section]',
-        sections: [{ name: 'Hero', markup: '[et_pb_text]Hero[/et_pb_text]' }],
-      });
-      vi.mocked(callPageForgeAgent).mockResolvedValue(mockAgentResult(aiResponse));
-
-      const result = await generateMarkup(supabase, 'build-1', 'divi4', sections, classifications, designTokens);
-
-      expect(result.builder).toBe('divi4');
-      expect(result.markup).toContain('et_pb_section');
-    });
-
     it('includes design tokens (colors and fonts) in the prompt', async () => {
       const supabase = mockSupabase();
       vi.mocked(callPageForgeAgent).mockResolvedValue(mockAgentResult('{"markup":"<div>test</div>","sections":[]}'));
@@ -778,37 +764,112 @@ describe('PageForge Builder', () => {
       );
     });
 
-    it('warns when Divi 5 markup is invalid JSON', async () => {
+    it('validates valid Divi 5 native block markup', async () => {
       const supabase = mockSupabase();
-      const markup = '{invalid json that is long enough to pass the empty check with plenty of chars to go around}';
+      const markup = `<!-- wp:divi/placeholder -->
+<!-- wp:divi/section {"module":{"decoration":{"background":{"desktop":{"value":{"color":"#000000"}}}}},"builderVersion":"5.0.0-public-beta.1"} -->
+<!-- wp:divi/row {"builderVersion":"5.0.0-public-beta.1"} -->
+<!-- wp:divi/column {"builderVersion":"5.0.0-public-beta.1"} -->
+<!-- wp:divi/text {"content":{"innerContent":{"desktop":{"value":"Hello World"}}},"builderVersion":"5.0.0-public-beta.1"} /-->
+<!-- /wp:divi/column -->
+<!-- /wp:divi/row -->
+<!-- /wp:divi/section -->
+<!-- /wp:divi/placeholder -->`;
 
       const result = await validateMarkup(supabase, 'build-1', markup, 'divi5');
 
-      expect(result.warnings).toEqual(
-        expect.arrayContaining([expect.stringContaining('does not parse as valid JSON')])
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+      expect(result.warnings).toHaveLength(0);
+    });
+
+    it('errors when Divi 5 markup has no block markers', async () => {
+      const supabase = mockSupabase();
+      const markup = '<div>This is plain HTML content that is long enough to pass the empty check</div>';
+
+      const result = await validateMarkup(supabase, 'build-1', markup, 'divi5');
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toEqual(
+        expect.arrayContaining([expect.stringContaining('No Divi 5 block markers found')])
       );
     });
 
-    it('does not warn on valid Divi 5 JSON', async () => {
+    it('warns when Divi 5 markup is missing placeholder wrapper', async () => {
       const supabase = mockSupabase();
-      const markup = JSON.stringify({
-        type: 'section',
-        children: [{ type: 'heading', text: 'Hello' }, { type: 'paragraph', text: 'World content goes here nicely' }],
-      });
+      const markup = `<!-- wp:divi/section {"builderVersion":"5.0.0-public-beta.1"} -->
+<!-- wp:divi/row {"builderVersion":"5.0.0-public-beta.1"} -->
+<!-- wp:divi/column {"builderVersion":"5.0.0-public-beta.1"} -->
+<!-- wp:divi/text {"content":{"innerContent":{"desktop":{"value":"Hello"}}},"builderVersion":"5.0.0-public-beta.1"} /-->
+<!-- /wp:divi/column -->
+<!-- /wp:divi/row -->
+<!-- /wp:divi/section -->`;
 
       const result = await validateMarkup(supabase, 'build-1', markup, 'divi5');
 
-      expect(result.warnings.filter(w => w.includes('JSON'))).toHaveLength(0);
+      expect(result.valid).toBe(true);
+      expect(result.warnings).toEqual(
+        expect.arrayContaining([expect.stringContaining('Missing divi/placeholder wrapper')])
+      );
     });
 
-    it('treats Divi 4 shortcode-only content as valid', async () => {
+    it('errors on unbalanced Divi 5 section blocks', async () => {
       const supabase = mockSupabase();
-      const markup = '[et_pb_section][et_pb_row][et_pb_column type="4_4"][et_pb_text]Hello World content[/et_pb_text][/et_pb_column][/et_pb_row][/et_pb_section]';
+      const markup = `<!-- wp:divi/placeholder -->
+<!-- wp:divi/section {"builderVersion":"5.0.0-public-beta.1"} -->
+<!-- wp:divi/row {"builderVersion":"5.0.0-public-beta.1"} -->
+<!-- wp:divi/column {"builderVersion":"5.0.0-public-beta.1"} -->
+<!-- wp:divi/text {"content":{"innerContent":{"desktop":{"value":"Unclosed section"}}},"builderVersion":"5.0.0-public-beta.1"} /-->
+<!-- /wp:divi/column -->
+<!-- /wp:divi/row -->
+<!-- /wp:divi/placeholder -->`;
 
-      const result = await validateMarkup(supabase, 'build-1', markup, 'divi4');
+      const result = await validateMarkup(supabase, 'build-1', markup, 'divi5');
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toEqual(
+        expect.arrayContaining([expect.stringContaining('Unbalanced divi/section blocks')])
+      );
+    });
+
+    it('errors on invalid JSON in Divi 5 block attributes', async () => {
+      const supabase = mockSupabase();
+      const markup = `<!-- wp:divi/placeholder -->
+<!-- wp:divi/section {invalid-json-here-that-breaks} -->
+<!-- wp:divi/row {"builderVersion":"5.0.0-public-beta.1"} -->
+<!-- wp:divi/column {"builderVersion":"5.0.0-public-beta.1"} -->
+<!-- wp:divi/text {"content":{"innerContent":{"desktop":{"value":"Test"}}},"builderVersion":"5.0.0-public-beta.1"} /-->
+<!-- /wp:divi/column -->
+<!-- /wp:divi/row -->
+<!-- /wp:divi/section -->
+<!-- /wp:divi/placeholder -->`;
+
+      const result = await validateMarkup(supabase, 'build-1', markup, 'divi5');
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toEqual(
+        expect.arrayContaining([expect.stringContaining('Invalid JSON in divi/section')])
+      );
+    });
+
+    it('does not run HTML unclosed tag checks for Divi 5', async () => {
+      const supabase = mockSupabase();
+      const markup = `<!-- wp:divi/placeholder -->
+<!-- wp:divi/section {"builderVersion":"5.0.0-public-beta.1"} -->
+<!-- wp:divi/row {"builderVersion":"5.0.0-public-beta.1"} -->
+<!-- wp:divi/column {"builderVersion":"5.0.0-public-beta.1"} -->
+<!-- wp:divi/code {"content":{"innerContent":{"desktop":{"value":"<div><span>unclosed HTML is fine in code blocks"}}},"builderVersion":"5.0.0-public-beta.1"} /-->
+<!-- /wp:divi/column -->
+<!-- /wp:divi/row -->
+<!-- /wp:divi/section -->
+<!-- /wp:divi/placeholder -->`;
+
+      const result = await validateMarkup(supabase, 'build-1', markup, 'divi5');
 
       expect(result.valid).toBe(true);
+      expect(result.warnings.filter(w => w.includes('unclosed tags'))).toHaveLength(0);
     });
+
   });
 
   // ==========================================================================
