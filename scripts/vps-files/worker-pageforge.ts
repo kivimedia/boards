@@ -1732,6 +1732,7 @@ Respond with JSON:
         }
       }
       const allChanges: string[] = [];
+      const failedPatches: Array<{ search: string; description: string; iteration: number }> = [];
       let lastScore = comparisonData.overallScore || 0;
       let stallCount = 0;
       let rollbackCount = 0;
@@ -1780,11 +1781,32 @@ Respond with JSON:
           break;
         }
 
-        // 2. Prioritize: critical first, then major, max 10 per iteration
-        const sortedDiffs = allDiffs.sort((a: any, b: any) => {
+        // 2. Strategic fix ordering: categorize diffs and phase the loop
+        // Phase 1 (iter 1-4): layout + backgrounds (structural foundation)
+        // Phase 2 (iter 5-8): typography + images + remaining backgrounds
+        // Phase 3 (iter 9+): all remaining (spacing, polish)
+        const categorizedDiffs = allDiffs.map((d: any) => ({ ...d, category: categorizeDiff(d) }));
+        let phaseDiffs: typeof categorizedDiffs;
+        if (currentIteration <= 4) {
+          const priorityDiffs = categorizedDiffs.filter(d => d.category === 'layout' || d.category === 'background');
+          phaseDiffs = priorityDiffs.length > 0 ? priorityDiffs : categorizedDiffs;
+          console.log(`[pageforge] Phase 1 (layout+bg): ${priorityDiffs.length} priority diffs of ${categorizedDiffs.length} total`);
+        } else if (currentIteration <= 8) {
+          const priorityDiffs = categorizedDiffs.filter(d =>
+            d.category === 'typography' || d.category === 'images' || d.category === 'background'
+          );
+          phaseDiffs = priorityDiffs.length > 0 ? priorityDiffs : categorizedDiffs;
+          console.log(`[pageforge] Phase 2 (typography+images): ${priorityDiffs.length} priority diffs of ${categorizedDiffs.length} total`);
+        } else {
+          phaseDiffs = categorizedDiffs;
+          console.log(`[pageforge] Phase 3 (all): ${categorizedDiffs.length} diffs`);
+        }
+
+        // Prioritize: critical first, then major, max 12 per iteration
+        const sortedDiffs = phaseDiffs.sort((a: any, b: any) => {
           const order = { critical: 0, major: 1, minor: 2 };
           return (order[a.severity as keyof typeof order] || 2) - (order[b.severity as keyof typeof order] || 2);
-        }).slice(0, 10);
+        }).slice(0, 12);
 
         // 3. AI fix with visual context (Figma + current WP screenshot)
         const images: Array<{ data: string; mimeType: string }> = [];
@@ -1832,8 +1854,8 @@ Respond with JSON:
           // Show markup as-is (blocks are already one-per-line)
           formattedMarkup = currentMarkup;
 
-          // Limit to top 5 most impactful differences to avoid overwhelming the fix agent
-          const topDiffs = sortedDiffs.slice(0, 5);
+          // Limit to top 8 most impactful differences (was 5 - too few for convergence)
+          const topDiffs = sortedDiffs.slice(0, 8);
 
           fixPrompt = `Fix this Divi 5 WordPress page to better match the Figma design.
 
@@ -1852,7 +1874,7 @@ ${currentMarkup}
 TOP ${topDiffs.length} visual differences to fix (priority order):
 ${topDiffs.map((d: any, i: number) => `${i + 1}. [${d.severity.toUpperCase()}] ${d.area}: ${d.description}${d.suggestedFix ? `\n   Suggested fix: ${d.suggestedFix}` : ''}`).join('\n')}
 ${layoutIssuesContext}
-
+${failedPatches.length > 0 ? `\nPREVIOUS PATCHES THAT FAILED (search string not found - DO NOT repeat these exact searches):\n${failedPatches.slice(-10).map((fp, i) => `${i + 1}. Tried: "${fp.search}" (intended: ${fp.description})`).join('\n')}\nThese search strings were NOT found in the markup. Look at the ACTUAL markup content above and use strings that EXACTLY match.\n` : ''}
 TWO FIX STRATEGIES (use both as needed):
 
 STRATEGY A - JSON attribute patches (for Divi 5 module properties):
@@ -1874,13 +1896,22 @@ Divi 5 CSS selectors:
 Use CSS for: overlays on bg images, grid gaps, font stacks, border-radius, box-shadows, hover effects.
 To add CSS: search for "</style>" and replace with "NEW_RULES_HERE\\n</style>"
 
+COMMON MISTAKES TO AVOID:
+- DO NOT search for partial JSON like "color":"#xxx" - include enough surrounding context to be unique
+- Divi 5 breakpoint format is ALWAYS: "property":{"desktop":{"value":"..."}}
+  WRONG: "color":"#001738"  RIGHT: "color":{"desktop":{"value":"#001738"}}
+- Keep search strings 20-80 chars but UNIQUE in the markup
+- NEVER include line breaks in search strings unless they exist in the markup
+- Look at the ACTUAL markup content above - every character in your search must match EXACTLY
+- When adding CSS rules, search for exactly "</style>" (the closing tag)
+
 IMPORTANT RULES:
 1. Use search/replace patches. Find an exact string in the markup and specify its replacement.
-2. Keep patches SMALL and TARGETED. Max 12 patches per iteration.
+2. Keep patches SMALL and TARGETED. Max 16 patches per iteration.
 3. Make sure the "search" string is unique and exists exactly as-is in the markup.
 4. DO NOT remove or modify EXISTING CSS rules in the <style> block. Only ADD new rules before </style>.
 5. DO NOT add new HTML elements or convert Divi 5 blocks to Gutenberg/HTML.
-6. Focus on the TOP 2-3 most impactful changes. Quality over quantity.
+6. Focus on the TOP 3-5 most impactful changes. Quality over quantity.
 
 Respond with JSON:
 {"patches":[{"search":"exact string to find","replace":"replacement string","description":"what this fixes"}]}`;
@@ -1931,7 +1962,7 @@ Respond with JSON:
           getSystemPrompt('pageforge_vqa'),
           fixPrompt,
           anthropic, {
-            maxTokens: 16384,
+            maxTokens: 24000,
             images: images.length > 0 ? images : undefined,
           }
         );
@@ -1948,14 +1979,34 @@ Respond with JSON:
               let patchedMarkup = currentMarkup;
               let appliedCount = 0;
               let skippedCount = 0;
+              const iterationFailedPatches: Array<{ search: string; description: string }> = [];
               for (const patch of parsed.patches) {
-                if (patch.search && patch.replace !== undefined && patchedMarkup.includes(patch.search)) {
-                  patchedMarkup = patchedMarkup.replace(patch.search, patch.replace);
-                  appliedCount++;
-                  allChanges.push(patch.description || 'Applied patch');
-                } else if (patch.search) {
-                  skippedCount++;
+                if (patch.search && patch.replace !== undefined) {
+                  if (patchedMarkup.includes(patch.search)) {
+                    patchedMarkup = patchedMarkup.replace(patch.search, patch.replace);
+                    appliedCount++;
+                    allChanges.push(patch.description || 'Applied patch');
+                  } else {
+                    // Try fuzzy matching before giving up
+                    const fuzzy = fuzzyPatchMatch(patchedMarkup, patch.search);
+                    if (fuzzy.found) {
+                      patchedMarkup = patchedMarkup.replace(fuzzy.normalizedSearch, patch.replace);
+                      appliedCount++;
+                      allChanges.push(`${patch.description || 'Applied patch'} (fuzzy matched)`);
+                      console.log(`[pageforge] Fuzzy-matched patch: "${patch.search.substring(0, 80)}..."`);
+                    } else {
+                      skippedCount++;
+                      iterationFailedPatches.push({
+                        search: patch.search.substring(0, 200),
+                        description: patch.description || 'unknown fix',
+                      });
+                    }
+                  }
                 }
+              }
+              // Store failed patches for feedback in next iteration
+              if (iterationFailedPatches.length > 0) {
+                failedPatches.push(...iterationFailedPatches.map(fp => ({ ...fp, iteration: currentIteration })));
               }
               if (appliedCount > 0) {
                 currentMarkup = patchedMarkup;
@@ -2013,8 +2064,8 @@ Respond with JSON:
         if (!fixApplied) {
           console.warn(`[pageforge] Fix iteration ${currentIteration} produced no valid markup change`);
           stallCount++;
-          if (stallCount >= 3) {
-            console.log('[pageforge] 3 consecutive failed fix attempts, stopping');
+          if (stallCount >= 4) {
+            console.log('[pageforge] 4 consecutive failed fix attempts, stopping');
             break;
           }
           continue;
@@ -2029,7 +2080,7 @@ Respond with JSON:
             currentMarkup = previousMarkup || currentMarkup;
             fixApplied = false;
             stallCount++;
-            if (stallCount >= 3) break;
+            if (stallCount >= 4) break;
             continue;
           }
         }
@@ -2042,8 +2093,8 @@ Respond with JSON:
         }
 
         // 5. Wait for WP to process the update and Divi CSS to render
-        // 2s was too short - Divi 5 needs time to rebuild CSS cache
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        // 8s gives Divi 5 enough time to rebuild CSS cache (5s was insufficient)
+        await new Promise(resolve => setTimeout(resolve, 8000));
 
         // 6. Re-capture desktop screenshot with cache-busting
         // Add timestamp to URL to prevent WP/CDN/browser cache from serving stale page
@@ -2058,6 +2109,18 @@ Respond with JSON:
             await new Promise(resolve => setTimeout(resolve, 5000));
             const retryShots = await captureScreenshots(cacheBustUrl);
             if (retryShots.desktop) newWpDesktop = retryShots.desktop;
+          }
+          // Staleness check: if screenshot is identical to previous capture, WP hasn't updated yet
+          if (newWpDesktop && currentWpScreenshot && newWpDesktop === currentWpScreenshot) {
+            console.log('[pageforge] Screenshot identical to previous - WP may not have updated, waiting 5s and retrying...');
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            const staleRetryShots = await captureScreenshots(cacheBustUrl + `&_cb2=${Date.now()}`);
+            if (staleRetryShots.desktop && staleRetryShots.desktop !== currentWpScreenshot) {
+              newWpDesktop = staleRetryShots.desktop;
+              console.log('[pageforge] Retry captured different screenshot - using it');
+            } else {
+              console.log('[pageforge] Screenshot still identical after retry - proceeding anyway');
+            }
           }
         } catch (err) {
           console.warn('[pageforge] Failed to recapture WP screenshot:', err);
@@ -2080,25 +2143,23 @@ Previous score was ${lastScore}%. Check if the fixes improved the match.
 
 IMPORTANT: The images may have different heights/proportions. Focus on whether the SAME SECTIONS and CONTENT exist in both, not on exact pixel alignment.
 
-SCORING CONSISTENCY: Your score should reflect ONLY visual changes between iterations. If the page looks the same as last time, give the same score. Do NOT re-evaluate from scratch each time - anchor on the previous score (${lastScore}%) and adjust up/down based on what actually changed.
+SCORING CONSISTENCY - MANDATORY:
+- Your PREVIOUS score was ${lastScore}%.
+- If you see NO visible difference from the last screenshot, return EXACTLY ${lastScore}%.
+- If you see improvement, add points: minor fix = +2-4%, major fix = +5-10%, structural fix = +10-15%
+- If you see regression, subtract points using the same scale.
+- NEVER re-score from scratch. Always anchor on ${lastScore}% and adjust.
+- Score changes >10% between iterations MUST be accompanied by a clear description of what changed.
 ${sectionMapContext}
-Evaluate:
-1. SECTION PRESENCE: Are all major sections from Figma present in WP?
-2. VISUAL STYLE: Correct background colors, styled fonts (not system defaults)?
-3. CARD/GRID LAYOUTS: Multi-column layouts properly implemented?
-4. IMAGES: Real images in correct places?
-5. COLOR SCHEME: Same color palette as Figma?
-6. TYPOGRAPHY: Styled headings with correct hierarchy?
-7. BUTTONS/CTAs: Styled and visible?
-8. FOOTER: Proper multi-column footer present?
+Score EACH category 0-100, then calculate weighted average:
+1. SECTIONS (25%): Are all major sections from Figma present in WP? Missing section = -10 per.
+2. BACKGROUNDS (20%): Do section backgrounds match Figma colors exactly? Overlays, gradients, images?
+3. TYPOGRAPHY (20%): Correct fonts, sizes, weights, colors on headings and body text?
+4. LAYOUT (15%): Correct column counts, card grids, alignment, full-width sections?
+5. IMAGES (10%): Real images visible, correct positions, no broken/placeholder?
+6. POLISH (10%): Buttons styled, footer present, CTAs visible, responsive-ready?
 
-Scoring:
-- 0-30: Unstyled HTML, missing sections, broken layout
-- 30-50: Basic structure but wrong colors/fonts, missing backgrounds
-- 50-70: Good structure, some styling issues, few missing elements
-- 70-85: All sections present, well-styled, minor differences
-- 85-95: Excellent recreation, professional quality, very close to design
-- 95-100: Near pixel-perfect match
+Final score = sections*0.25 + backgrounds*0.20 + typography*0.20 + layout*0.15 + images*0.10 + polish*0.10
 
 DIVI 5 CSS CLASS STRUCTURE (use these in suggestedFix, NOT made-up class names):
 - Sections: .et_pb_section_0, .et_pb_section_1, .et_pb_section_2, etc. (0-indexed, top to bottom)
@@ -2188,11 +2249,12 @@ Score 0-100. Respond with JSON:
           break;
         }
 
-        // 10. Stall detection: if score didn't improve at all for 4 consecutive iterations
+        // 10. Stall detection: if score didn't improve at all for 6 consecutive iterations
+        // (AI scoring has ~4% noise, so 4 iterations was too aggressive)
         if (improvement <= 0) {
           stallCount++;
-          if (stallCount >= 4) {
-            console.log(`[pageforge] Score stalled for 4 iterations (${newScore}%), stopping fix loop`);
+          if (stallCount >= 6) {
+            console.log(`[pageforge] Score stalled for 6 iterations (${newScore}%), stopping fix loop`);
             await postBuildMessage(supabase, buildId,
               `VQA fix loop stopped: score plateaued at ${newScore}% after ${currentIteration} iterations`,
               'vqa_fix_loop');
@@ -2520,6 +2582,41 @@ async function resizeIfNeeded(base64: string, maxDim = 7500): Promise<string> {
   // Convert to JPEG even if no resize needed (consistent format, smaller size)
   const jpg = await sharp(buf).jpeg({ quality: 90 }).toBuffer();
   return jpg.toString('base64');
+}
+
+// Categorize VQA diffs for strategic fix ordering (structure first, then polish)
+type DiffCategory = 'layout' | 'background' | 'typography' | 'spacing' | 'images' | 'other';
+function categorizeDiff(diff: { area?: string; description?: string; suggestedFix?: string }): DiffCategory {
+  const text = `${diff.area || ''} ${diff.description || ''} ${diff.suggestedFix || ''}`.toLowerCase();
+  if (text.match(/layout|section.*missing|mega.?section|column|grid|structure|block|split|narrow|width.*content/)) return 'layout';
+  if (text.match(/background|bg.?color|background.?color|overlay|gradient|dark.*section|light.*section/)) return 'background';
+  if (text.match(/font|text.*color|heading|h[1-6]|typography|font.?size|font.?weight|font.?family|line.?height/)) return 'typography';
+  if (text.match(/spacing|padding|margin|gap|vertical.*rhythm|white.?space/)) return 'spacing';
+  if (text.match(/image|img|photo|icon|logo|broken.*image|missing.*image|placeholder/)) return 'images';
+  return 'other';
+}
+
+// Fuzzy patch matching: tries normalized whitespace and quote variants before giving up
+function fuzzyPatchMatch(markup: string, search: string): { found: boolean; normalizedSearch: string } {
+  // Strategy 1: exact match (already tried by caller)
+  if (markup.includes(search)) return { found: true, normalizedSearch: search };
+
+  // Strategy 2: normalize whitespace (collapse multiple spaces/newlines to single space)
+  const normalizedSearch = search.replace(/\s+/g, ' ').trim();
+  if (normalizedSearch !== search) {
+    const escapedParts = normalizedSearch.split(' ').map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const flexRegex = new RegExp(escapedParts.join('\\s+'));
+    const match = markup.match(flexRegex);
+    if (match) return { found: true, normalizedSearch: match[0] };
+  }
+
+  // Strategy 3: swap quote styles (single <-> double)
+  const quoteSwitched = search.replace(/'/g, '"');
+  if (quoteSwitched !== search && markup.includes(quoteSwitched)) return { found: true, normalizedSearch: quoteSwitched };
+  const quoteSwitched2 = search.replace(/"/g, "'");
+  if (quoteSwitched2 !== search && markup.includes(quoteSwitched2)) return { found: true, normalizedSearch: quoteSwitched2 };
+
+  return { found: false, normalizedSearch: search };
 }
 
 // Sanitize WordPress markup: strip <style> blocks, raw CSS, and problematic patterns
