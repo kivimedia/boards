@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
   // Map PageForge builds to team run shape
   const PHASE_ORDER = [
     'pending', 'preflight', 'figma_analysis', 'section_classification',
-    'markup_generation', 'markup_validation', 'deploy_draft', 'image_optimization',
+    'markup_generation', 'markup_validation', 'deploy_draft', 'draft_review_gate', 'image_optimization',
     'vqa_capture', 'vqa_comparison', 'vqa_fix_loop', 'functional_qa',
     'seo_config', 'report_generation', 'developer_review_gate', 'am_signoff_gate',
     'published', 'failed', 'cancelled',
@@ -49,7 +49,8 @@ export async function GET(request: NextRequest) {
 
   const pfMapped = (pfBuilds || []).map((b: any) => ({
     id: b.id,
-    status: b.status === 'developer_review_gate' ? 'awaiting_developer_review_gate'
+    status: b.status === 'draft_review_gate' ? 'awaiting_draft_review_gate'
+          : b.status === 'developer_review_gate' ? 'awaiting_developer_review_gate'
           : b.status === 'am_signoff_gate' ? 'awaiting_am_signoff_gate'
           : ['published', 'failed', 'cancelled'].includes(b.status) ? b.status === 'published' ? 'completed' : b.status
           : 'running',

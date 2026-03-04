@@ -9,7 +9,7 @@ interface Params {
 /**
  * POST /api/pageforge/builds/[id]/gate
  * Submit a gate decision (approve/revise/cancel).
- * Body: { gate: 'developer_review_gate' | 'am_signoff_gate', decision, feedback? }
+ * Body: { gate: 'draft_review_gate' | 'developer_review_gate' | 'am_signoff_gate', decision, feedback? }
  */
 export async function POST(request: NextRequest, { params }: Params) {
   const auth = await getAuthContext();
@@ -22,8 +22,8 @@ export async function POST(request: NextRequest, { params }: Params) {
     return errorResponse('gate and decision are required');
   }
 
-  if (!['developer_review_gate', 'am_signoff_gate'].includes(gate)) {
-    return errorResponse('gate must be developer_review_gate or am_signoff_gate');
+  if (!['draft_review_gate', 'developer_review_gate', 'am_signoff_gate'].includes(gate)) {
+    return errorResponse('gate must be draft_review_gate, developer_review_gate, or am_signoff_gate');
   }
 
   if (!['approve', 'revise', 'cancel'].includes(decision)) {

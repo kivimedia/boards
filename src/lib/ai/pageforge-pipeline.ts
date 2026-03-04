@@ -13,11 +13,12 @@ import type {
   AIActivity,
   AIProvider,
 } from '../types';
+import { sendEmailNotification } from '../notification-service';
 
 // ============================================================================
 // PAGEFORGE PIPELINE ENGINE
 //
-// 15-phase Figma-to-WordPress build pipeline with human-in-the-loop gates.
+// 16-phase Figma-to-WordPress build pipeline with human-in-the-loop gates.
 // Mirrors the SEO pipeline architecture (seo-pipeline.ts) exactly.
 //
 // Phases:
@@ -27,15 +28,16 @@ import type {
 //   3.  markup_generation        - Generate WP page markup (Gutenberg/Divi 5)
 //   4.  markup_validation        - Validate block syntax and nesting
 //   5.  deploy_draft             - Push draft page to WordPress
-//   6.  image_optimization       - Download Figma images, compress, upload to WP
-//   7.  vqa_capture              - Screenshot WP page at 3 breakpoints
-//   8.  vqa_comparison           - Compare WP screenshots vs Figma renders
-//   9.  vqa_fix_loop             - AI-suggested CSS/markup fixes (max N loops)
-//  10.  functional_qa            - Links, responsive, Lighthouse, a11y checks
-//  11.  seo_config               - Yoast meta, alt tags, heading hierarchy
-//  12.  report_generation        - Compile final build report
-//  13.  developer_review_gate    - Human approval checkpoint
-//  14.  am_signoff_gate          - Final AM sign-off
+//   6.  draft_review_gate        - Human checkpoint: review deployed draft
+//   7.  image_optimization       - Download Figma images, compress, upload to WP
+//   8.  vqa_capture              - Screenshot WP page at 3 breakpoints
+//   9.  vqa_comparison           - Compare WP screenshots vs Figma renders
+//  10.  vqa_fix_loop             - AI-suggested CSS/markup fixes (max N loops)
+//  11.  functional_qa            - Links, responsive, Lighthouse, a11y checks
+//  12.  seo_config               - Yoast meta, alt tags, heading hierarchy
+//  13.  report_generation        - Compile final build report
+//  14.  developer_review_gate    - Human approval checkpoint
+//  15.  am_signoff_gate          - Final AM sign-off
 //
 // Designed to run from both Vercel API routes and VPS worker.
 // All state is persisted to Supabase so runs survive restarts.
@@ -142,6 +144,7 @@ export const PAGEFORGE_PHASE_ORDER: string[] = [
   'markup_generation',
   'markup_validation',
   'deploy_draft',
+  'draft_review_gate',
   'image_optimization',
   'vqa_capture',
   'vqa_comparison',
@@ -161,6 +164,7 @@ const PHASE_TO_STATUS: Record<string, PageForgeBuildStatus> = {
   markup_generation: 'markup_generation',
   markup_validation: 'markup_validation',
   deploy_draft: 'deploy_draft',
+  draft_review_gate: 'draft_review_gate',
   image_optimization: 'image_optimization',
   vqa_capture: 'vqa_capture',
   vqa_comparison: 'vqa_comparison',
@@ -190,7 +194,7 @@ const PHASE_TO_ACTIVITY: Record<string, AIActivity> = {
   report_generation: 'pageforge_orchestrator',
 };
 
-const GATE_PHASES = new Set(['developer_review_gate', 'am_signoff_gate']);
+const GATE_PHASES = new Set(['draft_review_gate', 'developer_review_gate', 'am_signoff_gate']);
 
 // Map AI activities to agent role keys for custom model resolution
 const ACTIVITY_TO_ROLE: Record<string, string> = {
@@ -620,6 +624,31 @@ export async function runPageForgePhase(
         .eq('id', phaseRecord.id);
     }
 
+    // Send email notification when draft_review_gate is reached
+    if (nextPhase === 'draft_review_gate') {
+      try {
+        const { data: devUsers } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('agency_role', 'dev');
+
+        if (devUsers?.length) {
+          const draftUrl = build.wp_draft_url || '(not yet available)';
+          const buildDetailUrl = `/pageforge/builds/${buildId}`;
+          const subject = 'PageForge Draft Ready for Review';
+          const body = `Build "${build.page_title}" has a draft ready for review.\n\nDraft URL: ${draftUrl}\nReview: ${buildDetailUrl}\n\nPlease review the deployed draft and provide feedback on the Divi module conversion.`;
+
+          await Promise.all(
+            devUsers.map((u: { id: string }) =>
+              sendEmailNotification(supabase, u.id, subject, body)
+            )
+          );
+        }
+      } catch (emailErr) {
+        console.error('Failed to send draft review gate email notifications:', emailErr);
+      }
+    }
+
     return { phase, agentResult, artifacts };
   } catch (err) {
     // Mark phase as failed
@@ -651,7 +680,7 @@ export async function runPageForgePhase(
 export async function submitPageForgeGateDecision(
   supabase: SupabaseClient,
   buildId: string,
-  gate: 'developer_review_gate' | 'am_signoff_gate',
+  gate: 'draft_review_gate' | 'developer_review_gate' | 'am_signoff_gate',
   decision: PageForgeGateDecision,
   feedback: string | null,
   userId: string
@@ -668,7 +697,8 @@ export async function submitPageForgeGateDecision(
     throw new Error(`Build not found: ${buildId}`);
   }
 
-  const gatePrefix = gate === 'developer_review_gate' ? 'dev_gate' : 'am_gate';
+  const gatePrefix = gate === 'draft_review_gate' ? 'draft_gate'
+    : gate === 'developer_review_gate' ? 'dev_gate' : 'am_gate';
   const gateUpdate: Record<string, unknown> = {
     [`${gatePrefix}_decision`]: decision,
     [`${gatePrefix}_feedback`]: feedback,

@@ -24,6 +24,7 @@ const PHASE_NAMES: string[] = [
   'Markup Generation',
   'Markup Validation',
   'Deploy Draft',
+  'Draft Review Gate',
   'Image Optimization',
   'VQA Capture',
   'VQA Comparison',
@@ -37,12 +38,13 @@ const PHASE_NAMES: string[] = [
 
 const PHASE_KEYS = [
   'preflight', 'figma_analysis', 'section_classification', 'markup_generation',
-  'markup_validation', 'deploy_draft', 'image_optimization', 'vqa_capture',
+  'markup_validation', 'deploy_draft', 'draft_review_gate', 'image_optimization', 'vqa_capture',
   'vqa_comparison', 'vqa_fix_loop', 'functional_qa', 'seo_config',
   'report_generation', 'developer_review_gate', 'am_signoff_gate',
 ];
 
 const GATE_STATUSES: PageForgeBuildStatus[] = [
+  'draft_review_gate',
   'developer_review_gate',
   'am_signoff_gate',
 ];
@@ -55,6 +57,7 @@ const IN_PROGRESS_STATUSES: PageForgeBuildStatus[] = [
   'markup_generation',
   'markup_validation',
   'deploy_draft',
+  'draft_review_gate',
   'image_optimization',
   'vqa_capture',
   'vqa_comparison',
@@ -1063,7 +1066,9 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
                 Gate Decision Required
               </h2>
               <p className="text-xs text-navy/40 dark:text-slate-500 mb-4">
-                {build.status === 'developer_review_gate'
+                {build.status === 'draft_review_gate'
+                  ? 'Draft Review - review the deployed draft page and provide feedback on the Divi module conversion.'
+                  : build.status === 'developer_review_gate'
                   ? 'Developer review - check code quality and visual accuracy before proceeding.'
                   : 'Account Manager sign-off - confirm client requirements are met.'}
               </p>
@@ -1164,21 +1169,23 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
                   disabled={submittingGate}
                   className="px-4 py-2 text-sm font-semibold text-white bg-success hover:bg-green-600 rounded-lg transition-colors disabled:opacity-50"
                 >
-                  Approve
+                  {build.status === 'draft_review_gate' ? 'Continue' : 'Approve'}
                 </button>
-                <button
-                  onClick={() => handleGateSubmit('revise')}
-                  disabled={submittingGate}
-                  className="px-4 py-2 text-sm font-semibold text-white bg-warning hover:bg-yellow-600 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  Revise
-                </button>
+                {build.status !== 'draft_review_gate' && (
+                  <button
+                    onClick={() => handleGateSubmit('revise')}
+                    disabled={submittingGate}
+                    className="px-4 py-2 text-sm font-semibold text-white bg-warning hover:bg-yellow-600 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    Revise
+                  </button>
+                )}
                 <button
                   onClick={() => handleGateSubmit('cancel')}
                   disabled={submittingGate}
                   className="px-4 py-2 text-sm font-semibold text-white bg-danger hover:bg-red-600 rounded-lg transition-colors disabled:opacity-50"
                 >
-                  Cancel Build
+                  {build.status === 'draft_review_gate' ? 'Stop Build' : 'Cancel Build'}
                 </button>
               </div>
             </div>

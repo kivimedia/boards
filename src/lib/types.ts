@@ -3491,6 +3491,7 @@ export type PageForgeBuildStatus =
   | 'markup_generation'
   | 'markup_validation'
   | 'deploy_draft'
+  | 'draft_review_gate'
   | 'image_optimization'
   | 'vqa_capture'
   | 'vqa_comparison'
@@ -3587,6 +3588,11 @@ export interface PageForgeBuild {
   dev_gate_feedback: string | null;
   dev_gate_decided_by: string | null;
   dev_gate_decided_at: string | null;
+
+  draft_gate_decision: PageForgeGateDecision | null;
+  draft_gate_feedback: string | null;
+  draft_gate_decided_by: string | null;
+  draft_gate_decided_at: string | null;
 
   am_gate_decision: PageForgeGateDecision | null;
   am_gate_feedback: string | null;

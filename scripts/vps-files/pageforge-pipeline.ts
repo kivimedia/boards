@@ -8,12 +8,12 @@ import Anthropic from '@anthropic-ai/sdk';
 
 export const PAGEFORGE_PHASE_ORDER: string[] = [
   'preflight', 'auto_name', 'figma_analysis', 'section_classification', 'markup_generation',
-  'markup_validation', 'deploy_draft', 'image_optimization', 'vqa_capture',
+  'markup_validation', 'deploy_draft', 'draft_review_gate', 'image_optimization', 'vqa_capture',
   'vqa_comparison', 'vqa_fix_loop', 'functional_qa', 'seo_config',
   'report_generation', 'developer_review_gate', 'am_signoff_gate',
 ];
 
-export const GATE_PHASES = new Set<string>(['developer_review_gate', 'am_signoff_gate']);
+export const GATE_PHASES = new Set<string>(['draft_review_gate', 'developer_review_gate', 'am_signoff_gate']);
 
 export const PHASE_TO_ACTIVITY: Record<string, string> = {
   preflight: 'pageforge_orchestrator', auto_name: 'pageforge_orchestrator', figma_analysis: 'pageforge_builder',

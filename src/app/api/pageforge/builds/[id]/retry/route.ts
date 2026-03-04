@@ -56,7 +56,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   // Reset build status to the phase it will resume from
   const PHASE_ORDER = [
     'preflight', 'figma_analysis', 'section_classification', 'markup_generation',
-    'markup_validation', 'deploy_draft', 'image_optimization', 'vqa_capture',
+    'markup_validation', 'deploy_draft', 'draft_review_gate', 'image_optimization', 'vqa_capture',
     'vqa_comparison', 'vqa_fix_loop', 'functional_qa', 'seo_config',
     'report_generation', 'developer_review_gate', 'am_signoff_gate',
   ];
