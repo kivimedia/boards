@@ -317,45 +317,43 @@ export async function notifyAMsPendingTasks(
       continue;
     }
 
-    // Build consolidated message
+    // Build consolidated message with dates for specificity
     const lines: string[] = [];
+    const fmtDate = (d: string | null | undefined) => {
+      if (!d) return '';
+      try { return ` (${new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`;
+      } catch { return ''; }
+    };
+    const fmtItem = (i: PendingItem) => {
+      const name = i.client_name || 'Unknown client';
+      const date = fmtDate(i.meeting_date || i.date_sent);
+      return `${name}${date}`;
+    };
 
     if (tasks.fathomNotWatched.length > 0) {
       lines.push(
-        `Fathom Videos - Not Watched (${tasks.fathomNotWatched.length}): ` +
+        `Fathom Videos - Not Watched (${tasks.fathomNotWatched.length}):\n` +
           tasks.fathomNotWatched
-            .slice(0, 5)
-            .map((i: PendingItem) => i.client_name || 'Unknown client')
-            .join(', ') +
-          (tasks.fathomNotWatched.length > 5
-            ? ` +${tasks.fathomNotWatched.length - 5} more`
-            : '')
+            .map((i: PendingItem) => `- ${fmtItem(i)}`)
+            .join('\n')
       );
     }
 
     if (tasks.fathomNoActionItems.length > 0) {
       lines.push(
-        `Fathom Videos - Action Items Not Sent (${tasks.fathomNoActionItems.length}): ` +
+        `Fathom Videos - Action Items Not Sent (${tasks.fathomNoActionItems.length}):\n` +
           tasks.fathomNoActionItems
-            .slice(0, 5)
-            .map((i: PendingItem) => i.client_name || 'Unknown client')
-            .join(', ') +
-          (tasks.fathomNoActionItems.length > 5
-            ? ` +${tasks.fathomNoActionItems.length - 5} more`
-            : '')
+            .map((i: PendingItem) => `- ${fmtItem(i)}`)
+            .join('\n')
       );
     }
 
     if (tasks.clientUpdatesNotOnTime.length > 0) {
       lines.push(
-        `Client Updates - Not Sent On Time (${tasks.clientUpdatesNotOnTime.length}): ` +
+        `Client Updates - Not Sent On Time (${tasks.clientUpdatesNotOnTime.length}):\n` +
           tasks.clientUpdatesNotOnTime
-            .slice(0, 5)
-            .map((i: PendingItem) => i.client_name || 'Unknown client')
-            .join(', ') +
-          (tasks.clientUpdatesNotOnTime.length > 5
-            ? ` +${tasks.clientUpdatesNotOnTime.length - 5} more`
-            : '')
+            .map((i: PendingItem) => `- ${fmtItem(i)}`)
+            .join('\n')
       );
     }
 

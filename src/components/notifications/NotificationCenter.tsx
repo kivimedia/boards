@@ -401,30 +401,35 @@ export default function NotificationCenter() {
                 </svg>
               </button>
             </div>
-            <div className="px-5 py-4 overflow-y-auto flex-1 space-y-3">
+            <div className="px-5 py-4 overflow-y-auto flex-1 space-y-4">
               {(modalNotification.body || '').split('\n').map((line, i) => {
                 const isHeader = line.includes('(') && line.includes('):');
-                return (
-                  <div key={i}>
-                    {isHeader ? (
-                      <p className="text-sm font-semibold text-navy dark:text-white mt-2 first:mt-0">
-                        {line.split(':')[0]}:
-                      </p>
-                    ) : null}
-                    {isHeader ? (
-                      <ul className="mt-1 space-y-1">
-                        {line.split(': ').slice(1).join(': ').split(', ').map((item, j) => (
-                          <li key={j} className="text-sm text-navy/70 dark:text-slate-300 pl-3 flex items-start gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 mt-1.5" />
-                            {item.trim()}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : line.trim() ? (
-                      <p className="text-sm text-navy/70 dark:text-slate-300">{line}</p>
-                    ) : null}
-                  </div>
-                );
+                const isItem = line.startsWith('- ');
+                if (isHeader) {
+                  return (
+                    <p key={i} className="text-sm font-semibold text-navy dark:text-white mt-1 first:mt-0">
+                      {line.replace(/:$/, '')}
+                    </p>
+                  );
+                }
+                if (isItem) {
+                  const text = line.slice(2);
+                  const dateMatch = text.match(/^(.+?)(\s*\(.+\))$/);
+                  return (
+                    <li key={i} className="text-sm text-navy/70 dark:text-slate-300 pl-3 flex items-start gap-2 list-none">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 mt-1.5" />
+                      <span>
+                        {dateMatch ? (
+                          <>{dateMatch[1]}<span className="text-navy/40 dark:text-slate-500">{dateMatch[2]}</span></>
+                        ) : text}
+                      </span>
+                    </li>
+                  );
+                }
+                if (line.trim()) {
+                  return <p key={i} className="text-sm text-navy/70 dark:text-slate-300">{line}</p>;
+                }
+                return null;
               })}
             </div>
             <div className="px-5 py-3 border-t border-cream-dark dark:border-slate-700 shrink-0">
