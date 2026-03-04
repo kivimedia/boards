@@ -55,9 +55,10 @@ import {
   MODEL_PROFILES,
   AVAILABLE_MODELS,
   AGENT_ROLES,
+  type PageForgeModelProfile,
 } from './pageforge-constants';
-export type { PageForgeModelProfile } from './pageforge-constants';
 export { MODEL_PROFILES, AVAILABLE_MODELS, AGENT_ROLES };
+export type { PageForgeModelProfile };
 
 export const PAGEFORGE_PHASE_ORDER: string[] = [
   'preflight',
