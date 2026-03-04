@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 const PUBLIC_PATHS = ['/login', '/signup', '/pending-approval', '/forgot-password', '/reset-password', '/auth/callback', '/api/auth/', '/api/cron/', '/api/admin/', '/api/webhooks/', '/api/pageforge/'];
 
-const AUTH_TIMEOUT_MS = 5000;
+const AUTH_TIMEOUT_MS = 15000;
 
 function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<T> {
   return Promise.race([
