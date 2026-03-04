@@ -52,7 +52,7 @@
     },
     {
       "path": "/api/cron/meeting-prep",
-      "schedule": "*/5 * * * *"
+      "schedule": "*/15 * * * *"
     },
     {
       "path": "/api/cron/knowledge-index",
@@ -60,7 +60,7 @@
     },
     {
       "path": "/api/cron/board-summaries",
-      "schedule": "0 1,7,13,19 * * *"
+      "schedule": "0 7 * * *"
     },
     {
       "path": "/api/cron/am-reminders",

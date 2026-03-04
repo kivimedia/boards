@@ -113,48 +113,36 @@ export async function fetchBoardMetadata(
   _mark('total');
   const listIds = listsData.map((l) => l.id);
 
-  // Fetch ALL placements for this board's lists
-  // OPTIMIZED: Parallel fetch per-list to avoid sequential pagination for large boards
-  // Each list's placements are fetched independently and in parallel
+  // Fetch ALL placements for this board's lists in ONE query using batchedIn
+  // instead of N separate per-list queries (eliminates N+1 problem).
+  // card_placements has no board_id column, so we filter by list_id IN (all list IDs).
   _mark('placements');
-  // OPTIMIZED: Exclude full description text to reduce payload (~500 chars avg per card).
-  // Kanban view only needs has_description boolean. Full description loaded on card open.
   const PLACEMENT_SELECT = '*, card:cards(id, title, priority, due_date, cover_image_url, owner_id, created_at, updated_at)';
-  const PLACEMENT_PAGE_SIZE = 1000;
 
-  async function fetchListPlacements(listId: string): Promise<any[]> {
-    // If maxCardsPerList is set, only fetch that many (for fast phase-1 loading)
-    if (maxCardsPerList > 0) {
-      const { data } = await supabase
-        .from('card_placements')
-        .select(PLACEMENT_SELECT)
-        .eq('list_id', listId)
-        .order('position')
-        .range(0, maxCardsPerList - 1);
-      return data || [];
-    }
-    // Otherwise fetch all cards with pagination
-    let all: any[] = [];
-    let offset = 0;
-    while (true) {
-      const { data: page } = await supabase
-        .from('card_placements')
-        .select(PLACEMENT_SELECT)
-        .eq('list_id', listId)
-        .order('position')
-        .range(offset, offset + PLACEMENT_PAGE_SIZE - 1);
-      const rows = page || [];
-      all = all.concat(rows);
-      if (rows.length < PLACEMENT_PAGE_SIZE) break;
-      offset += PLACEMENT_PAGE_SIZE;
-    }
-    return all;
-  }
+  let allPlacements: any[] = [];
 
-  const placementsByListRaw = await Promise.all(
-    listIds.map((lid) => fetchListPlacements(lid))
+  // Single batched query for ALL lists at once (uses idx_card_placements_list_id index)
+  const rawPlacements = await batchedIn(
+    supabase, 'card_placements', PLACEMENT_SELECT, 'list_id', listIds
   );
-  const allPlacements = placementsByListRaw.flat();
+
+  if (maxCardsPerList > 0) {
+    // Phase 1 (fast load): sort by list_id+position, then trim per-list in memory
+    rawPlacements.sort((a: any, b: any) => {
+      if (a.list_id !== b.list_id) return a.list_id < b.list_id ? -1 : 1;
+      return (a.position || 0) - (b.position || 0);
+    });
+    const countByList = new Map<string, number>();
+    for (const p of rawPlacements) {
+      const count = countByList.get(p.list_id) || 0;
+      if (count < maxCardsPerList) {
+        allPlacements.push(p);
+        countByList.set(p.list_id, count + 1);
+      }
+    }
+  } else {
+    allPlacements = rawPlacements;
+  }
   const placementsMs = _measure('placements');
 
   const allCardIds = allPlacements.map((p: any) => p.card_id);
@@ -252,7 +240,7 @@ export async function fetchBoardMetadata(
     Promise.all([
       batchedIn(supabase, 'card_labels', 'card_id, label:labels(*)', 'card_id', allCardIds),
       batchedIn(supabase, 'card_assignees', 'card_id, user_id', 'card_id', allCardIds),
-      batchedIn(supabase, 'comments', 'card_id', 'card_id', allCardIds),
+      batchedIn(supabase, 'comments', 'card_id', 'card_id', allCardIds),  // TODO: replace with count-only RPC to reduce IO
       batchedIn(supabase, 'attachments', 'card_id, mime_type, storage_path', 'card_id', allCardIds),
       batchedIn(supabase, 'checklists', 'id, card_id', 'card_id', allCardIds),
     ]),
