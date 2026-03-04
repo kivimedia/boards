@@ -1777,10 +1777,60 @@ Respond with JSON:
         console.log(`[pageforge] VQA fix iteration ${currentIteration}/${maxLoops} (score: ${lastScore}%, target: ${threshold}%)`);
 
         // 1. Gather differences from latest comparison
-        // Include minor diffs when score is far from target (they add up)
-        const includeMinor = lastScore < (threshold - 10);
-        const allDiffs = Object.values(comparisonData.results as Record<string, any>)
-          .flatMap((r: any) => (r.differences || []).filter((d: any) => includeMinor || d.severity !== 'minor'));
+        // Always include ALL diffs (including minor) - minor diffs add up for the final score
+        let allDiffs = Object.values(comparisonData.results as Record<string, any>)
+          .flatMap((r: any) => (r.differences || []));
+
+        if (allDiffs.length === 0 && lastScore < threshold) {
+          // No diffs found but below threshold - force a deep re-analysis
+          console.log(`[pageforge] No diffs but score ${lastScore}% < threshold ${threshold}% - running deep analysis`);
+          try {
+            const deepResult = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa', 'vqa_fix_loop',
+              getSystemPrompt('pageforge_vqa'),
+              `DEEP ANALYSIS: The WordPress page scores ${lastScore}% against the Figma design but the threshold is ${threshold}%.
+Previous analysis found no differences, but there MUST be remaining issues causing the ${threshold - lastScore}% gap.
+
+Image 1: Figma design (reference)
+Image 2: WordPress page (current)
+
+Look VERY carefully for SUBTLE differences:
+- Exact background colors (even slight shade differences)
+- Font sizes, weights, line-heights, letter-spacing
+- Padding and margin values (compare spacing precisely)
+- Border radius, box shadows, opacity
+- Image sizing and cropping differences
+- Button styles, hover states, border colors
+- Section heights and content vertical alignment
+- Any missing decorative elements (lines, dots, icons)
+
+You MUST find at least 3-5 differences. Score each category 0-100.
+
+Respond with JSON:
+{"score":N,"categoryScores":{"sections":N,"backgrounds":N,"typography":N,"layout":N,"images":N,"polish":N},"differences":[{"area":"...","severity":"critical|major|minor","description":"...","suggestedFix":"CSS rule..."}]}`,
+              anthropic, {
+                images: [
+                  ...(figmaDesktop ? [{ data: figmaDesktop, mimeType: 'image/jpeg' as const }] : []),
+                  ...(currentWpScreenshot ? [{ data: currentWpScreenshot, mimeType: 'image/jpeg' as const }] : []),
+                ],
+              }
+            );
+            const deepJson = deepResult.text.match(/\{[\s\S]*\}/);
+            if (deepJson) {
+              const deepParsed = JSON.parse(deepJson[0]);
+              if (deepParsed.differences?.length > 0) {
+                allDiffs = deepParsed.differences;
+                // Update comparison data with new diffs
+                comparisonData = {
+                  ...comparisonData,
+                  results: { desktop: { score: deepParsed.score || lastScore, differences: allDiffs } },
+                };
+                console.log(`[pageforge] Deep analysis found ${allDiffs.length} subtle differences`);
+              }
+            }
+          } catch (err) {
+            console.warn('[pageforge] Deep analysis failed:', err);
+          }
+        }
 
         if (allDiffs.length === 0) {
           console.log('[pageforge] No more differences to fix');
@@ -2163,6 +2213,8 @@ Respond with JSON:
           const screenshotChanged = screenshotHash !== lastScreenshotHash;
           console.log(`[pageforge] Screenshot ${screenshotChanged ? 'CHANGED' : 'UNCHANGED'} (hash: ${screenshotHash.substring(0, 20)}...)`);
           lastScreenshotHash = screenshotHash;
+          // Update currentWpScreenshot so deep analysis and next iteration use the latest
+          currentWpScreenshot = newWpDesktop;
         }
 
         // 7. Re-compare desktop against Figma
@@ -2313,6 +2365,78 @@ Score 0-100. Respond with JSON:
 
       // Final full 3-breakpoint comparison after all fixes
       if (currentIteration > 0) {
+        // Responsive CSS pass: add media queries to improve tablet/mobile scores
+        if (lastScore >= 80 && build.wp_page_id && siteProfile.wp_username && siteProfile.wp_app_password) {
+          try {
+            console.log('[pageforge] Running responsive CSS fix pass...');
+            const respShots = await captureScreenshots(draftUrl);
+            const tabletImg = respShots.tablet;
+            const mobileImg = respShots.mobile;
+            if (tabletImg && mobileImg) {
+              const respResult = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa_fix', 'vqa_fix_loop',
+                getSystemPrompt('pageforge_vqa'),
+                `Add responsive CSS to fix tablet (768px) and mobile (375px) layout issues.
+
+Image 1: WordPress page at TABLET width (768px)
+Image 2: WordPress page at MOBILE width (375px)
+
+Look for these common responsive issues:
+- Text too small or too large on mobile
+- Columns not stacking on narrow screens
+- Horizontal overflow/scroll
+- Buttons too small to tap (min 44px)
+- Images breaking out of container
+- Excessive padding/margins on mobile
+- Navigation elements overlapping
+
+Generate CSS @media queries to fix these. Use the existing <style> block.
+Search for "</style>" and replace with your new responsive rules + "</style>".
+
+Current markup:
+\`\`\`
+${currentMarkup.substring(0, 5000)}
+\`\`\`
+(markup truncated for context)
+
+Respond with JSON:
+{"patches":[{"search":"</style>","replace":"YOUR_RESPONSIVE_CSS_HERE\\n</style>","description":"what this fixes"}]}`,
+                anthropic, {
+                  maxTokens: 8000,
+                  images: [
+                    { data: tabletImg, mimeType: 'image/jpeg' },
+                    { data: mobileImg, mimeType: 'image/jpeg' },
+                  ],
+                }
+              );
+              const respJson = respResult.text.match(/\{[\s\S]*\}/);
+              if (respJson) {
+                const respParsed = JSON.parse(respJson[0]);
+                if (respParsed.patches?.length > 0) {
+                  let respMarkup = currentMarkup;
+                  let respApplied = 0;
+                  for (const patch of respParsed.patches) {
+                    if (patch.search && patch.replace && respMarkup.includes(patch.search)) {
+                      respMarkup = respMarkup.replace(patch.search, patch.replace);
+                      respApplied++;
+                    }
+                  }
+                  if (respApplied > 0) {
+                    currentMarkup = respMarkup;
+                    const fixBuilder = build.page_builder || 'gutenberg';
+                    const wpClient = createWpClient({ restUrl: siteProfile.wp_rest_url, username: siteProfile.wp_username, appPassword: siteProfile.wp_app_password });
+                    await wpUpdatePage(wpClient, build.wp_page_id, { content: prepareMarkupForDeploy(currentMarkup, fixBuilder) });
+                    await updateBuildArtifacts(supabase, buildId, 'markup_generation', { ...artifacts.markup_generation, markup: currentMarkup });
+                    console.log(`[pageforge] Applied ${respApplied} responsive CSS patches`);
+                    await new Promise(resolve => setTimeout(resolve, 8000));
+                  }
+                }
+              }
+            }
+          } catch (err) {
+            console.warn('[pageforge] Responsive CSS pass failed:', err);
+          }
+        }
+
         try {
           const finalShots = await captureScreenshots(draftUrl);
           await updateBuildArtifacts(supabase, buildId, 'vqa_capture', {
