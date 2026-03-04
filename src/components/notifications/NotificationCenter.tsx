@@ -125,8 +125,8 @@ export default function NotificationCenter() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [dropdownPos, setDropdownPos] = useState<{ top: number; right: number } | null>(null);
+  const [modalNotification, setModalNotification] = useState<Notification | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const bellRef = useRef<HTMLButtonElement>(null);
   const router = useRouter();
@@ -223,9 +223,10 @@ export default function NotificationCenter() {
       setUnreadCount((prev) => Math.max(0, prev - 1));
     }
 
-    // pk_reminder: toggle expand to show full body
+    // pk_reminder: open modal with full details
     if (notification.type === 'pk_reminder') {
-      setExpandedId((prev) => (prev === notification.id ? null : notification.id));
+      setIsOpen(false);
+      setModalNotification(notification);
       return;
     }
 
@@ -338,13 +339,13 @@ export default function NotificationCenter() {
                       {notification.title}
                     </p>
                     {notification.body && (
-                      <p className={`text-xs text-navy/50 dark:text-slate-400 mt-0.5 font-body whitespace-pre-line ${expandedId === notification.id ? '' : 'line-clamp-2'}`}>
+                      <p className={`text-xs text-navy/50 dark:text-slate-400 mt-0.5 font-body whitespace-pre-line ${notification.type === 'pk_reminder' ? '' : 'line-clamp-2'}`}>
                         {notification.body}
                       </p>
                     )}
-                    {notification.type === 'pk_reminder' && notification.body && (
-                      <span className="text-[10px] text-electric font-medium mt-0.5 inline-block">
-                        {expandedId === notification.id ? 'Show less' : 'View all'}
+                    {notification.type === 'pk_reminder' && (
+                      <span className="text-[11px] text-electric font-semibold mt-1 inline-block underline">
+                        View all in Performance Hub
                       </span>
                     )}
                     <p className="text-[10px] text-navy/30 dark:text-slate-500 mt-1 font-body">
@@ -373,6 +374,64 @@ export default function NotificationCenter() {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* pk_reminder Detail Modal */}
+      {modalNotification && (
+        <div
+          className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/50"
+          onClick={() => setModalNotification(null)}
+        >
+          <div
+            className="bg-white dark:bg-dark-surface rounded-2xl shadow-2xl border border-cream-dark dark:border-slate-700 w-[90vw] max-w-lg max-h-[80vh] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-cream-dark dark:border-slate-700">
+              <h3 className="text-base font-semibold text-navy dark:text-white">
+                {modalNotification.title}
+              </h3>
+              <button
+                onClick={() => setModalNotification(null)}
+                className="p-1 rounded-lg text-navy/40 dark:text-slate-400 hover:text-navy dark:hover:text-white hover:bg-cream-dark dark:hover:bg-slate-700 transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+            <div className="px-5 py-4 overflow-y-auto max-h-[60vh] space-y-3">
+              {(modalNotification.body || '').split('\n').map((line, i) => {
+                const isHeader = line.includes('(') && line.includes('):');
+                return (
+                  <div key={i}>
+                    {isHeader ? (
+                      <p className="text-sm font-semibold text-navy dark:text-white mt-2 first:mt-0">
+                        {line.split(':')[0]}:
+                      </p>
+                    ) : null}
+                    {isHeader ? (
+                      <ul className="mt-1 space-y-1">
+                        {line.split(': ').slice(1).join(': ').split(', ').map((item, j) => (
+                          <li key={j} className="text-sm text-navy/70 dark:text-slate-300 pl-3 flex items-start gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 mt-1.5" />
+                            {item.trim()}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : line.trim() ? (
+                      <p className="text-sm text-navy/70 dark:text-slate-300">{line}</p>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="px-5 py-3 border-t border-cream-dark dark:border-slate-700">
+              <p className="text-[10px] text-navy/30 dark:text-slate-500">
+                {getRelativeTime(modalNotification.created_at)}
+              </p>
+            </div>
+          </div>
         </div>
       )}
     </div>
