@@ -51,12 +51,13 @@ const PREVIEW_LENGTH = 500;
 // to avoid pulling in server-only dependencies (web-push, net, tls).
 // ============================================================================
 
-export {
+import {
   MODEL_PROFILES,
   AVAILABLE_MODELS,
   AGENT_ROLES,
-  type PageForgeModelProfile,
 } from './pageforge-constants';
+export type { PageForgeModelProfile } from './pageforge-constants';
+export { MODEL_PROFILES, AVAILABLE_MODELS, AGENT_ROLES };
 
 export const PAGEFORGE_PHASE_ORDER: string[] = [
   'preflight',
