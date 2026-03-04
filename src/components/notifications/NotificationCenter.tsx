@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -377,17 +378,17 @@ export default function NotificationCenter() {
         </div>
       )}
 
-      {/* pk_reminder Detail Modal */}
-      {modalNotification && (
+      {/* pk_reminder Detail Modal - rendered via portal to avoid clipping */}
+      {modalNotification && createPortal(
         <div
-          className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/50"
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/50"
           onClick={() => setModalNotification(null)}
         >
           <div
-            className="bg-white dark:bg-dark-surface rounded-2xl shadow-2xl border border-cream-dark dark:border-slate-700 w-[90vw] max-w-lg max-h-[80vh] overflow-hidden"
+            className="bg-white dark:bg-dark-surface rounded-2xl shadow-2xl border border-cream-dark dark:border-slate-700 w-full max-w-lg max-h-[80vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-5 py-4 border-b border-cream-dark dark:border-slate-700">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-cream-dark dark:border-slate-700 shrink-0">
               <h3 className="text-base font-semibold text-navy dark:text-white">
                 {modalNotification.title}
               </h3>
@@ -400,7 +401,7 @@ export default function NotificationCenter() {
                 </svg>
               </button>
             </div>
-            <div className="px-5 py-4 overflow-y-auto max-h-[60vh] space-y-3">
+            <div className="px-5 py-4 overflow-y-auto flex-1 space-y-3">
               {(modalNotification.body || '').split('\n').map((line, i) => {
                 const isHeader = line.includes('(') && line.includes('):');
                 return (
@@ -426,13 +427,14 @@ export default function NotificationCenter() {
                 );
               })}
             </div>
-            <div className="px-5 py-3 border-t border-cream-dark dark:border-slate-700">
+            <div className="px-5 py-3 border-t border-cream-dark dark:border-slate-700 shrink-0">
               <p className="text-[10px] text-navy/30 dark:text-slate-500">
                 {getRelativeTime(modalNotification.created_at)}
               </p>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
