@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
-import { AVAILABLE_MODELS, AGENT_ROLES, MODEL_PROFILES } from '@/lib/ai/pageforge-pipeline';
+import { AVAILABLE_MODELS, AGENT_ROLES, MODEL_PROFILES } from '@/lib/ai/pageforge-constants';
 import type { SeoTeamConfig } from '@/lib/types';
 
 interface TeamTemplate {

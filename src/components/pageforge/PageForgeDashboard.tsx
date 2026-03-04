@@ -7,7 +7,7 @@ import type {
   PageForgeBuildStatus,
   PageForgeBuilderType,
 } from '@/lib/types';
-import { MODEL_PROFILES, AVAILABLE_MODELS, AGENT_ROLES } from '@/lib/ai/pageforge-pipeline';
+import { MODEL_PROFILES, AVAILABLE_MODELS, AGENT_ROLES } from '@/lib/ai/pageforge-constants';
 
 // ---------------------------------------------------------------------------
 // Status badge config
