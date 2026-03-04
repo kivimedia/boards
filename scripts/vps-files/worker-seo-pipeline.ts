@@ -14,20 +14,33 @@ interface BuildMessageOpts {
   feedback?: string;
   referenceImageUrls?: string[];
   previousPlan?: string;
+  teamConfig?: SeoTeamConfig | null;
+  sitemapUrls?: string[];
 }
 
 function buildUserMessage(phase: string, run: SeoPipelineRun, opts?: BuildMessageOpts): string {
   switch (phase) {
     case 'planning': {
+      const siteName = opts?.teamConfig?.site_name || 'the target site';
+      const siteUrl = opts?.teamConfig?.site_url || '';
       const parts = [
         'Create an SEO content plan and topic assignment for the next blog post.',
         '',
-        'Site: orlandostagerental.com (Stages Plus)',
+        `Site: ${siteUrl ? siteUrl.replace(/^https?:\/\//, '') : 'unknown'}${siteName ? ` (${siteName})` : ''}`,
         `Topic: "${run.topic}"`,
         run.silo ? `Preferred silo: "${run.silo}"` : 'Pick the best silo for this topic.',
         '',
         'No Slack events are available for this post. Focus on educational/product content if no events are referenced in the topic.',
       ];
+
+      // Include actual site URLs for internal linking
+      if (opts?.sitemapUrls && opts.sitemapUrls.length > 0) {
+        parts.push('', '--- EXISTING SITE PAGES (use these for internal links) ---');
+        parts.push('IMPORTANT: Only use URLs from this list for internal links. Do not invent URLs.');
+        for (const url of opts.sitemapUrls) {
+          parts.push(`- ${url}`);
+        }
+      }
 
       // Include feedback from previous review round
       if (opts?.previousPlan) {
@@ -48,19 +61,28 @@ function buildUserMessage(phase: string, run: SeoPipelineRun, opts?: BuildMessag
 
     case 'writing': {
       const outline = run.phase_results?.planning || '';
-      return [
+      const siteUrl = opts?.teamConfig?.site_url || '';
+      const writeParts = [
         'Write a blog post based on this assignment:',
         '',
         outline,
         '',
         `Topic: "${run.topic}"`,
+        siteUrl ? `Site: ${siteUrl.replace(/^https?:\/\//, '')}` : '',
         'Word count target: 1200-1500 words (regular post)',
         '',
         'Follow all writing rules, brand voice guidelines, and SEO requirements from your instructions.',
         'IMPORTANT: Never use em dashes (—) or en dashes (–) anywhere in the output. Use commas, periods, or rewrite the sentence instead.',
         'Mark protected zones around keyword placements, internal links, and factual claims.',
         'Output the complete blog post in markdown format with slug and meta_description at the top.',
-      ].join('\n');
+      ];
+      if (opts?.sitemapUrls && opts.sitemapUrls.length > 0) {
+        writeParts.push('', '--- EXISTING SITE PAGES (use only these for internal links) ---');
+        for (const url of opts.sitemapUrls) {
+          writeParts.push(`- ${url}`);
+        }
+      }
+      return writeParts.filter(Boolean).join('\n');
     }
 
     case 'qc': {
@@ -117,7 +139,7 @@ function buildUserMessage(phase: string, run: SeoPipelineRun, opts?: BuildMessag
         'Prepare this approved blog post for WordPress publication.',
         '',
         `Topic: "${run.topic}"`,
-        'Target site: orlandostagerental.com',
+        `Target site: ${opts?.teamConfig?.site_url?.replace(/^https?:\/\//, '') || 'WordPress'}`,
         '',
         'Post content:',
         content,
@@ -148,6 +170,71 @@ function buildUserMessage(phase: string, run: SeoPipelineRun, opts?: BuildMessag
 
     default:
       return `Process phase "${phase}" for topic: "${run.topic}"`;
+  }
+}
+
+// ============================================================================
+// Sitemap Fetcher — get existing URLs for internal linking
+// ============================================================================
+
+async function fetchSitemapUrls(siteUrl: string): Promise<string[]> {
+  const base = siteUrl.replace(/\/$/, '');
+  const urls: string[] = [];
+
+  try {
+    // Try common sitemap locations
+    const sitemapUrls = [
+      `${base}/sitemap.xml`,
+      `${base}/sitemap_index.xml`,
+      `${base}/wp-sitemap.xml`,
+    ];
+
+    let sitemapXml = '';
+    for (const url of sitemapUrls) {
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+        if (res.ok) {
+          sitemapXml = await res.text();
+          break;
+        }
+      } catch { continue; }
+    }
+
+    if (!sitemapXml) return [];
+
+    // Check if this is a sitemap index (contains other sitemaps)
+    const subSitemapMatches = sitemapXml.match(/<loc>(https?:\/\/[^<]+sitemap[^<]*\.xml[^<]*)<\/loc>/gi);
+    if (subSitemapMatches && subSitemapMatches.length > 0) {
+      // Fetch the first post sitemap (usually contains blog posts)
+      for (const match of subSitemapMatches) {
+        const subUrl = match.replace(/<\/?loc>/gi, '');
+        if (subUrl.includes('post') || subUrl.includes('page') || subSitemapMatches.length <= 3) {
+          try {
+            const subRes = await fetch(subUrl, { signal: AbortSignal.timeout(10000) });
+            if (subRes.ok) {
+              const subXml = await subRes.text();
+              const locMatches = subXml.match(/<loc>(https?:\/\/[^<]+)<\/loc>/gi) || [];
+              for (const loc of locMatches) {
+                urls.push(loc.replace(/<\/?loc>/gi, ''));
+              }
+            }
+          } catch { continue; }
+        }
+        if (urls.length >= 200) break;
+      }
+    } else {
+      // Direct sitemap with URLs
+      const locMatches = sitemapXml.match(/<loc>(https?:\/\/[^<]+)<\/loc>/gi) || [];
+      for (const loc of locMatches) {
+        urls.push(loc.replace(/<\/?loc>/gi, ''));
+      }
+    }
+
+    console.log(`[seo] Fetched ${urls.length} URLs from sitemap for ${base}`);
+    return urls.slice(0, 200); // Cap at 200 to avoid prompt bloat
+  } catch (err) {
+    console.warn(`[seo] Failed to fetch sitemap for ${base}:`, err);
+    return [];
   }
 }
 
@@ -268,6 +355,11 @@ export async function processSeoJob(job: Job<SeoJobData>): Promise<{ paused_at?:
       ? await getTeamConfig(supabase, run.team_config_id)
       : null;
 
+    // Fetch sitemap URLs for internal linking
+    const sitemapUrls = teamConfig?.site_url
+      ? await fetchSitemapUrls(teamConfig.site_url)
+      : [];
+
     const anthropic = getAnthropicClient();
     const startPhase = resume_from_phase || 0;
     let totalCost = 0;
@@ -314,15 +406,18 @@ export async function processSeoJob(job: Job<SeoJobData>): Promise<{ paused_at?:
 
       const runForPrompt = (currentRun || run) as SeoPipelineRun;
 
-      // Build message opts - inject feedback for planning regeneration
-      const messageOpts: BuildMessageOpts | undefined =
-        phase === 'planning' && regenerate && feedback
-          ? {
-              feedback,
-              referenceImageUrls: reference_image_urls,
-              previousPlan: runForPrompt.phase_results?.planning ? String(runForPrompt.phase_results.planning) : undefined,
-            }
-          : undefined;
+      // Build message opts - always include team config and sitemap URLs
+      const messageOpts: BuildMessageOpts = {
+        teamConfig,
+        sitemapUrls,
+      };
+
+      // Inject feedback for planning regeneration
+      if (phase === 'planning' && regenerate && feedback) {
+        messageOpts.feedback = feedback;
+        messageOpts.referenceImageUrls = reference_image_urls;
+        messageOpts.previousPlan = runForPrompt.phase_results?.planning ? String(runForPrompt.phase_results.planning) : undefined;
+      }
 
       const result = await runPhase(supabase, pipeline_run_id, phase, {
         systemPrompt,

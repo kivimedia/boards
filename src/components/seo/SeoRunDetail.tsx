@@ -384,6 +384,23 @@ export default function SeoRunDetail({ runId }: Props) {
 
   const planReviewFeedback = feedbackHistory.filter(f => f.phase === 'plan_review');
 
+  // Custom link renderer: convert relative URLs to the actual site and open in new tab
+  const siteUrl = (run.team_config?.site_url || '').replace(/\/$/, '');
+  const markdownComponents = {
+    a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
+      let resolvedHref = href || '#';
+      // Convert relative paths to absolute site URLs
+      if (resolvedHref.startsWith('/') && siteUrl) {
+        resolvedHref = `${siteUrl}${resolvedHref}`;
+      }
+      return (
+        <a {...props} href={resolvedHref} target="_blank" rel="noopener noreferrer">
+          {children}
+        </a>
+      );
+    },
+  };
+
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-4 md:space-y-6">
       {/* ------------------------------------------------------------------ */}
@@ -603,7 +620,7 @@ export default function SeoRunDetail({ runId }: Props) {
           {/* Full article content */}
           <div className="px-6 md:px-10 py-8">
             <article className="prose dark:prose-invert max-w-none font-body prose-headings:font-heading prose-headings:text-navy dark:prose-headings:text-white prose-p:leading-relaxed prose-p:text-navy/80 dark:prose-p:text-slate-300 prose-h1:text-[20px] prose-h2:text-[16px] prose-h3:text-[14px] prose-h4:text-[12px] prose-p:text-[11px] prose-li:text-[11px] prose-td:text-[11px] prose-th:text-[11px]">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                 {cleanDraftContent(run.humanized_content || run.final_content || '')}
               </ReactMarkdown>
             </article>
@@ -832,7 +849,7 @@ export default function SeoRunDetail({ runId }: Props) {
         <div className="bg-white dark:bg-dark-card rounded-xl p-5 border border-cream-dark dark:border-slate-700">
           <h2 className="text-sm font-semibold text-navy/60 dark:text-slate-300 mb-3 font-heading">Content Preview</h2>
           <div className="prose dark:prose-invert max-w-none font-body bg-cream dark:bg-dark-surface p-4 rounded-lg overflow-auto max-h-96 prose-h1:text-[20px] prose-h2:text-[16px] prose-h3:text-[14px] prose-h4:text-[12px] prose-p:text-[11px] prose-li:text-[11px] prose-td:text-[11px] prose-th:text-[11px]">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
               {cleanDraftContent(run.humanized_content || run.final_content || '')}
             </ReactMarkdown>
           </div>
