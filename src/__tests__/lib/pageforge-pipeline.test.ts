@@ -193,8 +193,8 @@ describe('PageForge Pipeline', () => {
   // =========================================================================
 
   describe('PAGEFORGE_PHASE_ORDER', () => {
-    it('has exactly 15 phases', () => {
-      expect(PAGEFORGE_PHASE_ORDER).toHaveLength(15);
+    it('has exactly 16 phases', () => {
+      expect(PAGEFORGE_PHASE_ORDER).toHaveLength(16);
     });
 
     it('starts with preflight', () => {
@@ -202,63 +202,67 @@ describe('PageForge Pipeline', () => {
     });
 
     it('ends with am_signoff_gate', () => {
-      expect(PAGEFORGE_PHASE_ORDER[14]).toBe('am_signoff_gate');
+      expect(PAGEFORGE_PHASE_ORDER[15]).toBe('am_signoff_gate');
     });
 
-    it('has figma_analysis at index 1', () => {
-      expect(PAGEFORGE_PHASE_ORDER[1]).toBe('figma_analysis');
+    it('has auto_name at index 1', () => {
+      expect(PAGEFORGE_PHASE_ORDER[1]).toBe('auto_name');
     });
 
-    it('has section_classification at index 2', () => {
-      expect(PAGEFORGE_PHASE_ORDER[2]).toBe('section_classification');
+    it('has figma_analysis at index 2', () => {
+      expect(PAGEFORGE_PHASE_ORDER[2]).toBe('figma_analysis');
     });
 
-    it('has markup_generation at index 3', () => {
-      expect(PAGEFORGE_PHASE_ORDER[3]).toBe('markup_generation');
+    it('has section_classification at index 3', () => {
+      expect(PAGEFORGE_PHASE_ORDER[3]).toBe('section_classification');
     });
 
-    it('has markup_validation at index 4', () => {
-      expect(PAGEFORGE_PHASE_ORDER[4]).toBe('markup_validation');
+    it('has markup_generation at index 4', () => {
+      expect(PAGEFORGE_PHASE_ORDER[4]).toBe('markup_generation');
     });
 
-    it('has deploy_draft at index 5', () => {
-      expect(PAGEFORGE_PHASE_ORDER[5]).toBe('deploy_draft');
+    it('has markup_validation at index 5', () => {
+      expect(PAGEFORGE_PHASE_ORDER[5]).toBe('markup_validation');
     });
 
-    it('has image_optimization at index 6', () => {
-      expect(PAGEFORGE_PHASE_ORDER[6]).toBe('image_optimization');
+    it('has deploy_draft at index 6', () => {
+      expect(PAGEFORGE_PHASE_ORDER[6]).toBe('deploy_draft');
     });
 
-    it('has vqa_capture at index 7', () => {
-      expect(PAGEFORGE_PHASE_ORDER[7]).toBe('vqa_capture');
+    it('has image_optimization at index 7', () => {
+      expect(PAGEFORGE_PHASE_ORDER[7]).toBe('image_optimization');
     });
 
-    it('has vqa_comparison at index 8', () => {
-      expect(PAGEFORGE_PHASE_ORDER[8]).toBe('vqa_comparison');
+    it('has vqa_capture at index 8', () => {
+      expect(PAGEFORGE_PHASE_ORDER[8]).toBe('vqa_capture');
     });
 
-    it('has vqa_fix_loop at index 9', () => {
-      expect(PAGEFORGE_PHASE_ORDER[9]).toBe('vqa_fix_loop');
+    it('has vqa_comparison at index 9', () => {
+      expect(PAGEFORGE_PHASE_ORDER[9]).toBe('vqa_comparison');
     });
 
-    it('has functional_qa at index 10', () => {
-      expect(PAGEFORGE_PHASE_ORDER[10]).toBe('functional_qa');
+    it('has vqa_fix_loop at index 10', () => {
+      expect(PAGEFORGE_PHASE_ORDER[10]).toBe('vqa_fix_loop');
     });
 
-    it('has seo_config at index 11', () => {
-      expect(PAGEFORGE_PHASE_ORDER[11]).toBe('seo_config');
+    it('has functional_qa at index 11', () => {
+      expect(PAGEFORGE_PHASE_ORDER[11]).toBe('functional_qa');
     });
 
-    it('has report_generation at index 12', () => {
-      expect(PAGEFORGE_PHASE_ORDER[12]).toBe('report_generation');
+    it('has seo_config at index 12', () => {
+      expect(PAGEFORGE_PHASE_ORDER[12]).toBe('seo_config');
     });
 
-    it('has developer_review_gate at index 13', () => {
-      expect(PAGEFORGE_PHASE_ORDER[13]).toBe('developer_review_gate');
+    it('has report_generation at index 13', () => {
+      expect(PAGEFORGE_PHASE_ORDER[13]).toBe('report_generation');
     });
 
-    it('has am_signoff_gate at index 14', () => {
-      expect(PAGEFORGE_PHASE_ORDER[14]).toBe('am_signoff_gate');
+    it('has developer_review_gate at index 14', () => {
+      expect(PAGEFORGE_PHASE_ORDER[14]).toBe('developer_review_gate');
+    });
+
+    it('has am_signoff_gate at index 15', () => {
+      expect(PAGEFORGE_PHASE_ORDER[15]).toBe('am_signoff_gate');
     });
 
     it('contains no duplicate phases', () => {
@@ -298,12 +302,12 @@ describe('PageForge Pipeline', () => {
       expect(GATE_PHASES.has('markup_generation')).toBe(false);
     });
 
-    it('gates are at indexes 13 and 14 in phase order', () => {
+    it('gates are at indexes 14 and 15 in phase order', () => {
       const gateIndexes: number[] = [];
       PAGEFORGE_PHASE_ORDER.forEach((p, i) => {
         if (GATE_PHASES.has(p)) gateIndexes.push(i);
       });
-      expect(gateIndexes).toEqual([13, 14]);
+      expect(gateIndexes).toEqual([14, 15]);
     });
   });
 
@@ -369,8 +373,8 @@ describe('PageForge Pipeline', () => {
       expect(PHASE_TO_ACTIVITY['am_signoff_gate']).toBeUndefined();
     });
 
-    it('has 13 mapped phases (15 total minus 2 gates)', () => {
-      expect(Object.keys(PHASE_TO_ACTIVITY)).toHaveLength(13);
+    it('has 14 mapped phases (16 total minus 2 gates)', () => {
+      expect(Object.keys(PHASE_TO_ACTIVITY)).toHaveLength(14);
     });
   });
 
@@ -1471,9 +1475,9 @@ describe('PageForge Pipeline', () => {
   // =========================================================================
 
   describe('status transitions', () => {
-    it('phases flow from preflight through all 15 phases in order', () => {
+    it('phases flow from preflight through all 16 phases in order', () => {
       const expectedFlow = [
-        'preflight', 'figma_analysis', 'section_classification',
+        'preflight', 'auto_name', 'figma_analysis', 'section_classification',
         'markup_generation', 'markup_validation', 'deploy_draft',
         'image_optimization', 'vqa_capture', 'vqa_comparison',
         'vqa_fix_loop', 'functional_qa', 'seo_config',
@@ -1490,14 +1494,14 @@ describe('PageForge Pipeline', () => {
       expect(PAGEFORGE_PHASE_ORDER[PAGEFORGE_PHASE_ORDER.length - 1]).toBe('am_signoff_gate');
     });
 
-    it('revise on dev_gate goes back to markup_generation (index 3)', () => {
+    it('revise on dev_gate goes back to markup_generation (index 4)', () => {
       const markupIndex = PAGEFORGE_PHASE_ORDER.indexOf('markup_generation');
-      expect(markupIndex).toBe(3);
+      expect(markupIndex).toBe(4);
     });
 
-    it('revise on am_gate goes back to vqa_capture (index 7)', () => {
+    it('revise on am_gate goes back to vqa_capture (index 8)', () => {
       const vqaCaptureIndex = PAGEFORGE_PHASE_ORDER.indexOf('vqa_capture');
-      expect(vqaCaptureIndex).toBe(7);
+      expect(vqaCaptureIndex).toBe(8);
     });
   });
 

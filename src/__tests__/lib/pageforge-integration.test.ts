@@ -261,14 +261,15 @@ describe('PageForge Integration - Build Creation', () => {
 
 describe('PageForge Integration - Phase Progression', () => {
   it('phases are defined in the correct order', () => {
-    expect(PAGEFORGE_PHASE_ORDER).toHaveLength(15);
+    expect(PAGEFORGE_PHASE_ORDER).toHaveLength(16);
     expect(PAGEFORGE_PHASE_ORDER[0]).toBe('preflight');
-    expect(PAGEFORGE_PHASE_ORDER[3]).toBe('markup_generation');
-    expect(PAGEFORGE_PHASE_ORDER[9]).toBe('vqa_fix_loop');
-    expect(PAGEFORGE_PHASE_ORDER[10]).toBe('functional_qa');
-    expect(PAGEFORGE_PHASE_ORDER[11]).toBe('seo_config');
-    expect(PAGEFORGE_PHASE_ORDER[13]).toBe('developer_review_gate');
-    expect(PAGEFORGE_PHASE_ORDER[14]).toBe('am_signoff_gate');
+    expect(PAGEFORGE_PHASE_ORDER[1]).toBe('auto_name');
+    expect(PAGEFORGE_PHASE_ORDER[4]).toBe('markup_generation');
+    expect(PAGEFORGE_PHASE_ORDER[10]).toBe('vqa_fix_loop');
+    expect(PAGEFORGE_PHASE_ORDER[11]).toBe('functional_qa');
+    expect(PAGEFORGE_PHASE_ORDER[12]).toBe('seo_config');
+    expect(PAGEFORGE_PHASE_ORDER[14]).toBe('developer_review_gate');
+    expect(PAGEFORGE_PHASE_ORDER[15]).toBe('am_signoff_gate');
   });
 
   it('gate phases are developer_review_gate and am_signoff_gate', () => {
@@ -333,25 +334,25 @@ describe('PageForge Integration - Gate Decisions', () => {
     // The worker checks GATE_PHASES.has(phase) and returns early.
     // Verify the gate index is correct.
     const devGateIndex = PAGEFORGE_PHASE_ORDER.indexOf('developer_review_gate');
-    expect(devGateIndex).toBe(13);
+    expect(devGateIndex).toBe(14);
     expect(GATE_PHASES.has(PAGEFORGE_PHASE_ORDER[devGateIndex])).toBe(true);
   });
 
   it('gate approve: resumes from next phase', async () => {
-    const build = makeTestBuild({ status: 'developer_review_gate', current_phase: 13 });
+    const build = makeTestBuild({ status: 'developer_review_gate', current_phase: 14 });
     const { supabase, updateCalls } = createMockSupabase(build, makeSiteProfile());
 
     const result = await submitPageForgeGateDecision(
       supabase, build.id, 'developer_review_gate', 'approve', 'Looks good!', 'user-1'
     );
 
-    // After approving dev gate (index 13), next phase is am_signoff_gate (index 14)
+    // After approving dev gate (index 14), next phase is am_signoff_gate (index 15)
     expect(result.newStatus).toBe('am_signoff_gate');
 
     const buildUpdate = updateCalls.find(u => u.table === 'pageforge_builds');
     expect(buildUpdate).toBeDefined();
     expect(buildUpdate!.data.status).toBe('am_signoff_gate');
-    expect(buildUpdate!.data.current_phase).toBe(14);
+    expect(buildUpdate!.data.current_phase).toBe(15);
   });
 
   it('gate approve on final gate sets status to published', async () => {
@@ -513,6 +514,7 @@ describe('PageForge Integration - Worker Behavior (Conceptual)', () => {
   it('phase progression follows the defined order', () => {
     const expected = [
       'preflight',
+      'auto_name',
       'figma_analysis',
       'section_classification',
       'markup_generation',
