@@ -64,17 +64,15 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
       if (res.ok) {
         const json = await res.json();
         const { total_reminded, total_skipped, total_no_profile } = json.summary;
-        const debugInfo = json.debug
-          ? `\n\nDB AM names: ${(json.debug.amNamesFromDB || []).join(', ')}\nProfile names: ${(json.debug.profileDisplayNames || []).join(', ')}`
+        const remindedNames = (json.reminded || []).length > 0
+          ? `: ${(json.reminded as string[]).join(', ')}`
           : '';
-        console.log('[bump-reminder] debug:', JSON.stringify(json.debug, null, 2));
         setBumpResult(
-          `Reminded ${total_reminded} AM${total_reminded !== 1 ? 's' : ''}` +
+          `Reminded ${total_reminded} AM${total_reminded !== 1 ? 's' : ''}${remindedNames}` +
           (total_skipped > 0 ? `, ${total_skipped} skipped` : '') +
-          (total_no_profile > 0 ? `, ${total_no_profile} no profile` : '') +
-          (total_no_profile > 0 ? debugInfo : '')
+          (total_no_profile > 0 ? `, ${total_no_profile} no profile` : '')
         );
-        setTimeout(() => setBumpResult(null), 15000);
+        setTimeout(() => setBumpResult(null), 8000);
       } else {
         const json = await res.json().catch(() => ({}));
         setBumpResult(json.error || 'Failed to send reminders');

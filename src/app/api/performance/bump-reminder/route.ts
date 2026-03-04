@@ -49,7 +49,6 @@ export async function POST() {
         total_skipped: result.skipped.length,
         total_no_profile: result.noProfile.length,
       },
-      debug: result.debug,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);

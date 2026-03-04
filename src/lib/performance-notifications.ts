@@ -211,7 +211,7 @@ async function wasRecentlyReminded(
 export async function notifyAMsPendingTasks(
   supabase: SupabaseClient,
   options: { lookbackDays?: number; cooldownHours?: number } = {}
-): Promise<{ reminded: string[]; skipped: string[]; noProfile: string[]; debug?: Record<string, unknown> }> {
+): Promise<{ reminded: string[]; skipped: string[]; noProfile: string[] }> {
   const lookbackDays = options.lookbackDays ?? 30;
   const cooldownHours = options.cooldownHours ?? 24;
   const cutoffDate = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000)
@@ -288,12 +288,6 @@ export async function notifyAMsPendingTasks(
   // 5. Resolve AM names to profile IDs
   const amNames = Array.from(amMap.keys());
   const nameToProfile = await resolveAMProfiles(supabase, amNames);
-
-  // Debug: fetch all profile display names for comparison
-  const { data: allProfiles } = await supabase
-    .from('profiles')
-    .select('display_name');
-  const profileNames = (allProfiles || []).map((p: { display_name: string }) => p.display_name);
 
   for (const [name, tasks] of Array.from(amMap)) {
     tasks.profileId = nameToProfile.get(name) || null;
@@ -393,14 +387,5 @@ export async function notifyAMsPendingTasks(
     reminded.push(tasks.amName);
   }
 
-  return {
-    reminded,
-    skipped,
-    noProfile,
-    debug: {
-      amNamesFromDB: amNames,
-      profileDisplayNames: profileNames,
-      matched: Array.from(nameToProfile.entries()).map(([k, v]) => ({ am: k, profileId: v })),
-    },
-  };
+  return { reminded, skipped, noProfile };
 }
