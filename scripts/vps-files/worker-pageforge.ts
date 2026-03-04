@@ -704,7 +704,11 @@ async function executePhase(
         anthropic
       );
 
+      // Extract page name from Figma node (frame name)
+      const figmaPageName = pageNode.name || '';
+
       const result = {
+        pageName: figmaPageName,
         sections: sections.map((s: any) => ({ id: s.id, name: s.name, type: s.type, bounds: s.bounds, childCount: s.children.length })),
         colors, fonts, imageNodeIds, imageNodeDetails, designSummary: designResult.text,
       };
@@ -1299,9 +1303,9 @@ RESPOND WITH JSON: {"markup":"the COMPLETE page markup","sections":[{"name":"sec
       const templatesToTry = configuredTemplate ? [configuredTemplate] : [...blankTemplates, ''];
       for (const tmpl of templatesToTry) {
         try {
-          // Use empty title to prevent WP from rendering an H1 above the content
-          // The actual page title is handled by SEO meta (Yoast) in the seo_config phase
-          const wpTitle = ' '; // space prevents "empty title" validation errors
+          // Use build.page_title as WP page title (set by user or UI), fallback to Figma frame name
+          const figmaPageName = artifacts.figma_analysis?.pageName || '';
+          const wpTitle = build.page_title || figmaPageName || build.page_slug || 'PageForge Page';
           if (build.wp_page_id) {
             page = await wpUpdatePage(wpClient, build.wp_page_id, { title: wpTitle, content: cleanMarkup, slug: build.page_slug || undefined, status: 'publish', template: tmpl || undefined });
           } else {
