@@ -143,19 +143,22 @@ export default function NotificationCenter() {
     setUnreadCount(count || 0);
   }, [user]);
 
+  const hasNotifications = useRef(false);
   const fetchNotifications = useCallback(async () => {
     if (!user) return;
-    // Only show spinner on first load, not on refreshes
-    if (notifications.length === 0) setLoading(true);
+    if (!hasNotifications.current) setLoading(true);
     const { data } = await supabase
       .from('notifications')
       .select('*')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(20);
-    if (data) setNotifications(data);
+    if (data) {
+      setNotifications(data);
+      hasNotifications.current = data.length > 0;
+    }
     setLoading(false);
-  }, [user, notifications.length]);
+  }, [user]);
 
   // Poll unread count every 30 seconds
   useEffect(() => {
