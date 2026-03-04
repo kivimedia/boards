@@ -27,98 +27,108 @@ export default function CreateBoardModal({ isOpen, onClose }: CreateBoardModalPr
     e.preventDefault();
     setLoading(true);
 
-    // Use cached session (no network call) instead of getUser() which hits auth server
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) return;
+    try {
+      // Use cached session (no network call) instead of getUser() which hits auth server
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        setLoading(false);
+        alert('Session expired. Please refresh and log in again.');
+        return;
+      }
 
-    const { data: board, error } = await supabase
-      .from('boards')
-      .insert({ name, type, created_by: session.user.id })
-      .select()
-      .single();
+      const { data: board, error } = await supabase
+        .from('boards')
+        .insert({ name, type, created_by: session.user.id })
+        .select()
+        .single();
 
-    if (error || !board) {
+      if (error || !board) {
+        setLoading(false);
+        alert('Failed to create board. Please try again.');
+        return;
+      }
+
+      // Create lists, labels, custom fields, and automation before navigating
+      const config = BOARD_TYPE_CONFIG[type];
+      const lists = config.defaultLists.map((listName, index) => ({
+        board_id: board.id,
+        name: listName,
+        position: index,
+      }));
+      const defaultLabels = [
+        { name: 'Urgent', color: '#ef4444', board_id: board.id },
+        { name: 'Bug', color: '#f59e0b', board_id: board.id },
+        { name: 'Feature', color: '#3b82f6', board_id: board.id },
+        { name: 'Done', color: '#10b981', board_id: board.id },
+      ];
+
+      // Wait for lists + labels first (required for board to function)
+      const [listsResult, labelsResult] = await Promise.all([
+        supabase.from('lists').insert(lists),
+        supabase.from('labels').insert(defaultLabels),
+      ]);
+
+      if (listsResult.error) {
+        console.error('Failed to create lists:', listsResult.error);
+      }
+      if (labelsResult.error) {
+        console.error('Failed to create labels:', labelsResult.error);
+      }
+
+      // Custom fields and automation can run in parallel (non-blocking)
+      const bgTasks: PromiseLike<unknown>[] = [];
+
+      const defaultCustomFields = config.defaultCustomFields;
+      if (defaultCustomFields && defaultCustomFields.length > 0) {
+        bgTasks.push(...defaultCustomFields.map((field, index) =>
+          fetch(`/api/boards/${board.id}/custom-fields`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: field.name,
+              field_type: field.field_type,
+              options: field.options || [],
+              is_required: field.is_required || false,
+              position: index,
+            }),
+          })
+        ));
+      }
+      const defaultRules = getDefaultAutomationRules(type);
+      if (defaultRules.length > 0) {
+        bgTasks.push(...defaultRules.map((rule, index) =>
+          fetch(`/api/boards/${board.id}/automation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: rule.name,
+              trigger_type: rule.trigger_type,
+              trigger_config: rule.trigger_config,
+              action_type: rule.action_type,
+              action_config: rule.action_config,
+              execution_order: index,
+            }),
+          })
+        ));
+      }
+
+      // Wait for all background tasks too
+      if (bgTasks.length > 0) {
+        await Promise.all(bgTasks).catch(err => console.error('Board setup error:', err));
+      }
+
+      // Navigate only after everything is ready
+      const boardSlug = slugify(board.name);
+      setName('');
+      setType('dev');
+      onClose();
+      router.push(`/board/${boardSlug}`);
+    } catch (err) {
+      console.error('Board creation error:', err);
+      alert('Something went wrong creating the board. Please try again.');
+    } finally {
       setLoading(false);
-      alert('Failed to create board. Please try again.');
-      return;
     }
-
-    // Create lists, labels, custom fields, and automation before navigating
-    const config = BOARD_TYPE_CONFIG[type];
-    const lists = config.defaultLists.map((listName, index) => ({
-      board_id: board.id,
-      name: listName,
-      position: index,
-    }));
-    const defaultLabels = [
-      { name: 'Urgent', color: '#ef4444', board_id: board.id },
-      { name: 'Bug', color: '#f59e0b', board_id: board.id },
-      { name: 'Feature', color: '#3b82f6', board_id: board.id },
-      { name: 'Done', color: '#10b981', board_id: board.id },
-    ];
-
-    // Wait for lists + labels first (required for board to function)
-    const [listsResult, labelsResult] = await Promise.all([
-      supabase.from('lists').insert(lists),
-      supabase.from('labels').insert(defaultLabels),
-    ]);
-
-    if (listsResult.error) {
-      console.error('Failed to create lists:', listsResult.error);
-    }
-    if (labelsResult.error) {
-      console.error('Failed to create labels:', labelsResult.error);
-    }
-
-    // Custom fields and automation can run in parallel (non-blocking)
-    const bgTasks: PromiseLike<unknown>[] = [];
-
-    const defaultCustomFields = config.defaultCustomFields;
-    if (defaultCustomFields && defaultCustomFields.length > 0) {
-      bgTasks.push(...defaultCustomFields.map((field, index) =>
-        fetch(`/api/boards/${board.id}/custom-fields`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: field.name,
-            field_type: field.field_type,
-            options: field.options || [],
-            is_required: field.is_required || false,
-            position: index,
-          }),
-        })
-      ));
-    }
-    const defaultRules = getDefaultAutomationRules(type);
-    if (defaultRules.length > 0) {
-      bgTasks.push(...defaultRules.map((rule, index) =>
-        fetch(`/api/boards/${board.id}/automation`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: rule.name,
-            trigger_type: rule.trigger_type,
-            trigger_config: rule.trigger_config,
-            action_type: rule.action_type,
-            action_config: rule.action_config,
-            execution_order: index,
-          }),
-        })
-      ));
-    }
-
-    // Wait for all background tasks too
-    if (bgTasks.length > 0) {
-      await Promise.all(bgTasks).catch(err => console.error('Board setup error:', err));
-    }
-
-    // Navigate only after everything is ready
-    const boardSlug = slugify(board.name);
-    setName('');
-    setType('dev');
-    setLoading(false);
-    onClose();
-    router.push(`/board/${boardSlug}`);
   };
 
   return (
