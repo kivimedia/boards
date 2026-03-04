@@ -125,7 +125,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     // No primary - try to find any placement and promote it
     const { data: anyPlacements } = await db
       .from('card_placements')
-      .select('id')
+      .select('id, is_mirror')
       .eq('card_id', cardId)
       .limit(1);
 
