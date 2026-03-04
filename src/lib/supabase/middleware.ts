@@ -3,13 +3,17 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 const PUBLIC_PATHS = ['/login', '/signup', '/pending-approval', '/forgot-password', '/reset-password', '/auth/callback', '/api/auth/', '/api/cron/', '/api/admin/', '/api/webhooks/', '/api/pageforge/'];
 
-const AUTH_TIMEOUT_MS = 15000;
+/**
+ * Timeout for network calls (profile check for client role isolation).
+ * Auth itself no longer needs a timeout since we use getSession() (local JWT parse).
+ */
+const NETWORK_TIMEOUT_MS = 10000;
 
 function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<T> {
   return Promise.race([
     Promise.resolve(promise),
     new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Supabase auth timeout')), ms)
+      setTimeout(() => reject(new Error('Supabase network timeout')), ms)
     ),
   ]);
 }
@@ -43,12 +47,17 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
+  // Use getSession() instead of getUser() for middleware.
+  // getSession() parses the JWT locally (no network call) — instant.
+  // getUser() makes a round-trip to Supabase auth API — 200-3000ms from Vercel Stockholm to US.
+  // Security note: getSession() trusts the JWT signature without server verification.
+  // This is fine for middleware (routing/redirect logic). Individual API routes
+  // that need verified auth should call getUser() themselves.
   let user = null;
   try {
-    const { data } = await withTimeout(supabase.auth.getUser(), AUTH_TIMEOUT_MS);
-    user = data?.user ?? null;
+    const { data } = await supabase.auth.getSession();
+    user = data?.session?.user ?? null;
   } catch {
-    // Supabase unreachable or timed out - allow public paths, redirect others to login
     if (isPublicPath) {
       return supabaseResponse;
     }
@@ -78,11 +87,12 @@ export async function updateSession(request: NextRequest) {
   }
 
   // Client role isolation: restrict client users to their own board + map
+  // This still needs a network call to check profile role, but only for authed users.
   if (user && !isPublicPath) {
     try {
       const result = await withTimeout(
         supabase.from('profiles').select('user_role, client_id').eq('id', user.id).single(),
-        AUTH_TIMEOUT_MS
+        NETWORK_TIMEOUT_MS
       ) as { data: { user_role: string; client_id: string | null } | null };
       const profile = result.data;
 
