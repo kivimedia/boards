@@ -26,10 +26,24 @@ export async function GET() {
     .select('*')
     .eq('is_active', true);
 
+  // Deduplicate configs by tracker_type (keep most recently synced, sum row counts)
+  const configsByType = new Map<string, { config: any; totalRows: number }>();
+  for (const c of (configs || []).filter((c: any) => c.tracker_type !== 'masterlist' && c.tracker_type !== 'sanity_tests')) {
+    const existing = configsByType.get(c.tracker_type);
+    if (!existing) {
+      configsByType.set(c.tracker_type, { config: c, totalRows: c.row_count || 0 });
+    } else {
+      existing.totalRows += c.row_count || 0;
+      // Keep the most recently synced config for freshness info
+      if (c.last_synced_at && (!existing.config.last_synced_at || c.last_synced_at > existing.config.last_synced_at)) {
+        existing.config = c;
+      }
+    }
+  }
+
   // Build tracker summaries
-  const trackers: PKTrackerSummary[] = (configs || [])
-    .filter((c: any) => c.tracker_type !== 'masterlist' && c.tracker_type !== 'sanity_tests')
-    .map((config: any) => {
+  const trackers: PKTrackerSummary[] = Array.from(configsByType.values())
+    .map(({ config, totalRows }) => {
       const trackerType = config.tracker_type as PKTrackerType;
       const lastSynced = config.last_synced_at ? new Date(config.last_synced_at) : null;
       const now = new Date();
@@ -53,7 +67,7 @@ export async function GET() {
         tracker_type: trackerType,
         label: PK_TRACKER_LABELS[trackerType] || config.sheet_title,
         frequency: PK_TRACKER_FREQUENCIES[trackerType] || config.sync_frequency,
-        total_rows: config.row_count || 0,
+        total_rows: totalRows,
         last_synced_at: config.last_synced_at,
         sync_status: config.last_sync_status,
         freshness,
