@@ -1484,7 +1484,13 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
 
         {/* Footer */}
         <div className="mt-6 pt-4 border-t border-cream-dark dark:border-slate-700 flex items-center justify-between text-xs text-navy/30 dark:text-slate-500 font-body">
-          <span>Created {new Date(card.created_at).toLocaleDateString()}</span>
+          <span>
+            Created {new Date(card.created_at).toLocaleDateString()}
+            {card.created_by && (() => {
+              const creator = allProfiles.find(p => p.id === card.created_by);
+              return creator ? ` by ${creator.display_name}` : '';
+            })()}
+          </span>
 
           {/* Card navigation */}
           {allCardIds && allCardIds.length > 1 && onNavigate && currentIndex >= 0 && (
