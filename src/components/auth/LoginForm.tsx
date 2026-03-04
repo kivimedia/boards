@@ -26,7 +26,11 @@ export default function LoginForm() {
     });
 
     if (error) {
-      setError(error.message);
+      // "Failed to fetch" means the browser couldn't reach Supabase at all
+      const msg = error.message === 'Failed to fetch'
+        ? 'Could not connect to the server. Please check your internet connection and try again.'
+        : error.message;
+      setError(msg);
       setLoading(false);
     } else {
       try {
