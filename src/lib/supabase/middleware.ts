@@ -80,7 +80,7 @@ export async function updateSession(request: NextRequest) {
   // Client role isolation: restrict client users to their own board + map
   if (user && !isPublicPath) {
     try {
-      const { data: profile } = await withTimeout(
+      const { data: profile } = await withTimeout<{ data: { user_role: string; client_id: string | null } | null }>(
         supabase.from('profiles').select('user_role, client_id').eq('id', user.id).single(),
         AUTH_TIMEOUT_MS
       );
