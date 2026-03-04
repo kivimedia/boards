@@ -2365,131 +2365,155 @@ Score 0-100. Respond with JSON:
 
       // Final full 3-breakpoint comparison after all fixes
       if (currentIteration > 0) {
-        // Responsive CSS pass: add media queries to improve tablet/mobile scores
-        // Uses Figma reference + rollback if scores drop
+        // Mobile/Tablet responsive fix pass - uses Puppeteer DOM analysis + AI to fix concrete issues
         if (lastScore >= 80 && build.wp_page_id && siteProfile.wp_username && siteProfile.wp_app_password) {
           try {
-            console.log('[pageforge] Running responsive CSS fix pass...');
-            const savedMarkup = currentMarkup; // Save for rollback
-            const respShots = await captureScreenshots(draftUrl);
-            const tabletImg = respShots.tablet;
-            const mobileImg = respShots.mobile;
-            // Get Figma reference images for comparison
-            const figmaDesktopRef = artifacts.vqa_capture?.figmaScreenshots?.desktop;
-            if (tabletImg && mobileImg) {
-              // Build images array: WP tablet, WP mobile, then Figma desktop as reference
-              const respImages: Array<{data: string; mimeType: string}> = [
-                { data: tabletImg, mimeType: 'image/jpeg' },
-                { data: mobileImg, mimeType: 'image/jpeg' },
-              ];
-              let figmaRefNote = '';
-              if (figmaDesktopRef) {
-                respImages.push({ data: figmaDesktopRef, mimeType: 'image/jpeg' });
-                figmaRefNote = '\nImage 3: FIGMA DESIGN (desktop reference) - the WordPress page should match this design as closely as possible at all breakpoints.';
+            console.log('[pageforge] Running mobile responsive fix pass...');
+            const savedMarkup = currentMarkup;
+            const fixBuilder = build.page_builder || 'gutenberg';
+            const wpClient = createWpClient({ restUrl: siteProfile.wp_rest_url, username: siteProfile.wp_username, appPassword: siteProfile.wp_app_password });
+
+            // Run Puppeteer audit at mobile width to find concrete issues
+            const mobileAudit = await runMobileAudit(draftUrl);
+            console.log(`[pageforge] Mobile audit: overflow=${mobileAudit.hasHorizontalScroll}, overflowPx=${mobileAudit.overflowPx}, fixedWidths=${mobileAudit.fixedWidthElements.length}, noWrapFlex=${mobileAudit.noWrapContainers.length}, smallTaps=${mobileAudit.smallTapTargets}`);
+
+            if (mobileAudit.hasHorizontalScroll || mobileAudit.fixedWidthElements.length > 0 || mobileAudit.noWrapContainers.length > 0 || mobileAudit.smallTapTargets > 5) {
+              // Build concrete fix report for the AI
+              const issueReport = [];
+              if (mobileAudit.hasHorizontalScroll) {
+                issueReport.push(`CRITICAL: Page has horizontal scroll (${mobileAudit.overflowPx}px overflow on 375px viewport)`);
               }
-              // Find existing style block to provide full CSS context
+              for (const fw of mobileAudit.fixedWidthElements) {
+                issueReport.push(`Fixed width element: ${fw.selector} has inline "${fw.widthRule}" (${fw.computedWidth}px > 375px viewport)`);
+              }
+              for (const nw of mobileAudit.noWrapContainers) {
+                issueReport.push(`Non-wrapping ${nw.display} container: ${nw.selector} (${nw.computedWidth}px wide, children overflow). ${nw.gridCols ? 'Grid columns: ' + nw.gridCols : ''}`);
+              }
+              if (mobileAudit.smallTapTargets > 0) {
+                issueReport.push(`${mobileAudit.smallTapTargets} tap targets are smaller than 44px (poor mobile usability)`);
+              }
+
+              // Find existing style block
               const styleMatch = currentMarkup.match(/<style[^>]*>([\s\S]*?)<\/style>/);
               const existingCSS = styleMatch ? styleMatch[1] : '';
-              const respResult = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa_fix', 'vqa_fix_loop',
+
+              // Send concrete issues to AI to generate targeted CSS fixes
+              const mobileFixResult = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa_fix', 'vqa_fix_loop',
                 getSystemPrompt('pageforge_vqa'),
-                `RESPONSIVE CSS FIX PASS - Compare WordPress screenshots to the Figma design and fix tablet/mobile layout.
+                `MOBILE RESPONSIVE FIX - Fix these SPECIFIC issues found by automated DOM analysis at 375px viewport:
 
-Image 1: WordPress page at TABLET width (768px)
-Image 2: WordPress page at MOBILE width (375px)${figmaRefNote}
+${issueReport.join('\n')}
 
-The desktop version already scores ${lastScore}% against the Figma design. Your job is to make tablet and mobile match the Figma design too.
+RULES:
+1. Generate ONLY @media queries. Never change existing desktop CSS.
+2. Use @media (max-width: 768px) for ALL fixes (covers both tablet and mobile).
+3. For fixed-width elements: use max-width: 100% !important; and width: 100% !important;
+4. For non-wrapping flex: use flex-wrap: wrap !important; flex-direction: column !important;
+5. For fixed grid columns: use grid-template-columns: 1fr !important;
+6. For horizontal overflow: add overflow-x: hidden on the container.
+7. For images wider than viewport: img { max-width: 100% !important; height: auto !important; }
+8. For small tap targets on links/buttons: min-height: 44px; min-width: 44px; padding: 12px;
+9. Target elements using Divi classes (et_pb_section, et_pb_row, et_pb_column, etc.) when available.
+10. Use !important on all rules to override Divi inline styles.
 
-IMPORTANT RULES:
-- ONLY add @media queries. Do NOT change any existing CSS rules.
-- Use @media (max-width: 768px) for tablet and @media (max-width: 480px) for mobile.
-- Focus on: column stacking, font-size scaling, image width, padding/margin adjustments.
-- Do NOT change colors, backgrounds, fonts, or any desktop-affecting styles.
-- Keep changes minimal and targeted. Less is more.
-
-Existing CSS in the page:
+Existing CSS:
 \`\`\`css
-${existingCSS.substring(0, 3000)}
+${existingCSS.substring(0, 2000)}
 \`\`\`
 
-Search for "</style>" and replace with your media queries + "</style>".
+Search for "</style>" and replace with your @media block + "</style>".
 
 Respond with JSON:
 {"patches":[{"search":"</style>","replace":"@media (max-width: 768px) { ... }\\n</style>","description":"what this fixes"}]}`,
-                anthropic, {
-                  maxTokens: 8000,
-                  images: respImages,
-                }
+                anthropic, { maxTokens: 8000 }
               );
-              const respJson = respResult.text.match(/\{[\s\S]*\}/);
-              if (respJson) {
-                const respParsed = JSON.parse(respJson[0]);
-                if (respParsed.patches?.length > 0) {
-                  let respMarkup = currentMarkup;
-                  let respApplied = 0;
-                  for (const patch of respParsed.patches) {
-                    if (patch.search && patch.replace && respMarkup.includes(patch.search)) {
-                      respMarkup = respMarkup.replace(patch.search, patch.replace);
-                      respApplied++;
+
+              const mfJson = mobileFixResult.text.match(/\{[\s\S]*\}/);
+              if (mfJson) {
+                const mfParsed = JSON.parse(mfJson[0]);
+                if (mfParsed.patches?.length > 0) {
+                  let mfMarkup = currentMarkup;
+                  let mfApplied = 0;
+                  for (const patch of mfParsed.patches) {
+                    if (patch.search && patch.replace && mfMarkup.includes(patch.search)) {
+                      mfMarkup = mfMarkup.replace(patch.search, patch.replace);
+                      mfApplied++;
                     }
                   }
-                  if (respApplied > 0) {
-                    currentMarkup = respMarkup;
-                    const fixBuilder = build.page_builder || 'gutenberg';
-                    const wpClient = createWpClient({ restUrl: siteProfile.wp_rest_url, username: siteProfile.wp_username, appPassword: siteProfile.wp_app_password });
+                  if (mfApplied > 0) {
+                    currentMarkup = mfMarkup;
                     await wpUpdatePage(wpClient, build.wp_page_id, { content: prepareMarkupForDeploy(currentMarkup, fixBuilder) });
-                    console.log(`[pageforge] Applied ${respApplied} responsive CSS patches, checking for regressions...`);
+                    console.log(`[pageforge] Applied ${mfApplied} mobile fix patches`);
                     await new Promise(resolve => setTimeout(resolve, 12000));
-                    // Rollback check: score tablet and mobile BEFORE and AFTER
-                    // Get "before" scores from the build record in DB
-                    const buildScores = await supabase.from('pageforge_builds')
-                      .select('vqa_score_tablet, vqa_score_mobile')
-                      .eq('id', buildId).single();
-                    const preTablet = buildScores.data?.vqa_score_tablet || 78;
-                    const preMobile = buildScores.data?.vqa_score_mobile || 78;
-                    const postShots = await captureScreenshots(draftUrl);
-                    let postTablet = preTablet;
-                    let postMobile = preMobile;
-                    for (const bp of ['tablet', 'mobile'] as const) {
-                      const wpImg = postShots[bp];
-                      if (!wpImg) continue;
-                      const width = bp === 'tablet' ? 768 : 375;
-                      try {
-                        const bpCheck = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa', 'vqa_fix_loop',
-                          getSystemPrompt('pageforge_vqa'),
-                          `Evaluate this WordPress page at ${bp.toUpperCase()} (${width}px) for responsive quality.
-Image 1: WordPress page at ${width}px width.
-Check: content visible/readable, layouts stack properly, no horizontal scroll, font sizes appropriate, images sized correctly, spacing reasonable, buttons tappable.
-Score 0-100.
-Respond with JSON: {"score":N}`,
-                          anthropic, { images: [{ data: wpImg, mimeType: 'image/jpeg' }] }
-                        );
-                        const bpJson = bpCheck.text.match(/\{[\s\S]*\}/);
-                        if (bpJson) {
-                          const bpParsed = JSON.parse(bpJson[0]);
-                          if (bp === 'tablet') postTablet = bpParsed.score || preTablet;
-                          else postMobile = bpParsed.score || preMobile;
-                        }
-                      } catch (err) {
-                        console.warn(`[pageforge] Responsive rollback ${bp} check failed:`, err);
-                      }
-                    }
-                    console.log(`[pageforge] Responsive scores: tablet ${preTablet}->${postTablet}, mobile ${preMobile}->${postMobile}`);
-                    // Rollback if EITHER score dropped
-                    if (postTablet < preTablet - 2 || postMobile < preMobile - 2) {
-                      console.log(`[pageforge] Responsive CSS made things worse, ROLLING BACK`);
+
+                    // Verify: re-run mobile audit to check if issues resolved
+                    const postAudit = await runMobileAudit(draftUrl);
+                    console.log(`[pageforge] Post-fix audit: overflow=${postAudit.hasHorizontalScroll} (${postAudit.overflowPx}px), fixedWidths=${postAudit.fixedWidthElements.length}, noWrapFlex=${postAudit.noWrapContainers.length}`);
+
+                    // Rollback if horizontal scroll got WORSE
+                    if (postAudit.overflowPx > mobileAudit.overflowPx + 20) {
+                      console.log(`[pageforge] Mobile fix made overflow worse (${mobileAudit.overflowPx}->${postAudit.overflowPx}), ROLLING BACK`);
                       currentMarkup = savedMarkup;
                       await wpUpdatePage(wpClient, build.wp_page_id, { content: prepareMarkupForDeploy(currentMarkup, fixBuilder) });
                       await new Promise(resolve => setTimeout(resolve, 8000));
                     } else {
-                      console.log(`[pageforge] Responsive CSS pass kept (no regression)`);
                       await updateBuildArtifacts(supabase, buildId, 'markup_generation', { ...artifacts.markup_generation, markup: currentMarkup });
+                      console.log(`[pageforge] Mobile fixes kept: overflow ${mobileAudit.overflowPx}px -> ${postAudit.overflowPx}px`);
+
+                      // If overflow still exists, try one more round with updated audit data
+                      if (postAudit.hasHorizontalScroll && postAudit.overflowPx > 10) {
+                        console.log(`[pageforge] Still has overflow, running round 2...`);
+                        const round2Report = [];
+                        if (postAudit.hasHorizontalScroll) round2Report.push(`Still has ${postAudit.overflowPx}px horizontal overflow`);
+                        for (const fw of postAudit.fixedWidthElements) round2Report.push(`Fixed width: ${fw.selector} = ${fw.computedWidth}px`);
+                        for (const nw of postAudit.noWrapContainers) round2Report.push(`Non-wrapping: ${nw.selector} (${nw.display}, ${nw.computedWidth}px)`);
+
+                        const round2Result = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa_fix', 'vqa_fix_loop',
+                          getSystemPrompt('pageforge_vqa'),
+                          `MOBILE FIX ROUND 2 - Previous round reduced overflow but ${postAudit.overflowPx}px remains.
+
+Remaining issues:
+${round2Report.join('\n')}
+
+Add MORE @media rules to fix these remaining elements. Previous responsive CSS is already in the stylesheet.
+Target specific Divi classes and use !important.
+Common Divi overflow causes: et_pb_section padding, et_pb_row width, et_pb_column min-width.
+Try: .et_pb_section, .et_pb_row { max-width: 100vw !important; overflow-x: hidden !important; padding-left: 15px !important; padding-right: 15px !important; }
+
+Search for "</style>" and add more rules before it.
+Respond with JSON: {"patches":[{"search":"</style>","replace":"...\\n</style>","description":"..."}]}`,
+                          anthropic, { maxTokens: 4000 }
+                        );
+                        const r2Json = round2Result.text.match(/\{[\s\S]*\}/);
+                        if (r2Json) {
+                          const r2Parsed = JSON.parse(r2Json[0]);
+                          let r2Markup = currentMarkup;
+                          let r2Applied = 0;
+                          for (const patch of (r2Parsed.patches || [])) {
+                            if (patch.search && patch.replace && r2Markup.includes(patch.search)) {
+                              r2Markup = r2Markup.replace(patch.search, patch.replace);
+                              r2Applied++;
+                            }
+                          }
+                          if (r2Applied > 0) {
+                            currentMarkup = r2Markup;
+                            await wpUpdatePage(wpClient, build.wp_page_id, { content: prepareMarkupForDeploy(currentMarkup, fixBuilder) });
+                            await updateBuildArtifacts(supabase, buildId, 'markup_generation', { ...artifacts.markup_generation, markup: currentMarkup });
+                            await new Promise(resolve => setTimeout(resolve, 12000));
+                            const r2Audit = await runMobileAudit(draftUrl);
+                            console.log(`[pageforge] Round 2 result: overflow=${r2Audit.overflowPx}px (was ${postAudit.overflowPx}px)`);
+                          }
+                        }
+                      }
                     }
                   }
                 }
               }
+            } else {
+              console.log('[pageforge] Mobile audit passed - no issues found');
             }
           } catch (err) {
-            console.warn('[pageforge] Responsive CSS pass failed:', err);
+            console.warn('[pageforge] Mobile responsive fix pass failed:', err);
           }
         }
 
@@ -3563,6 +3587,103 @@ async function cropSegment(base64: string, segmentIndex: number, totalSegments: 
 
   console.log(`[pageforge] Cropped segment ${segmentIndex + 1}/${totalSegments}: ${meta.width}x${height} (${Math.round(cropped.length / 1024)}KB)`);
   return cropped.toString('base64');
+}
+
+// Mobile audit - uses Puppeteer to find concrete responsive issues at 375px
+interface MobileAuditResult {
+  hasHorizontalScroll: boolean;
+  overflowPx: number;
+  fixedWidthElements: Array<{ selector: string; widthRule: string; computedWidth: number }>;
+  noWrapContainers: Array<{ selector: string; display: string; computedWidth: number; gridCols?: string }>;
+  smallTapTargets: number;
+  totalHeight: number;
+}
+
+async function runMobileAudit(pageUrl: string): Promise<MobileAuditResult> {
+  const defaultResult: MobileAuditResult = {
+    hasHorizontalScroll: false, overflowPx: 0, fixedWidthElements: [], noWrapContainers: [], smallTapTargets: 0, totalHeight: 0,
+  };
+  let browser;
+  try {
+    browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+    });
+    const page = await browser.newPage();
+    await page.setCacheEnabled(false);
+    await page.setExtraHTTPHeaders({ 'Cache-Control': 'no-cache, no-store' });
+    await page.setViewport({ width: 375, height: 812 });
+    await page.goto(pageUrl, { waitUntil: 'networkidle2', timeout: 45000 });
+    await new Promise(r => setTimeout(r, 3000));
+
+    const result = await page.evaluate(() => {
+      const vw = window.innerWidth; // 375
+      const bodyW = document.body.scrollWidth;
+
+      // Find elements with inline fixed widths larger than viewport
+      const fixedWidthElements: Array<{ selector: string; widthRule: string; computedWidth: number }> = [];
+      document.querySelectorAll('[style]').forEach(el => {
+        const style = el.getAttribute('style') || '';
+        const widthMatch = style.match(/(?:min-)?width:\s*(\d+)px/);
+        if (widthMatch && parseInt(widthMatch[1]) > vw) {
+          // Build a usable CSS selector
+          const classes = el.className && typeof el.className === 'string'
+            ? '.' + el.className.trim().split(/\s+/).slice(0, 3).join('.')
+            : '';
+          const selector = classes || el.tagName.toLowerCase();
+          fixedWidthElements.push({
+            selector,
+            widthRule: widthMatch[0],
+            computedWidth: Math.round(el.getBoundingClientRect().width),
+          });
+        }
+      });
+
+      // Find flex/grid containers that overflow and don't wrap
+      const noWrapContainers: Array<{ selector: string; display: string; computedWidth: number; gridCols?: string }> = [];
+      document.querySelectorAll('*').forEach(el => {
+        const cs = getComputedStyle(el);
+        if ((cs.display === 'flex' || cs.display === 'grid' || cs.display === 'inline-flex') && el.scrollWidth > vw + 10) {
+          const classes = el.className && typeof el.className === 'string'
+            ? '.' + el.className.trim().split(/\s+/).slice(0, 3).join('.')
+            : '';
+          const selector = classes || el.tagName.toLowerCase();
+          noWrapContainers.push({
+            selector,
+            display: cs.display,
+            computedWidth: Math.round(el.scrollWidth),
+            gridCols: cs.display === 'grid' ? cs.gridTemplateColumns?.substring(0, 100) : undefined,
+          });
+        }
+      });
+
+      // Count small tap targets
+      let smallTapTargets = 0;
+      document.querySelectorAll('a, button, [role="button"], input[type="submit"]').forEach(el => {
+        const r = el.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0 && (r.width < 44 || r.height < 44)) {
+          smallTapTargets++;
+        }
+      });
+
+      return {
+        hasHorizontalScroll: bodyW > vw,
+        overflowPx: Math.max(0, bodyW - vw),
+        fixedWidthElements: fixedWidthElements.slice(0, 10),
+        noWrapContainers: noWrapContainers.slice(0, 10),
+        smallTapTargets,
+        totalHeight: document.body.scrollHeight,
+      };
+    });
+
+    await page.close();
+    return result as MobileAuditResult;
+  } catch (err) {
+    console.error('[pageforge] Mobile audit failed:', err);
+    return defaultResult;
+  } finally {
+    if (browser) await browser.close();
+  }
 }
 
 async function captureScreenshots(pageUrl: string): Promise<Record<string, string | null>> {
