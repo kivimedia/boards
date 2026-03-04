@@ -125,6 +125,7 @@ export default function NotificationCenter() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { user } = useAuth();
@@ -216,13 +217,17 @@ export default function NotificationCenter() {
       setUnreadCount((prev) => Math.max(0, prev - 1));
     }
 
+    // pk_reminder: toggle expand to show full body
+    if (notification.type === 'pk_reminder') {
+      setExpandedId((prev) => (prev === notification.id ? null : notification.id));
+      return;
+    }
+
     if (notification.card_id) {
       setIsOpen(false);
       if (notification.board_id) {
-        // Direct deep-link: board page opens card modal immediately
         router.push(`/board/${notification.board_id}?card=${notification.card_id}`);
       } else {
-        // Fallback for older notifications without board_id: use /c/ redirect
         router.push(`/c/${notification.card_id}`);
       }
     }
@@ -314,9 +319,14 @@ export default function NotificationCenter() {
                       {notification.title}
                     </p>
                     {notification.body && (
-                      <p className="text-xs text-navy/50 dark:text-slate-400 mt-0.5 line-clamp-2 font-body">
+                      <p className={`text-xs text-navy/50 dark:text-slate-400 mt-0.5 font-body whitespace-pre-line ${expandedId === notification.id ? '' : 'line-clamp-2'}`}>
                         {notification.body}
                       </p>
+                    )}
+                    {notification.type === 'pk_reminder' && notification.body && (
+                      <span className="text-[10px] text-electric font-medium mt-0.5 inline-block">
+                        {expandedId === notification.id ? 'Show less' : 'View all'}
+                      </span>
                     )}
                     <p className="text-[10px] text-navy/30 dark:text-slate-500 mt-1 font-body">
                       {getRelativeTime(notification.created_at)}
@@ -334,7 +344,10 @@ export default function NotificationCenter() {
           {notifications.length > 0 && (
             <div className="border-t border-cream-dark dark:border-slate-700 px-4 py-2.5">
               <button
-                onClick={handleMarkAllAsRead}
+                onClick={() => {
+                  setIsOpen(false);
+                  router.push('/performance');
+                }}
                 className="w-full text-center text-xs text-electric hover:text-electric/80 font-medium transition-colors"
               >
                 View all
