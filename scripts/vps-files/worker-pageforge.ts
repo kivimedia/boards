@@ -1738,6 +1738,8 @@ Respond with JSON:
       let rollbackCount = 0;
       let previousMarkup: string | null = null;
       const scoreHistory: Array<{ iteration: number; score: number }> = [];
+      let lastPhase = 0; // Track phase changes to reset stall counter
+      let lastScreenshotHash = ''; // Track screenshot changes between iterations
 
       // Get the Figma reference screenshot (doesn't change between iterations)
       const figmaDesktop = artifacts.vqa_capture?.figmaScreenshots?.desktop;
@@ -1787,6 +1789,13 @@ Respond with JSON:
         // Phase 3 (iter 9+): all remaining (spacing, polish)
         const categorizedDiffs = allDiffs.map((d: any) => ({ ...d, category: categorizeDiff(d) }));
         let phaseDiffs: typeof categorizedDiffs;
+        const currentPhase = currentIteration <= 4 ? 1 : currentIteration <= 8 ? 2 : 3;
+        // Reset stall counter when phase changes - new diff types are being addressed
+        if (currentPhase !== lastPhase && lastPhase > 0) {
+          console.log(`[pageforge] Phase changed ${lastPhase} -> ${currentPhase}, resetting stall counter (was ${stallCount})`);
+          stallCount = 0;
+        }
+        lastPhase = currentPhase;
         if (currentIteration <= 4) {
           const priorityDiffs = categorizedDiffs.filter(d => d.category === 'layout' || d.category === 'background');
           phaseDiffs = priorityDiffs.length > 0 ? priorityDiffs : categorizedDiffs;
@@ -2089,12 +2098,30 @@ Respond with JSON:
         if (build.wp_page_id && siteProfile.wp_username && siteProfile.wp_app_password) {
           const fixBuilder = build.page_builder || 'gutenberg';
           const wpClient = createWpClient({ restUrl: siteProfile.wp_rest_url, username: siteProfile.wp_username, appPassword: siteProfile.wp_app_password });
-          await wpUpdatePage(wpClient, build.wp_page_id, { content: prepareMarkupForDeploy(currentMarkup, fixBuilder) });
+          const deployedContent = prepareMarkupForDeploy(currentMarkup, fixBuilder);
+          await wpUpdatePage(wpClient, build.wp_page_id, { content: deployedContent });
+          // Verify WP update took effect by reading back the page
+          try {
+            const verifyResp = await fetch(`${wpClient.config.restUrl}/pages/${build.wp_page_id}?context=edit&_fields=content,modified`, { headers: wpClient.headers });
+            if (verifyResp.ok) {
+              const verifyData = await verifyResp.json();
+              const savedContent = verifyData?.content?.raw || verifyData?.content?.rendered || '';
+              const savedLen = savedContent.length;
+              const deployedLen = deployedContent.length;
+              if (Math.abs(savedLen - deployedLen) > deployedLen * 0.5) {
+                console.warn(`[pageforge] WP content mismatch: deployed ${deployedLen} chars, saved ${savedLen} chars`);
+              } else {
+                console.log(`[pageforge] WP update verified: ${savedLen} chars saved (modified: ${verifyData?.modified || 'unknown'})`);
+              }
+            }
+          } catch (verifyErr) {
+            console.warn('[pageforge] WP verify read failed:', verifyErr instanceof Error ? verifyErr.message : String(verifyErr));
+          }
         }
 
         // 5. Wait for WP to process the update and Divi CSS to render
-        // 8s gives Divi 5 enough time to rebuild CSS cache (5s was insufficient)
-        await new Promise(resolve => setTimeout(resolve, 8000));
+        // 12s gives Divi 5 enough time to rebuild CSS cache (8s was insufficient for complex pages)
+        await new Promise(resolve => setTimeout(resolve, 12000));
 
         // 6. Re-capture desktop screenshot with cache-busting
         // Add timestamp to URL to prevent WP/CDN/browser cache from serving stale page
@@ -2126,6 +2153,14 @@ Respond with JSON:
           console.warn('[pageforge] Failed to recapture WP screenshot:', err);
         }
 
+        // 6.5 Screenshot diff logging - track whether screenshots actually change
+        if (newWpDesktop) {
+          const screenshotHash = newWpDesktop.substring(0, 100) + newWpDesktop.substring(newWpDesktop.length - 100);
+          const screenshotChanged = screenshotHash !== lastScreenshotHash;
+          console.log(`[pageforge] Screenshot ${screenshotChanged ? 'CHANGED' : 'UNCHANGED'} (hash: ${screenshotHash.substring(0, 20)}...)`);
+          lastScreenshotHash = screenshotHash;
+        }
+
         // 7. Re-compare desktop against Figma
         let newScore = lastScore;
         let newDiffs: any[] = [];
@@ -2143,13 +2178,13 @@ Previous score was ${lastScore}%. Check if the fixes improved the match.
 
 IMPORTANT: The images may have different heights/proportions. Focus on whether the SAME SECTIONS and CONTENT exist in both, not on exact pixel alignment.
 
-SCORING CONSISTENCY - MANDATORY:
-- Your PREVIOUS score was ${lastScore}%.
-- If you see NO visible difference from the last screenshot, return EXACTLY ${lastScore}%.
-- If you see improvement, add points: minor fix = +2-4%, major fix = +5-10%, structural fix = +10-15%
-- If you see regression, subtract points using the same scale.
-- NEVER re-score from scratch. Always anchor on ${lastScore}% and adjust.
-- Score changes >10% between iterations MUST be accompanied by a clear description of what changed.
+SCORING INSTRUCTIONS:
+- Score the WordPress page FRESH by comparing it directly to the Figma design using the rubric below.
+- The page was just modified with CSS and attribute fixes. Look CAREFULLY for visual changes.
+- Previous score was ${lastScore}% - this is ONLY for your reference. Do NOT simply return this number.
+- Evaluate EACH category independently against the Figma reference image.
+- If the WordPress page now matches Figma better in any category, the score MUST increase.
+- Return your honest assessment. A 2-5% improvement per iteration is normal and expected.
 ${sectionMapContext}
 Score EACH category 0-100, then calculate weighted average:
 1. SECTIONS (25%): Are all major sections from Figma present in WP? Missing section = -10 per.
@@ -2173,7 +2208,7 @@ DIVI 5 CSS CLASS STRUCTURE (use these in suggestedFix, NOT made-up class names):
 The page has a <style> block at the top with CSS fallback rules. Suggested fixes should target these real selectors.
 
 Score 0-100. Respond with JSON:
-{"score":N,"differences":[{"area":"...","severity":"critical|major|minor","description":"...","suggestedFix":"CSS rule using real Divi 5 selectors, e.g.: .et_pb_section_0 { background-color: #001738 !important; }"}]}`,
+{"score":N,"categoryScores":{"sections":N,"backgrounds":N,"typography":N,"layout":N,"images":N,"polish":N},"differences":[{"area":"...","severity":"critical|major|minor","description":"...","suggestedFix":"CSS rule using real Divi 5 selectors, e.g.: .et_pb_section_0 { background-color: #001738 !important; }"}]}`,
               anthropic, {
                 images: [
                   { data: figmaDesktop, mimeType: 'image/jpeg' },
@@ -2187,6 +2222,11 @@ Score 0-100. Respond with JSON:
               const parsed = JSON.parse(jsonMatch[0]);
               newScore = parsed.score || lastScore;
               newDiffs = parsed.differences || [];
+              // Log category scores for debugging
+              if (parsed.categoryScores) {
+                const cs = parsed.categoryScores;
+                console.log(`[pageforge] Category scores: sec=${cs.sections} bg=${cs.backgrounds} typ=${cs.typography} lay=${cs.layout} img=${cs.images} pol=${cs.polish}`);
+              }
             }
           } catch (err) {
             console.warn('[pageforge] Re-comparison failed:', err);
