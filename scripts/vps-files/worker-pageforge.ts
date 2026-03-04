@@ -2366,46 +2366,58 @@ Score 0-100. Respond with JSON:
       // Final full 3-breakpoint comparison after all fixes
       if (currentIteration > 0) {
         // Responsive CSS pass: add media queries to improve tablet/mobile scores
+        // Uses Figma reference + rollback if scores drop
         if (lastScore >= 80 && build.wp_page_id && siteProfile.wp_username && siteProfile.wp_app_password) {
           try {
             console.log('[pageforge] Running responsive CSS fix pass...');
+            const savedMarkup = currentMarkup; // Save for rollback
             const respShots = await captureScreenshots(draftUrl);
             const tabletImg = respShots.tablet;
             const mobileImg = respShots.mobile;
+            // Get Figma reference images for comparison
+            const figmaDesktopRef = artifacts.vqa_capture?.figmaScreenshots?.desktop;
             if (tabletImg && mobileImg) {
+              // Build images array: WP tablet, WP mobile, then Figma desktop as reference
+              const respImages: Array<{data: string; mimeType: string}> = [
+                { data: tabletImg, mimeType: 'image/jpeg' },
+                { data: mobileImg, mimeType: 'image/jpeg' },
+              ];
+              let figmaRefNote = '';
+              if (figmaDesktopRef) {
+                respImages.push({ data: figmaDesktopRef, mimeType: 'image/jpeg' });
+                figmaRefNote = '\nImage 3: FIGMA DESIGN (desktop reference) - the WordPress page should match this design as closely as possible at all breakpoints.';
+              }
+              // Find existing style block to provide full CSS context
+              const styleMatch = currentMarkup.match(/<style[^>]*>([\s\S]*?)<\/style>/);
+              const existingCSS = styleMatch ? styleMatch[1] : '';
               const respResult = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa_fix', 'vqa_fix_loop',
                 getSystemPrompt('pageforge_vqa'),
-                `Add responsive CSS to fix tablet (768px) and mobile (375px) layout issues.
+                `RESPONSIVE CSS FIX PASS - Compare WordPress screenshots to the Figma design and fix tablet/mobile layout.
 
 Image 1: WordPress page at TABLET width (768px)
-Image 2: WordPress page at MOBILE width (375px)
+Image 2: WordPress page at MOBILE width (375px)${figmaRefNote}
 
-Look for these common responsive issues:
-- Text too small or too large on mobile
-- Columns not stacking on narrow screens
-- Horizontal overflow/scroll
-- Buttons too small to tap (min 44px)
-- Images breaking out of container
-- Excessive padding/margins on mobile
-- Navigation elements overlapping
+The desktop version already scores ${lastScore}% against the Figma design. Your job is to make tablet and mobile match the Figma design too.
 
-Generate CSS @media queries to fix these. Use the existing <style> block.
-Search for "</style>" and replace with your new responsive rules + "</style>".
+IMPORTANT RULES:
+- ONLY add @media queries. Do NOT change any existing CSS rules.
+- Use @media (max-width: 768px) for tablet and @media (max-width: 480px) for mobile.
+- Focus on: column stacking, font-size scaling, image width, padding/margin adjustments.
+- Do NOT change colors, backgrounds, fonts, or any desktop-affecting styles.
+- Keep changes minimal and targeted. Less is more.
 
-Current markup:
+Existing CSS in the page:
+\`\`\`css
+${existingCSS.substring(0, 3000)}
 \`\`\`
-${currentMarkup.substring(0, 5000)}
-\`\`\`
-(markup truncated for context)
+
+Search for "</style>" and replace with your media queries + "</style>".
 
 Respond with JSON:
-{"patches":[{"search":"</style>","replace":"YOUR_RESPONSIVE_CSS_HERE\\n</style>","description":"what this fixes"}]}`,
+{"patches":[{"search":"</style>","replace":"@media (max-width: 768px) { ... }\\n</style>","description":"what this fixes"}]}`,
                 anthropic, {
                   maxTokens: 8000,
-                  images: [
-                    { data: tabletImg, mimeType: 'image/jpeg' },
-                    { data: mobileImg, mimeType: 'image/jpeg' },
-                  ],
+                  images: respImages,
                 }
               );
               const respJson = respResult.text.match(/\{[\s\S]*\}/);
@@ -2425,9 +2437,53 @@ Respond with JSON:
                     const fixBuilder = build.page_builder || 'gutenberg';
                     const wpClient = createWpClient({ restUrl: siteProfile.wp_rest_url, username: siteProfile.wp_username, appPassword: siteProfile.wp_app_password });
                     await wpUpdatePage(wpClient, build.wp_page_id, { content: prepareMarkupForDeploy(currentMarkup, fixBuilder) });
-                    await updateBuildArtifacts(supabase, buildId, 'markup_generation', { ...artifacts.markup_generation, markup: currentMarkup });
-                    console.log(`[pageforge] Applied ${respApplied} responsive CSS patches`);
-                    await new Promise(resolve => setTimeout(resolve, 8000));
+                    console.log(`[pageforge] Applied ${respApplied} responsive CSS patches, checking for regressions...`);
+                    await new Promise(resolve => setTimeout(resolve, 12000));
+                    // Rollback check: score tablet and mobile BEFORE and AFTER
+                    // Get "before" scores from the build record in DB
+                    const buildScores = await supabase.from('pageforge_builds')
+                      .select('vqa_score_tablet, vqa_score_mobile')
+                      .eq('id', buildId).single();
+                    const preTablet = buildScores.data?.vqa_score_tablet || 78;
+                    const preMobile = buildScores.data?.vqa_score_mobile || 78;
+                    const postShots = await captureScreenshots(draftUrl);
+                    let postTablet = preTablet;
+                    let postMobile = preMobile;
+                    for (const bp of ['tablet', 'mobile'] as const) {
+                      const wpImg = postShots[bp];
+                      if (!wpImg) continue;
+                      const width = bp === 'tablet' ? 768 : 375;
+                      try {
+                        const bpCheck = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa', 'vqa_fix_loop',
+                          getSystemPrompt('pageforge_vqa'),
+                          `Evaluate this WordPress page at ${bp.toUpperCase()} (${width}px) for responsive quality.
+Image 1: WordPress page at ${width}px width.
+Check: content visible/readable, layouts stack properly, no horizontal scroll, font sizes appropriate, images sized correctly, spacing reasonable, buttons tappable.
+Score 0-100.
+Respond with JSON: {"score":N}`,
+                          anthropic, { images: [{ data: wpImg, mimeType: 'image/jpeg' }] }
+                        );
+                        const bpJson = bpCheck.text.match(/\{[\s\S]*\}/);
+                        if (bpJson) {
+                          const bpParsed = JSON.parse(bpJson[0]);
+                          if (bp === 'tablet') postTablet = bpParsed.score || preTablet;
+                          else postMobile = bpParsed.score || preMobile;
+                        }
+                      } catch (err) {
+                        console.warn(`[pageforge] Responsive rollback ${bp} check failed:`, err);
+                      }
+                    }
+                    console.log(`[pageforge] Responsive scores: tablet ${preTablet}->${postTablet}, mobile ${preMobile}->${postMobile}`);
+                    // Rollback if EITHER score dropped
+                    if (postTablet < preTablet - 2 || postMobile < preMobile - 2) {
+                      console.log(`[pageforge] Responsive CSS made things worse, ROLLING BACK`);
+                      currentMarkup = savedMarkup;
+                      await wpUpdatePage(wpClient, build.wp_page_id, { content: prepareMarkupForDeploy(currentMarkup, fixBuilder) });
+                      await new Promise(resolve => setTimeout(resolve, 8000));
+                    } else {
+                      console.log(`[pageforge] Responsive CSS pass kept (no regression)`);
+                      await updateBuildArtifacts(supabase, buildId, 'markup_generation', { ...artifacts.markup_generation, markup: currentMarkup });
+                    }
                   }
                 }
               }
@@ -2444,24 +2500,42 @@ Respond with JSON:
             wpScreenshots: finalShots,
           });
 
-          // Actually score tablet and mobile with AI instead of hardcoding
+          // Score tablet and mobile by comparing WP screenshots to Figma reference
           const finalDesktop = comparisonData.overallScore || lastScore;
           let tabletScore = 0;
           let mobileScore = 0;
+          const figmaRef = artifacts.vqa_capture?.figmaScreenshots?.desktop;
 
           for (const bp of ['tablet', 'mobile'] as const) {
             const wpImg = finalShots[bp];
             if (!wpImg) continue;
             const width = bp === 'tablet' ? 768 : 375;
             try {
+              // Include Figma reference for comparison if available
+              const bpImages: Array<{data: string; mimeType: string}> = [
+                { data: wpImg, mimeType: 'image/jpeg' },
+              ];
+              let figmaNote = '';
+              if (figmaRef) {
+                bpImages.push({ data: figmaRef, mimeType: 'image/jpeg' });
+                figmaNote = '\nImage 2: FIGMA DESIGN (reference). Compare the WordPress screenshot against this design.';
+              }
               const bpResult = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa', 'vqa_fix_loop',
                 getSystemPrompt('pageforge_vqa'),
-                `Evaluate this WordPress page screenshot at ${bp.toUpperCase()} (${width}px) for responsive quality.
-Image 1: WordPress page rendered at ${width}px width.
-Check: content visible/readable, layouts stack properly, no horizontal scroll, font sizes appropriate, images sized correctly, spacing reasonable, buttons tappable.
-Score 0-100 (100 = perfect responsive behavior).
+                `Evaluate this WordPress page at ${bp.toUpperCase()} (${width}px) against the Figma design.
+Image 1: WordPress page rendered at ${width}px width.${figmaNote}
+
+Score how well the WordPress ${bp} version represents the Figma design (0-100):
+- Content and sections present and in correct order
+- Colors, backgrounds, and images match
+- Typography (fonts, sizes, weights) are appropriate for ${width}px
+- Layout adapts well for ${bp} screen (columns stack, no overflow)
+- Spacing and padding are reasonable for ${width}px
+- All interactive elements are usable (min 44px tap targets on mobile)
+
+Score 0-100 (100 = WordPress ${bp} perfectly represents the Figma design adapted for ${width}px).
 Respond with JSON: {"score":N,"differences":[{"area":"...","severity":"critical|major|minor","description":"..."}]}`,
-                anthropic, { images: [{ data: wpImg, mimeType: 'image/jpeg' }] }
+                anthropic, { images: bpImages }
               );
               const jsonMatch = bpResult.text.match(/\{[\s\S]*\}/);
               if (jsonMatch) {
