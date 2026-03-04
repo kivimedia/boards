@@ -126,22 +126,23 @@ export async function fetchBoardMetadata(
     supabase, 'card_placements', PLACEMENT_SELECT, 'list_id', listIds
   );
 
-  if (maxCardsPerList > 0) {
-    // Phase 1 (fast load): sort by list_id+position, then trim per-list in memory
-    rawPlacements.sort((a: any, b: any) => {
-      if (a.list_id !== b.list_id) return a.list_id < b.list_id ? -1 : 1;
-      return (a.position || 0) - (b.position || 0);
-    });
-    const countByList = new Map<string, number>();
-    for (const p of rawPlacements) {
-      const count = countByList.get(p.list_id) || 0;
-      if (count < maxCardsPerList) {
-        allPlacements.push(p);
-        countByList.set(p.list_id, count + 1);
-      }
+  // Always sort by list_id+position for consistent ordering
+  rawPlacements.sort((a: any, b: any) => {
+    if (a.list_id !== b.list_id) return a.list_id < b.list_id ? -1 : 1;
+    return (a.position || 0) - (b.position || 0);
+  });
+
+  // Cap cards per list to avoid huge boards (e.g. 393 cards in a "Done" list)
+  // overwhelming the metadata queries. Phase 1 uses the explicit cap,
+  // phase 2 (full load) caps at 100 per list to keep things responsive.
+  const effectiveCap = maxCardsPerList > 0 ? maxCardsPerList : 100;
+  const countByList = new Map<string, number>();
+  for (const p of rawPlacements) {
+    const count = countByList.get(p.list_id) || 0;
+    if (count < effectiveCap) {
+      allPlacements.push(p);
+      countByList.set(p.list_id, count + 1);
     }
-  } else {
-    allPlacements = rawPlacements;
   }
   const placementsMs = _measure('placements');
 
