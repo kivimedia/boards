@@ -263,8 +263,24 @@ Respond with JSON:
     const jsonMatch = result.text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
+      let finalMarkup = parsed.markup || result.text;
+
+      // For Divi 5: auto-inject CSS grid override to fix column width issues
+      if (builder === 'divi5') {
+        const gridOverride = generateDivi5GridOverride(finalMarkup);
+        if (gridOverride) {
+          // Prepend the CSS override block before the Divi placeholder
+          const placeholderIdx = finalMarkup.indexOf('<!-- wp:divi/placeholder -->');
+          if (placeholderIdx > -1) {
+            finalMarkup = finalMarkup.slice(0, placeholderIdx) + gridOverride + '\n' + finalMarkup.slice(placeholderIdx);
+          } else {
+            finalMarkup = gridOverride + '\n' + finalMarkup;
+          }
+        }
+      }
+
       return {
-        markup: parsed.markup || result.text,
+        markup: finalMarkup,
         builder,
         sections: parsed.sections || [],
       };
@@ -613,9 +629,114 @@ Use \`"show":"off"\` for spacing-only dividers.
 6. Use Figma design tokens for colors, fonts, and spacing
 7. For dark overlays on images, use background color with rgba: \`"color":"rgba(0,0,0,0.7)"\` plus image
 8. Use \`disabledOn\` to hide elements per breakpoint: \`"disabledOn":{"phone":{"value":"on"}}\`
-9. For multi-column layouts, use multiple columns in a single row with appropriate flexType values`;
+9. For multi-column layouts, use multiple columns in a single row with appropriate flexType values
+10. CRITICAL Divi 5 rendering bug: The class \`et_flex_column_24_24\` (generated for full-width columns) forces \`width: calc(100%)\` on EVERY column. If you place multiple columns in a row (e.g. 3 blurb cards), Divi will render each column at 100% width, stacking them vertically instead of side-by-side. Always use the CORRECT flexType for the intended column count: "8_24" for 3-column layouts, "6_24" for 4-column layouts, "12_24" for 2-column layouts. NEVER use "24_24" for columns that should share a row.
+11. For sections with a title row + content row, use TWO separate rows: first row with single "24_24" column for the heading, second row with multiple columns using the correct flexType for the grid layout.
+12. WordPress strips \`<script>\` tags from \`<!-- wp:html -->\` blocks. Only use \`<style>\` for CSS overrides. JavaScript will NOT execute.`;
 }
 
+
+// ============================================================================
+// DIVI 5 CSS GRID OVERRIDE GENERATOR
+// Divi 5 forces et_flex_column_24_24 (width: 100%) on all columns, breaking
+// multi-column layouts. This function analyzes generated markup and produces
+// a CSS override block that applies CSS Grid to multi-column rows.
+// ============================================================================
+
+export function generateDivi5GridOverride(markup: string): string {
+  // Parse rows and count columns per row
+  // Use a simple start marker - don't try to parse the JSON attributes
+  const rowStartPattern = /<!-- wp:divi\/row\b/g;
+  const rowEndPattern = /<!-- \/wp:divi\/row -->/g;
+
+  interface RowInfo {
+    rowIndex: number;
+    columnCount: number;
+  }
+
+  const rows: RowInfo[] = [];
+
+  // Find each row start and end position
+  const rowStarts: number[] = [];
+  const rowEnds: number[] = [];
+
+  let match;
+  while ((match = rowStartPattern.exec(markup)) !== null) {
+    rowStarts.push(match.index);
+  }
+
+  while ((match = rowEndPattern.exec(markup)) !== null) {
+    rowEnds.push(match.index);
+  }
+
+  for (let i = 0; i < rowStarts.length && i < rowEnds.length; i++) {
+    const rowContent = markup.slice(rowStarts[i], rowEnds[i]);
+    // Count direct column blocks (not nested ones)
+    const columns = rowContent.match(/<!-- wp:divi\/column\b/g) || [];
+    rows.push({ rowIndex: i, columnCount: columns.length });
+  }
+
+  // Find rows that need grid layout (more than 1 column)
+  const multiColRows = rows.filter(r => r.columnCount > 1);
+
+  if (multiColRows.length === 0) {
+    return ''; // No multi-column rows, no override needed
+  }
+
+  // Generate CSS rules
+  const cssRules: string[] = [
+    '/* PageForge Divi 5 Grid Override - Auto-generated */',
+    '/* Fixes et_flex_column_24_24 forcing 100% width on columns */',
+    '',
+  ];
+
+  // Global column reset for all multi-column rows
+  const rowSelectors = multiColRows.map(r => `.et_pb_row_${r.rowIndex} > .et_pb_column`);
+  cssRules.push(`${rowSelectors.join(',\n')} {`);
+  cssRules.push('  width: auto !important;');
+  cssRules.push('  max-width: none !important;');
+  cssRules.push('  min-width: 0 !important;');
+  cssRules.push('  flex: none !important;');
+  cssRules.push('  flex-basis: auto !important;');
+  cssRules.push('}');
+  cssRules.push('');
+
+  // Per-row grid definitions
+  for (const row of multiColRows) {
+    const gridCols = row.columnCount <= 2 ? 2
+      : row.columnCount <= 4 ? row.columnCount
+      : row.columnCount <= 6 ? 3
+      : 4; // For many columns, use 4-col grid
+
+    cssRules.push(`.et_pb_row_${row.rowIndex} {`);
+    cssRules.push(`  display: grid !important;`);
+    cssRules.push(`  grid-template-columns: repeat(${gridCols}, 1fr) !important;`);
+    cssRules.push(`  gap: 24px !important;`);
+    cssRules.push(`  max-width: 1200px !important;`);
+    cssRules.push(`  margin: 0 auto !important;`);
+    cssRules.push('}');
+  }
+
+  // Responsive rules
+  cssRules.push('');
+  cssRules.push('@media (max-width: 980px) {');
+  for (const row of multiColRows) {
+    if (row.columnCount > 2) {
+      cssRules.push(`  .et_pb_row_${row.rowIndex} { grid-template-columns: repeat(2, 1fr) !important; }`);
+    }
+  }
+  cssRules.push('}');
+
+  cssRules.push('@media (max-width: 768px) {');
+  for (const row of multiColRows) {
+    cssRules.push(`  .et_pb_row_${row.rowIndex} { grid-template-columns: 1fr !important; gap: 16px !important; }`);
+  }
+  cssRules.push('}');
+
+  const styleBlock = `<!-- wp:html -->\n<style>\n${cssRules.join('\n')}\n</style>\n<!-- /wp:html -->`;
+
+  return styleBlock;
+}
 
 // ============================================================================
 // HELPERS

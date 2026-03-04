@@ -270,6 +270,15 @@ export async function suggestVqaFixes(
 
   const userMessage = `Apply CSS/markup fixes to address these visual differences.
 
+CRITICAL Divi 5 Knowledge:
+- Divi 5 generates class \`et_flex_column_24_24\` on columns, which forces \`width: calc(100%)\` - this breaks multi-column layouts.
+- WordPress strips <script> tags from wp:html blocks. Only <style> tags work for CSS overrides.
+- The BEST fix for broken grids: Add a \`<!-- wp:html --><style>...</style><!-- /wp:html -->\` block with CSS that targets specific rows by class (e.g. \`.et_pb_row_3\`).
+- For multi-column rows, use: \`.et_pb_row_N { display: grid !important; grid-template-columns: repeat(COLS, 1fr) !important; gap: 24px !important; }\`
+- Reset column widths: \`.et_pb_row_N > .et_pb_column { width: auto !important; max-width: none !important; flex: none !important; min-width: 0 !important; }\`
+- For image overlay cards (blurbs), position the image absolutely, add a ::after gradient overlay, and use relative z-index on the text container.
+- Responsive: Use @media (max-width: 768px) to stack to single column.
+
 Current markup:
 \`\`\`html
 ${currentMarkup.slice(0, 8000)}
