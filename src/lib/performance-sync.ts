@@ -141,7 +141,7 @@ export function parseBoolean(val: string | undefined): boolean | null {
   if (!val) return null;
   const lower = val.toLowerCase().trim();
   if (['yes', 'true', 'done', '1', 'completed'].includes(lower)) return true;
-  if (['no', 'false', '0', 'not done', 'pending'].includes(lower)) return false;
+  if (['no', 'false', '0', 'not done', 'not yet', 'pending'].includes(lower)) return false;
   return null;
 }
 

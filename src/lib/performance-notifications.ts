@@ -218,25 +218,25 @@ export async function notifyAMsPendingTasks(
     .toISOString()
     .split('T')[0];
 
-  // 1. Query Fathom videos where watched = false or NULL (recent items only)
+  // 1. Query Fathom videos where watched = false ("Not Yet") only
   const { data: fathomRows } = await supabase
     .from('pk_fathom_videos')
     .select('account_manager_name, client_name, meeting_date, watched, action_items_sent')
-    .or('watched.is.null,watched.eq.false')
+    .eq('watched', false)
     .gte('meeting_date', cutoffDate);
 
-  // 2. Also get Fathom videos where action_items_sent = false or NULL
+  // 2. Also get Fathom videos where action_items_sent = false ("Not Yet") only
   const { data: fathomActionRows } = await supabase
     .from('pk_fathom_videos')
     .select('account_manager_name, client_name, meeting_date, action_items_sent')
-    .or('action_items_sent.is.null,action_items_sent.eq.false')
+    .eq('action_items_sent', false)
     .gte('meeting_date', cutoffDate);
 
-  // 3. Query Client Updates where on_time = false or NULL
+  // 3. Query Client Updates where on_time = false ("Not Yet") only
   const { data: updateRows } = await supabase
     .from('pk_client_updates')
     .select('account_manager_name, client_name, date_sent, on_time')
-    .or('on_time.is.null,on_time.eq.false')
+    .eq('on_time', false)
     .gte('date_sent', cutoffDate);
 
   // 4. Aggregate by AM
