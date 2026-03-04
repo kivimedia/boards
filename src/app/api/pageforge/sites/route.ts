@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthContext, errorResponse } from '@/lib/api-helpers';
+import { encryptToHex } from '@/lib/encryption';
 
 /**
  * GET /api/pageforge/sites
- * List all site profiles.
+ * List all site profiles (credentials masked).
  */
 export async function GET() {
   const auth = await getAuthContext();
@@ -18,12 +19,23 @@ export async function GET() {
     return errorResponse(error.message, 500);
   }
 
-  return NextResponse.json({ sites: data || [] });
+  // Mask sensitive fields in list view
+  const sites = (data || []).map((site: Record<string, unknown>) => ({
+    ...site,
+    wp_app_password: site.wp_app_password ? '********' : null,
+    figma_personal_token: site.figma_personal_token ? '********' : null,
+    wp_ssh_key_path: site.wp_ssh_key_path ? '********' : null,
+    wp_app_password_encrypted: undefined,
+    figma_personal_token_encrypted: undefined,
+    wp_ssh_key_path_encrypted: undefined,
+  }));
+
+  return NextResponse.json({ sites });
 }
 
 /**
  * POST /api/pageforge/sites
- * Create a new site profile.
+ * Create a new site profile (credentials encrypted).
  */
 export async function POST(request: NextRequest) {
   const auth = await getAuthContext();
@@ -36,6 +48,11 @@ export async function POST(request: NextRequest) {
     return errorResponse('siteName, siteUrl, and wpRestUrl are required');
   }
 
+  // Encrypt sensitive fields
+  const wpPassEncrypted = wpAppPassword ? encryptToHex(wpAppPassword) : null;
+  const figmaTokenEncrypted = rest.figmaPersonalToken ? encryptToHex(rest.figmaPersonalToken) : null;
+  const sshKeyEncrypted = rest.wpSshKeyPath ? encryptToHex(rest.wpSshKeyPath) : null;
+
   const { data, error } = await auth.ctx.supabase
     .from('pageforge_site_profiles')
     .insert({
@@ -43,13 +60,16 @@ export async function POST(request: NextRequest) {
       site_url: siteUrl,
       wp_rest_url: wpRestUrl,
       wp_username: wpUsername || null,
-      wp_app_password: wpAppPassword || null,
+      wp_app_password: null,
+      wp_app_password_encrypted: wpPassEncrypted,
       page_builder: pageBuilder || 'gutenberg',
       client_id: rest.clientId || null,
       wp_ssh_host: rest.wpSshHost || null,
       wp_ssh_user: rest.wpSshUser || null,
-      wp_ssh_key_path: rest.wpSshKeyPath || null,
-      figma_personal_token: rest.figmaPersonalToken || null,
+      wp_ssh_key_path: null,
+      wp_ssh_key_path_encrypted: sshKeyEncrypted,
+      figma_personal_token: null,
+      figma_personal_token_encrypted: figmaTokenEncrypted,
       figma_team_id: rest.figmaTeamId || null,
       theme_name: rest.themeName || null,
       theme_css_url: rest.themeCssUrl || null,

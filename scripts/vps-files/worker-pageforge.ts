@@ -18,6 +18,7 @@ import {
   type FigmaNode, type FigmaSection, type FigmaDesignTokens,
 } from '../lib/figma-client.js';
 import type { PageForgeSiteProfile, PageForgeBuild } from '../shared/types.js';
+import { decryptFromHex } from '../lib/encryption.js';
 import Anthropic from '@anthropic-ai/sdk';
 import puppeteer from 'puppeteer';
 import sharp from 'sharp';
@@ -93,6 +94,19 @@ export async function processPageForgeJob(job: Job<PageForgeJobData>): Promise<v
   }
 
   const siteProfile = build.site_profile as PageForgeSiteProfile;
+
+  // Decrypt credentials - prefer _encrypted columns, fall back to plaintext (pre-migration data)
+  const sp = siteProfile as Record<string, unknown>;
+  if (sp.wp_app_password_encrypted) {
+    siteProfile.wp_app_password = decryptFromHex(sp.wp_app_password_encrypted as string);
+  }
+  if (sp.figma_personal_token_encrypted) {
+    siteProfile.figma_personal_token = decryptFromHex(sp.figma_personal_token_encrypted as string);
+  }
+  if (sp.wp_ssh_key_path_encrypted) {
+    siteProfile.wp_ssh_key_path = decryptFromHex(sp.wp_ssh_key_path_encrypted as string);
+  }
+
   const anthropic = getAnthropicClient();
 
   // Copy page_builder from site profile if build doesn't have one (or has default 'gutenberg')

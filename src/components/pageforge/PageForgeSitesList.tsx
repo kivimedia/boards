@@ -7,8 +7,9 @@ import type { PageForgeSiteProfile, PageForgeBuilderType } from '@/lib/types';
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-function isCredentialStale(createdAt: string): boolean {
-  const diff = Date.now() - new Date(createdAt).getTime();
+function isCredentialStale(credentialsUpdatedAt: string | undefined, createdAt: string): boolean {
+  const ref = credentialsUpdatedAt || createdAt;
+  const diff = Date.now() - new Date(ref).getTime();
   return diff > 90 * 24 * 60 * 60 * 1000;
 }
 
@@ -34,6 +35,11 @@ interface EditForm {
   wp_rest_url: string;
   wp_username: string;
   wp_app_password: string;
+  figma_personal_token: string;
+  figma_team_id: string;
+  wp_ssh_host: string;
+  wp_ssh_user: string;
+  wp_ssh_key_path: string;
   page_builder: PageForgeBuilderType;
   vqa_pass_threshold: number;
   lighthouse_min_score: number;
@@ -48,6 +54,11 @@ function siteToForm(s: PageForgeSiteProfile): EditForm {
     wp_rest_url: s.wp_rest_url,
     wp_username: s.wp_username ?? '',
     wp_app_password: s.wp_app_password ?? '',
+    figma_personal_token: s.figma_personal_token ?? '',
+    figma_team_id: s.figma_team_id ?? '',
+    wp_ssh_host: s.wp_ssh_host ?? '',
+    wp_ssh_user: s.wp_ssh_user ?? '',
+    wp_ssh_key_path: s.wp_ssh_key_path ?? '',
     page_builder: s.page_builder,
     vqa_pass_threshold: s.vqa_pass_threshold,
     lighthouse_min_score: s.lighthouse_min_score,
@@ -87,11 +98,20 @@ export default function PageForgeSitesList() {
 
   useEffect(() => { fetchSites(); }, [fetchSites]);
 
-  // Start editing
-  const startEdit = (site: PageForgeSiteProfile) => {
+  // Start editing - fetch individual site for decrypted credentials
+  const startEdit = async (site: PageForgeSiteProfile) => {
     setEditingSiteId(site.id);
     setEditForm(siteToForm(site));
     setTestResult(null);
+    try {
+      const res = await fetch(`/api/pageforge/sites/${site.id}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.site) setEditForm(siteToForm(json.site));
+      }
+    } catch {
+      // fall back to masked list data already set above
+    }
   };
 
   // Cancel edit
@@ -116,6 +136,11 @@ export default function PageForgeSitesList() {
           wpRestUrl: editForm.wp_rest_url || `${editForm.site_url.replace(/\/+$/, '')}/wp-json`,
           wpUsername: editForm.wp_username || null,
           wpAppPassword: editForm.wp_app_password || null,
+          figmaPersonalToken: editForm.figma_personal_token || null,
+          figmaTeamId: editForm.figma_team_id || null,
+          wpSshHost: editForm.wp_ssh_host || null,
+          wpSshUser: editForm.wp_ssh_user || null,
+          wpSshKeyPath: editForm.wp_ssh_key_path || null,
           pageBuilder: editForm.page_builder,
           vqaPassThreshold: editForm.vqa_pass_threshold,
           lighthouseMinScore: editForm.lighthouse_min_score,
@@ -222,7 +247,7 @@ export default function PageForgeSitesList() {
         <div className="space-y-3">
           {sites.map((site) => {
             const isEditing = editingSiteId === site.id;
-            const stale = isCredentialStale(site.created_at);
+            const stale = isCredentialStale(site.credentials_updated_at, site.created_at);
 
             return (
               <div
@@ -369,6 +394,77 @@ export default function PageForgeSitesList() {
                             value={editForm.wp_app_password}
                             onChange={(e) => updateForm('wp_app_password', e.target.value)}
                             placeholder="xxxx xxxx xxxx xxxx"
+                            className={INPUT_CLS}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Figma Access */}
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-semibold text-navy/60 dark:text-slate-300 font-heading uppercase tracking-wider">
+                        Figma Access
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-navy/60 dark:text-slate-400 mb-1 font-heading">Personal Access Token</label>
+                          <input
+                            type="password"
+                            value={editForm.figma_personal_token}
+                            onChange={(e) => updateForm('figma_personal_token', e.target.value)}
+                            placeholder="figd_..."
+                            className={INPUT_CLS}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-navy/60 dark:text-slate-400 mb-1 font-heading">Team ID (optional)</label>
+                          <input
+                            type="text"
+                            value={editForm.figma_team_id}
+                            onChange={(e) => updateForm('figma_team_id', e.target.value)}
+                            placeholder="Team ID for file search"
+                            className={INPUT_CLS}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* SSH Configuration (optional) */}
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-semibold text-navy/60 dark:text-slate-300 font-heading uppercase tracking-wider">
+                        SSH / WP-CLI (optional)
+                      </h4>
+                      <p className="text-[10px] text-navy/40 dark:text-slate-500 font-body -mt-2">
+                        Optional SSH access for WP-CLI commands (plugin checks, cache flush).
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-navy/60 dark:text-slate-400 mb-1 font-heading">SSH Host</label>
+                          <input
+                            type="text"
+                            value={editForm.wp_ssh_host}
+                            onChange={(e) => updateForm('wp_ssh_host', e.target.value)}
+                            placeholder="example.com"
+                            className={INPUT_CLS}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-navy/60 dark:text-slate-400 mb-1 font-heading">SSH User</label>
+                          <input
+                            type="text"
+                            value={editForm.wp_ssh_user}
+                            onChange={(e) => updateForm('wp_ssh_user', e.target.value)}
+                            placeholder="root"
+                            className={INPUT_CLS}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-navy/60 dark:text-slate-400 mb-1 font-heading">Key Path</label>
+                          <input
+                            type="text"
+                            value={editForm.wp_ssh_key_path}
+                            onChange={(e) => updateForm('wp_ssh_key_path', e.target.value)}
+                            placeholder="~/.ssh/id_rsa"
                             className={INPUT_CLS}
                           />
                         </div>

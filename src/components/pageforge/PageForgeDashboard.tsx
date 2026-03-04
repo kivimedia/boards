@@ -36,11 +36,10 @@ function humanStatus(status: PageForgeBuildStatus): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function isCredentialStale(createdAt: string): boolean {
-  const created = new Date(createdAt);
-  const now = new Date();
-  const diffDays = Math.floor((now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
-  return diffDays > 90;
+function isCredentialStale(credentialsUpdatedAt: string | undefined, createdAt: string): boolean {
+  const ref = credentialsUpdatedAt || createdAt;
+  const diff = Date.now() - new Date(ref).getTime();
+  return diff > 90 * 24 * 60 * 60 * 1000;
 }
 
 // ---------------------------------------------------------------------------
@@ -658,7 +657,7 @@ export default function PageForgeDashboard() {
                       {site.site_name}
                     </h3>
                     <div className="flex items-center gap-1.5">
-                      {isCredentialStale(site.created_at) && (
+                      {isCredentialStale(site.credentials_updated_at, site.created_at) && (
                         <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300">
                           Rotate Creds
                         </span>

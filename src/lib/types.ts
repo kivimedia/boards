@@ -3537,6 +3537,7 @@ export interface PageForgeSiteProfile {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  credentials_updated_at: string;
 
   // Joined
   client?: { id: string; name: string } | null;

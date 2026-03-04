@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthContext, errorResponse } from '@/lib/api-helpers';
+import { decryptFromHex } from '@/lib/encryption';
 import { wpTestConnection } from '@/lib/integrations/wordpress-client';
 import { wpCliTestConnection } from '@/lib/integrations/wp-cli-client';
 import { figmaTestConnection } from '@/lib/integrations/figma-client';
@@ -25,6 +26,14 @@ export async function POST(_request: NextRequest, { params }: Params) {
   if (error || !site) {
     return errorResponse('Site profile not found', 404);
   }
+
+  // Decrypt credentials, preferring _encrypted columns, falling back to plaintext
+  site.wp_app_password = site.wp_app_password_encrypted
+    ? decryptFromHex(site.wp_app_password_encrypted) : site.wp_app_password;
+  site.figma_personal_token = site.figma_personal_token_encrypted
+    ? decryptFromHex(site.figma_personal_token_encrypted) : site.figma_personal_token;
+  site.wp_ssh_key_path = site.wp_ssh_key_path_encrypted
+    ? decryptFromHex(site.wp_ssh_key_path_encrypted) : site.wp_ssh_key_path;
 
   const results: Record<string, { ok: boolean; message: string }> = {};
 
