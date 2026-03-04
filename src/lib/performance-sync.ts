@@ -188,8 +188,19 @@ type SyncResult = {
   errors: Array<{ tab: string; error: string }>;
 };
 
-// Known AM tab names (used across multiple sheets)
-const AM_TAB_NAMES = ['ANGEL', 'KATH', 'DEVI', 'HILDA', 'RIZA', 'SARAH', 'ELA', 'IVY', 'MARIZ'];
+// Map spreadsheet tab names to full profile display names
+const AM_TAB_TO_PROFILE: Record<string, string> = {
+  'ANGEL': 'Angel Dickson',
+  'KATH': 'Kathlyn Casañas',
+  'DEVI': 'Deverlyn Magno',
+  'HILDA': 'Hilda Yaneza',
+  'RIZA': 'Rizalyn Magno',
+  'SARAH': 'Sarah Joy Escano',
+  'ELA': 'Ela Dejadena',
+  'IVY': 'Ivy',
+  'MARIZ': 'Mariz Torres',
+};
+const AM_TAB_NAMES = Object.keys(AM_TAB_TO_PROFILE);
 
 /**
  * Case-insensitive column lookup that tries multiple header name variants.
@@ -214,11 +225,10 @@ function isAMTab(tabTitle: string): boolean {
 }
 
 function extractAMName(tabTitle: string): string {
-  // Capitalize first letter: "ANGEL" -> "Angel"
   const upper = tabTitle.toUpperCase().trim();
   for (const name of AM_TAB_NAMES) {
     if (upper.includes(name)) {
-      return name.charAt(0) + name.slice(1).toLowerCase();
+      return AM_TAB_TO_PROFILE[name];
     }
   }
   return tabTitle;
