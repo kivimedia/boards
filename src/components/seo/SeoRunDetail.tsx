@@ -166,6 +166,25 @@ function parsePlan(text: string): ParsedPlan {
 }
 
 // ---------------------------------------------------------------------------
+// Clean draft content — strip HTML comments, SEO directives, and code artifacts
+// ---------------------------------------------------------------------------
+function cleanDraftContent(text: string): string {
+  if (!text) return '';
+  return text
+    // Remove markdown code fences (```markdown, ```html, ``` etc.)
+    .replace(/^```[\w]*\n?/gm, '')
+    // Remove HTML comments (<!-- ... -->) including multiline
+    .replace(/<!--[\s\S]*?-->/g, '')
+    // Remove {/* ... */} JSX-style comments
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    // Remove frontmatter lines (slug:, meta_description:, etc.)
+    .replace(/^(?:slug|meta_description|meta_title|canonical_url|featured_image|category|tags|author|date|status):\s*.*$/gm, '')
+    // Remove lines that are only whitespace after stripping
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 interface Props {
@@ -561,6 +580,38 @@ export default function SeoRunDetail({ runId }: Props) {
       )}
 
       {/* ------------------------------------------------------------------ */}
+      {/* Article Preview (shown above review panel during approval) */}
+      {/* ------------------------------------------------------------------ */}
+      {(isAwaitingGate1 || isAwaitingGate2) && (run.humanized_content || run.final_content) && (
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-cream-dark dark:border-slate-700 shadow-sm overflow-hidden">
+          {/* Preview header with metadata */}
+          <div className="px-6 py-4 border-b border-cream-dark dark:border-slate-700 flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h2 className="text-base font-bold text-navy dark:text-white font-heading">
+                {run.topic || parsedPlan.title || 'Draft Preview'}
+              </h2>
+              <div className="flex items-center gap-3 mt-1">
+                <span className="text-xs font-medium text-electric bg-electric/10 px-2 py-0.5 rounded-full">
+                  {run.humanized_content ? 'Humanized Draft' : 'Raw Draft'}
+                </span>
+                <span className="text-xs text-navy/40 dark:text-slate-500 font-body">
+                  {cleanDraftContent(run.humanized_content || run.final_content || '').split(/\s+/).filter(Boolean).length.toLocaleString()} words
+                </span>
+              </div>
+            </div>
+          </div>
+          {/* Full article content */}
+          <div className="px-6 md:px-10 py-8">
+            <article className="prose dark:prose-invert max-w-none font-body prose-headings:font-heading prose-headings:text-navy dark:prose-headings:text-white prose-p:leading-relaxed prose-p:text-navy/80 dark:prose-p:text-slate-300 prose-h1:text-[20px] prose-h2:text-[16px] prose-h3:text-[14px] prose-h4:text-[12px] prose-p:text-[11px] prose-li:text-[11px] prose-td:text-[11px] prose-th:text-[11px]">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {cleanDraftContent(run.humanized_content || run.final_content || '')}
+              </ReactMarkdown>
+            </article>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------------ */}
       {/* Review Panel (plan review, gate1, gate2) */}
       {/* ------------------------------------------------------------------ */}
       {activeReviewPhase && (
@@ -775,14 +826,14 @@ export default function SeoRunDetail({ runId }: Props) {
       )}
 
       {/* ------------------------------------------------------------------ */}
-      {/* Content Preview */}
+      {/* Content Preview (compact, for non-approval states) */}
       {/* ------------------------------------------------------------------ */}
-      {(run.humanized_content || run.final_content) && (
+      {!isAwaitingGate1 && !isAwaitingGate2 && (run.humanized_content || run.final_content) && (
         <div className="bg-white dark:bg-dark-card rounded-xl p-5 border border-cream-dark dark:border-slate-700">
           <h2 className="text-sm font-semibold text-navy/60 dark:text-slate-300 mb-3 font-heading">Content Preview</h2>
-          <div className="prose prose-sm dark:prose-invert max-w-none font-body bg-cream dark:bg-dark-surface p-4 rounded-lg overflow-auto max-h-96">
+          <div className="prose dark:prose-invert max-w-none font-body bg-cream dark:bg-dark-surface p-4 rounded-lg overflow-auto max-h-96 prose-h1:text-[20px] prose-h2:text-[16px] prose-h3:text-[14px] prose-h4:text-[12px] prose-p:text-[11px] prose-li:text-[11px] prose-td:text-[11px] prose-th:text-[11px]">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {run.humanized_content || run.final_content || ''}
+              {cleanDraftContent(run.humanized_content || run.final_content || '')}
             </ReactMarkdown>
           </div>
         </div>

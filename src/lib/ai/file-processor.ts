@@ -1,4 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
+import { resizeForVision } from './image-resize';
 
 // ============================================================================
 // FILE PROCESSOR — PDF text extraction + image base64 for Claude vision
@@ -149,7 +150,8 @@ async function processImage(
 
     if (error || !data) return null;
 
-    const buffer = Buffer.from(await data.arrayBuffer());
+    const raw = Buffer.from(await data.arrayBuffer());
+    const buffer = await resizeForVision(raw);
     const base64 = buffer.toString('base64');
 
     return {

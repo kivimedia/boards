@@ -57,6 +57,7 @@ function buildUserMessage(phase: string, run: SeoPipelineRun, opts?: BuildMessag
         'Word count target: 1200-1500 words (regular post)',
         '',
         'Follow all writing rules, brand voice guidelines, and SEO requirements from your instructions.',
+        'IMPORTANT: Never use em dashes (—) or en dashes (–) anywhere in the output. Use commas, periods, or rewrite the sentence instead.',
         'Mark protected zones around keyword placements, internal links, and factual claims.',
         'Output the complete blog post in markdown format with slug and meta_description at the top.',
       ].join('\n');
@@ -89,6 +90,7 @@ function buildUserMessage(phase: string, run: SeoPipelineRun, opts?: BuildMessag
         content,
         '',
         'Follow your 5-pass humanization checklist. Respect all Protected Zones (<!-- PROTECTED --> tags).',
+        'IMPORTANT: Never use em dashes (—) or en dashes (–) anywhere in the output. Replace any existing ones with commas, periods, or rewrite the sentence.',
         'Return the humanized post with your change log as specified in your instructions.',
       ].join('\n');
     }

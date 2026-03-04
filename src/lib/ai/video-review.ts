@@ -1,5 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import Anthropic from '@anthropic-ai/sdk';
+import { resizeForVision } from './image-resize';
 import { createAnthropicClient, touchApiKey } from './providers';
 import { resolveModelWithFallback } from './model-resolver';
 import { logUsage } from './cost-tracker';
@@ -95,7 +96,7 @@ export async function runVideoReview(
       });
       messageContent.push({
         type: 'image',
-        source: { type: 'base64', media_type: 'image/png', data: frame.buffer.toString('base64') },
+        source: { type: 'base64', media_type: 'image/png', data: (await resizeForVision(frame.buffer)).toString('base64') },
       });
     }
   }

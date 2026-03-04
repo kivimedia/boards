@@ -1,4 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
+import { resizeForVision } from './image-resize';
 import { calculateCost } from './cost-tracker';
 import { getProviderClient, getProviderKey, touchApiKey } from './providers';
 import { resolveModelWithFallback } from './model-resolver';
@@ -275,10 +276,14 @@ export async function callPageForgeAgent(
       const messages: Array<{ role: 'user'; content: any }> = [];
 
       if (options?.images && options.images.length > 0) {
-        const content: any[] = options.images.map(img => ({
-          type: 'image',
-          source: { type: 'base64', media_type: img.mimeType, data: img.data },
-        }));
+        const content: any[] = [];
+        for (const img of options.images) {
+          const resized = await resizeForVision(Buffer.from(img.data, 'base64'));
+          content.push({
+            type: 'image',
+            source: { type: 'base64', media_type: img.mimeType, data: resized.toString('base64') },
+          });
+        }
         content.push({ type: 'text', text: userMessage });
         messages.push({ role: 'user', content });
       } else {
@@ -311,7 +316,8 @@ export async function callPageForgeAgent(
 
       if (options?.images && options.images.length > 0) {
         for (const img of options.images) {
-          parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
+          const resized = await resizeForVision(Buffer.from(img.data, 'base64'));
+          parts.push({ inlineData: { mimeType: img.mimeType, data: resized.toString('base64') } });
         }
       }
       parts.push({ text: userMessage });
@@ -341,10 +347,14 @@ export async function callPageForgeAgent(
       ];
 
       if (options?.images && options.images.length > 0) {
-        const content: any[] = options.images.map(img => ({
-          type: 'image_url',
-          image_url: { url: `data:${img.mimeType};base64,${img.data}` },
-        }));
+        const content: any[] = [];
+        for (const img of options.images) {
+          const resized = await resizeForVision(Buffer.from(img.data, 'base64'));
+          content.push({
+            type: 'image_url',
+            image_url: { url: `data:${img.mimeType};base64,${resized.toString('base64')}` },
+          });
+        }
         content.push({ type: 'text', text: userMessage });
         messages.push({ role: 'user', content });
       } else {

@@ -1,5 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import Anthropic from '@anthropic-ai/sdk';
+import { resizeForVision } from './image-resize';
 import { createAnthropicClient, touchApiKey } from './providers';
 import { resolveModelWithFallback } from './model-resolver';
 import { logUsage } from './cost-tracker';
@@ -98,7 +99,8 @@ export async function downloadImageAsBase64(
 
   if (error || !data) return null;
 
-  const buffer = Buffer.from(await data.arrayBuffer());
+  const raw = Buffer.from(await data.arrayBuffer());
+  const buffer = await resizeForVision(raw);
   const base64 = buffer.toString('base64');
 
   // Determine media type from extension
