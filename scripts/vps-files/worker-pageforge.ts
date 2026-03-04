@@ -2984,24 +2984,34 @@ function buildDivi5Markup(sections: Divi5Section[], primaryFont: string, accentC
 
   // Collect unique fonts from all sections for Google Fonts loading
   const usedFonts = new Set<string>();
-  if (primaryFont && primaryFont !== 'inherit') usedFonts.add(primaryFont);
+  // Sanitize font family: strip quotes, strip CSS fallback stack (e.g. "'Poppins', sans-serif" -> "Poppins")
+  const cleanFontFamily = (f: string): string => f.replace(/['"]/g, '').split(',')[0].trim();
+  const addFont = (f: string) => {
+    const clean = cleanFontFamily(f);
+    if (clean && clean !== 'inherit' && clean !== 'sans-serif' && clean !== 'serif' && clean !== 'monospace') {
+      usedFonts.add(clean);
+    }
+  };
+  if (primaryFont) addFont(primaryFont);
   for (const section of sections) {
     if (section.elements) {
       for (const el of section.elements) {
-        if (el.font?.family && el.font.family !== 'inherit') usedFonts.add(el.font.family);
+        if (el.font?.family) addFont(el.font.family);
       }
     }
     if (section.cards) {
       for (const card of section.cards) {
-        if ((card as any).font?.family) usedFonts.add((card as any).font.family);
+        if ((card as any).font?.family) addFont((card as any).font.family);
       }
     }
   }
 
-  // Google Fonts import for all used fonts
+  // Google Fonts import - in a SEPARATE style block so a font-load failure
+  // cannot break the CSS rules in the main fallback block
+  let fontImportBlock = '';
   if (usedFonts.size > 0) {
     const fontFamilies = [...usedFonts].map(f => f.replace(/\s+/g, '+')).map(f => `family=${f}:wght@400;500;600;700`).join('&');
-    cssFallback.push(`@import url('https://fonts.googleapis.com/css2?${fontFamilies}&display=swap');`);
+    fontImportBlock = `<!-- wp:html -->\n<style>\n/* PageForge: Google Fonts */\n@import url('https://fonts.googleapis.com/css2?${fontFamilies}&display=swap');\n</style>\n<!-- /wp:html -->\n\n`;
   }
 
   sections.forEach((section, i) => {
@@ -3086,10 +3096,10 @@ function buildDivi5Markup(sections: Divi5Section[], primaryFont: string, accentC
 
   let cssBlock = '';
   if (cssFallback.length > 0) {
-    cssBlock = `<!-- wp:html -->\n<style>\n/* PageForge: font loading, backgrounds & text color fallback */\n${cssFallback.join('\n')}\n</style>\n<!-- /wp:html -->\n\n`;
+    cssBlock = `<!-- wp:html -->\n<style>\n/* PageForge: backgrounds & text color fallback */\n${cssFallback.join('\n')}\n</style>\n<!-- /wp:html -->\n\n`;
   }
 
-  return cssBlock + output.join('\n\n');
+  return fontImportBlock + cssBlock + output.join('\n\n');
 }
 
 function buildElementModule(el: Divi5Element, primaryFont: string, bg?: { color?: string }): string {
