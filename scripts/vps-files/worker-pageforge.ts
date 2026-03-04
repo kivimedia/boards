@@ -2524,42 +2524,72 @@ Respond with JSON: {"patches":[{"search":"</style>","replace":"...\\n</style>","
             wpScreenshots: finalShots,
           });
 
-          // Score tablet and mobile by comparing WP screenshots to Figma reference
+          // Score tablet and mobile for USABILITY (not Figma comparison)
+          // Mobile/tablet quality = no horizontal scroll, readable content, proper layout, tappable buttons
           const finalDesktop = comparisonData.overallScore || lastScore;
           let tabletScore = 0;
           let mobileScore = 0;
-          const figmaRef = artifacts.vqa_capture?.figmaScreenshots?.desktop;
+
+          // Run Puppeteer audit for concrete metrics
+          let mobileMetrics: MobileAuditResult | null = null;
+          try {
+            mobileMetrics = await runMobileAudit(draftUrl);
+          } catch { /* will use AI-only scoring */ }
 
           for (const bp of ['tablet', 'mobile'] as const) {
             const wpImg = finalShots[bp];
             if (!wpImg) continue;
             const width = bp === 'tablet' ? 768 : 375;
             try {
-              // Include Figma reference for comparison if available
-              const bpImages: Array<{data: string; mimeType: string}> = [
-                { data: wpImg, mimeType: 'image/jpeg' },
-              ];
-              let figmaNote = '';
-              if (figmaRef) {
-                bpImages.push({ data: figmaRef, mimeType: 'image/jpeg' });
-                figmaNote = '\nImage 2: FIGMA DESIGN (reference). Compare the WordPress screenshot against this design.';
+              // Include Puppeteer audit data for concrete scoring context
+              let auditContext = '';
+              if (mobileMetrics && bp === 'mobile') {
+                auditContext = `\n\nAUTOMATED AUDIT RESULTS (from Puppeteer at ${width}px):
+- Horizontal scroll: ${mobileMetrics.hasHorizontalScroll ? 'YES (' + mobileMetrics.overflowPx + 'px overflow) - CRITICAL BUG' : 'NONE (good)'}
+- Fixed-width overflow elements: ${mobileMetrics.fixedWidthElements.length}
+- Non-wrapping flex/grid containers: ${mobileMetrics.noWrapContainers.length}
+- Tap targets < 44px: ${mobileMetrics.smallTapTargets}
+${!mobileMetrics.hasHorizontalScroll ? '- The page has NO horizontal scroll - this is a major quality indicator' : ''}`;
               }
+
               const bpResult = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa', 'vqa_fix_loop',
                 getSystemPrompt('pageforge_vqa'),
-                `Evaluate this WordPress page at ${bp.toUpperCase()} (${width}px) against the Figma design.
-Image 1: WordPress page rendered at ${width}px width.${figmaNote}
+                `Evaluate this WordPress page at ${bp.toUpperCase()} (${width}px) for RESPONSIVE QUALITY and USABILITY.
+Image 1: WordPress page rendered at ${width}px width.
 
-Score how well the WordPress ${bp} version represents the Figma design (0-100):
-- Content and sections present and in correct order
-- Colors, backgrounds, and images match
-- Typography (fonts, sizes, weights) are appropriate for ${width}px
-- Layout adapts well for ${bp} screen (columns stack, no overflow)
-- Spacing and padding are reasonable for ${width}px
-- All interactive elements are usable (min 44px tap targets on mobile)
+Score the page 0-100 based on these ${bp} usability criteria:
 
-Score 0-100 (100 = WordPress ${bp} perfectly represents the Figma design adapted for ${width}px).
+LAYOUT (30 points):
+- No horizontal scrolling (critical - if horizontal scroll exists, max 15 pts in this category)
+- Content fills viewport width appropriately
+- Columns stack vertically when needed
+- No content cut off or hidden
+
+READABILITY (25 points):
+- Text is readable without zooming (min 14px)
+- Adequate line spacing
+- Good contrast between text and background
+- Headings are properly sized
+
+CONTENT COMPLETENESS (20 points):
+- All sections from the desktop version are visible
+- Images display correctly (not broken, not stretched)
+- Colors and backgrounds render properly
+
+USABILITY (15 points):
+- Buttons and links are tappable (min 44px)
+- Navigation works on ${bp}
+- No overlapping elements
+- Forms are usable
+
+POLISH (10 points):
+- Consistent spacing and padding
+- Professional appearance on ${bp}
+- No visual glitches or artifacts${auditContext}
+
+Score 0-100 (100 = perfect ${bp} responsive experience).
 Respond with JSON: {"score":N,"differences":[{"area":"...","severity":"critical|major|minor","description":"..."}]}`,
-                anthropic, { images: bpImages }
+                anthropic, { images: [{ data: wpImg, mimeType: 'image/jpeg' }] }
               );
               const jsonMatch = bpResult.text.match(/\{[\s\S]*\}/);
               if (jsonMatch) {
