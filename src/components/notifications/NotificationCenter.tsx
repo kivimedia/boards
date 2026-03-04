@@ -126,7 +126,9 @@ export default function NotificationCenter() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; right: number } | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const bellRef = useRef<HTMLButtonElement>(null);
   const router = useRouter();
   const { user } = useAuth();
   const supabase = createClient();
@@ -143,7 +145,8 @@ export default function NotificationCenter() {
 
   const fetchNotifications = useCallback(async () => {
     if (!user) return;
-    setLoading(true);
+    // Only show spinner on first load, not on refreshes
+    if (notifications.length === 0) setLoading(true);
     const { data } = await supabase
       .from('notifications')
       .select('*')
@@ -152,7 +155,7 @@ export default function NotificationCenter() {
       .limit(20);
     if (data) setNotifications(data);
     setLoading(false);
-  }, [user]);
+  }, [user, notifications.length]);
 
   // Poll unread count every 30 seconds
   useEffect(() => {
@@ -249,7 +252,17 @@ export default function NotificationCenter() {
     <div ref={dropdownRef} className="relative">
       {/* Bell Icon Button */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        ref={bellRef}
+        onClick={() => {
+          if (!isOpen && bellRef.current) {
+            const rect = bellRef.current.getBoundingClientRect();
+            setDropdownPos({
+              top: rect.bottom + 8,
+              right: Math.max(8, window.innerWidth - rect.right),
+            });
+          }
+          setIsOpen(!isOpen);
+        }}
         className="relative p-2 rounded-xl text-navy/60 dark:text-slate-400 hover:text-navy dark:hover:text-white hover:bg-cream-dark dark:hover:bg-slate-800 transition-all duration-200"
         title="Notifications"
       >
@@ -265,8 +278,11 @@ export default function NotificationCenter() {
       </button>
 
       {/* Dropdown Panel */}
-      {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-[calc(100vw-1rem)] sm:w-80 max-w-sm bg-white dark:bg-dark-surface rounded-2xl shadow-xl dark:shadow-none border border-cream-dark dark:border-slate-700 z-[999] overflow-hidden">
+      {isOpen && dropdownPos && (
+        <div
+          style={{ top: dropdownPos.top, right: dropdownPos.right }}
+          className="fixed w-[calc(100vw-1rem)] sm:w-80 max-w-sm bg-white dark:bg-dark-surface rounded-2xl shadow-xl dark:shadow-none border border-cream-dark dark:border-slate-700 z-[9999] overflow-hidden"
+        >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-cream-dark dark:border-slate-700">
             <h3 className="text-sm font-semibold text-navy dark:text-slate-100 font-heading">
