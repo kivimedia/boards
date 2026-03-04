@@ -5,9 +5,9 @@ const PUBLIC_PATHS = ['/login', '/signup', '/pending-approval', '/forgot-passwor
 
 const AUTH_TIMEOUT_MS = 5000;
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<T> {
   return Promise.race([
-    promise,
+    Promise.resolve(promise),
     new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('Supabase auth timeout')), ms)
     ),
