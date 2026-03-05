@@ -61,9 +61,11 @@ async function handleGateDecision(
   const { data: vpsJob } = await supabase
     .from('vps_jobs')
     .select('id')
-    .eq('job_type', 'seo')
+    .in('job_type', ['seo', 'pipeline:seo'])
     .filter('payload->>pipeline_run_id', 'eq', runId)
-    .single();
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   const vpsJobId = vpsJob?.id as string | undefined;
 

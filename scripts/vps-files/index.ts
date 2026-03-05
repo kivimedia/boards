@@ -88,7 +88,7 @@ supabase
       const jobPayload = job.payload as Record<string, unknown> | null;
       const jobId = job.id as string;
 
-      if (jobType === 'seo') {
+      if (jobType === 'seo' || jobType === 'pipeline:seo') {
         // SEO pipeline job
         const pipelineRunId = jobPayload?.pipeline_run_id as string | undefined;
         if (pipelineRunId) {
@@ -199,7 +199,7 @@ async function recoverOrphanedJobs(): Promise<void> {
     .from('vps_jobs')
     .select('id, job_type, payload')
     .in('status', ['pending', 'queued'])
-    .eq('job_type', 'seo');
+    .in('job_type', ['seo', 'pipeline:seo']);
 
   if (pendingSeoJobs?.length) {
     console.log(`[recovery] Found ${pendingSeoJobs.length} orphaned SEO jobs`);
@@ -261,7 +261,7 @@ async function recoverOrphanedJobs(): Promise<void> {
     .from('vps_jobs')
     .select('id, payload')
     .eq('status', 'paused')
-    .eq('job_type', 'seo');
+    .in('job_type', ['seo', 'pipeline:seo']);
 
   if (pausedSeoJobs?.length) {
     for (const job of pausedSeoJobs) {

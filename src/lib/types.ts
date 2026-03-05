@@ -3256,7 +3256,7 @@ export interface MeetingChatMessage {
 // VPS JOB TYPES
 // ============================================================================
 
-export type VpsJobType = 'agent:standalone' | 'agent:chain' | 'agent:team' | 'pipeline:seo' | 'pipeline:scout' | 'pipeline:pageforge' | 'cron';
+export type VpsJobType = 'agent:standalone' | 'agent:chain' | 'agent:team' | 'seo' | 'pipeline:seo' | 'pipeline:scout' | 'pipeline:pageforge' | 'cron';
 export type VpsJobStatus = 'pending' | 'queued' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
 
 export interface VpsJob {
@@ -4100,4 +4100,3 @@ export interface OrchestratorCallbacks {
   onStepData?: (data: Record<string, unknown>) => void;
   onCostEvent?: (event: { service_name: string; operation: string; cost_usd: number }) => void;
 }
-

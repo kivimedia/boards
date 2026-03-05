@@ -128,7 +128,7 @@ export async function POST(
       const { data: job } = await supabase
         .from('vps_jobs')
         .insert({
-          job_type: 'pipeline:seo',
+          job_type: 'seo',
           status: 'pending',
           user_id: userId,
           payload: {
@@ -169,7 +169,7 @@ export async function POST(
       await supabase
         .from('vps_jobs')
         .insert({
-          job_type: 'pipeline:seo',
+          job_type: 'seo',
           status: 'pending',
           user_id: userId,
           payload: {

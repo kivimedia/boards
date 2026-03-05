@@ -17,7 +17,7 @@ export async function createPipelineRun(
   const { data: job, error: jobErr } = await supabase
     .from('vps_jobs')
     .insert({
-      job_type: 'pipeline:seo',
+      job_type: 'seo',
       status: 'pending',
       user_id: userId,
       client_id: clientId,

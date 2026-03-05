@@ -46,6 +46,11 @@ interface ParsedScheduleItem {
   topic: string;
 }
 
+interface ParsedSiloAssessmentItem {
+  siloLabel: string;
+  assessment: string;
+}
+
 function parsePlan(text: string): ParsedPlan {
   if (!text) return { raw: '' };
 
@@ -298,6 +303,109 @@ function parseMonthlySchedule(text: string): ParsedScheduleItem[] {
   return items;
 }
 
+function parseSiloAssessments(text: string): ParsedSiloAssessmentItem[] {
+  if (!text) return [];
+  const results: ParsedSiloAssessmentItem[] = [];
+  const matches = text.matchAll(/\*\*(Silo\s*\d+:[^*]+)\*\*\s*-\s*(.+)/gi);
+  for (const match of matches) {
+    results.push({
+      siloLabel: match[1].trim(),
+      assessment: match[2].trim(),
+    });
+  }
+  return results;
+}
+
+function parseStrategicRecommendation(text: string): { summary: string | null; bullets: string[] } {
+  const section = text.match(/##\s*Strategic Recommendation([\s\S]*?)(?:##\s*Next Post Assignment|$)/i);
+  if (!section) return { summary: null, bullets: [] };
+
+  const lines = section[1]
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean);
+
+  let summary: string | null = null;
+  const bullets: string[] = [];
+
+  for (const line of lines) {
+    if (line.startsWith('- ')) {
+      bullets.push(line.replace(/^-+\s*/, '').trim());
+    } else if (!summary && !line.startsWith('#')) {
+      summary = line.replace(/\*\*/g, '').trim();
+    }
+  }
+
+  return { summary, bullets };
+}
+
+function parseNextPostAssignment(text: string): Array<{ key: string; value: string }> {
+  const yamlBlock = text.match(/##\s*Next Post Assignment[\s\S]*?```ya?ml([\s\S]*?)```/i);
+  if (!yamlBlock) return [];
+
+  const lines = yamlBlock[1].split('\n');
+  const parsed = new Map<string, string>();
+  let currentKey: string | null = null;
+  let currentList: string[] = [];
+
+  const flushList = () => {
+    if (currentKey && currentList.length > 0) {
+      parsed.set(currentKey, currentList.join(', '));
+      currentList = [];
+    }
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.replace(/\t/g, '  ');
+    if (!line.trim() || line.trim() === 'post_assignment:') continue;
+
+    const keyMatch = line.match(/^\s{2}([a-zA-Z0-9_]+):\s*(.*)$/);
+    if (keyMatch) {
+      flushList();
+      currentKey = keyMatch[1].trim();
+      const rawValue = keyMatch[2].trim();
+
+      if (!rawValue) {
+        parsed.set(currentKey, '');
+        continue;
+      }
+
+      const inlineArray = rawValue.match(/^\[(.*)\]$/);
+      if (inlineArray) {
+        const items = inlineArray[1]
+          .split(',')
+          .map(part => part.trim().replace(/^["']|["']$/g, ''))
+          .filter(Boolean);
+        parsed.set(currentKey, items.join(', '));
+      } else {
+        parsed.set(currentKey, rawValue.replace(/^["']|["']$/g, ''));
+      }
+      continue;
+    }
+
+    const listItemMatch = line.match(/^\s{4}-\s*(.+)$/);
+    if (listItemMatch && currentKey) {
+      const cleaned = listItemMatch[1].trim().replace(/^["']|["']$/g, '');
+      currentList.push(cleaned);
+      continue;
+    }
+  }
+
+  flushList();
+
+  return Array.from(parsed.entries())
+    .filter(([, value]) => value !== '')
+    .map(([key, value]) => ({
+      key: key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+      value,
+    }));
+}
+
+function getScheduleItemKey(item: ParsedScheduleItem): string {
+  const post = item.postNumber != null ? String(item.postNumber) : 'none';
+  return `${item.monthLabel}|${item.weekLabel}|${post}|${item.topic}`;
+}
+
 export default function SeoRunDetail({ runId }: Props) {
   const [run, setRun] = useState<SeoPipelineRun | null>(null);
   const [agentCalls, setAgentCalls] = useState<SeoAgentCall[]>([]);
@@ -321,6 +429,7 @@ export default function SeoRunDetail({ runId }: Props) {
   // Collapsible sections
   const [showAgentCalls, setShowAgentCalls] = useState(false);
   const [showRawPlan, setShowRawPlan] = useState(false);
+  const [topicDecisions, setTopicDecisions] = useState<Record<string, 'approved' | 'rejected'>>({});
 
   const fetchRun = useCallback(async () => {
     try {
@@ -386,6 +495,10 @@ export default function SeoRunDetail({ runId }: Props) {
     }
   }, [run?.id, run?.status, fetchSiblings]);
 
+  useEffect(() => {
+    setTopicDecisions({});
+  }, [runId, run?.phase_results?.planning]);
+
   // --- File upload handlers ---
   const uploadFile = async (file: File) => {
     if (file.size > 10 * 1024 * 1024) {
@@ -436,6 +549,36 @@ export default function SeoRunDetail({ runId }: Props) {
 
   // --- Feedback submission ---
   const handleDecision = async (phase: string, decision: 'approve' | 'revise' | 'scrap') => {
+    const scheduleItems = parseMonthlySchedule(run?.phase_results?.planning ? String(run.phase_results.planning) : '');
+    const rejectedScheduleItems = scheduleItems.filter(item => topicDecisions[getScheduleItemKey(item)] === 'rejected');
+    const approvedScheduleItems = scheduleItems.filter(item => topicDecisions[getScheduleItemKey(item)] === 'approved');
+
+    if (phase === 'gate1' && decision === 'approve' && rejectedScheduleItems.length > 0) {
+      alert('You have rejected topics in the plan table. Use "Revise with Feedback" or change those topics to Approve before continuing.');
+      return;
+    }
+
+    let composedFeedback = feedbackText.trim();
+    if ((phase === 'gate1' || phase === 'plan_review') && scheduleItems.length > 0 && (approvedScheduleItems.length > 0 || rejectedScheduleItems.length > 0)) {
+      const lines: string[] = [
+        'Topic-level review decisions:',
+        `Approved: ${approvedScheduleItems.length}`,
+        `Rejected: ${rejectedScheduleItems.length}`,
+      ];
+
+      if (rejectedScheduleItems.length > 0) {
+        lines.push('');
+        lines.push('Rejected topics:');
+        for (const item of rejectedScheduleItems) {
+          const postLabel = item.postNumber != null ? `Post ${item.postNumber}` : 'Post';
+          lines.push(`- ${item.weekLabel}, ${postLabel}: ${item.topic}`);
+        }
+      }
+
+      const topicDecisionBlock = lines.join('\n');
+      composedFeedback = composedFeedback ? `${composedFeedback}\n\n${topicDecisionBlock}` : topicDecisionBlock;
+    }
+
     setSubmitting(true);
     try {
       const res = await fetch(`/api/seo/runs/${runId}/feedback`, {
@@ -444,7 +587,7 @@ export default function SeoRunDetail({ runId }: Props) {
         body: JSON.stringify({
           phase,
           decision,
-          feedback_text: feedbackText.trim() || undefined,
+          feedback_text: composedFeedback || undefined,
           attachment_ids: uploadedAttachments.map(a => a.id),
         }),
       });
@@ -540,6 +683,27 @@ export default function SeoRunDetail({ runId }: Props) {
   const hasPlan = !!planText;
   const hasMonthlyScheduleText = /(?:^|\n)\s*(?:#{1,6}\s*)?(?:\*\*)?\s*(?:month|week)\s+\d+/im.test(planText);
   const monthlyScheduleItems = parseMonthlySchedule(planText);
+  const siloAssessmentItems = parseSiloAssessments(planText);
+  const strategicRecommendation = parseStrategicRecommendation(planText);
+  const nextPostAssignmentRows = parseNextPostAssignment(planText);
+  const topicDecisionEntries = Object.entries(topicDecisions);
+  const approvedTopicsCount = topicDecisionEntries.filter(([, value]) => value === 'approved').length;
+  const rejectedTopicsCount = topicDecisionEntries.filter(([, value]) => value === 'rejected').length;
+  const hasTopicRejections = rejectedTopicsCount > 0;
+
+  const setTopicDecision = (item: ParsedScheduleItem, decision: 'approved' | 'rejected') => {
+    const key = getScheduleItemKey(item);
+    setTopicDecisions(prev => ({ ...prev, [key]: decision }));
+  };
+
+  const clearTopicDecision = (item: ParsedScheduleItem) => {
+    const key = getScheduleItemKey(item);
+    setTopicDecisions(prev => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
 
   // Determine which gate phase is active for the review panel
   const activeReviewPhase = isAwaitingPlanReview
@@ -661,6 +825,18 @@ export default function SeoRunDetail({ runId }: Props) {
           })}
         </div>
       </div>
+
+      {run.status === 'pending' && (
+        <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
+          <h2 className="text-sm font-semibold text-amber-800 dark:text-amber-300 font-heading mb-1">Run Queued</h2>
+          <p className="text-sm text-amber-700 dark:text-amber-400 font-body">
+            This run is launched but still waiting to start processing. No plan or draft is available yet.
+          </p>
+          <p className="text-xs text-amber-700/80 dark:text-amber-400/80 font-body mt-2">
+            If this stays pending for more than a few minutes, re-queue the run from admin/support.
+          </p>
+        </div>
+      )}
 
       {/* ------------------------------------------------------------------ */}
       {/* Monthly Plan Overview (plan review only) */}
@@ -914,7 +1090,63 @@ export default function SeoRunDetail({ runId }: Props) {
                     </p>
                   </div>
                   {monthlyScheduleItems.length > 0 ? (
-                    <div className="overflow-x-auto">
+                    <div>
+                      {(siloAssessmentItems.length > 0 || strategicRecommendation.summary || strategicRecommendation.bullets.length > 0 || nextPostAssignmentRows.length > 0) && (
+                        <div className="px-5 py-4 border-b border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-card space-y-4">
+                          {siloAssessmentItems.length > 0 && (
+                            <div>
+                              <p className="text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading mb-2">Current Silo Status Assessment</p>
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-sm border-collapse">
+                                  <tbody>
+                                    {siloAssessmentItems.map(item => (
+                                      <tr key={item.siloLabel} className="border-b border-cream-dark dark:border-slate-700">
+                                        <td className="px-3 py-2 text-xs font-semibold text-navy/60 dark:text-slate-300 font-body w-56 bg-cream/30 dark:bg-dark-surface/30">{item.siloLabel}</td>
+                                        <td className="px-3 py-2 text-sm text-navy dark:text-slate-200 font-body">{item.assessment}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )}
+
+                          {(strategicRecommendation.summary || strategicRecommendation.bullets.length > 0) && (
+                            <div>
+                              <p className="text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading mb-2">Strategic Recommendation</p>
+                              {strategicRecommendation.summary && (
+                                <p className="text-sm text-navy dark:text-slate-200 font-body mb-2">{strategicRecommendation.summary}</p>
+                              )}
+                              {strategicRecommendation.bullets.length > 0 && (
+                                <ul className="list-disc list-inside space-y-1 text-sm text-navy/80 dark:text-slate-300 font-body">
+                                  {strategicRecommendation.bullets.map((bullet, index) => (
+                                    <li key={index}>{bullet}</li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          )}
+
+                          {nextPostAssignmentRows.length > 0 && (
+                            <div>
+                              <p className="text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading mb-2">Next Post Assignment</p>
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-sm border-collapse">
+                                  <tbody>
+                                    {nextPostAssignmentRows.map(row => (
+                                      <tr key={row.key} className="border-b border-cream-dark dark:border-slate-700">
+                                        <td className="px-3 py-2 text-xs font-semibold text-navy/60 dark:text-slate-300 font-body w-56 bg-cream/30 dark:bg-dark-surface/30">{row.key}</td>
+                                        <td className="px-3 py-2 text-sm text-navy dark:text-slate-200 font-body whitespace-pre-wrap">{row.value}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <div className="overflow-x-auto">
                       <table className="w-full text-sm border-collapse">
                         <thead>
                           <tr className="border-b border-cream-dark dark:border-slate-700 bg-cream/30 dark:bg-dark-surface/30">
@@ -924,21 +1156,63 @@ export default function SeoRunDetail({ runId }: Props) {
                             <th className="px-4 py-2 text-left text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading">Day</th>
                             <th className="px-4 py-2 text-left text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading">Silo</th>
                             <th className="px-4 py-2 text-left text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading">Topic</th>
+                            {(isAwaitingGate1 || isAwaitingPlanReview) && (
+                              <th className="px-4 py-2 text-left text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading">Decision</th>
+                            )}
                           </tr>
                         </thead>
                         <tbody>
-                          {monthlyScheduleItems.map((item, index) => (
-                            <tr key={`${item.monthLabel}-${item.weekLabel}-${item.postNumber}-${index}`} className="border-b border-cream-dark dark:border-slate-700">
-                              <td className="px-4 py-2 text-xs text-navy/70 dark:text-slate-300 font-body">{item.monthLabel}</td>
-                              <td className="px-4 py-2 text-xs text-navy/70 dark:text-slate-300 font-body">{item.weekLabel}</td>
-                              <td className="px-4 py-2 text-xs text-navy/70 dark:text-slate-300 font-body">{item.postNumber ?? '—'}</td>
-                              <td className="px-4 py-2 text-xs text-navy/70 dark:text-slate-300 font-body">{item.dayLabel || '—'}</td>
-                              <td className="px-4 py-2 text-xs text-navy/70 dark:text-slate-300 font-body">{item.siloLabel || '—'}</td>
-                              <td className="px-4 py-2 text-sm text-navy dark:text-white font-body">{item.topic}</td>
-                            </tr>
-                          ))}
+                          {monthlyScheduleItems.map((item, index) => {
+                            const itemKey = getScheduleItemKey(item);
+                            const topicDecision = topicDecisions[itemKey];
+                            return (
+                              <tr key={`${item.monthLabel}-${item.weekLabel}-${item.postNumber}-${index}`} className="border-b border-cream-dark dark:border-slate-700">
+                                <td className="px-4 py-2 text-xs text-navy/70 dark:text-slate-300 font-body">{item.monthLabel}</td>
+                                <td className="px-4 py-2 text-xs text-navy/70 dark:text-slate-300 font-body">{item.weekLabel}</td>
+                                <td className="px-4 py-2 text-xs text-navy/70 dark:text-slate-300 font-body">{item.postNumber ?? '—'}</td>
+                                <td className="px-4 py-2 text-xs text-navy/70 dark:text-slate-300 font-body">{item.dayLabel || '—'}</td>
+                                <td className="px-4 py-2 text-xs text-navy/70 dark:text-slate-300 font-body">{item.siloLabel || '—'}</td>
+                                <td className="px-4 py-2 text-sm text-navy dark:text-white font-body">{item.topic}</td>
+                                {(isAwaitingGate1 || isAwaitingPlanReview) && (
+                                  <td className="px-4 py-2">
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        onClick={() => setTopicDecision(item, 'approved')}
+                                        className={`px-2 py-0.5 text-xs rounded font-body ${
+                                          topicDecision === 'approved'
+                                            ? 'bg-green-600 text-white'
+                                            : 'bg-green-100 text-green-700 hover:bg-green-200'
+                                        }`}
+                                      >
+                                        Approve
+                                      </button>
+                                      <button
+                                        onClick={() => setTopicDecision(item, 'rejected')}
+                                        className={`px-2 py-0.5 text-xs rounded font-body ${
+                                          topicDecision === 'rejected'
+                                            ? 'bg-red-600 text-white'
+                                            : 'bg-red-100 text-red-700 hover:bg-red-200'
+                                        }`}
+                                      >
+                                        Reject
+                                      </button>
+                                      {topicDecision && (
+                                        <button
+                                          onClick={() => clearTopicDecision(item)}
+                                          className="px-2 py-0.5 text-xs rounded bg-gray-100 text-gray-600 hover:bg-gray-200 font-body"
+                                        >
+                                          Clear
+                                        </button>
+                                      )}
+                                    </div>
+                                  </td>
+                                )}
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
+                    </div>
                     </div>
                   ) : (
                     <div className="p-5 prose prose-sm dark:prose-invert max-w-none font-body">
@@ -955,7 +1229,7 @@ export default function SeoRunDetail({ runId }: Props) {
       {/* ------------------------------------------------------------------ */}
       {/* Article Preview (shown above review panel during approval) */}
       {/* ------------------------------------------------------------------ */}
-      {isAwaitingGate2 && (run.humanized_content || run.final_content) && (
+      {(isAwaitingGate2 || (isAwaitingGate1 && !hasMonthlyScheduleText)) && (run.humanized_content || run.final_content) && (
         <div className="bg-white dark:bg-dark-card rounded-xl border border-cream-dark dark:border-slate-700 shadow-sm overflow-hidden">
           {/* Preview header with metadata */}
           <div className="px-6 py-4 border-b border-cream-dark dark:border-slate-700 flex items-center justify-between flex-wrap gap-2">
@@ -1107,7 +1381,7 @@ export default function SeoRunDetail({ runId }: Props) {
               </button>
               <button
                 onClick={() => handleDecision(activeReviewPhase, 'revise')}
-                disabled={submitting || bulkApproving || (!feedbackText.trim() && uploadedAttachments.length === 0)}
+                disabled={submitting || bulkApproving || (!feedbackText.trim() && uploadedAttachments.length === 0 && !hasTopicRejections)}
                 className="px-5 py-2.5 text-sm font-semibold text-amber-700 bg-amber-100 rounded-lg hover:bg-amber-200 transition-colors disabled:opacity-50 font-body shadow-sm"
               >
                 Revise with Feedback
