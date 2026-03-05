@@ -37,6 +37,15 @@ interface ParsedPlan {
   raw?: string;
 }
 
+interface ParsedScheduleItem {
+  monthLabel: string;
+  weekLabel: string;
+  postNumber: number | null;
+  dayLabel: string | null;
+  siloLabel: string | null;
+  topic: string;
+}
+
 function parsePlan(text: string): ParsedPlan {
   if (!text) return { raw: '' };
 
@@ -206,10 +215,96 @@ interface Props {
   runId: string;
 }
 
+interface SiblingOverviewItem {
+  id: string;
+  run_id: string | null;
+  topic: string;
+  silo: string | null;
+  keywords: string[];
+  target_word_count: number;
+  scheduled_date: string;
+  calendar_id: string;
+  calendar_name: string | null;
+  calendar_item_status: string;
+  pipeline_status: string | null;
+}
+
+interface SiblingOverviewData {
+  calendar: { id: string; name: string | null } | null;
+  current_item_id: string | null;
+  current_scheduled_date: string | null;
+  items: SiblingOverviewItem[];
+}
+
+function getWeekOfMonthLabel(dateString: string): string {
+  const date = new Date(`${dateString}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return 'W?';
+  const firstDayOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+  const adjustedDate = date.getDate() + firstDayOfMonth.getDay();
+  const week = Math.ceil(adjustedDate / 7);
+  return `W${week}`;
+}
+
+function formatPipelineStatus(status: string | null): string {
+  if (!status) return 'Not Launched';
+  return status
+    .split('_')
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function parseMonthlySchedule(text: string): ParsedScheduleItem[] {
+  if (!text) return [];
+
+  const cleaned = text
+    .replace(/^```[\w]*\n?/gm, '')
+    .replace(/```/g, '')
+    .trim();
+
+  const lines = cleaned.split('\n');
+  const items: ParsedScheduleItem[] = [];
+  let currentMonth = '';
+  let currentWeek = '';
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    const monthMatch = line.match(/^(?:#{1,6}\s*)?(?:\*\*)?\s*Month\s+(\d+)\s*:\s*(.+?)(?:\*\*)?\s*$/i);
+    if (monthMatch) {
+      currentMonth = `Month ${monthMatch[1]}: ${monthMatch[2].trim()}`;
+      continue;
+    }
+
+    const weekMatch = line.match(/^(?:#{1,6}\s*)?(?:\*\*)?\s*Week\s+(\d+)\s*:?(?:\*\*)?\s*$/i);
+    if (weekMatch) {
+      currentWeek = `Week ${weekMatch[1]}`;
+      continue;
+    }
+
+    const postMatch = line.match(/^-+\s*Post\s*(\d+)\s*(?:\(([^)]+)\))?\s*:\s*Silo\s*([^-]+?)\s*-\s*["“]?(.+?)["”]?(?:\s*[✓✔].*)?$/i);
+    if (postMatch) {
+      items.push({
+        monthLabel: currentMonth || 'Month',
+        weekLabel: currentWeek || 'Week',
+        postNumber: Number.parseInt(postMatch[1], 10),
+        dayLabel: postMatch[2]?.trim() || null,
+        siloLabel: `Silo ${postMatch[3].trim()}`,
+        topic: postMatch[4].trim(),
+      });
+    }
+  }
+
+  return items;
+}
+
 export default function SeoRunDetail({ runId }: Props) {
   const [run, setRun] = useState<SeoPipelineRun | null>(null);
   const [agentCalls, setAgentCalls] = useState<SeoAgentCall[]>([]);
   const [feedbackHistory, setFeedbackHistory] = useState<SeoPhaseFeedback[]>([]);
+  const [siblingOverview, setSiblingOverview] = useState<SiblingOverviewData | null>(null);
+  const [siblingLoading, setSiblingLoading] = useState(false);
+  const [siblingError, setSiblingError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -218,6 +313,7 @@ export default function SeoRunDetail({ runId }: Props) {
   const [uploadedAttachments, setUploadedAttachments] = useState<SeoReviewAttachment[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [bulkApproving, setBulkApproving] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const feedbackRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -254,11 +350,41 @@ export default function SeoRunDetail({ runId }: Props) {
     setLoading(false);
   }, [runId]);
 
+  const fetchSiblings = useCallback(async () => {
+    setSiblingLoading(true);
+    try {
+      const siblingsRes = await fetch(`/api/seo/runs/${runId}/siblings`);
+      if (!siblingsRes.ok) {
+        const errData = await siblingsRes.json().catch(() => ({}));
+        const msg = errData?.error || `Error ${siblingsRes.status}`;
+        setSiblingError(msg);
+        setSiblingOverview(null);
+      } else {
+        const data = await siblingsRes.json();
+        setSiblingOverview(data.data || null);
+        setSiblingError(null);
+      }
+    } catch (err) {
+      setSiblingError(err instanceof Error ? err.message : 'Network error');
+      setSiblingOverview(null);
+    }
+    setSiblingLoading(false);
+  }, [runId]);
+
   useEffect(() => {
     fetchRun();
     const interval = setInterval(fetchRun, 10000);
     return () => clearInterval(interval);
   }, [fetchRun]);
+
+  useEffect(() => {
+    if (run?.status === 'awaiting_plan_review') {
+      fetchSiblings();
+    } else {
+      setSiblingOverview(null);
+      setSiblingError(null);
+    }
+  }, [run?.id, run?.status, fetchSiblings]);
 
   // --- File upload handlers ---
   const uploadFile = async (file: File) => {
@@ -336,6 +462,47 @@ export default function SeoRunDetail({ runId }: Props) {
     setSubmitting(false);
   };
 
+  const handleApproveAllPlans = async () => {
+    const runIdsToApprove = (siblingOverview?.items || [])
+      .filter(item => item.run_id && item.pipeline_status === 'awaiting_plan_review')
+      .map(item => item.run_id as string);
+
+    if (runIdsToApprove.length === 0) {
+      alert('No sibling plans are currently awaiting review.');
+      return;
+    }
+
+    if (!confirm(`Approve ${runIdsToApprove.length} plan(s) and continue all of them to writing?`)) {
+      return;
+    }
+
+    setBulkApproving(true);
+    const failedRunIds: string[] = [];
+
+    for (const siblingRunId of runIdsToApprove) {
+      try {
+        const response = await fetch(`/api/seo/runs/${siblingRunId}/feedback`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phase: 'plan_review',
+            decision: 'approve',
+          }),
+        });
+        if (!response.ok) failedRunIds.push(siblingRunId);
+      } catch {
+        failedRunIds.push(siblingRunId);
+      }
+    }
+
+    if (failedRunIds.length > 0) {
+      alert(`Approved ${runIdsToApprove.length - failedRunIds.length}/${runIdsToApprove.length}. Some runs failed.`);
+    }
+
+    await Promise.all([fetchRun(), fetchSiblings()]);
+    setBulkApproving(false);
+  };
+
   // --- Loading / error states ---
   if (loading) {
     return (
@@ -371,6 +538,8 @@ export default function SeoRunDetail({ runId }: Props) {
   const planText = run.phase_results?.planning ? String(run.phase_results.planning) : '';
   const parsedPlan = parsePlan(planText);
   const hasPlan = !!planText;
+  const hasMonthlyScheduleText = /(?:^|\n)\s*(?:#{1,6}\s*)?(?:\*\*)?\s*(?:month|week)\s+\d+/im.test(planText);
+  const monthlyScheduleItems = parseMonthlySchedule(planText);
 
   // Determine which gate phase is active for the review panel
   const activeReviewPhase = isAwaitingPlanReview
@@ -398,6 +567,10 @@ export default function SeoRunDetail({ runId }: Props) {
         : '';
 
   const planReviewFeedback = feedbackHistory.filter(f => f.phase === 'plan_review');
+  const monthlyOverviewItems = siblingOverview?.items || [];
+  const calendarName = siblingOverview?.calendar?.name || null;
+  const scheduledDate = siblingOverview?.current_scheduled_date || null;
+  const hasSiblingOverview = isAwaitingPlanReview && monthlyOverviewItems.length > 0;
 
   // Custom link renderer: convert relative URLs to the actual site and open in new tab
   const siteUrl = (run.team_config?.site_url || '').replace(/\/$/, '');
@@ -432,6 +605,16 @@ export default function SeoRunDetail({ runId }: Props) {
           {run.silo && <span className="bg-electric/10 text-electric px-2 py-0.5 rounded-full text-xs font-medium">{run.silo}</span>}
           {run.team_config?.site_name && (
             <span className="bg-cyan-50 dark:bg-cyan-900/20 text-cyan-700 dark:text-cyan-300 px-2 py-0.5 rounded-full text-xs font-medium">{run.team_config.site_name}</span>
+          )}
+          {calendarName && (
+            <span className="bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full text-xs font-medium">
+              {calendarName}
+            </span>
+          )}
+          {scheduledDate && (
+            <span className="bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full text-xs font-medium">
+              Scheduled: {new Date(`${scheduledDate}T00:00:00`).toLocaleDateString()}
+            </span>
           )}
           <span>{new Date(run.created_at).toLocaleString()}</span>
           {run.total_cost_usd > 0 && <span>${run.total_cost_usd.toFixed(4)}</span>}
@@ -478,6 +661,101 @@ export default function SeoRunDetail({ runId }: Props) {
           })}
         </div>
       </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Monthly Plan Overview (plan review only) */}
+      {/* ------------------------------------------------------------------ */}
+      {isAwaitingPlanReview && (
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-cream-dark dark:border-slate-700 overflow-hidden">
+          <div className="px-5 py-4 border-b border-cream-dark dark:border-slate-700 flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="text-sm font-semibold text-navy dark:text-white font-heading">Monthly Plan Overview</h2>
+              <p className="text-xs text-navy/50 dark:text-slate-400 font-body mt-0.5">
+                {calendarName ? `Calendar: ${calendarName}` : 'Sibling topics in this planning batch'}
+              </p>
+            </div>
+            {hasSiblingOverview && (
+              <button
+                onClick={handleApproveAllPlans}
+                disabled={submitting || bulkApproving}
+                className="px-3 py-1.5 text-xs font-semibold text-white bg-electric rounded-lg hover:bg-electric/90 disabled:opacity-50 font-body"
+              >
+                {bulkApproving ? 'Approving...' : 'Approve All Plans'}
+              </button>
+            )}
+          </div>
+
+          {siblingLoading ? (
+            <div className="px-5 py-6 text-sm text-navy/50 dark:text-slate-400 font-body">Loading monthly overview...</div>
+          ) : siblingError ? (
+            <div className="px-5 py-6 text-sm text-red-600 dark:text-red-400 font-body">{siblingError}</div>
+          ) : !hasSiblingOverview ? (
+            <div className="px-5 py-6 text-sm text-navy/50 dark:text-slate-400 font-body">
+              No linked calendar batch found for this run.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="border-b border-cream-dark dark:border-slate-700 bg-cream/30 dark:bg-dark-surface/30">
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading">Week</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading">Scheduled Date</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading">Topic</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading">Silo</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading">Primary Keywords</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading">Word Count</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlyOverviewItems.map(item => {
+                    const isCurrent = item.run_id === run.id || item.id === siblingOverview?.current_item_id;
+                    return (
+                      <tr
+                        key={item.id}
+                        className={`border-b border-cream-dark dark:border-slate-700 ${
+                          isCurrent ? 'bg-electric/5 dark:bg-electric/10' : ''
+                        }`}
+                      >
+                        <td className="px-4 py-3 text-xs text-navy/50 dark:text-slate-400 font-body">{getWeekOfMonthLabel(item.scheduled_date)}</td>
+                        <td className="px-4 py-3 text-xs text-navy/70 dark:text-slate-300 font-body">
+                          {new Date(`${item.scheduled_date}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-navy dark:text-white font-medium font-body">
+                          {item.topic}
+                          {isCurrent && (
+                            <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-electric/15 text-electric">Current</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-navy/60 dark:text-slate-300 font-body">{item.silo || '—'}</td>
+                        <td className="px-4 py-3 text-xs text-navy/60 dark:text-slate-300 font-body">
+                          {item.keywords && item.keywords.length > 0 ? item.keywords.join(', ') : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-navy/60 dark:text-slate-300 font-body">
+                          {item.target_word_count ? item.target_word_count.toLocaleString() : '—'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                            item.pipeline_status === 'awaiting_plan_review'
+                              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                              : item.pipeline_status === 'writing'
+                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                                : item.pipeline_status
+                                  ? 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-300'
+                                  : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                          }`}>
+                            {formatPipelineStatus(item.pipeline_status)}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ------------------------------------------------------------------ */}
       {/* Content Plan Card */}
@@ -627,6 +905,48 @@ export default function SeoRunDetail({ runId }: Props) {
                   </table>
                 </div>
               )}
+
+              {(isAwaitingPlanReview || isAwaitingGate1) && hasMonthlyScheduleText && (
+                <div className="border-t border-cream-dark dark:border-slate-700">
+                  <div className="px-5 py-3 bg-cream/50 dark:bg-dark-surface/50">
+                    <p className="text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading">
+                      Full Month/Week Plan
+                    </p>
+                  </div>
+                  {monthlyScheduleItems.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm border-collapse">
+                        <thead>
+                          <tr className="border-b border-cream-dark dark:border-slate-700 bg-cream/30 dark:bg-dark-surface/30">
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading">Month</th>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading">Week</th>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading">Post</th>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading">Day</th>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading">Silo</th>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading">Topic</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {monthlyScheduleItems.map((item, index) => (
+                            <tr key={`${item.monthLabel}-${item.weekLabel}-${item.postNumber}-${index}`} className="border-b border-cream-dark dark:border-slate-700">
+                              <td className="px-4 py-2 text-xs text-navy/70 dark:text-slate-300 font-body">{item.monthLabel}</td>
+                              <td className="px-4 py-2 text-xs text-navy/70 dark:text-slate-300 font-body">{item.weekLabel}</td>
+                              <td className="px-4 py-2 text-xs text-navy/70 dark:text-slate-300 font-body">{item.postNumber ?? '—'}</td>
+                              <td className="px-4 py-2 text-xs text-navy/70 dark:text-slate-300 font-body">{item.dayLabel || '—'}</td>
+                              <td className="px-4 py-2 text-xs text-navy/70 dark:text-slate-300 font-body">{item.siloLabel || '—'}</td>
+                              <td className="px-4 py-2 text-sm text-navy dark:text-white font-body">{item.topic}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="p-5 prose prose-sm dark:prose-invert max-w-none font-body">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{planText}</ReactMarkdown>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -635,7 +955,7 @@ export default function SeoRunDetail({ runId }: Props) {
       {/* ------------------------------------------------------------------ */}
       {/* Article Preview (shown above review panel during approval) */}
       {/* ------------------------------------------------------------------ */}
-      {(isAwaitingGate1 || isAwaitingGate2) && (run.humanized_content || run.final_content) && (
+      {isAwaitingGate2 && (run.humanized_content || run.final_content) && (
         <div className="bg-white dark:bg-dark-card rounded-xl border border-cream-dark dark:border-slate-700 shadow-sm overflow-hidden">
           {/* Preview header with metadata */}
           <div className="px-6 py-4 border-b border-cream-dark dark:border-slate-700 flex items-center justify-between flex-wrap gap-2">
@@ -780,14 +1100,14 @@ export default function SeoRunDetail({ runId }: Props) {
             <div className="flex gap-3 flex-wrap">
               <button
                 onClick={() => handleDecision(activeReviewPhase, 'approve')}
-                disabled={submitting}
+                disabled={submitting || bulkApproving}
                 className="px-5 py-2.5 text-sm font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 font-body shadow-sm"
               >
                 {submitting ? 'Submitting...' : 'Approve & Continue'}
               </button>
               <button
                 onClick={() => handleDecision(activeReviewPhase, 'revise')}
-                disabled={submitting || (!feedbackText.trim() && uploadedAttachments.length === 0)}
+                disabled={submitting || bulkApproving || (!feedbackText.trim() && uploadedAttachments.length === 0)}
                 className="px-5 py-2.5 text-sm font-semibold text-amber-700 bg-amber-100 rounded-lg hover:bg-amber-200 transition-colors disabled:opacity-50 font-body shadow-sm"
               >
                 Revise with Feedback
@@ -798,7 +1118,7 @@ export default function SeoRunDetail({ runId }: Props) {
                     handleDecision(activeReviewPhase, 'scrap');
                   }
                 }}
-                disabled={submitting}
+                disabled={submitting || bulkApproving}
                 className="px-5 py-2.5 text-sm font-semibold text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50 font-body shadow-sm"
               >
                 Scrap
@@ -881,7 +1201,7 @@ export default function SeoRunDetail({ runId }: Props) {
       {/* ------------------------------------------------------------------ */}
       {/* Content Preview (compact, for non-approval states) */}
       {/* ------------------------------------------------------------------ */}
-      {!isAwaitingGate1 && !isAwaitingGate2 && (run.humanized_content || run.final_content) && (
+      {!isAwaitingPlanReview && !isAwaitingGate1 && !isAwaitingGate2 && (run.humanized_content || run.final_content) && (
         <div className="bg-white dark:bg-dark-card rounded-xl p-5 border border-cream-dark dark:border-slate-700">
           <h2 className="text-sm font-semibold text-navy/60 dark:text-slate-300 mb-3 font-heading">Content Preview</h2>
           <div className="prose dark:prose-invert max-w-none font-body bg-cream dark:bg-dark-surface p-4 rounded-lg overflow-auto max-h-96 prose-h1:text-[20px] prose-h2:text-[16px] prose-h3:text-[14px] prose-h4:text-[12px] prose-p:text-[11px] prose-li:text-[11px] prose-td:text-[11px] prose-th:text-[11px]">
