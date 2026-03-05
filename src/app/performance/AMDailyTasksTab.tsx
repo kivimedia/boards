@@ -14,6 +14,13 @@ interface DailyTasksResponse {
   tasks: PKAMDailyTask[];
 }
 
+type TimeframePreset =
+  | 'today'
+  | 'last_7_days'
+  | 'this_week'
+  | 'this_month'
+  | 'custom';
+
 const TASK_TYPE_LABELS: Record<PKAMDailyTaskType, string> = {
   fathom_watch: 'Fathom To Watch',
   action_items_send: 'Action Items To Send',
@@ -26,6 +33,41 @@ function getLocalISODate() {
   return local.toISOString().slice(0, 10);
 }
 
+function toISODate(date: Date) {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
+function getPresetRange(preset: TimeframePreset) {
+  const now = new Date();
+  const today = toISODate(now);
+
+  if (preset === 'today') {
+    return { from: today, to: today };
+  }
+
+  if (preset === 'last_7_days') {
+    const start = new Date(now);
+    start.setDate(now.getDate() - 6);
+    return { from: toISODate(start), to: today };
+  }
+
+  if (preset === 'this_week') {
+    const start = new Date(now);
+    const day = start.getDay(); // 0 = Sun
+    const diffToMonday = day === 0 ? 6 : day - 1;
+    start.setDate(start.getDate() - diffToMonday);
+    return { from: toISODate(start), to: today };
+  }
+
+  if (preset === 'this_month') {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { from: toISODate(start), to: today };
+  }
+
+  return { from: today, to: today };
+}
+
 function parseTaskLines(value: string): string[] {
   return value
     .split('\n')
@@ -34,7 +76,11 @@ function parseTaskLines(value: string): string[] {
 }
 
 export default function AMDailyTasksTab({ canManage }: AMDailyTasksTabProps) {
-  const [date, setDate] = useState(getLocalISODate());
+  const [timeframe, setTimeframe] = useState<TimeframePreset>('today');
+  const [fromDate, setFromDate] = useState(getLocalISODate());
+  const [toDate, setToDate] = useState(getLocalISODate());
+  const [taskDate, setTaskDate] = useState(getLocalISODate());
+  const [amFilter, setAmFilter] = useState('all');
   const [includeCompleted, setIncludeCompleted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -51,16 +97,29 @@ export default function AMDailyTasksTab({ canManage }: AMDailyTasksTabProps) {
   const [clientUpdatesInput, setClientUpdatesInput] = useState('');
   const [sharedNotes, setSharedNotes] = useState('');
 
+  useEffect(() => {
+    if (timeframe === 'custom') return;
+    const range = getPresetRange(timeframe);
+    setFromDate(range.from);
+    setToDate(range.to);
+  }, [timeframe]);
+
   const fetchTasks = useCallback(async () => {
     setLoading(true);
     setErrorText(null);
 
     try {
+      if (fromDate && toDate && fromDate > toDate) {
+        throw new Error('From date cannot be later than To date.');
+      }
+
       const params = new URLSearchParams({
-        date,
         includeCompleted: includeCompleted ? 'true' : 'false',
         limit: '1000',
       });
+      if (fromDate) params.set('from', fromDate);
+      if (toDate) params.set('to', toDate);
+      if (amFilter !== 'all') params.set('am', amFilter);
 
       const res = await fetch(`/api/performance/daily-tasks?${params.toString()}`);
       const json = await res.json().catch(() => ({}));
@@ -78,7 +137,7 @@ export default function AMDailyTasksTab({ canManage }: AMDailyTasksTabProps) {
     } finally {
       setLoading(false);
     }
-  }, [date, includeCompleted]);
+  }, [fromDate, toDate, includeCompleted, amFilter]);
 
   useEffect(() => {
     fetchTasks();
@@ -129,7 +188,7 @@ export default function AMDailyTasksTab({ canManage }: AMDailyTasksTabProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          task_date: date,
+          task_date: taskDate,
           account_manager_name: manager,
           notes: sharedNotes.trim() || null,
           tasks: parsedTasks,
@@ -142,7 +201,7 @@ export default function AMDailyTasksTab({ canManage }: AMDailyTasksTabProps) {
       }
 
       const insertedCount = typeof json.inserted === 'number' ? json.inserted : parsedTasks.length;
-      setStatusText(`Saved ${insertedCount} task${insertedCount !== 1 ? 's' : ''} for ${manager}.`);
+      setStatusText(`Saved ${insertedCount} task${insertedCount !== 1 ? 's' : ''} for ${manager} (${taskDate}).`);
       resetFormInputs();
       await fetchTasks();
     } catch (err) {
@@ -199,28 +258,77 @@ export default function AMDailyTasksTab({ canManage }: AMDailyTasksTabProps) {
     }
   };
 
+  const rangeLabel = fromDate === toDate ? fromDate : `${fromDate} to ${toDate}`;
+
   return (
     <div className="space-y-5">
       <div className="bg-white dark:bg-white/5 rounded-2xl border border-cream-dark/60 dark:border-white/10 p-4">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
           <div className="space-y-1">
-            <h3 className="text-sm font-semibold text-navy dark:text-white">AM Daily Task Planner</h3>
+            <h3 className="text-sm font-semibold text-navy dark:text-white">AM Tasks</h3>
             <p className="text-xs text-navy/50 dark:text-white/40">
               These tasks are now the source for AM reminder notifications.
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 w-full md:w-auto">
             <div>
-              <label className="block text-xs font-medium text-navy/60 dark:text-white/50 mb-1">Task Date</label>
+              <label className="block text-xs font-medium text-navy/60 dark:text-white/50 mb-1">Timeframe</label>
+              <select
+                value={timeframe}
+                onChange={(e) => setTimeframe(e.target.value as TimeframePreset)}
+                className="w-full px-3 py-2 rounded-lg border border-cream-dark/70 dark:border-white/15 bg-white dark:bg-white/5 text-sm text-navy dark:text-white"
+              >
+                <option value="today">Today</option>
+                <option value="last_7_days">Last 7 Days</option>
+                <option value="this_week">This Week</option>
+                <option value="this_month">This Month</option>
+                <option value="custom">Custom Range</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-navy/60 dark:text-white/50 mb-1">From</label>
               <input
                 type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="px-3 py-2 rounded-lg border border-cream-dark/70 dark:border-white/15 bg-white dark:bg-white/5 text-sm text-navy dark:text-white"
+                value={fromDate}
+                onChange={(e) => {
+                  setTimeframe('custom');
+                  setFromDate(e.target.value);
+                }}
+                className="w-full px-3 py-2 rounded-lg border border-cream-dark/70 dark:border-white/15 bg-white dark:bg-white/5 text-sm text-navy dark:text-white"
               />
             </div>
-            <label className="flex items-center gap-2 text-xs text-navy/60 dark:text-white/50 mt-5 md:mt-0">
+
+            <div>
+              <label className="block text-xs font-medium text-navy/60 dark:text-white/50 mb-1">To</label>
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => {
+                  setTimeframe('custom');
+                  setToDate(e.target.value);
+                }}
+                className="w-full px-3 py-2 rounded-lg border border-cream-dark/70 dark:border-white/15 bg-white dark:bg-white/5 text-sm text-navy dark:text-white"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-navy/60 dark:text-white/50 mb-1">Account Manager</label>
+              <select
+                value={amFilter}
+                onChange={(e) => setAmFilter(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-cream-dark/70 dark:border-white/15 bg-white dark:bg-white/5 text-sm text-navy dark:text-white"
+              >
+                <option value="all">All Account Managers</option>
+                {amOptions.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <label className="flex items-center gap-2 text-xs text-navy/60 dark:text-white/50 md:col-span-4">
               <input
                 type="checkbox"
                 checked={includeCompleted}
@@ -235,6 +343,16 @@ export default function AMDailyTasksTab({ canManage }: AMDailyTasksTabProps) {
       {canManage && (
         <div className="bg-white dark:bg-white/5 rounded-2xl border border-cream-dark/60 dark:border-white/10 p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-navy/60 dark:text-white/50 mb-1">Task Date</label>
+              <input
+                type="date"
+                value={taskDate}
+                onChange={(e) => setTaskDate(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-cream-dark/70 dark:border-white/15 bg-white dark:bg-white/5 text-sm text-navy dark:text-white"
+              />
+            </div>
+
             <div>
               <label className="block text-xs font-medium text-navy/60 dark:text-white/50 mb-1">Account Manager</label>
               <input
@@ -318,7 +436,7 @@ export default function AMDailyTasksTab({ canManage }: AMDailyTasksTabProps) {
 
       <div className="bg-white dark:bg-white/5 rounded-2xl border border-cream-dark/60 dark:border-white/10 p-4">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-navy dark:text-white">Tasks For {date}</h3>
+          <h3 className="text-sm font-semibold text-navy dark:text-white">Tasks For {rangeLabel}</h3>
           <button
             onClick={fetchTasks}
             className="text-xs text-electric hover:text-electric/80 font-medium"
@@ -330,7 +448,7 @@ export default function AMDailyTasksTab({ canManage }: AMDailyTasksTabProps) {
         {loading ? (
           <p className="text-sm text-navy/50 dark:text-white/40 py-6">Loading daily tasks...</p>
         ) : tasks.length === 0 ? (
-          <p className="text-sm text-navy/50 dark:text-white/40 py-6">No tasks found for this date.</p>
+          <p className="text-sm text-navy/50 dark:text-white/40 py-6">No tasks found for this timeframe.</p>
         ) : (
           <div className="space-y-4">
             {groupedTasks.map(([managerName, rows]) => (

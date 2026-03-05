@@ -90,21 +90,27 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const { data: profileRows } = await supabase
-    .from('profiles')
-    .select('display_name')
-    .order('display_name', { ascending: true })
-    .limit(300);
+  const [{ data: fathomManagers }, { data: updateManagers }, { data: taskManagers }] = await Promise.all([
+    supabase.from('pk_fathom_videos').select('account_manager_name').limit(5000),
+    supabase.from('pk_client_updates').select('account_manager_name').limit(5000),
+    supabase.from('pk_am_daily_tasks').select('account_manager_name').limit(5000),
+  ]);
 
-  const amFromProfiles = (profileRows || [])
-    .map((p: { display_name: string | null }) => p.display_name)
-    .filter((name: string | null): name is string => !!name && name.trim().length > 0);
+  const amOptionsSet = new Set<string>();
+  for (const row of fathomManagers || []) {
+    const name = (row.account_manager_name || '').trim();
+    if (name) amOptionsSet.add(name);
+  }
+  for (const row of updateManagers || []) {
+    const name = (row.account_manager_name || '').trim();
+    if (name) amOptionsSet.add(name);
+  }
+  for (const row of taskManagers || []) {
+    const name = (row.account_manager_name || '').trim();
+    if (name) amOptionsSet.add(name);
+  }
 
-  const amFromTasks = Array.from(
-    new Set((tasks || []).map((row: { account_manager_name: string }) => row.account_manager_name).filter(Boolean))
-  );
-
-  const amOptions = Array.from(new Set([...amFromProfiles, ...amFromTasks])).sort((a, b) => a.localeCompare(b));
+  const amOptions = Array.from(amOptionsSet).sort((a, b) => a.localeCompare(b));
 
   return NextResponse.json({
     date,
