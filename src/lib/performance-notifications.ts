@@ -139,9 +139,9 @@ export async function sendAMReminder(
 // ─── AM "Not Yet" Reminder System ────────────────────────────────
 
 interface PendingItem {
-  client_name: string | null;
-  meeting_date?: string | null;
-  date_sent?: string | null;
+  task_label: string;
+  task_date?: string | null;
+  notes?: string | null;
 }
 
 interface AMPendingTasks {
@@ -171,8 +171,8 @@ async function resolveAMProfiles(
 
   for (const name of amNames) {
     const match = profiles.find(
-      (p: { id: string; display_name: string }) =>
-        p.display_name.toLowerCase() === name.toLowerCase()
+      (p: { id: string; display_name: string | null }) =>
+        (p.display_name || '').toLowerCase() === name.toLowerCase()
     );
     if (match) nameToId.set(name, match.id);
   }
@@ -202,8 +202,8 @@ async function wasRecentlyReminded(
 }
 
 /**
- * Scan pk_fathom_videos and pk_client_updates for incomplete ("Not Yet") items
- * from the last 30 days, group by AM, and send consolidated reminders.
+ * Scan pk_am_daily_tasks for pending AM tasks, group by AM, and send
+ * consolidated reminders.
  *
  * Dedup: skips AMs who received a pk_reminder within the last 24 hours.
  * Returns a summary of what was sent.
@@ -218,28 +218,14 @@ export async function notifyAMsPendingTasks(
     .toISOString()
     .split('T')[0];
 
-  // 1. Query Fathom videos where watched = false ("Not Yet") only
-  const { data: fathomRows } = await supabase
-    .from('pk_fathom_videos')
-    .select('account_manager_name, client_name, meeting_date, watched, action_items_sent')
-    .eq('watched', false)
-    .gte('meeting_date', cutoffDate);
+  // 1. Query pending AM daily tasks
+  const { data: taskRows } = await supabase
+    .from('pk_am_daily_tasks')
+    .select('account_manager_name, task_type, task_label, notes, task_date')
+    .eq('is_completed', false)
+    .gte('task_date', cutoffDate);
 
-  // 2. Also get Fathom videos where action_items_sent = false ("Not Yet") only
-  const { data: fathomActionRows } = await supabase
-    .from('pk_fathom_videos')
-    .select('account_manager_name, client_name, meeting_date, action_items_sent')
-    .eq('action_items_sent', false)
-    .gte('meeting_date', cutoffDate);
-
-  // 3. Query Client Updates where on_time = false ("Not Yet") only
-  const { data: updateRows } = await supabase
-    .from('pk_client_updates')
-    .select('account_manager_name, client_name, date_sent, on_time')
-    .eq('on_time', false)
-    .gte('date_sent', cutoffDate);
-
-  // 4. Aggregate by AM
+  // 2. Aggregate by AM
   const amMap = new Map<string, AMPendingTasks>();
 
   const getOrCreate = (name: string): AMPendingTasks => {
@@ -255,37 +241,28 @@ export async function notifyAMsPendingTasks(
     return amMap.get(name)!;
   };
 
-  for (const row of fathomRows || []) {
-    const am = getOrCreate(row.account_manager_name);
-    am.fathomNotWatched.push({
-      client_name: row.client_name,
-      meeting_date: row.meeting_date,
-    });
-  }
+  for (const row of taskRows || []) {
+    const amName = (row.account_manager_name || '').trim();
+    const taskLabel = (row.task_label || '').trim();
+    if (!amName || !taskLabel) continue;
 
-  for (const row of fathomActionRows || []) {
-    const am = getOrCreate(row.account_manager_name);
-    // Avoid duplicates if already in fathomNotWatched with same client+date
-    const isDupe = am.fathomNoActionItems.some(
-      (e) => e.client_name === row.client_name && e.meeting_date === row.meeting_date
-    );
-    if (!isDupe) {
-      am.fathomNoActionItems.push({
-        client_name: row.client_name,
-        meeting_date: row.meeting_date,
-      });
+    const am = getOrCreate(amName);
+    const item: PendingItem = {
+      task_label: taskLabel,
+      task_date: row.task_date,
+      notes: row.notes || null,
+    };
+
+    if (row.task_type === 'fathom_watch') {
+      am.fathomNotWatched.push(item);
+    } else if (row.task_type === 'action_items_send') {
+      am.fathomNoActionItems.push(item);
+    } else if (row.task_type === 'client_update') {
+      am.clientUpdatesNotOnTime.push(item);
     }
   }
 
-  for (const row of updateRows || []) {
-    const am = getOrCreate(row.account_manager_name);
-    am.clientUpdatesNotOnTime.push({
-      client_name: row.client_name,
-      date_sent: row.date_sent,
-    });
-  }
-
-  // 5. Resolve AM names to profile IDs
+  // 3. Resolve AM names to profile IDs
   const amNames = Array.from(amMap.keys());
   const nameToProfile = await resolveAMProfiles(supabase, amNames);
 
@@ -293,7 +270,7 @@ export async function notifyAMsPendingTasks(
     tasks.profileId = nameToProfile.get(name) || null;
   }
 
-  // 6. Send reminders
+  // 4. Send reminders
   const reminded: string[] = [];
   const skipped: string[] = [];
   const noProfile: string[] = [];
@@ -325,9 +302,9 @@ export async function notifyAMsPendingTasks(
       } catch { return ''; }
     };
     const fmtItem = (i: PendingItem) => {
-      const name = i.client_name || 'Unknown client';
-      const date = fmtDate(i.meeting_date || i.date_sent);
-      return `${name}${date}`;
+      const date = fmtDate(i.task_date);
+      const notes = i.notes ? ` - ${i.notes}` : '';
+      return `${i.task_label}${date}${notes}`;
     };
 
     if (tasks.fathomNotWatched.length > 0) {
@@ -367,10 +344,10 @@ export async function notifyAMsPendingTasks(
       title,
       body,
       metadata: {
-        source: 'am_reminder_cron',
-        fathom_not_watched: tasks.fathomNotWatched.length,
-        fathom_no_action_items: tasks.fathomNoActionItems.length,
-        client_updates_not_on_time: tasks.clientUpdatesNotOnTime.length,
+        source: 'am_daily_tasks',
+        fathom_watch: tasks.fathomNotWatched.length,
+        action_items_send: tasks.fathomNoActionItems.length,
+        client_update: tasks.clientUpdatesNotOnTime.length,
       },
     });
 

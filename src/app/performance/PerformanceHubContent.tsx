@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { PKTrackerSummary, PKAMScorecard, PKSyncRun, PK_TRACKER_LABELS } from '@/lib/types';
+import { PKTrackerSummary, PKSyncRun } from '@/lib/types';
+import AMDailyTasksTab from './AMDailyTasksTab';
 
 interface DashboardData {
   trackers: PKTrackerSummary[];
@@ -30,7 +31,7 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
   const [syncing, setSyncing] = useState(false);
   const [bumping, setBumping] = useState(false);
   const [bumpResult, setBumpResult] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'scorecard' | 'trackers'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'scorecard' | 'trackers' | 'daily_tasks'>('overview');
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -139,6 +140,7 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
     { id: 'overview' as const, label: 'Overview' },
     { id: 'scorecard' as const, label: 'AM Scorecard' },
     { id: 'trackers' as const, label: 'All Trackers' },
+    { id: 'daily_tasks' as const, label: 'Daily Tasks' },
   ];
 
   // Stats for overview cards
@@ -384,6 +386,11 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
               <TrackerCard key={tracker.tracker_type} tracker={tracker} expanded />
             ))}
           </div>
+        )}
+
+        {/* Daily Tasks tab */}
+        {activeTab === 'daily_tasks' && (
+          <AMDailyTasksTab canManage={!!(canSync || isAdmin)} />
         )}
       </div>
     </div>

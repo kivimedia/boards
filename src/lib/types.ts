@@ -3121,6 +3121,26 @@ export interface PKAMScorecard {
   sanity_checks_total: number;
 }
 
+export type PKAMDailyTaskType =
+  | 'fathom_watch'
+  | 'action_items_send'
+  | 'client_update';
+
+export interface PKAMDailyTask {
+  id: string;
+  task_date: string;
+  account_manager_id: string | null;
+  account_manager_name: string;
+  task_type: PKAMDailyTaskType;
+  task_label: string;
+  notes: string | null;
+  is_completed: boolean;
+  completed_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // ============================================================================
 // Client Meetings & Weekly Updates (Migration 061)
 // ============================================================================

@@ -7,8 +7,8 @@ export const dynamic = 'force-dynamic';
 /**
  * GET /api/cron/am-reminders
  *
- * Scans pk_fathom_videos and pk_client_updates for incomplete ("Not Yet") items,
- * groups them by Account Manager, and sends consolidated in-app + email reminders.
+ * Scans pk_am_daily_tasks for pending AM tasks, groups them by Account Manager,
+ * and sends consolidated in-app + email reminders.
  *
  * Dedup: skips AMs who already received a pk_reminder in the last 24 hours.
  *

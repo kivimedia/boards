@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/performance/bump-reminder
- * Manually re-send AM reminders for pending tasks (bypasses 24h cooldown).
+ * Manually re-send AM reminders for pending daily tasks (bypasses cooldown).
  * Admin or devi@dailycookie.co only.
  */
 export async function POST() {
