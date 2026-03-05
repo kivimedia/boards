@@ -40,15 +40,30 @@ interface ParsedPlan {
 function parsePlan(text: string): ParsedPlan {
   if (!text) return { raw: '' };
 
+  // Strip code fences before parsing
+  let cleaned = text
+    .replace(/^```[\w]*\n?/gm, '')
+    .replace(/^---\s*$/gm, '')
+    .trim();
+
   // Try JSON first
   try {
-    const parsed = JSON.parse(text);
+    const parsed = JSON.parse(cleaned);
     if (typeof parsed === 'object') return parsed;
   } catch { /* not JSON */ }
 
+  // Try to extract JSON block from within the text
+  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (typeof parsed === 'object') return parsed;
+    } catch { /* not valid JSON */ }
+  }
+
   // Try YAML-style parsing (key: value)
   const plan: ParsedPlan = {};
-  const lines = text.split('\n');
+  const lines = cleaned.split('\n');
   let currentKey = '';
   let outlineItems: Array<{ h2: string; h3s: string[] }> = [];
   let currentH2: { h2: string; h3s: string[] } | null = null;
@@ -496,99 +511,120 @@ export default function SeoRunDetail({ runId }: Props) {
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{planText}</ReactMarkdown>
             </div>
           ) : (
-            <div className="p-5 space-y-4">
-              {/* Title */}
-              {parsedPlan.title && (
-                <div>
-                  <p className="text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading mb-1">Title</p>
-                  <p className="text-base font-semibold text-navy dark:text-white font-heading">{parsedPlan.title}</p>
-                </div>
-              )}
-
-              {/* Keywords */}
-              {parsedPlan.keywords && (
-                <div>
-                  <p className="text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading mb-2">Keywords</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {parsedPlan.keywords.primary?.map((kw, i) => (
-                      <span key={`p-${i}`} className="px-2.5 py-1 rounded-full text-xs font-medium bg-electric/10 text-electric border border-electric/20">
-                        {kw}
-                      </span>
-                    ))}
-                    {parsedPlan.keywords.secondary?.map((kw, i) => (
-                      <span key={`s-${i}`} className="px-2.5 py-1 rounded-full text-xs font-medium bg-cyan-50 dark:bg-cyan-900/20 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800">
-                        {kw}
-                      </span>
-                    ))}
-                    {parsedPlan.keywords.lsi?.map((kw, i) => (
-                      <span key={`l-${i}`} className="px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 border border-gray-200 dark:border-slate-600">
-                        {kw}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Meta row: silo, word count, angle */}
-              <div className="flex flex-wrap gap-4">
-                {parsedPlan.silo && (
-                  <div>
-                    <p className="text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading mb-1">Silo</p>
-                    <p className="text-sm text-navy dark:text-slate-200 font-body">{parsedPlan.silo}</p>
-                  </div>
-                )}
-                {parsedPlan.target_word_count && (
-                  <div>
-                    <p className="text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading mb-1">Target</p>
-                    <p className="text-sm text-navy dark:text-slate-200 font-body">{parsedPlan.target_word_count.toLocaleString()} words</p>
-                  </div>
-                )}
-                {parsedPlan.angle && (
-                  <div className="flex-1 min-w-[200px]">
-                    <p className="text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading mb-1">Angle</p>
-                    <p className="text-sm text-navy dark:text-slate-200 font-body">{parsedPlan.angle}</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Outline */}
-              {parsedPlan.outline && parsedPlan.outline.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading mb-2">Outline</p>
-                  <div className="bg-cream dark:bg-dark-surface rounded-lg p-4 space-y-2">
-                    {parsedPlan.outline.map((section, i) => (
-                      <div key={i}>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-electric bg-electric/10 px-1.5 py-0.5 rounded">H2</span>
-                          <span className="text-sm font-semibold text-navy dark:text-white font-heading">{section.h2}</span>
+            <div className="overflow-x-auto">
+              {/* Summary table */}
+              <table className="w-full text-sm border-collapse">
+                <tbody>
+                  {parsedPlan.title && (
+                    <tr className="border-b border-cream-dark dark:border-slate-700">
+                      <td className="px-5 py-3 w-40 text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading align-top bg-cream/50 dark:bg-dark-surface/50">Title</td>
+                      <td className="px-5 py-3 text-sm font-semibold text-navy dark:text-white font-heading">{parsedPlan.title}</td>
+                    </tr>
+                  )}
+                  {parsedPlan.silo && (
+                    <tr className="border-b border-cream-dark dark:border-slate-700">
+                      <td className="px-5 py-3 w-40 text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading align-top bg-cream/50 dark:bg-dark-surface/50">Silo / Category</td>
+                      <td className="px-5 py-3 text-sm text-navy dark:text-slate-200 font-body">{parsedPlan.silo}</td>
+                    </tr>
+                  )}
+                  {parsedPlan.angle && (
+                    <tr className="border-b border-cream-dark dark:border-slate-700">
+                      <td className="px-5 py-3 w-40 text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading align-top bg-cream/50 dark:bg-dark-surface/50">Angle / Hook</td>
+                      <td className="px-5 py-3 text-sm text-navy dark:text-slate-200 font-body">{parsedPlan.angle}</td>
+                    </tr>
+                  )}
+                  {parsedPlan.target_word_count && (
+                    <tr className="border-b border-cream-dark dark:border-slate-700">
+                      <td className="px-5 py-3 w-40 text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading align-top bg-cream/50 dark:bg-dark-surface/50">Target Words</td>
+                      <td className="px-5 py-3 text-sm text-navy dark:text-slate-200 font-body">{parsedPlan.target_word_count.toLocaleString()}</td>
+                    </tr>
+                  )}
+                  {parsedPlan.keywords && (
+                    <>
+                      {parsedPlan.keywords.primary && parsedPlan.keywords.primary.length > 0 && (
+                        <tr className="border-b border-cream-dark dark:border-slate-700">
+                          <td className="px-5 py-3 w-40 text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading align-top bg-cream/50 dark:bg-dark-surface/50">Primary Keywords</td>
+                          <td className="px-5 py-3">
+                            <div className="flex flex-wrap gap-1.5">
+                              {parsedPlan.keywords.primary.map((kw, i) => (
+                                <span key={i} className="px-2.5 py-1 rounded-full text-xs font-medium bg-electric/10 text-electric border border-electric/20">{kw}</span>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      {parsedPlan.keywords.secondary && parsedPlan.keywords.secondary.length > 0 && (
+                        <tr className="border-b border-cream-dark dark:border-slate-700">
+                          <td className="px-5 py-3 w-40 text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading align-top bg-cream/50 dark:bg-dark-surface/50">Secondary Keywords</td>
+                          <td className="px-5 py-3">
+                            <div className="flex flex-wrap gap-1.5">
+                              {parsedPlan.keywords.secondary.map((kw, i) => (
+                                <span key={i} className="px-2.5 py-1 rounded-full text-xs font-medium bg-cyan-50 dark:bg-cyan-900/20 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800">{kw}</span>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      {parsedPlan.keywords.lsi && parsedPlan.keywords.lsi.length > 0 && (
+                        <tr className="border-b border-cream-dark dark:border-slate-700">
+                          <td className="px-5 py-3 w-40 text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading align-top bg-cream/50 dark:bg-dark-surface/50">LSI Keywords</td>
+                          <td className="px-5 py-3">
+                            <div className="flex flex-wrap gap-1.5">
+                              {parsedPlan.keywords.lsi.map((kw, i) => (
+                                <span key={i} className="px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 border border-gray-200 dark:border-slate-600">{kw}</span>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  )}
+                  {parsedPlan.internal_links && parsedPlan.internal_links.length > 0 && (
+                    <tr className="border-b border-cream-dark dark:border-slate-700">
+                      <td className="px-5 py-3 w-40 text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading align-top bg-cream/50 dark:bg-dark-surface/50">Internal Links</td>
+                      <td className="px-5 py-3">
+                        <div className="flex flex-wrap gap-1.5">
+                          {parsedPlan.internal_links.map((link, i) => (
+                            <span key={i} className="px-2 py-1 rounded text-xs font-mono bg-cream dark:bg-dark-surface text-navy/60 dark:text-slate-400 border border-cream-dark dark:border-slate-600">{link}</span>
+                          ))}
                         </div>
-                        {section.h3s && section.h3s.length > 0 && (
-                          <div className="ml-8 mt-1 space-y-1">
-                            {section.h3s.map((h3, j) => (
-                              <div key={j} className="flex items-center gap-2">
-                                <span className="text-[10px] font-bold text-cyan-600 bg-cyan-50 dark:bg-cyan-900/20 px-1.5 py-0.5 rounded">H3</span>
-                                <span className="text-sm text-navy/70 dark:text-slate-300 font-body">{h3}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
 
-              {/* Internal links */}
-              {parsedPlan.internal_links && parsedPlan.internal_links.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading mb-2">Internal Links</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {parsedPlan.internal_links.map((link, i) => (
-                      <span key={i} className="px-2 py-1 rounded text-xs font-mono bg-cream dark:bg-dark-surface text-navy/60 dark:text-slate-400 border border-cream-dark dark:border-slate-600">
-                        {link}
-                      </span>
-                    ))}
+              {/* Outline table */}
+              {parsedPlan.outline && parsedPlan.outline.length > 0 && (
+                <div className="border-t border-cream-dark dark:border-slate-700">
+                  <div className="px-5 py-3 bg-cream/50 dark:bg-dark-surface/50">
+                    <p className="text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading">Article Outline</p>
                   </div>
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="border-b border-cream-dark dark:border-slate-700 bg-cream/30 dark:bg-dark-surface/30">
+                        <th className="px-5 py-2 text-left text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading w-12">#</th>
+                        <th className="px-5 py-2 text-left text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading w-1/3">Section (H2)</th>
+                        <th className="px-5 py-2 text-left text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading">Subsections (H3)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {parsedPlan.outline.map((section, i) => (
+                        <tr key={i} className="border-b border-cream-dark dark:border-slate-700">
+                          <td className="px-5 py-3 text-xs text-navy/40 dark:text-slate-500 font-body align-top">{i + 1}</td>
+                          <td className="px-5 py-3 text-sm font-semibold text-navy dark:text-white font-heading align-top">{section.h2}</td>
+                          <td className="px-5 py-3 text-sm text-navy/70 dark:text-slate-300 font-body align-top">
+                            {section.h3s && section.h3s.length > 0
+                              ? section.h3s.map((h3, j) => (
+                                  <div key={j} className="py-0.5">{h3}</div>
+                                ))
+                              : <span className="text-navy/30 dark:text-slate-500">—</span>
+                            }
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
