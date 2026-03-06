@@ -36,12 +36,28 @@ export async function POST(request: NextRequest, { params }: Params) {
   if (!auth.ok) return auth.response;
 
   try {
-    // 1. Get config
-    const { data: config } = await auth.ctx.supabase
-      .from('client_meeting_configs')
-      .select('*')
-      .eq('client_id', params.clientId)
-      .single();
+    // 1. Get config (supports multiple configs per client)
+    const body = await request.json().catch(() => ({}));
+    let config;
+    if (body.config_id) {
+      const { data } = await auth.ctx.supabase
+        .from('client_meeting_configs')
+        .select('*')
+        .eq('id', body.config_id)
+        .eq('client_id', params.clientId)
+        .single();
+      config = data;
+    } else {
+      const { data } = await auth.ctx.supabase
+        .from('client_meeting_configs')
+        .select('*')
+        .eq('client_id', params.clientId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      config = data;
+    }
 
     if (!config) return errorResponse('No meeting config for this client', 404);
 

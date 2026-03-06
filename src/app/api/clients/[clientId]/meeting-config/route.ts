@@ -11,10 +11,10 @@ export async function GET(request: NextRequest, { params }: Params) {
     .from('client_meeting_configs')
     .select('*')
     .eq('client_id', params.clientId)
-    .single();
+    .order('created_at', { ascending: true });
 
-  if (error && error.code !== 'PGRST116') return errorResponse(error.message, 500);
-  return successResponse(data || null);
+  if (error) return errorResponse(error.message, 500);
+  return successResponse(data || []);
 }
 
 export async function POST(request: NextRequest, { params }: Params) {
@@ -51,6 +51,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 
   try {
     const body = await request.json();
+    if (!body.id) return errorResponse('Config ID required', 400);
+
     const updates: Record<string, unknown> = {};
     if (body.calendar_event_keyword !== undefined) updates.calendar_event_keyword = body.calendar_event_keyword;
     if (body.update_timing !== undefined) updates.update_timing = body.update_timing;
@@ -63,6 +65,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     const { data, error } = await auth.ctx.supabase
       .from('client_meeting_configs')
       .update(updates)
+      .eq('id', body.id)
       .eq('client_id', params.clientId)
       .select()
       .single();
@@ -78,9 +81,14 @@ export async function DELETE(request: NextRequest, { params }: Params) {
   const auth = await getAuthContext();
   if (!auth.ok) return auth.response;
 
+  const url = new URL(request.url);
+  const configId = url.searchParams.get('configId');
+  if (!configId) return errorResponse('configId query param required', 400);
+
   const { error } = await auth.ctx.supabase
     .from('client_meeting_configs')
     .delete()
+    .eq('id', configId)
     .eq('client_id', params.clientId);
 
   if (error) return errorResponse(error.message, 500);
