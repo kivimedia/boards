@@ -385,7 +385,7 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
     <>
       <DragDropContext onDragStart={handleDragStart} onDragUpdate={handleDragUpdate} onDragEnd={wrappedDragEnd}>
         <Droppable droppableId="board" type="list" direction="horizontal">
-          {(provided) => (
+          {(provided, boardSnapshot) => (
             <div
               ref={(el) => {
                 provided.innerRef(el);
@@ -394,40 +394,63 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
               {...provided.droppableProps}
               className="flex-1 flex gap-3 overflow-x-auto p-3 sm:p-6 pb-20 sm:pb-24 scrollbar-thin items-start"
             >
-              {sortedLists.map((list, index) => (
-                <React.Fragment key={list.id}>
-                  {index === 0 && !draggingListType && (
-                    <ListInsertButton onInsert={(name) => handleInsertList(name, 0)} />
-                  )}
-                  {/* Drop indicator line before this list */}
-                  {draggingListType && dropIndicatorIndex === index && dragSourceIndex !== index && dragSourceIndex !== index - 1 && (
-                    <div className="w-1 shrink-0 self-stretch rounded-full bg-electric shadow-[0_0_12px_rgba(59,130,246,0.6)] min-h-[100px]" />
-                  )}
-                  <BoardList
-                    list={list}
-                    index={index}
-                    boardId={board.id}
-                    boardName={board.name}
-                    allLists={sortedLists.map((l) => ({ id: l.id, name: l.name }))}
-                    onCardClick={setSelectedCardId}
-                    onRefresh={onRefresh}
-                    onCardCreated={handleCardCreated}
-                    selectedCards={selectedCards}
-                    toggleCardSelection={toggleCardSelection}
-                    filter={filter}
-                    isLoadingCards={isLoadingCards}
-                    isDraggingList={draggingListType}
-                  />
-                  {!draggingListType && (
-                    <ListInsertButton onInsert={(name) => handleInsertList(name, index + 1)} />
-                  )}
-                </React.Fragment>
-              ))}
+              {sortedLists.map((list, index) => {
+                // Show drop indicator: destination index means "insert before this index"
+                // No-op positions: dropping at source index or source+1 keeps the list in place
+                const showIndicatorBefore = draggingListType
+                  && dropIndicatorIndex !== null
+                  && dragSourceIndex !== null
+                  && dropIndicatorIndex === index
+                  && dropIndicatorIndex !== dragSourceIndex
+                  && dropIndicatorIndex !== dragSourceIndex + 1;
+
+                return (
+                  <React.Fragment key={list.id}>
+                    {index === 0 && !draggingListType && (
+                      <ListInsertButton onInsert={(name) => handleInsertList(name, 0)} />
+                    )}
+                    {/* Drop indicator line before this list */}
+                    {showIndicatorBefore && (
+                      <div className="w-1.5 shrink-0 self-stretch rounded-full bg-electric shadow-[0_0_16px_rgba(59,130,246,0.7)] min-h-[200px] animate-pulse" />
+                    )}
+                    <BoardList
+                      list={list}
+                      index={index}
+                      boardId={board.id}
+                      boardName={board.name}
+                      allLists={sortedLists.map((l) => ({ id: l.id, name: l.name }))}
+                      onCardClick={setSelectedCardId}
+                      onRefresh={onRefresh}
+                      onCardCreated={handleCardCreated}
+                      selectedCards={selectedCards}
+                      toggleCardSelection={toggleCardSelection}
+                      filter={filter}
+                      isLoadingCards={isLoadingCards}
+                      isDraggingList={draggingListType}
+                    />
+                    {!draggingListType && (
+                      <ListInsertButton onInsert={(name) => handleInsertList(name, index + 1)} />
+                    )}
+                  </React.Fragment>
+                );
+              })}
               {/* Drop indicator at the end of all lists */}
-              {draggingListType && dropIndicatorIndex === sortedLists.length && dragSourceIndex !== sortedLists.length - 1 && (
-                <div className="w-1 shrink-0 self-stretch rounded-full bg-electric shadow-[0_0_12px_rgba(59,130,246,0.6)] min-h-[100px]" />
+              {draggingListType
+                && dropIndicatorIndex !== null
+                && dragSourceIndex !== null
+                && dropIndicatorIndex === sortedLists.length
+                && dropIndicatorIndex !== dragSourceIndex + 1 && (
+                <div className="w-1.5 shrink-0 self-stretch rounded-full bg-electric shadow-[0_0_16px_rgba(59,130,246,0.7)] min-h-[200px] animate-pulse" />
               )}
-              {provided.placeholder}
+              {/* Placeholder - styled to be visible during list drag */}
+              {draggingListType ? (
+                <div className="relative shrink-0">
+                  <div className="absolute inset-0 bg-electric/10 border-2 border-dashed border-electric/40 rounded-xl pointer-events-none" />
+                  {provided.placeholder}
+                </div>
+              ) : (
+                provided.placeholder
+              )}
 
               {/* Add list button */}
               {isAddingList ? (
