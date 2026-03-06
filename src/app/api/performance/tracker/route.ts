@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getAuthContext, successResponse, errorResponse, parseBody } from '@/lib/api-helpers';
 import { PKTrackerType } from '@/lib/types';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,6 +59,24 @@ const IMMUTABLE_UPDATE_FIELDS = new Set([
   'source_tab',
   'source_row',
 ]);
+
+async function hasWriteAccess(
+  supabase: SupabaseClient,
+  userId: string
+) {
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .single();
+
+  if (profile?.role === 'admin') return true;
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if ((user?.email || '').toLowerCase() === 'devi@dailycookie.co') return true;
+
+  return false;
+}
 
 /**
  * GET /api/performance/tracker
@@ -157,8 +176,12 @@ export async function PATCH(request: NextRequest) {
   const parsed = await parseBody<UpdateTrackerRowBody>(request);
   if (!parsed.ok) return parsed.response;
 
-  const { supabase } = auth.ctx;
+  const { supabase, userId } = auth.ctx;
   const { type, id, patch } = parsed.body;
+
+  if (!(await hasWriteAccess(supabase, userId))) {
+    return errorResponse('Access denied', 403);
+  }
 
   if (!type || !TRACKER_TABLES[type]) {
     return errorResponse(
@@ -193,4 +216,114 @@ export async function PATCH(request: NextRequest) {
   if (error) return errorResponse(error.message, 500);
 
   return successResponse({ row: data });
+}
+
+interface CreateTrackerRowBody {
+  type: PKTrackerType;
+  row: Record<string, unknown>;
+}
+
+/**
+ * POST /api/performance/tracker
+ * Create a tracker row. Currently focused on client_updates editing from All Trackers.
+ */
+export async function POST(request: NextRequest) {
+  const auth = await getAuthContext();
+  if (!auth.ok) return auth.response;
+
+  const parsed = await parseBody<CreateTrackerRowBody>(request);
+  if (!parsed.ok) return parsed.response;
+
+  const { supabase, userId } = auth.ctx;
+  const { type, row } = parsed.body;
+
+  if (!(await hasWriteAccess(supabase, userId))) {
+    return errorResponse('Access denied', 403);
+  }
+
+  if (!type || !TRACKER_TABLES[type]) {
+    return errorResponse(
+      `Invalid or missing tracker type. Valid types: ${Object.keys(TRACKER_TABLES).join(', ')}`
+    );
+  }
+  if (!row || typeof row !== 'object' || Array.isArray(row)) {
+    return errorResponse('row must be an object');
+  }
+
+  // Keep create scope explicit for now (requested use case: Client Updates).
+  if (type !== 'client_updates') {
+    return errorResponse('Create is currently supported for client_updates only');
+  }
+
+  const safeRow: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(row)) {
+    if (IMMUTABLE_UPDATE_FIELDS.has(key)) continue;
+    safeRow[key] = value;
+  }
+
+  if (!String(safeRow.account_manager_name || '').trim()) {
+    return errorResponse('account_manager_name is required');
+  }
+
+  // Required by schema for pk_client_updates manual inserts.
+  if (!String(safeRow.source_tab || '').trim()) {
+    safeRow.source_tab = 'manual_ui';
+  }
+  if (!Object.prototype.hasOwnProperty.call(safeRow, 'source_row')) {
+    safeRow.source_row = null;
+  }
+
+  const tableName = TRACKER_TABLES[type];
+  const { data, error } = await supabase
+    .from(tableName)
+    .insert(safeRow)
+    .select('*')
+    .single();
+
+  if (error) return errorResponse(error.message, 500);
+
+  return successResponse({ row: data }, 201);
+}
+
+interface DeleteTrackerRowBody {
+  type: PKTrackerType;
+  id: string;
+}
+
+/**
+ * DELETE /api/performance/tracker
+ * Delete a tracker row by id.
+ */
+export async function DELETE(request: NextRequest) {
+  const auth = await getAuthContext();
+  if (!auth.ok) return auth.response;
+
+  const parsed = await parseBody<DeleteTrackerRowBody>(request);
+  if (!parsed.ok) return parsed.response;
+
+  const { supabase, userId } = auth.ctx;
+  const { type, id } = parsed.body;
+
+  if (!(await hasWriteAccess(supabase, userId))) {
+    return errorResponse('Access denied', 403);
+  }
+
+  if (!type || !TRACKER_TABLES[type]) {
+    return errorResponse(
+      `Invalid or missing tracker type. Valid types: ${Object.keys(TRACKER_TABLES).join(', ')}`
+    );
+  }
+  if (!id?.trim()) {
+    return errorResponse('id is required');
+  }
+
+  const tableName = TRACKER_TABLES[type];
+  const { error } = await supabase
+    .from(tableName)
+    .delete()
+    .eq('id', id.trim());
+
+  if (error) return errorResponse(error.message, 500);
+
+  return successResponse({ success: true });
 }
