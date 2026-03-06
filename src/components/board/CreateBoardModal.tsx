@@ -43,8 +43,9 @@ export default function CreateBoardModal({ isOpen, onClose }: CreateBoardModalPr
         .single();
 
       if (error || !board) {
+        console.error('Board insert error:', error);
         setLoading(false);
-        alert('Failed to create board. Please try again.');
+        alert(`Failed to create board: ${error?.message || 'No data returned'}`);
         return;
       }
 
@@ -123,9 +124,10 @@ export default function CreateBoardModal({ isOpen, onClose }: CreateBoardModalPr
       setType('dev');
       onClose();
       router.push(`/board/${boardSlug}`);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Board creation error:', err);
-      alert('Something went wrong creating the board. Please try again.');
+      const msg = err instanceof Error ? err.message : String(err);
+      alert(`Something went wrong creating the board: ${msg}`);
     } finally {
       setLoading(false);
     }
