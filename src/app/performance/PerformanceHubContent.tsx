@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { PKTrackerSummary, PKSyncRun } from '@/lib/types';
 import AMDailyTasksTab from './AMDailyTasksTab';
+import TrackerManagerCard from './TrackerManagerCard';
 
 interface DashboardData {
   trackers: PKTrackerSummary[];
@@ -381,9 +382,13 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
 
         {/* All Trackers tab */}
         {activeTab === 'trackers' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {data.trackers.map(tracker => (
-              <TrackerCard key={tracker.tracker_type} tracker={tracker} expanded />
+              <TrackerManagerCard
+                key={tracker.tracker_type}
+                tracker={tracker}
+                canEdit={!!(canSync || isAdmin)}
+              />
             ))}
           </div>
         )}

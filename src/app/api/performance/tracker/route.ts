@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { getAuthContext, successResponse, errorResponse } from '@/lib/api-helpers';
+import { getAuthContext, successResponse, errorResponse, parseBody } from '@/lib/api-helpers';
 import { PKTrackerType } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -49,6 +49,15 @@ const DATE_COLUMNS: Record<string, string> = {
   google_analytics_status: 'created_at',
   other_activities: 'created_at',
 };
+
+const IMMUTABLE_UPDATE_FIELDS = new Set([
+  'id',
+  'created_at',
+  'updated_at',
+  'synced_at',
+  'source_tab',
+  'source_row',
+]);
 
 /**
  * GET /api/performance/tracker
@@ -124,4 +133,64 @@ export async function GET(request: NextRequest) {
     limit,
     offset,
   });
+}
+
+interface UpdateTrackerRowBody {
+  type: PKTrackerType;
+  id: string;
+  patch: Record<string, unknown>;
+}
+
+/**
+ * PATCH /api/performance/tracker
+ * Update a single tracker row in its respective pk_* table.
+ *
+ * Body:
+ *   type: tracker type
+ *   id: row id
+ *   patch: partial object of editable columns
+ */
+export async function PATCH(request: NextRequest) {
+  const auth = await getAuthContext();
+  if (!auth.ok) return auth.response;
+
+  const parsed = await parseBody<UpdateTrackerRowBody>(request);
+  if (!parsed.ok) return parsed.response;
+
+  const { supabase } = auth.ctx;
+  const { type, id, patch } = parsed.body;
+
+  if (!type || !TRACKER_TABLES[type]) {
+    return errorResponse(
+      `Invalid or missing tracker type. Valid types: ${Object.keys(TRACKER_TABLES).join(', ')}`
+    );
+  }
+  if (!id?.trim()) {
+    return errorResponse('id is required');
+  }
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+    return errorResponse('patch must be an object');
+  }
+
+  const safePatch: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(patch)) {
+    if (IMMUTABLE_UPDATE_FIELDS.has(key)) continue;
+    safePatch[key] = value;
+  }
+
+  if (Object.keys(safePatch).length === 0) {
+    return errorResponse('No editable fields provided');
+  }
+
+  const tableName = TRACKER_TABLES[type];
+  const { data, error } = await supabase
+    .from(tableName)
+    .update(safePatch)
+    .eq('id', id.trim())
+    .select('*')
+    .single();
+
+  if (error) return errorResponse(error.message, 500);
+
+  return successResponse({ row: data });
 }
