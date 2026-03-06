@@ -77,6 +77,7 @@ export default function ManageClientUpdatesContent({
   const [creating, setCreating] = useState(false);
   const [savingRowId, setSavingRowId] = useState<string | null>(null);
   const [deletingRowId, setDeletingRowId] = useState<string | null>(null);
+  const [openActionsRowId, setOpenActionsRowId] = useState<string | null>(null);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [statusText, setStatusText] = useState<string | null>(null);
 
@@ -89,6 +90,7 @@ export default function ManageClientUpdatesContent({
     if (!am) {
       setRows([]);
       setDrafts({});
+      setOpenActionsRowId(null);
       return;
     }
 
@@ -118,6 +120,7 @@ export default function ManageClientUpdatesContent({
         nextDrafts[String(row.id)] = toDraft(row);
       }
       setDrafts(nextDrafts);
+      setOpenActionsRowId(null);
 
       setNewDraft((prev) => ({ ...prev, account_manager_name: am }));
     } catch (err) {
@@ -177,6 +180,7 @@ export default function ManageClientUpdatesContent({
       }
 
       setStatusText('Row saved.');
+      setOpenActionsRowId(null);
       await loadRows(selectedAm);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to save row';
@@ -250,6 +254,7 @@ export default function ManageClientUpdatesContent({
         throw new Error(json.error || 'Failed to delete row');
       }
       setStatusText('Row deleted.');
+      setOpenActionsRowId(null);
       await loadRows(selectedAm);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to delete row';
@@ -492,29 +497,51 @@ export default function ManageClientUpdatesContent({
                         {canManage && (
                           <td className="px-2 py-2 text-right min-w-[120px]">
                             {rowId ? (
-                              <div className="flex items-center justify-end gap-1">
+                              <div className="relative inline-flex items-center justify-end">
                                 <button
-                                  onClick={() => saveRow(rowId)}
-                                  disabled={isSaving}
-                                  className={`text-[11px] px-2 py-1 rounded ${
-                                    isSaving
-                                      ? 'bg-navy/10 dark:bg-white/10 text-navy/40 dark:text-white/40 cursor-not-allowed'
-                                      : 'bg-electric text-white hover:bg-electric/90'
+                                  type="button"
+                                  onClick={() =>
+                                    setOpenActionsRowId((current) => (current === rowId ? null : rowId))
+                                  }
+                                  disabled={isSaving || isDeleting}
+                                  className={`text-[11px] px-2 py-1 rounded border border-cream-dark/70 dark:border-white/20 ${
+                                    isSaving || isDeleting
+                                      ? 'text-navy/40 dark:text-white/40 cursor-not-allowed'
+                                      : 'text-navy/70 dark:text-white/70 hover:bg-cream-dark/30 dark:hover:bg-white/10'
                                   }`}
+                                  aria-label="Open actions"
                                 >
-                                  {isSaving ? 'Saving...' : 'Save'}
+                                  ...
                                 </button>
-                                <button
-                                  onClick={() => deleteRow(rowId)}
-                                  disabled={isDeleting}
-                                  className={`text-[11px] px-2 py-1 rounded border ${
-                                    isDeleting
-                                      ? 'border-red-200 text-red-300 dark:border-red-500/20 dark:text-red-500/40 cursor-not-allowed'
-                                      : 'border-red-300 text-red-600 dark:border-red-500/30 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10'
-                                  }`}
-                                >
-                                  {isDeleting ? 'Deleting...' : 'Delete'}
-                                </button>
+
+                                {openActionsRowId === rowId && (
+                                  <div className="absolute top-full right-0 mt-1 min-w-[110px] rounded-md border border-cream-dark/70 dark:border-white/20 bg-white dark:bg-navy-light shadow-lg z-20 p-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => void saveRow(rowId)}
+                                      disabled={isSaving}
+                                      className={`w-full text-left text-[11px] px-2 py-1 rounded ${
+                                        isSaving
+                                          ? 'text-navy/40 dark:text-white/40 cursor-not-allowed'
+                                          : 'text-navy dark:text-white hover:bg-cream-dark/30 dark:hover:bg-white/10'
+                                      }`}
+                                    >
+                                      {isSaving ? 'Saving...' : 'Save'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => void deleteRow(rowId)}
+                                      disabled={isDeleting}
+                                      className={`w-full text-left text-[11px] px-2 py-1 rounded ${
+                                        isDeleting
+                                          ? 'text-red-300 dark:text-red-500/40 cursor-not-allowed'
+                                          : 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10'
+                                      }`}
+                                    >
+                                      {isDeleting ? 'Deleting...' : 'Delete'}
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             ) : (
                               <span className="text-[11px] text-navy/40 dark:text-white/30">No ID</span>
