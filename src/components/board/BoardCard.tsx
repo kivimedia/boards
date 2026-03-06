@@ -170,9 +170,9 @@ export default function BoardCard({
             </div>
           )}
 
-          {/* Quick action buttons on hover */}
-          {boardId && onRefresh && (
-            <div className={`absolute ${hasCover ? 'top-[140px]' : 'top-2'} right-2 z-10 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto flex gap-1 transition-all`}>
+          {/* Quick action buttons on hover - for cards without cover */}
+          {boardId && onRefresh && !hasCover && (
+            <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto flex gap-1 transition-all">
               {/* Copy link button */}
               <button
                 onClick={handleCopyLink}
@@ -242,7 +242,59 @@ export default function BoardCard({
           >
             {/* Cover Image */}
             {hasCover && (
-              <CoverImage src={cover_image_url!} />
+              <div className="relative">
+                <CoverImage src={cover_image_url!} />
+                {/* Quick action buttons on hover - for cards with cover */}
+                {boardId && onRefresh && (
+                  <div className="absolute bottom-2 right-2 z-10 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto flex gap-1 transition-all">
+                    {/* Copy link button */}
+                    <button
+                      onClick={handleCopyLink}
+                      className={`p-1.5 rounded-lg transition-all ${linkCopied ? 'bg-green-100 dark:bg-green-900/40 text-green-600' : 'bg-cream-dark/90 dark:bg-slate-700/90 hover:bg-cream-dark dark:hover:bg-slate-600 text-navy/60 dark:text-slate-300'}`}
+                      title={linkCopied ? 'Copied!' : 'Copy card link'}
+                    >
+                      {linkCopied ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                        </svg>
+                      )}
+                    </button>
+                    {/* Quick copy button */}
+                    <button
+                      onClick={handleQuickCopy}
+                      className="p-1.5 rounded-lg bg-cream-dark/90 dark:bg-slate-700/90 hover:bg-cream-dark dark:hover:bg-slate-600 text-navy/60 dark:text-slate-300 transition-all"
+                      title="Duplicate card"
+                    >
+                      {copying ? (
+                        <svg className="animate-spin" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="12" cy="12" r="10" strokeOpacity="0.25" /><path d="M4 12a8 8 0 018-8" strokeOpacity="0.75" />
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                        </svg>
+                      )}
+                    </button>
+                    {/* Quick edit pencil button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowQuickEdit(true);
+                      }}
+                      className="p-1.5 rounded-lg bg-cream-dark/90 dark:bg-slate-700/90 hover:bg-cream-dark dark:hover:bg-slate-600 text-navy/60 dark:text-slate-300 transition-all"
+                      title="Quick edit"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+                      </svg>
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Card content — pt-4 clears top drag handle strip */}
