@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { DragDropContext, Droppable, DropResult, DragUpdate, DragStart } from '@hello-pangea/dnd';
+import { DragDropContext, Droppable, DropResult, DragStart } from '@hello-pangea/dnd';
 import { useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { BoardWithLists, BoardFilter } from '@/lib/types';
@@ -352,35 +352,86 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
 
   const [draggingListType, setDraggingListType] = useState(false);
   const [dropIndicatorIndex, setDropIndicatorIndex] = useState<number | null>(null);
+  const dragSourceIdxRef = useRef<number | null>(null);
+  const cursorDestIdxRef = useRef<number | null>(null);
 
-  // Let @hello-pangea/dnd handle auto-scroll natively - it coordinates
-  // scrolling with its internal drop zone position tracking.
   const handleDragStart = useCallback((start: DragStart) => {
     if (start.type === 'list') {
       setDraggingListType(true);
+      dragSourceIdxRef.current = start.source.index;
     }
   }, []);
 
-  const handleDragUpdate = useCallback((update: DragUpdate) => {
-    if (update.destination && update.type === 'list') {
-      setDropIndicatorIndex(update.destination.index);
-    } else {
-      setDropIndicatorIndex(null);
-    }
-  }, []);
+  // Cursor-based position tracking - much more responsive than the library's
+  // center-of-dragged-element detection. The indicator follows the mouse
+  // cursor directly, so it appears as soon as you cross the gap between lists.
+  useEffect(() => {
+    if (!draggingListType) return;
+    const boardEl = panRef.current;
+    if (!boardEl) return;
+
+    const onMove = (e: MouseEvent) => {
+      const srcIdx = dragSourceIdxRef.current;
+      if (srcIdx === null) return;
+
+      // Get non-dragged list elements (dragged one has position:fixed)
+      const listEls = Array.from(
+        boardEl.querySelectorAll<HTMLElement>('[data-rfd-draggable-id^="list-"]')
+      ).filter(el => el.style.position !== 'fixed');
+
+      const items = listEls.map(el => {
+        const r = el.getBoundingClientRect();
+        return { left: r.left, right: r.right, cx: (r.left + r.right) / 2 };
+      }).sort((a, b) => a.left - b.left);
+
+      if (!items.length) return;
+
+      const mx = e.clientX;
+
+      // Find visual insert position based on cursor
+      let vPos = items.length;
+      for (let i = 0; i < items.length; i++) {
+        if (mx < items[i].cx) { vPos = i; break; }
+      }
+
+      // Convert visual position (in post-removal array) to original index for indicator
+      const origIdx = vPos <= srcIdx ? vPos : vPos + 1;
+
+      setDropIndicatorIndex(origIdx);
+      cursorDestIdxRef.current = vPos;
+    };
+
+    window.addEventListener('mousemove', onMove);
+    return () => window.removeEventListener('mousemove', onMove);
+  }, [draggingListType]);
 
   const wrappedDragEnd = useCallback(
     (result: DropResult) => {
+      const customDest = cursorDestIdxRef.current;
+      const srcIdx = dragSourceIdxRef.current;
+
       setDraggingListType(false);
       setDropIndicatorIndex(null);
-      handleDragEnd(result);
+      dragSourceIdxRef.current = null;
+      cursorDestIdxRef.current = null;
+
+      // For list drags, use cursor-based destination (more accurate than library's)
+      if (result.type === 'list' && customDest !== null && srcIdx !== null && result.destination) {
+        handleDragEnd({
+          ...result,
+          destination: { ...result.destination, index: customDest },
+        });
+      } else {
+        // Card drags or cancelled drops pass through unchanged
+        handleDragEnd(result);
+      }
     },
     [handleDragEnd]
   );
 
   return (
     <>
-      <DragDropContext onDragStart={handleDragStart} onDragUpdate={handleDragUpdate} onDragEnd={wrappedDragEnd}>
+      <DragDropContext onDragStart={handleDragStart} onDragEnd={wrappedDragEnd}>
         <Droppable droppableId="board" type="list" direction="horizontal">
           {(provided, boardSnapshot) => (
             <div
