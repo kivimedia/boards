@@ -354,6 +354,7 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
   const [dropIndicatorIndex, setDropIndicatorIndex] = useState<number | null>(null);
   const dragSourceIdxRef = useRef<number | null>(null);
   const cursorDestIdxRef = useRef<number | null>(null);
+  const dragStartXRef = useRef<number | null>(null);
 
   const handleDragStart = useCallback((start: DragStart) => {
     if (start.type === 'list') {
@@ -362,17 +363,31 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
     }
   }, []);
 
-  // Cursor-based position tracking - much more responsive than the library's
-  // center-of-dragged-element detection. The indicator follows the mouse
-  // cursor directly, so it appears as soon as you cross the gap between lists.
+  // Cursor-based position tracking - more responsive than the library's
+  // center-of-dragged-element detection, but with a dead zone to avoid
+  // triggering too early.
   useEffect(() => {
     if (!draggingListType) return;
     const boardEl = panRef.current;
     if (!boardEl) return;
 
+    const DEAD_ZONE = 40; // px - must drag at least this far before indicator shows
+
     const onMove = (e: MouseEvent) => {
       const srcIdx = dragSourceIdxRef.current;
       if (srcIdx === null) return;
+
+      // Record initial cursor position
+      if (dragStartXRef.current === null) {
+        dragStartXRef.current = e.clientX;
+      }
+
+      // Don't show indicator until cursor moves past dead zone
+      if (Math.abs(e.clientX - dragStartXRef.current) < DEAD_ZONE) {
+        setDropIndicatorIndex(null);
+        cursorDestIdxRef.current = null;
+        return;
+      }
 
       // Get non-dragged list elements (dragged one has position:fixed)
       const listEls = Array.from(
@@ -388,7 +403,7 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
 
       const mx = e.clientX;
 
-      // Find visual insert position based on cursor
+      // Find visual insert position based on cursor crossing list centers
       let vPos = items.length;
       for (let i = 0; i < items.length; i++) {
         if (mx < items[i].cx) { vPos = i; break; }
@@ -397,12 +412,22 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
       // Convert visual position (in post-removal array) to original index for indicator
       const origIdx = vPos <= srcIdx ? vPos : vPos + 1;
 
+      // Don't show indicator at the source position (no-op)
+      if (origIdx === srcIdx || origIdx === srcIdx + 1) {
+        setDropIndicatorIndex(null);
+        cursorDestIdxRef.current = null;
+        return;
+      }
+
       setDropIndicatorIndex(origIdx);
       cursorDestIdxRef.current = vPos;
     };
 
     window.addEventListener('mousemove', onMove);
-    return () => window.removeEventListener('mousemove', onMove);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      dragStartXRef.current = null;
+    };
   }, [draggingListType]);
 
   const wrappedDragEnd = useCallback(
@@ -415,14 +440,16 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
       dragSourceIdxRef.current = null;
       cursorDestIdxRef.current = null;
 
-      // For list drags, use cursor-based destination (more accurate than library's)
-      if (result.type === 'list' && customDest !== null && srcIdx !== null && result.destination) {
+      if (result.type === 'list' && customDest !== null && srcIdx !== null) {
+        // Use cursor-based destination - works even when the library's
+        // destination is null (cursor detected the position before the library did)
         handleDragEnd({
           ...result,
-          destination: { ...result.destination, index: customDest },
+          source: result.source,
+          destination: { droppableId: 'board', index: customDest },
         });
       } else {
-        // Card drags or cancelled drops pass through unchanged
+        // Card drags, cancelled drops, or no custom position pass through
         handleDragEnd(result);
       }
     },
