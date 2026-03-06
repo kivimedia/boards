@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { DragDropContext, Droppable, DropResult, DragUpdate, DragStart, BeforeCapture } from '@hello-pangea/dnd';
+import { DragDropContext, Droppable, DropResult, DragUpdate, DragStart } from '@hello-pangea/dnd';
 import { useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { BoardWithLists, BoardFilter } from '@/lib/types';
@@ -352,14 +352,12 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
 
   const [draggingListType, setDraggingListType] = useState(false);
   const [dropIndicatorIndex, setDropIndicatorIndex] = useState<number | null>(null);
-  const [dragSourceIndex, setDragSourceIndex] = useState<number | null>(null);
 
   // Let @hello-pangea/dnd handle auto-scroll natively - it coordinates
   // scrolling with its internal drop zone position tracking.
   const handleDragStart = useCallback((start: DragStart) => {
     if (start.type === 'list') {
       setDraggingListType(true);
-      setDragSourceIndex(start.source.index);
     }
   }, []);
 
@@ -375,7 +373,6 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
     (result: DropResult) => {
       setDraggingListType(false);
       setDropIndicatorIndex(null);
-      setDragSourceIndex(null);
       handleDragEnd(result);
     },
     [handleDragEnd]
@@ -395,14 +392,10 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
               className="flex-1 flex gap-3 overflow-x-auto p-3 sm:p-6 pb-20 sm:pb-24 scrollbar-thin items-start"
             >
               {sortedLists.map((list, index) => {
-                // Show drop indicator: destination index means "insert before this index"
-                // No-op positions: dropping at source index or source+1 keeps the list in place
+                // Always show indicator at the destination position - no filtering
                 const showIndicatorBefore = draggingListType
                   && dropIndicatorIndex !== null
-                  && dragSourceIndex !== null
-                  && dropIndicatorIndex === index
-                  && dropIndicatorIndex !== dragSourceIndex
-                  && dropIndicatorIndex !== dragSourceIndex + 1;
+                  && dropIndicatorIndex === index;
 
                 return (
                   <React.Fragment key={list.id}>
@@ -411,7 +404,7 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
                     )}
                     {/* Drop indicator line before this list */}
                     {showIndicatorBefore && (
-                      <div className="w-1.5 shrink-0 self-stretch rounded-full bg-electric shadow-[0_0_16px_rgba(59,130,246,0.7)] min-h-[200px] animate-pulse" />
+                      <div className="w-1.5 shrink-0 self-stretch rounded-full bg-electric shadow-[0_0_16px_rgba(59,130,246,0.7)] min-h-[200px]" />
                     )}
                     <BoardList
                       list={list}
@@ -437,20 +430,10 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
               {/* Drop indicator at the end of all lists */}
               {draggingListType
                 && dropIndicatorIndex !== null
-                && dragSourceIndex !== null
-                && dropIndicatorIndex === sortedLists.length
-                && dropIndicatorIndex !== dragSourceIndex + 1 && (
-                <div className="w-1.5 shrink-0 self-stretch rounded-full bg-electric shadow-[0_0_16px_rgba(59,130,246,0.7)] min-h-[200px] animate-pulse" />
+                && dropIndicatorIndex === sortedLists.length && (
+                <div className="w-1.5 shrink-0 self-stretch rounded-full bg-electric shadow-[0_0_16px_rgba(59,130,246,0.7)] min-h-[200px]" />
               )}
-              {/* Placeholder - styled to be visible during list drag */}
-              {draggingListType ? (
-                <div className="relative shrink-0">
-                  <div className="absolute inset-0 bg-electric/10 border-2 border-dashed border-electric/40 rounded-xl pointer-events-none" />
-                  {provided.placeholder}
-                </div>
-              ) : (
-                provided.placeholder
-              )}
+              {provided.placeholder}
 
               {/* Add list button */}
               {isAddingList ? (
