@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { DragDropContext, Droppable, DropResult, BeforeCapture } from '@hello-pangea/dnd';
+import { DragDropContext, Droppable, DropResult, DragUpdate, DragStart, BeforeCapture } from '@hello-pangea/dnd';
 import { useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { BoardWithLists, BoardFilter } from '@/lib/types';
@@ -351,16 +351,31 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
   };
 
   const [draggingListType, setDraggingListType] = useState(false);
+  const [dropIndicatorIndex, setDropIndicatorIndex] = useState<number | null>(null);
+  const [dragSourceIndex, setDragSourceIndex] = useState<number | null>(null);
 
   // Let @hello-pangea/dnd handle auto-scroll natively - it coordinates
   // scrolling with its internal drop zone position tracking.
-  const handleDragStart = useCallback((start: { type: string }) => {
-    if (start.type === 'list') setDraggingListType(true);
+  const handleDragStart = useCallback((start: DragStart) => {
+    if (start.type === 'list') {
+      setDraggingListType(true);
+      setDragSourceIndex(start.source.index);
+    }
+  }, []);
+
+  const handleDragUpdate = useCallback((update: DragUpdate) => {
+    if (update.destination && update.type === 'list') {
+      setDropIndicatorIndex(update.destination.index);
+    } else {
+      setDropIndicatorIndex(null);
+    }
   }, []);
 
   const wrappedDragEnd = useCallback(
     (result: DropResult) => {
       setDraggingListType(false);
+      setDropIndicatorIndex(null);
+      setDragSourceIndex(null);
       handleDragEnd(result);
     },
     [handleDragEnd]
@@ -368,7 +383,7 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
 
   return (
     <>
-      <DragDropContext onDragStart={handleDragStart} onDragEnd={wrappedDragEnd}>
+      <DragDropContext onDragStart={handleDragStart} onDragUpdate={handleDragUpdate} onDragEnd={wrappedDragEnd}>
         <Droppable droppableId="board" type="list" direction="horizontal">
           {(provided) => (
             <div
@@ -383,6 +398,10 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
                 <React.Fragment key={list.id}>
                   {index === 0 && !draggingListType && (
                     <ListInsertButton onInsert={(name) => handleInsertList(name, 0)} />
+                  )}
+                  {/* Drop indicator line before this list */}
+                  {draggingListType && dropIndicatorIndex === index && dragSourceIndex !== index && dragSourceIndex !== index - 1 && (
+                    <div className="w-1 shrink-0 self-stretch rounded-full bg-electric shadow-[0_0_12px_rgba(59,130,246,0.6)] min-h-[100px]" />
                   )}
                   <BoardList
                     list={list}
@@ -404,6 +423,10 @@ export default function Board({ board, onRefresh, filter, externalSelectedCardId
                   )}
                 </React.Fragment>
               ))}
+              {/* Drop indicator at the end of all lists */}
+              {draggingListType && dropIndicatorIndex === sortedLists.length && dragSourceIndex !== sortedLists.length - 1 && (
+                <div className="w-1 shrink-0 self-stretch rounded-full bg-electric shadow-[0_0_12px_rgba(59,130,246,0.6)] min-h-[100px]" />
+              )}
               {provided.placeholder}
 
               {/* Add list button */}

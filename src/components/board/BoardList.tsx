@@ -161,7 +161,7 @@ export default function BoardList({ list, index, boardId, boardName, allLists, o
             snapshot.isDragging
               ? 'bg-white dark:bg-slate-700 shadow-2xl shadow-electric/20 ring-2 ring-electric/40 rotate-[2deg] scale-[1.03] z-50'
               : isDraggingList
-                ? 'bg-[#f1f2f4] dark:bg-slate-800/70 border-2 border-dashed border-electric/30 opacity-70'
+                ? 'bg-[#f1f2f4] dark:bg-slate-800/70 opacity-60'
                 : 'bg-[#f1f2f4] dark:bg-slate-800/70'
           }`}
           style={{ maxHeight: 'calc(100vh - 140px)' }}
