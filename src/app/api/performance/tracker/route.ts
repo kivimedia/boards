@@ -60,6 +60,24 @@ const IMMUTABLE_UPDATE_FIELDS = new Set([
   'source_row',
 ]);
 
+const CREATABLE_TRACKER_TYPES = new Set<PKTrackerType>([
+  'client_updates',
+  'fathom_videos',
+  'sanity_checks',
+  'pics_monitoring',
+  'google_ads_reports',
+  'holiday_tracking',
+]);
+
+const CREATE_REQUIRED_FIELDS: Partial<Record<PKTrackerType, string[]>> = {
+  client_updates: ['account_manager_name'],
+  fathom_videos: ['account_manager_name'],
+  sanity_checks: ['account_manager_name'],
+  pics_monitoring: ['account_manager_name'],
+  google_ads_reports: ['month_label'],
+  holiday_tracking: ['account_manager_name'],
+};
+
 async function hasWriteAccess(
   supabase: SupabaseClient,
   userId: string
@@ -225,7 +243,7 @@ interface CreateTrackerRowBody {
 
 /**
  * POST /api/performance/tracker
- * Create a tracker row. Currently focused on client_updates editing from All Trackers.
+ * Create a tracker row for selected Performance Keeping trackers.
  */
 export async function POST(request: NextRequest) {
   const auth = await getAuthContext();
@@ -250,9 +268,10 @@ export async function POST(request: NextRequest) {
     return errorResponse('row must be an object');
   }
 
-  // Keep create scope explicit for now (requested use case: Client Updates).
-  if (type !== 'client_updates') {
-    return errorResponse('Create is currently supported for client_updates only');
+  if (!CREATABLE_TRACKER_TYPES.has(type)) {
+    return errorResponse(
+      `Create is currently supported for: ${Array.from(CREATABLE_TRACKER_TYPES).join(', ')}`
+    );
   }
 
   const safeRow: Record<string, unknown> = {};
@@ -261,11 +280,14 @@ export async function POST(request: NextRequest) {
     safeRow[key] = value;
   }
 
-  if (!String(safeRow.account_manager_name || '').trim()) {
-    return errorResponse('account_manager_name is required');
+  const requiredFields = CREATE_REQUIRED_FIELDS[type] || [];
+  for (const requiredField of requiredFields) {
+    if (!String(safeRow[requiredField] || '').trim()) {
+      return errorResponse(`${requiredField} is required`);
+    }
   }
 
-  // Required by schema for pk_client_updates manual inserts.
+  // Required by schema for manual inserts on these tracker tables.
   if (!String(safeRow.source_tab || '').trim()) {
     safeRow.source_tab = 'manual_ui';
   }

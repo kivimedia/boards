@@ -9,7 +9,14 @@ interface TrackerManagerCardProps {
   canEdit: boolean;
 }
 
-const CLIENT_UPDATE_TYPE = 'client_updates';
+const MANAGE_PAGE_TRACKERS = new Set([
+  'client_updates',
+  'fathom_videos',
+  'sanity_checks',
+  'pics_monitoring',
+  'google_ads_reports',
+  'holiday_tracking',
+]);
 
 const HIDDEN_COLUMNS = new Set([
   'id',
@@ -58,7 +65,9 @@ export default function TrackerManagerCard({ tracker, canEdit }: TrackerManagerC
   const [editJson, setEditJson] = useState('');
   const [savingJsonEdit, setSavingJsonEdit] = useState(false);
 
-  const isClientUpdates = tracker.tracker_type === CLIENT_UPDATE_TYPE;
+  const manageRowsHref = MANAGE_PAGE_TRACKERS.has(tracker.tracker_type)
+    ? `/performance/${tracker.tracker_type}/manage`
+    : null;
 
   const freshnessColors = {
     fresh: 'bg-green-500',
@@ -167,9 +176,9 @@ export default function TrackerManagerCard({ tracker, canEdit }: TrackerManagerC
           >
             Full Page
           </Link>
-          {isClientUpdates ? (
+          {manageRowsHref ? (
             <Link
-              href="/performance/client_updates/manage"
+              href={manageRowsHref}
               className="text-xs px-2 py-1 rounded bg-electric text-white hover:bg-electric/90"
             >
               Manage Rows
@@ -185,7 +194,7 @@ export default function TrackerManagerCard({ tracker, canEdit }: TrackerManagerC
         </div>
       </div>
 
-      {open && !isClientUpdates && (
+      {open && !manageRowsHref && (
         <div className="mt-4 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-xs text-navy/50 dark:text-white/40">
