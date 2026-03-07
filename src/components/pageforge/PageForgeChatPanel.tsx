@@ -44,10 +44,14 @@ export default function PageForgeChatPanel({ buildId, buildStatus }: PageForgeCh
   const [loading, setLoading] = useState(true);
   const [pendingReply, setPendingReply] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const scrollToBottom = useCallback(() => {
-    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+    setTimeout(() => {
+      const container = messagesContainerRef.current;
+      if (container) container.scrollTop = container.scrollHeight;
+    }, 50);
   }, []);
 
   // Fetch messages
@@ -188,7 +192,7 @@ export default function PageForgeChatPanel({ buildId, buildStatus }: PageForgeCh
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="flex items-center gap-1">
