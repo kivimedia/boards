@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthContext, errorResponse } from '@/lib/api-helpers';
+import { decryptFromHex } from '@/lib/encryption';
 
 interface FigmaFileEntry {
   key: string;
@@ -83,15 +84,18 @@ export async function GET(request: NextRequest) {
 
   const { data: site } = await auth.ctx.supabase
     .from('pageforge_site_profiles')
-    .select('figma_personal_token, figma_team_id')
+    .select('figma_personal_token, figma_personal_token_encrypted, figma_team_id')
     .eq('id', siteProfileId)
     .single();
 
-  if (!site?.figma_personal_token) {
+  const rawToken = site?.figma_personal_token
+    || (site?.figma_personal_token_encrypted ? decryptFromHex(site.figma_personal_token_encrypted) : null);
+
+  if (!rawToken) {
     return errorResponse('Figma token not configured for this site');
   }
 
-  const headers = { 'X-Figma-Token': site.figma_personal_token };
+  const headers = { 'X-Figma-Token': rawToken };
 
   try {
     const teamId = site.figma_team_id;
