@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
   const rawToken = site?.figma_personal_token
     || (site?.figma_personal_token_encrypted ? decryptFromHex(site.figma_personal_token_encrypted) : null);
 
-  if (!rawToken) {
+  if (!rawToken || !site) {
     return errorResponse('Figma token not configured for this site');
   }
 
