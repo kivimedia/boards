@@ -855,13 +855,14 @@ ${imageRules}
 3. Dark sections (${primaryDark} or similar) MUST have light text colors (#ffffff, #e0e0e0) in font settings
 4. Card/feature grids: use columns + cards, NOT individual sections per card
 5. Stats/numbers: use columns (3-5) + cards where title="24+" and text="Years Experience"
-6. Hero: large h1 (48-60px), subtitle, CTA button. Use background.image + rgba overlay color
+6. Hero: large h1 (48-60px), subtitle, CTA button. background.color MUST be a dark rgba overlay like "rgba(0,23,56,0.75)" for text readability over the image - NEVER leave hero background.color as white or empty when there is a background.image.
 7. Footer: dark background, use a single "code" element for multi-column HTML footer layout
 8. ALL content from the Figma design - NO placeholder/lorem ipsum text. Copy exact text visible in the design.
 9. Match column counts exactly from Figma (3 cards in design = columns:3)
 10. Each concept appears EXACTLY ONCE. Never duplicate sections.
 11. Font sizes MUST use the actual design system: ${figmaData.fonts.slice(0, 5).map((f: any) => `${f.size}px`).join(', ')}
 12. EVERY heading and text element MUST have explicit font.color set (dark text on light bg, light text on dark bg).
+13. Hero sections with background images: ALL text elements MUST have font.color="#ffffff" (white) so text is visible over the dark overlay.
 
 RESPOND WITH JSON ONLY (no markdown fences): {"sections":[...]}`;
 
@@ -1231,6 +1232,12 @@ RESPOND WITH JSON: {"markup":"the COMPLETE page markup","sections":[{"name":"sec
         }
       }
 
+      // Count FIGMA_IMG placeholders (expected - will be replaced by image_optimization phase)
+      const figmaImgCount = (markup.match(/FIGMA_IMG:/g) || []).length;
+      if (figmaImgCount > 0) {
+        warnings.push(`${figmaImgCount} FIGMA_IMG: placeholder(s) found - will be replaced during image_optimization phase`);
+      }
+
       // b2. Image dimension validation - check for oversized images
       const imgDimPattern = /src="([^"]+\.(jpg|jpeg|png|gif|webp|svg))"/gi;
       let imgDimMatch;
@@ -1479,6 +1486,22 @@ RESPOND WITH JSON: {"markup":"the COMPLETE page markup","sections":[{"name":"sec
 
       await updateBuildArtifacts(supabase, buildId, 'image_optimization', { uploaded, failed, mediaIds, imageUrlMap });
       console.log(`[pageforge] Images: ${uploaded} uploaded, ${failed} failed, ${Object.keys(imageUrlMap).length} mapped`);
+
+      // Warn if FIGMA_IMG: placeholders remain in the deployed page (indicates missing images)
+      if (build.wp_page_id) {
+        try {
+          const checkRes = await fetch(`${siteProfile.wp_rest_url}/pages/${build.wp_page_id}?context=edit`, { headers: { Authorization: 'Basic ' + Buffer.from(`${siteProfile.wp_username}:${siteProfile.wp_app_password}`).toString('base64') } });
+          if (checkRes.ok) {
+            const checkData = await checkRes.json();
+            const checkContent = checkData.content?.raw || '';
+            const remaining = (checkContent.match(/FIGMA_IMG:/g) || []).length;
+            if (remaining > 0) {
+              console.warn(`[pageforge] WARNING: ${remaining} FIGMA_IMG: placeholder(s) remain after image replacement - these will show as broken images`);
+              await postBuildMessage(supabase, buildId, `Warning: ${remaining} image placeholder(s) could not be replaced (missing node IDs in Figma export)`, 'image_optimization');
+            }
+          }
+        } catch { /* non-fatal */ }
+      }
       break;
     }
 
@@ -3205,9 +3228,10 @@ function buildDivi5Text(html: string, fontOpts?: { family?: string; size?: strin
 }
 
 function buildDivi5Image(src: string, alt?: string, borderRadius?: string): string {
+  // Divi 5 image module uses "url" field name (not "src") for the image URL
   const attrs: Record<string, any> = {
     builderVersion: D5V, modulePreset: "default", themeBuilderArea: D5_AREA,
-    image: { innerContent: d5Val({ src, alt: alt || "", title: "" }) },
+    image: { innerContent: d5Val({ url: src, src, alt: alt || "", title: "" }) },
     module: { decoration: { sizing: { width: d5Val("100%") } } }
   };
   if (borderRadius) {
@@ -3449,7 +3473,7 @@ function buildDivi5Markup(sections: Divi5Section[], primaryFont: string, accentC
       const isRgba = bgColor.includes('rgba');
       const overlayBg = isRgba
         ? bgColor  // Use the designer's chosen overlay color
-        : 'linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.35) 100%)'; // Light default
+        : 'linear-gradient(180deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.72) 100%)'; // Dark for text readability
       cssFallback.push(`.et_pb_section_${i} { position: relative; }`);
       cssFallback.push(`.et_pb_section_${i}::before { content: ''; position: absolute; inset: 0; background: ${overlayBg}; z-index: 0; pointer-events: none; }`);
       cssFallback.push(`.et_pb_section_${i} > .et_pb_row { position: relative; z-index: 1; }`);
@@ -3463,11 +3487,14 @@ function buildDivi5Markup(sections: Divi5Section[], primaryFont: string, accentC
     }
   });
 
-  // Grid gap CSS for multi-column sections (target last row - the cards row, not the heading row)
+  // Grid gap CSS for multi-column sections
+  // Use :not(:first-child) to target the cards row (not the heading row) in multi-row sections
   sections.forEach((section, i) => {
     if (section.columns && section.columns > 1) {
-      cssFallback.push(`.et_pb_section_${i} .et_pb_row:last-of-type { display: grid !important; grid-template-columns: repeat(${section.columns}, 1fr) !important; gap: 30px !important; }`);
-      cssFallback.push(`@media (max-width: 768px) { .et_pb_section_${i} .et_pb_row:last-of-type { grid-template-columns: 1fr !important; gap: 20px !important; } }`);
+      // Apply grid to all rows that hold cards (skip heading-only rows by checking column count)
+      cssFallback.push(`.et_pb_section_${i} .et_pb_row { display: grid !important; grid-template-columns: repeat(${section.columns}, 1fr) !important; gap: 30px !important; align-items: start !important; }`);
+      cssFallback.push(`.et_pb_section_${i} .et_pb_column { min-width: 0 !important; }`);
+      cssFallback.push(`@media (max-width: 768px) { .et_pb_section_${i} .et_pb_row { grid-template-columns: 1fr !important; gap: 20px !important; } }`);
     }
   });
 
@@ -3484,8 +3511,12 @@ function buildDivi5Markup(sections: Divi5Section[], primaryFont: string, accentC
   cssFallback.push(`.et_pb_image_wrap img { border-radius: 8px; object-fit: cover; }`);
   cssFallback.push(`.et_pb_blurb_content { border-radius: 12px; overflow: hidden; }`);
 
-  // Responsive base
-  cssFallback.push(`@media (max-width: 768px) { h1 { font-size: 32px !important; } h2 { font-size: 28px !important; } h3 { font-size: 22px !important; } .et_pb_section { padding-left: 20px !important; padding-right: 20px !important; } }`);
+  // Responsive base - typography and overflow protection for mobile
+  cssFallback.push(`@media (max-width: 768px) { h1 { font-size: 32px !important; } h2 { font-size: 26px !important; } h3 { font-size: 20px !important; } .et_pb_section { padding-left: 20px !important; padding-right: 20px !important; overflow-x: hidden !important; } body, html { overflow-x: hidden !important; } }`);
+  // Prevent fixed-width elements from causing horizontal scroll
+  cssFallback.push(`@media (max-width: 768px) { .et_pb_row, .et_pb_column, .et_pb_module, img, video, iframe { max-width: 100% !important; box-sizing: border-box !important; } }`);
+  // Hero sections: ensure text is visible above image backgrounds on mobile
+  cssFallback.push(`@media (max-width: 768px) { [class*="et_pb_section"] .et_pb_text_inner, [class*="et_pb_section"] h1, [class*="et_pb_section"] h2 { text-shadow: 0 1px 4px rgba(0,0,0,0.6) !important; } }`);
 
   let cssBlock = '';
   if (cssFallback.length > 0) {
