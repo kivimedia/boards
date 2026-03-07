@@ -453,22 +453,18 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
 
   const isAtGate = GATE_STATUSES.includes(build.status);
   const isActive = !['published', 'failed', 'cancelled'].includes(build.status);
-  const artifacts = (build.artifacts ?? {}) as Record<string, string>;
+  const artifacts = (build.artifacts ?? {}) as Record<string, any>;
 
-  // Screenshot URLs from artifacts
+  // Screenshot URLs from artifacts - stored nested under vqa_capture
+  const vqaCapture = (artifacts.vqa_capture ?? {}) as Record<string, any>;
+  const figmaShots = (vqaCapture.figmaScreenshots ?? {}) as Record<string, string | null>;
+  const wpShots = (vqaCapture.wpScreenshots ?? {}) as Record<string, string | null>;
+  const toSrc = (b64: string | null | undefined) =>
+    b64 ? `data:image/jpeg;base64,${b64}` : '';
   const screenshotKeys: Record<string, { figma: string; wp: string }> = {
-    desktop: {
-      figma: artifacts.figma_screenshot_desktop ?? '',
-      wp: artifacts.wp_screenshot_desktop ?? '',
-    },
-    tablet: {
-      figma: artifacts.figma_screenshot_tablet ?? '',
-      wp: artifacts.wp_screenshot_tablet ?? '',
-    },
-    mobile: {
-      figma: artifacts.figma_screenshot_mobile ?? '',
-      wp: artifacts.wp_screenshot_mobile ?? '',
-    },
+    desktop: { figma: toSrc(figmaShots.desktop), wp: toSrc(wpShots.desktop) },
+    tablet:  { figma: toSrc(figmaShots.tablet),  wp: toSrc(wpShots.tablet)  },
+    mobile:  { figma: toSrc(figmaShots.mobile),  wp: toSrc(wpShots.mobile)  },
   };
 
   // QA items from phase_results

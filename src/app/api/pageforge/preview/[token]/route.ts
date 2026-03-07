@@ -58,16 +58,19 @@ export async function GET(_request: NextRequest, { params }: Params) {
     .eq('build_id', previewToken.build_id)
     .order('phase_index', { ascending: true });
 
-  // Build sanitized artifacts (screenshots only)
-  const artifacts = (build.artifacts ?? {}) as Record<string, string>;
+  // Build sanitized artifacts (screenshots only) - stored nested under vqa_capture
+  const artifacts = (build.artifacts ?? {}) as Record<string, any>;
+  const vqaCapture = (artifacts.vqa_capture ?? {}) as Record<string, any>;
+  const figmaShots = (vqaCapture.figmaScreenshots ?? {}) as Record<string, string | null>;
+  const wpShots = (vqaCapture.wpScreenshots ?? {}) as Record<string, string | null>;
   const screenshots: Record<string, { figma?: string; wp?: string }> = {};
   for (const viewport of ['desktop', 'tablet', 'mobile']) {
-    const figma = artifacts[`figma_screenshot_${viewport}`];
-    const wp = artifacts[`wp_screenshot_${viewport}`];
+    const figma = figmaShots[viewport];
+    const wp = wpShots[viewport];
     if (figma || wp) {
       screenshots[viewport] = {};
-      if (figma) screenshots[viewport].figma = figma;
-      if (wp) screenshots[viewport].wp = wp;
+      if (figma) screenshots[viewport].figma = `data:image/jpeg;base64,${figma}`;
+      if (wp) screenshots[viewport].wp = `data:image/jpeg;base64,${wp}`;
     }
   }
 
