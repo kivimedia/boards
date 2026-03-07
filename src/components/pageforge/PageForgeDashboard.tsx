@@ -247,7 +247,10 @@ export default function PageForgeDashboard() {
     try {
       const res = await fetch('/api/pageforge/builds');
       const json = await res.json();
-      if (json.builds) setBuilds(json.builds);
+      if (json.builds) {
+        setBuilds(json.builds);
+        setError(null);
+      }
     } catch (err) {
       console.error('Failed to fetch builds:', err);
       setError('Failed to load builds');
