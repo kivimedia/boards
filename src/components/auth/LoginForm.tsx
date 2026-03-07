@@ -1,9 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/client';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 
@@ -12,47 +10,36 @@ export default function LoginForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
 
-    if (error) {
-      // "Failed to fetch" means the browser couldn't reach Supabase at all
-      const msg = error.message === 'Failed to fetch'
-        ? 'Could not connect to the server. Please check your internet connection and try again.'
-        : error.message;
-      setError(msg);
-      setLoading(false);
-    } else {
-      try {
-        // Check if the user is a client — redirect to client board
-        const { data: { user: authUser } } = await supabase.auth.getUser();
-        if (authUser) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('user_role, client_id')
-            .eq('id', authUser.id)
-            .single();
+      const json = await res.json();
 
-          if (profile?.user_role === 'client' && profile?.client_id) {
-            window.location.href = '/client-board';
-            return;
-          }
-        }
-      } catch {
-        // Profile check failed - proceed to dashboard
+      if (!res.ok) {
+        setError(json.error || 'Login failed');
+        setLoading(false);
+        return;
       }
-      // Full page navigation to ensure middleware picks up the new session
-      window.location.href = '/';
+
+      // Redirect based on role returned from server
+      if (json.userRole === 'client' && json.clientId) {
+        window.location.href = '/client-board';
+      } else {
+        window.location.href = '/';
+      }
+    } catch {
+      setError('Could not connect to the server. Please check your internet connection and try again.');
+      setLoading(false);
     }
   };
 
