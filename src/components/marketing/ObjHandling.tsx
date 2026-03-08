@@ -31,7 +31,7 @@ export default function ObjHandling() {
               <span className="text-red-400 text-sm">✗</span>
             </div>
             <p className="text-slate-300 leading-relaxed">
-              Does it know how to write copy in your client&apos;s voice — because it actually learned it from past approved work?
+              Does it know how to write copy in your client&apos;s voice - because it actually learned it from past approved work?
             </p>
           </div>
           <div className="flex items-start gap-4">
@@ -50,7 +50,7 @@ export default function ObjHandling() {
             You don&apos;t have to migrate everything.
           </p>
           <p className="text-slate-400 leading-relaxed text-lg">
-            Start with one board — say, your design review board. Run it for 2 weeks. See what happens to your revision rounds.
+            Start with one board - say, your design review board. Run it for 2 weeks. See what happens to your revision rounds.
           </p>
         </div>
 
@@ -58,7 +58,7 @@ export default function ObjHandling() {
           href="#pricing"
           className="inline-flex items-center gap-2 bg-blue-500 hover:bg-blue-400 text-white px-8 py-4 rounded-xl text-lg font-semibold transition-all duration-200 shadow-[0_0_40px_rgba(59,130,246,0.3)]"
         >
-          Start with One Board — Free for 2 Weeks
+          Start with One Board - Free for 2 Weeks
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
           </svg>

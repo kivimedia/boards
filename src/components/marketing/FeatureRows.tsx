@@ -7,7 +7,7 @@ const features = [
     color: 'blue',
     visual: (
       <div className="bg-[#0f172a] rounded-2xl border border-slate-700/50 p-5 font-mono text-sm space-y-3">
-        <div className="text-slate-400 text-xs uppercase tracking-wider mb-4 font-sans">AI Review — Homepage Hero v3</div>
+        <div className="text-slate-400 text-xs uppercase tracking-wider mb-4 font-sans">AI Review - Homepage Hero v3</div>
         {[
           { text: 'Move CTA button above the fold', status: 'pass' },
           { text: 'Increase heading font size to 64px', status: 'pass' },
@@ -34,12 +34,12 @@ const features = [
   {
     label: 'PageForge',
     headline: 'A Figma file walks in. A live WordPress page walks out.',
-    body: 'Connect your WordPress site once. Feed PageForge a Figma frame. It extracts layout, images, fonts, and colors — generates Divi 5 or Gutenberg blocks — uploads to your Media Library — and publishes a draft. Your dev reviews and hits Publish.',
+    body: 'Connect your WordPress site once. Feed PageForge a Figma frame. It extracts layout, images, fonts, and colors - generates Divi 5 or Gutenberg blocks - uploads to your Media Library - and publishes a draft. Your dev reviews and hits Publish.',
     impact: 'Campaign pages that used to take 2 days now take 20 minutes. Clients stop waiting. You stop losing money on implementation.',
     color: 'violet',
     visual: (
       <div className="bg-[#0f172a] rounded-2xl border border-slate-700/50 p-5 space-y-3">
-        <div className="text-slate-400 text-xs uppercase tracking-wider mb-4">PageForge — Spring Campaign Landing</div>
+        <div className="text-slate-400 text-xs uppercase tracking-wider mb-4">PageForge - Spring Campaign Landing</div>
         {[
           { phase: 'Analyze Figma design', status: 'done', time: '0:12' },
           { phase: 'Classify sections (Hero, Features, CTA)', status: 'done', time: '0:34' },
@@ -68,7 +68,7 @@ const features = [
     color: 'emerald',
     visual: (
       <div className="bg-[#0f172a] rounded-2xl border border-slate-700/50 p-5 space-y-4">
-        <div className="text-slate-400 text-xs uppercase tracking-wider">Client Brain — Acme Corp</div>
+        <div className="text-slate-400 text-xs uppercase tracking-wider">Client Brain - Acme Corp</div>
         <div className="flex items-center gap-3 text-xs text-slate-400">
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-400" />
@@ -84,7 +84,7 @@ const features = [
         </div>
         <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3 text-xs text-slate-200 leading-relaxed">
           <span className="text-emerald-400 font-medium">Brain: </span>
-          Spring is here, and so is your next growth opportunity. At Acme, we&apos;ve been heads-down building something we think you&apos;ll love — more on that below. But first, let&apos;s talk about what&apos;s working right now.
+          Spring is here, and so is your next growth opportunity. At Acme, we&apos;ve been heads-down building something we think you&apos;ll love - more on that below. But first, let&apos;s talk about what&apos;s working right now.
         </div>
         <div className="text-[10px] text-slate-500">Generated in client&apos;s voice • Based on 6 approved newsletters</div>
       </div>
@@ -93,20 +93,20 @@ const features = [
   {
     label: 'Client Portal',
     headline: 'Clients who feel informed don\'t micromanage.',
-    body: "Every client gets a private portal showing exactly their tickets and nothing else. They can submit requests, approve work, and see project status — without seeing your internal team, costs, or other clients.",
+    body: "Every client gets a private portal showing exactly their tickets and nothing else. They can submit requests, approve work, and see project status - without seeing your internal team, costs, or other clients.",
     impact: "You look more professional. Clients trust the process. Your team stops fielding \"what's the status?\" messages.",
     color: 'blue',
     visual: (
       <div className="bg-[#0f172a] rounded-2xl border border-slate-700/50 overflow-hidden">
         {/* Portal header */}
         <div className="bg-[#1e293b] border-b border-slate-700 px-5 py-3 flex items-center justify-between">
-          <span className="text-white text-sm font-semibold">Acme Corp — Project Portal</span>
+          <span className="text-white text-sm font-semibold">Acme Corp - Project Portal</span>
           <span className="bg-emerald-500/20 text-emerald-400 text-xs px-2 py-1 rounded font-medium">2 need your review</span>
         </div>
         <div className="p-4 space-y-3">
           {[
             { title: 'Homepage hero redesign', status: 'Awaiting Approval', action: true },
-            { title: 'April email campaign — 5 emails', status: 'In Progress', action: false },
+            { title: 'April email campaign - 5 emails', status: 'In Progress', action: false },
             { title: 'Google Ads refresh', status: 'Live ✓', action: false },
           ].map((item, i) => (
             <div key={i} className="flex items-center justify-between p-3 bg-slate-800/40 rounded-lg border border-slate-700/40">
@@ -134,10 +134,10 @@ const features = [
     color: 'emerald',
     visual: (
       <div className="bg-[#0f172a] rounded-2xl border border-slate-700/50 p-5">
-        <div className="text-slate-400 text-xs uppercase tracking-wider mb-4">WhatsApp — Agency Team</div>
+        <div className="text-slate-400 text-xs uppercase tracking-wider mb-4">WhatsApp - Agency Team</div>
         <div className="bg-[#075e54] rounded-2xl p-4 space-y-3 max-w-xs mx-auto">
           <div className="bg-[#128c7e]/30 rounded-xl p-3 text-white text-xs leading-relaxed border border-[#128c7e]/40">
-            <div className="font-semibold text-emerald-300 mb-2">🌅 Good morning — Daily Board Digest</div>
+            <div className="font-semibold text-emerald-300 mb-2">🌅 Good morning - Daily Board Digest</div>
             <div className="space-y-1.5 text-[11px]">
               <div>✅ <span className="text-slate-200">6 cards moved to Done</span></div>
               <div>⚠️ <span className="text-yellow-300">3 cards overdue</span></div>

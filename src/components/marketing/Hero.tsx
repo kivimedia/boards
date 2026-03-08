@@ -37,7 +37,7 @@ export default function Hero() {
 
         {/* Sub-headline */}
         <p className="text-xl md:text-2xl text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-          Design, dev, copy, and video teams working in one place — with AI baked into every workflow. Not adapted from generic task software.
+          Design, dev, copy, and video teams working in one place - with AI baked into every workflow. Not adapted from generic task software.
         </p>
 
         {/* CTAs */}
@@ -46,7 +46,7 @@ export default function Hero() {
             href="#pricing"
             className="group bg-blue-500 hover:bg-blue-400 text-white px-8 py-4 rounded-xl text-lg font-semibold transition-all duration-200 shadow-[0_0_40px_rgba(59,130,246,0.3)] hover:shadow-[0_0_60px_rgba(59,130,246,0.5)] flex items-center gap-2"
           >
-            Start Free — 2 Weeks, No Card
+            Start Free - 2 Weeks, No Card
             <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
             </svg>
@@ -96,7 +96,7 @@ export default function Hero() {
                     </div>
                   </div>
                   <div className="bg-[#1e293b] rounded-lg p-3 border border-slate-700">
-                    <div className="text-white text-xs font-medium leading-snug mb-1">Product page copy — Q2</div>
+                    <div className="text-white text-xs font-medium leading-snug mb-1">Product page copy - Q2</div>
                     <div className="flex items-center gap-1 mt-2">
                       <div className="w-5 h-5 rounded-full bg-orange-500 text-white text-[9px] flex items-center justify-center font-bold">AM</div>
                     </div>
@@ -112,7 +112,7 @@ export default function Hero() {
                 </div>
                 <div className="space-y-2">
                   <div className="bg-[#1e293b] rounded-lg p-3 border border-blue-500/30">
-                    <div className="text-white text-xs font-medium leading-snug mb-2">Landing page — Acme Corp</div>
+                    <div className="text-white text-xs font-medium leading-snug mb-2">Landing page - Acme Corp</div>
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">Lighthouse 94</span>
                       <span className="text-[10px] text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">WCAG AA</span>
@@ -136,7 +136,7 @@ export default function Hero() {
                 </div>
                 <div className="space-y-2">
                   <div className="bg-[#1e293b] rounded-lg p-3 border border-slate-700 opacity-70">
-                    <div className="text-slate-400 text-xs font-medium leading-snug line-through">Social media kit — March</div>
+                    <div className="text-slate-400 text-xs font-medium leading-snug line-through">Social media kit - March</div>
                   </div>
                   <div className="bg-[#1e293b] rounded-lg p-3 border border-slate-700 opacity-70">
                     <div className="text-slate-400 text-xs font-medium leading-snug line-through">Email sequence v2</div>
@@ -152,7 +152,7 @@ export default function Hero() {
                     &quot;Who&apos;s overloaded this week?&quot;
                   </div>
                   <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-2.5 text-blue-200 text-[11px] leading-relaxed">
-                    Sara has 8 open cards — 3 overdue. Consider reassigning the landing page brief.
+                    Sara has 8 open cards - 3 overdue. Consider reassigning the landing page brief.
                   </div>
                 </div>
               </div>

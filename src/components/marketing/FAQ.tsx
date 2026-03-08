@@ -5,19 +5,19 @@ import { useState } from 'react';
 const faqs = [
   {
     q: 'Do I have to migrate from my current tool?',
-    a: 'No. Start with one board — onboarding takes 10 minutes. Migrate the rest on your own timeline. We also have Trello import built in if you want to move your existing cards over.',
+    a: 'No. Start with one board - onboarding takes 10 minutes. Migrate the rest on your own timeline. We also have Trello import built in if you want to move your existing cards over.',
   },
   {
     q: 'What AI models power this?',
-    a: 'Primarily Claude (Anthropic) for all text and reasoning. We also integrate Google Gemini and Replicate FLUX for image generation. You don\'t pay API costs separately — they\'re bundled into your plan.',
+    a: 'Primarily Claude (Anthropic) for all text and reasoning. We also integrate Google Gemini and Replicate FLUX for image generation. You don\'t pay API costs separately - they\'re bundled into your plan.',
   },
   {
     q: 'How does client portal access work?',
-    a: 'Clients log in with a magic link sent to their email — no password, no app to download. They see only their projects. Nothing internal is visible to them.',
+    a: 'Clients log in with a magic link sent to their email - no password, no app to download. They see only their projects. Nothing internal is visible to them.',
   },
   {
     q: 'What does "AI tokens on us" actually mean?',
-    a: 'You don\'t pay separately for AI usage. All AI features — design review, dev QA, chatbot, image generation, Client Brain, outreach email writing — are included in your monthly fee.',
+    a: 'You don\'t pay separately for AI usage. All AI features - design review, dev QA, chatbot, image generation, Client Brain, outreach email writing - are included in your monthly fee.',
   },
   {
     q: 'What happens after the 2-week trial?',
@@ -25,11 +25,11 @@ const faqs = [
   },
   {
     q: 'Who are the weekly calls with on the Elite plan?',
-    a: 'Ziv Raviv, who built KM Boards to run his own agency and now offers it as a product. Calls are group sessions where Elite members bring real agency challenges — positioning, team structure, delivery process, pricing.',
+    a: 'Ziv Raviv, who built KM Boards to run his own agency and now offers it as a product. Calls are group sessions where Elite members bring real agency challenges - positioning, team structure, delivery process, pricing.',
   },
   {
     q: 'Does it work for agencies that aren\'t in design/dev?',
-    a: 'Yes. The board system is flexible — copy-only agencies, social media agencies, SEO agencies, and video production shops all use it. You pick which board types you need.',
+    a: 'Yes. The board system is flexible - copy-only agencies, social media agencies, SEO agencies, and video production shops all use it. You pick which board types you need.',
   },
   {
     q: 'Can I give clients their own login?',

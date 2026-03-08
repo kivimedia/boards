@@ -30,7 +30,7 @@ export default function ShockFeatures() {
       ),
       label: 'Client Brain',
       headline: 'Your AI that actually knows each client.',
-      body: 'Every client gets their own AI brain trained on past approved work. Ask it to write copy and it writes in their voice — not a generic one.',
+      body: 'Every client gets their own AI brain trained on past approved work. Ask it to write copy and it writes in their voice - not a generic one.',
       color: 'emerald',
     },
   ];

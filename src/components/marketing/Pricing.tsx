@@ -54,7 +54,7 @@ export default function Pricing() {
               href="/signup"
               className="block w-full text-center bg-blue-500 hover:bg-blue-400 text-white px-6 py-3.5 rounded-xl font-semibold transition-colors mb-8"
             >
-              Start Free — 2 Weeks
+              Start Free - 2 Weeks
             </a>
 
             <ul className="space-y-3">
@@ -92,7 +92,7 @@ export default function Pricing() {
                 href="/signup?plan=elite"
                 className="block w-full text-center bg-gradient-to-r from-blue-500 to-violet-500 hover:from-blue-400 hover:to-violet-400 text-white px-6 py-3.5 rounded-xl font-semibold transition-all mb-8 shadow-[0_0_30px_rgba(59,130,246,0.3)]"
               >
-                Start Free — 2 Weeks
+                Start Free - 2 Weeks
               </a>
 
               <ul className="space-y-3">
@@ -115,7 +115,7 @@ export default function Pricing() {
                   <div>
                     <p className="text-white text-xs font-semibold mb-1">Weekly calls with Ziv Raviv</p>
                     <p className="text-slate-400 text-xs leading-relaxed">
-                      Ziv built KM Boards for his own agency. Elite members get direct access to group strategy sessions — positioning, pricing, delivery, and team ops.
+                      Ziv built KM Boards for his own agency. Elite members get direct access to group strategy sessions - positioning, pricing, delivery, and team ops.
                     </p>
                   </div>
                 </div>

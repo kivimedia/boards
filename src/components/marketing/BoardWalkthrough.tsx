@@ -10,7 +10,7 @@ const tabs = [
     headline: 'Design reviews that close themselves.',
     bullets: [
       'Fields built for design: deliverable type, asset link, revision round',
-      'AI Design Review button on every card — pass/fail per change request',
+      'AI Design Review button on every card - pass/fail per change request',
       'Nano Banana image generation inside the card',
       'Cover images auto-set from the latest attachment',
       'Video frame extraction for motion design reviews',
@@ -18,9 +18,9 @@ const tabs = [
     visual: {
       columns: ['Briefing', 'In Progress', 'In Review', 'Approved'],
       cards: [
-        { col: 2, title: 'Social banner — Spring campaign', badge: 'AI: PASS ✓', badgeColor: 'emerald', round: 'Round 1 of 1' },
+        { col: 2, title: 'Social banner - Spring campaign', badge: 'AI: PASS ✓', badgeColor: 'emerald', round: 'Round 1 of 1' },
         { col: 1, title: 'Brand guide update v2', badge: null, round: 'Round 3 of 3' },
-        { col: 3, title: 'Email template — newsletter', badge: null, round: null },
+        { col: 3, title: 'Email template - newsletter', badge: null, round: null },
       ],
     },
   },
@@ -33,13 +33,13 @@ const tabs = [
       'Automated Lighthouse / WCAG / visual regression before tickets close',
       'Broken link scanning included',
       'Performance score trends tracked over time',
-      'Visual diff — see exactly which pixels changed',
+      'Visual diff - see exactly which pixels changed',
       'QA runs on schedule, not just when you remember to check',
     ],
     visual: {
       columns: ['Backlog', 'In Dev', 'Dev QA', 'Shipped'],
       cards: [
-        { col: 2, title: 'Landing page — Acme Corp', badge: 'Lighthouse 94', badgeColor: 'blue', round: 'WCAG AA ✓' },
+        { col: 2, title: 'Landing page - Acme Corp', badge: 'Lighthouse 94', badgeColor: 'blue', round: 'WCAG AA ✓' },
         { col: 1, title: 'Mobile nav fix', badge: null, round: null },
         { col: 3, title: 'Checkout flow redesign', badge: 'QA Running', badgeColor: 'yellow', round: null },
       ],
@@ -60,9 +60,9 @@ const tabs = [
     visual: {
       columns: ['Briefed', 'Drafting', 'Review', 'Live'],
       cards: [
-        { col: 1, title: 'Q2 email sequence — 5 emails', badge: 'Brain Draft Ready', badgeColor: 'violet', round: null },
+        { col: 1, title: 'Q2 email sequence - 5 emails', badge: 'Brain Draft Ready', badgeColor: 'violet', round: null },
         { col: 2, title: 'About page rewrite', badge: null, round: '847 words' },
-        { col: 3, title: 'Google Ads copy — 12 variants', badge: null, round: null },
+        { col: 3, title: 'Google Ads copy - 12 variants', badge: null, round: null },
       ],
     },
   },
@@ -72,9 +72,9 @@ const tabs = [
     icon: '🔗',
     headline: 'Clients who feel informed don\'t micromanage.',
     bullets: [
-      'Private portal — clients see only their projects',
+      'Private portal - clients see only their projects',
       'Submit requests, approve work, track progress',
-      'Magic link login — no password, no training needed',
+      'Magic link login - no password, no training needed',
       'Gantt view so clients understand timelines',
       'Built-in satisfaction surveys',
     ],
@@ -83,7 +83,7 @@ const tabs = [
       cards: [
         { col: 0, title: 'Internal: Margin analysis for Q2', badge: 'Hidden from client', badgeColor: 'red', round: null },
         { col: 0, title: 'Internal: Competitor teardown', badge: 'Hidden from client', badgeColor: 'red', round: null },
-        { col: 2, title: 'Homepage refresh — Spring', badge: 'In Review', badgeColor: 'blue', round: null },
+        { col: 2, title: 'Homepage refresh - Spring', badge: 'In Review', badgeColor: 'blue', round: null },
         { col: 2, title: 'Google Ads copy v2', badge: 'Awaiting Approval', badgeColor: 'yellow', round: null },
       ],
     },

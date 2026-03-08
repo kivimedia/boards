@@ -38,7 +38,7 @@ export default function MarketingNav() {
             href="#pricing"
             className="bg-blue-500 hover:bg-blue-400 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
           >
-            Start Free — 2 Weeks
+            Start Free - 2 Weeks
           </a>
         </div>
 
@@ -68,7 +68,7 @@ export default function MarketingNav() {
             className="bg-blue-500 text-white px-5 py-2.5 rounded-lg text-sm font-medium text-center"
             onClick={() => setMobileOpen(false)}
           >
-            Start Free — 2 Weeks
+            Start Free - 2 Weeks
           </a>
         </div>
       )}
