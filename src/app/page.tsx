@@ -1,77 +1,58 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import Sidebar from '@/components/layout/Sidebar';
-import Header from '@/components/layout/Header';
-import DashboardContent from '@/components/board/DashboardContent';
-import DashboardSearchBar from '@/components/dashboard/DashboardSearchBar';
+import MarketingNav from '@/components/marketing/MarketingNav';
+import Hero from '@/components/marketing/Hero';
+import ShockFeatures from '@/components/marketing/ShockFeatures';
+import BoardWalkthrough from '@/components/marketing/BoardWalkthrough';
+import FeatureRows from '@/components/marketing/FeatureRows';
+import ObjHandling from '@/components/marketing/ObjHandling';
+import Pricing from '@/components/marketing/Pricing';
+import FAQ from '@/components/marketing/FAQ';
+import FinalCTA from '@/components/marketing/FinalCTA';
 
-export default async function DashboardPage() {
+export const metadata = {
+  title: 'KM Boards — Project Management Built for Marketing Agencies',
+  description: 'The project board marketing agencies actually deserve. AI design review, Figma-to-WordPress page builder, client portal, and more. Try free for 2 weeks.',
+};
+
+export default async function LandingPage() {
   const supabase = createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) {
-    redirect('/login');
+  // Authenticated users go straight to the dashboard
+  if (user) {
+    redirect('/dashboard');
   }
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  const weekEnd = new Date();
-  weekEnd.setDate(weekEnd.getDate() + 7);
-  const weekEndStr = weekEnd.toISOString().split('T')[0];
-
-  // Parallel fetches for boards + stats
-  const [boardsRes, assignedRes, overdueRes, dueWeekRes, recentActivityRes] = await Promise.all([
-    supabase.from('boards').select('*').order('created_at', { ascending: true }),
-    // Cards assigned to user
-    supabase
-      .from('card_assignees')
-      .select('card_id, cards(id, title, due_date, priority)')
-      .eq('user_id', user.id),
-    // Overdue cards assigned to user
-    supabase
-      .from('card_assignees')
-      .select('card_id, cards!inner(id, title, due_date)')
-      .eq('user_id', user.id)
-      .lt('cards.due_date', todayStr)
-      .not('cards.due_date', 'is', null),
-    // Due this week
-    supabase
-      .from('card_assignees')
-      .select('card_id, cards!inner(id, title, due_date)')
-      .eq('user_id', user.id)
-      .gte('cards.due_date', todayStr)
-      .lt('cards.due_date', weekEndStr),
-    // Recent activity (last 10 comments across boards)
-    supabase
-      .from('comments')
-      .select('id, content, created_at, card_id, user_id, cards(title), profiles:user_id(display_name, avatar_url)')
-      .order('created_at', { ascending: false })
-      .limit(8),
-  ]);
-
-  const stats = {
-    assignedCount: (assignedRes.data || []).length,
-    overdueCount: (overdueRes.data || []).length,
-    dueThisWeekCount: (dueWeekRes.data || []).length,
-    recentActivity: (recentActivityRes.data || []).map((c: any) => ({
-      id: c.id,
-      content: c.content?.slice(0, 100) || '',
-      created_at: c.created_at,
-      card_id: c.card_id,
-      card_title: c.cards?.title || '',
-      user_name: c.profiles?.display_name || 'Unknown',
-      user_avatar: c.profiles?.avatar_url || null,
-    })),
-  };
-
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar initialBoards={boardsRes.data || []} />
-      <main className="flex-1 flex flex-col overflow-hidden">
-        <Header title="Boards">
-          <DashboardSearchBar />
-        </Header>
-        <DashboardContent initialBoards={boardsRes.data || []} stats={stats} />
-      </main>
+    <div className="bg-[#0b1221] min-h-screen">
+      <MarketingNav />
+      <Hero />
+      <ShockFeatures />
+      <BoardWalkthrough />
+      <FeatureRows />
+      <ObjHandling />
+      <Pricing />
+      <FAQ />
+      <FinalCTA />
+
+      {/* Footer */}
+      <footer className="bg-[#080e1a] border-t border-slate-800 py-10 px-6">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-md bg-blue-500 flex items-center justify-center">
+              <span className="text-white font-bold text-xs">KM</span>
+            </div>
+            <span className="text-slate-400 text-sm">KM Boards by Kivi Media</span>
+          </div>
+          <div className="flex items-center gap-6 text-slate-500 text-sm">
+            <a href="/login" className="hover:text-slate-300 transition-colors">Sign In</a>
+            <a href="/signup" className="hover:text-slate-300 transition-colors">Sign Up</a>
+            <a href="mailto:ziv@dailycookie.co" className="hover:text-slate-300 transition-colors">Contact</a>
+          </div>
+          <p className="text-slate-600 text-xs">© 2026 Kivi Media. All rights reserved.</p>
+        </div>
+      </footer>
     </div>
   );
 }
