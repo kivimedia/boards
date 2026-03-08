@@ -243,6 +243,7 @@ export default function BoardList({ list, index, boardId, boardName, allLists, o
                         cover_image_url={placement.cover_image_url || null}
                         boardId={boardId}
                         boardName={boardName}
+                        listName={list.name}
                         onRefresh={onRefresh}
                       />
                       {!snapshot.isDraggingOver && (

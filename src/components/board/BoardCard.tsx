@@ -25,6 +25,7 @@ interface BoardCardProps {
   cover_image_url?: string | null;
   boardId?: string;
   boardName?: string;
+  listName?: string;
   onRefresh?: () => void;
 }
 
@@ -69,6 +70,7 @@ export default function BoardCard({
   cover_image_url,
   boardId,
   boardName,
+  listName,
   onRefresh,
 }: BoardCardProps) {
   const [showQuickEdit, setShowQuickEdit] = useState(false);
@@ -357,6 +359,17 @@ export default function BoardCard({
                     {' '}{card.approval_status === 'revision_requested' ? 'Revision' : card.approval_status.charAt(0).toUpperCase() + card.approval_status.slice(1)}
                   </span>
                 </div>
+              )}
+
+              {/* Position breadcrumb */}
+              {(boardName || listName) && (
+                <p className="text-[10px] text-navy/35 dark:text-slate-500 font-body truncate mb-1">
+                  {boardName && <span>{boardName}</span>}
+                  {boardName && listName && <span className="mx-0.5">&rsaquo;</span>}
+                  {listName && <span>{listName}</span>}
+                  <span className="mx-0.5">&rsaquo;</span>
+                  <span className="font-semibold">#{index + 1}</span>
+                </p>
               )}
 
               {/* Title */}
