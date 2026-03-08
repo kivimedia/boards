@@ -395,24 +395,31 @@ function TaskItem({
   }, [task.completed, onUpdate]);
 
   const taskColor = task.color ? TASK_COLORS[task.color] : null;
-  const priorityColor = PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.medium;
-  const dotClass = taskColor?.dot || priorityColor.dot;
+  const PRIORITY_HEX: Record<string, string> = { high: '#fb923c', medium: '#6366f1', low: '#4ade80' };
+  const barHex = taskColor?.bar || PRIORITY_HEX[task.priority] || PRIORITY_HEX.medium;
 
   return (
-    <div className={`group flex items-center gap-1.5 px-1.5 py-1 rounded-md transition-colors relative ${
-      task.completed ? 'opacity-50' : 'hover:bg-cream/60 dark:hover:bg-slate-800/40'
-    }`}>
+    <div
+      className={`group flex items-center gap-1.5 pl-0 pr-1.5 py-1 rounded-md transition-colors relative border-l-[3px] ${
+        task.completed ? 'opacity-50' : 'hover:bg-cream/60 dark:hover:bg-slate-800/40'
+      }`}
+      style={{
+        borderLeftColor: barHex,
+        backgroundColor: task.color && !task.completed ? `${barHex}08` : undefined,
+      }}
+    >
       {/* Confetti */}
       {showConfetti && <MiniConfetti />}
 
-      {/* Color dot (clickable for admin) */}
-      <div className="relative" ref={colorRef}>
+      {/* Color indicator (clickable for admin) */}
+      <div className="relative pl-1" ref={colorRef}>
         <button
           type="button"
           onClick={() => !isClientView && setShowColorPicker(v => !v)}
-          className={`w-2.5 h-2.5 rounded-full shrink-0 ${dotClass} transition-colors ring-1 ring-black/5 ${
+          className={`w-2 h-2 rounded-full shrink-0 transition-colors ${
             isClientView ? '' : 'hover:ring-2 hover:ring-electric/40 cursor-pointer'
           }`}
+          style={{ backgroundColor: barHex }}
           title={task.color ? `Color: ${task.color}` : `Priority: ${task.priority}`}
         />
         {showColorPicker && !isClientView && (

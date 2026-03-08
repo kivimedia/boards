@@ -131,16 +131,22 @@ export default function WeeklyGanttBoard({
     if (!plan) return;
     const dayStart = dayIndex === 0 ? 0 : dayIndex;
     const dayEnd = dayIndex === 0 ? 0 : dayIndex;
-    const res = await fetch(`${basePath}/${plan.id}/tasks`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, day_start: dayStart, day_end: dayEnd }),
-    });
-    const json = await res.json();
-    if (json.data) {
-      const updated = { ...plan, tasks: [...plan.tasks, json.data] };
-      setPlan(updated);
-      weekCache.current.set(weekStart, updated);
+    try {
+      const res = await fetch(`${basePath}/${plan.id}/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, day_start: dayStart, day_end: dayEnd }),
+      });
+      const json = await res.json();
+      if (json.data) {
+        const updated = { ...plan, tasks: [...plan.tasks, json.data] };
+        setPlan(updated);
+        weekCache.current.set(weekStart, updated);
+      } else {
+        console.error('Failed to save task:', json.error);
+      }
+    } catch (err) {
+      console.error('Failed to save task:', err);
     }
   };
 
