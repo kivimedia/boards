@@ -29,76 +29,84 @@ export default function CrossBoardDashboard() {
   useEffect(() => {
     const fetchDashboardData = async () => {
       setLoading(true);
+      try {
+        // Fetch all boards
+        const { data: boards } = await supabase
+          .from('boards')
+          .select('*')
+          .order('created_at', { ascending: true });
 
-      // Fetch all boards
-      const { data: boards } = await supabase
-        .from('boards')
-        .select('*')
-        .order('created_at', { ascending: true });
+        if (!boards || boards.length === 0) {
+          setBoardSummaries([]);
+          setLoading(false);
+          return;
+        }
 
-      if (!boards || boards.length === 0) {
-        setBoardSummaries([]);
-        setLoading(false);
-        return;
-      }
-
-      const summaries: BoardSummary[] = [];
-
-      for (const board of boards) {
-        // Fetch lists with card counts
-        const { data: lists } = await supabase
+        // Batch: fetch all lists at once
+        const { data: allLists } = await supabase
           .from('lists')
-          .select('id, name, position')
-          .eq('board_id', board.id)
+          .select('id, name, position, board_id')
           .order('position', { ascending: true });
 
-        if (!lists) {
-          summaries.push({
-            board,
-            totalCards: 0,
-            lists: [],
-            recentlyMoved: 0,
-          });
-          continue;
+        // Batch: count cards per list using a single query with group by
+        const { data: placementCounts } = await supabase
+          .from('card_placements')
+          .select('list_id');
+
+        // Build a count map from placements
+        const listCardCounts = new Map<string, number>();
+        if (placementCounts) {
+          for (const p of placementCounts) {
+            listCardCounts.set(p.list_id, (listCardCounts.get(p.list_id) || 0) + 1);
+          }
         }
 
-        const listSummaries: ListSummary[] = [];
-        let totalCards = 0;
-
-        for (const list of lists) {
-          const { count } = await supabase
-            .from('card_placements')
-            .select('*', { count: 'exact', head: true })
-            .eq('list_id', list.id);
-
-          const cardCount = count || 0;
-          totalCards += cardCount;
-          listSummaries.push({
-            id: list.id,
-            name: list.name,
-            cardCount,
-          });
-        }
-
-        // Count recently moved cards (activity logs in last 24h)
+        // Batch: count recently moved cards per board (last 24h)
         const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-        const { count: recentCount } = await supabase
+        const { data: recentMoves } = await supabase
           .from('activity_log')
-          .select('*', { count: 'exact', head: true })
-          .eq('board_id', board.id)
+          .select('board_id')
           .eq('event_type', 'card_moved')
           .gte('created_at', oneDayAgo);
 
-        summaries.push({
-          board,
-          totalCards,
-          lists: listSummaries,
-          recentlyMoved: recentCount || 0,
-        });
-      }
+        const recentMoveCounts = new Map<string, number>();
+        if (recentMoves) {
+          for (const m of recentMoves) {
+            recentMoveCounts.set(m.board_id, (recentMoveCounts.get(m.board_id) || 0) + 1);
+          }
+        }
 
-      setBoardSummaries(summaries);
-      setLoading(false);
+        // Group lists by board
+        const listsByBoard = new Map<string, typeof allLists>();
+        for (const list of allLists || []) {
+          if (!listsByBoard.has(list.board_id)) listsByBoard.set(list.board_id, []);
+          listsByBoard.get(list.board_id)!.push(list);
+        }
+
+        // Assemble summaries
+        const summaries: BoardSummary[] = boards.map((board) => {
+          const boardLists = listsByBoard.get(board.id) || [];
+          let totalCards = 0;
+          const listSummaries: ListSummary[] = boardLists.map((list) => {
+            const cardCount = listCardCounts.get(list.id) || 0;
+            totalCards += cardCount;
+            return { id: list.id, name: list.name, cardCount };
+          });
+          return {
+            board,
+            totalCards,
+            lists: listSummaries,
+            recentlyMoved: recentMoveCounts.get(board.id) || 0,
+          };
+        });
+
+        setBoardSummaries(summaries);
+      } catch (err) {
+        console.error('Dashboard fetch failed:', err);
+        setBoardSummaries([]);
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchDashboardData();
