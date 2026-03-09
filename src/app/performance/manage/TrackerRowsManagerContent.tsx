@@ -137,6 +137,8 @@ export default function TrackerRowsManagerContent({
   const [savingRowId, setSavingRowId] = useState<string | null>(null);
   const [deletingRowId, setDeletingRowId] = useState<string | null>(null);
   const [openActionsRowId, setOpenActionsRowId] = useState<string | null>(null);
+  const [showManageMenu, setShowManageMenu] = useState(false);
+  const [createItemMode, setCreateItemMode] = useState(false);
   const [bulkActionsMode, setBulkActionsMode] = useState(false);
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -267,6 +269,7 @@ export default function TrackerRowsManagerContent({
     loading,
     selectedGroup,
     openActionsRowId,
+    createItemMode,
     bulkActionsMode,
     selectedRowIds.length,
     canManage,
@@ -471,6 +474,16 @@ export default function TrackerRowsManagerContent({
       }
       return next;
     });
+    setCreateItemMode(false);
+    setShowManageMenu(false);
+    setOpenActionsRowId(null);
+  };
+
+  const toggleCreateItemMode = () => {
+    setCreateItemMode((current) => !current);
+    setBulkActionsMode(false);
+    setSelectedRowIds([]);
+    setShowManageMenu(false);
     setOpenActionsRowId(null);
   };
 
@@ -595,13 +608,34 @@ export default function TrackerRowsManagerContent({
                       : `Delete Selected (${selectedRowIds.length})`}
                   </button>
                 )}
-                <button
-                  onClick={toggleBulkActionsMode}
-                  disabled={!selectedGroup}
-                  className="text-xs text-electric hover:text-electric/80 font-medium disabled:text-navy/30 dark:disabled:text-white/30 disabled:cursor-not-allowed"
-                >
-                  {bulkActionsMode ? 'Done' : 'Bulk Actions'}
-                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowManageMenu((current) => !current)}
+                    disabled={!selectedGroup}
+                    className="text-xs px-2 py-1 rounded border border-cream-dark/70 dark:border-white/20 text-navy/70 dark:text-white/70 hover:bg-cream-dark/30 dark:hover:bg-white/10 disabled:text-navy/30 dark:disabled:text-white/30 disabled:cursor-not-allowed"
+                    aria-label="Manage actions"
+                  >
+                    ...
+                  </button>
+                  {showManageMenu && (
+                    <div className="absolute right-0 mt-1 min-w-[140px] rounded-md border border-cream-dark/70 dark:border-white/20 bg-white dark:bg-navy-light shadow-lg z-20 p-1">
+                      <button
+                        type="button"
+                        onClick={toggleBulkActionsMode}
+                        className="w-full text-left text-[11px] px-2 py-1 rounded text-navy dark:text-white hover:bg-cream-dark/30 dark:hover:bg-white/10"
+                      >
+                        {bulkActionsMode ? 'Done Removing' : 'Remove Item'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={toggleCreateItemMode}
+                        className="w-full text-left text-[11px] px-2 py-1 rounded text-navy dark:text-white hover:bg-cream-dark/30 dark:hover:bg-white/10"
+                      >
+                        {createItemMode ? 'Done Creating' : 'Create Item'}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <button
@@ -671,7 +705,7 @@ export default function TrackerRowsManagerContent({
                 </tr>
               </thead>
               <tbody>
-                {canManage && (
+                {canManage && createItemMode && (
                   <tr className="bg-blue-50/70 dark:bg-blue-500/10 border-b border-cream-dark/30 dark:border-white/5">
                     {config.columns.map((field) => (
                       <td
