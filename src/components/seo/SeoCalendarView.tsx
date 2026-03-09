@@ -179,20 +179,53 @@ export default function SeoCalendarView({ configs }: Props) {
   const handleLaunchSelected = async () => {
     if (!selectedCalendarId || selectedItems.size === 0) return;
     setLaunching(true);
+    setError(null);
     try {
       const res = await fetch(`/api/seo/calendars/${selectedCalendarId}/launch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ item_ids: Array.from(selectedItems) }),
       });
-      if (res.ok) {
-        setSelectedItems(new Set());
-        fetchItems();
+
+      const payload = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        const failedCount = Array.isArray(payload?.failed)
+          ? payload.failed.length
+          : Array.isArray(payload?.data?.failed)
+            ? payload.data.failed.length
+            : 0;
+        const message = payload?.error || `Failed to send selected topic${selectedItems.size > 1 ? 's' : ''} to writing agent`;
+        setError(failedCount > 0 ? `${message} (${failedCount} failed)` : message);
+        return;
+      }
+
+      const data = payload?.data || payload || {};
+      const launchedRuns = Array.isArray(data.runs) ? data.runs : [];
+      const failedItems = Array.isArray(data.failed) ? data.failed : [];
+      const launchedIds = new Set<string>(
+        launchedRuns.map((r: { item_id?: string }) => r.item_id).filter((id: string | undefined): id is string => Boolean(id))
+      );
+
+      if (launchedIds.size > 0) {
+        setSelectedItems(prev => {
+          const next = new Set(prev);
+          for (const id of launchedIds) next.delete(id);
+          return next;
+        });
+      }
+
+      await fetchItems();
+
+      if (failedItems.length > 0) {
+        setError(`${failedItems.length} topic${failedItems.length > 1 ? 's' : ''} failed to send to writing agent. Please retry those item(s).`);
       }
     } catch (err) {
       console.error('Failed to launch items:', err);
+      setError(err instanceof Error ? err.message : 'Failed to send selected topics to writing agent');
+    } finally {
+      setLaunching(false);
     }
-    setLaunching(false);
   };
 
   // Skip selected items

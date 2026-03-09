@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getAuthContext, successResponse, errorResponse, parseBody } from '@/lib/api-helpers';
 import { createPipelineRun } from '@/lib/seo/create-pipeline-run';
 
@@ -33,9 +33,19 @@ export async function POST(request: NextRequest, { params }: Params) {
   if (!items?.length) return errorResponse('No launchable items found', 400);
 
   const results: Array<{ item_id: string; run_id: string; job_id: string }> = [];
+  const failures: Array<{ item_id: string; topic: string; error: string }> = [];
 
   for (const item of items) {
     try {
+      if (!item.team_config_id) {
+        failures.push({
+          item_id: item.id,
+          topic: item.topic,
+          error: 'Missing team_config_id on calendar item',
+        });
+        continue;
+      }
+
       // Build assignment with images + context for the writing agent
       const itemImages = Array.isArray(item.images) ? item.images : [];
       const assignment: Record<string, unknown> = {};
@@ -58,21 +68,61 @@ export async function POST(request: NextRequest, { params }: Params) {
         assignment: Object.keys(assignment).length > 0 ? assignment : null,
       });
 
-      await supabase
+      const runId = run.id as string;
+      if (!runId) throw new Error('Pipeline run created without a valid run ID');
+
+      const { error: itemUpdateErr } = await supabase
         .from('seo_calendar_items')
         .update({
           status: 'launched',
-          run_id: run.id,
+          run_id: runId,
           launched_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         .eq('id', item.id);
 
-      results.push({ item_id: item.id, run_id: run.id as string, job_id: jobId });
+      if (itemUpdateErr) {
+        // Prevent orphaned processing if run was created but calendar item failed to link.
+        await supabase.from('seo_pipeline_runs').update({ status: 'scrapped' }).eq('id', runId);
+        await supabase
+          .from('vps_jobs')
+          .update({ status: 'paused', error: `Calendar launch failed to link item: ${itemUpdateErr.message}` })
+          .eq('id', jobId);
+        throw new Error(`Failed to mark calendar item launched: ${itemUpdateErr.message}`);
+      }
+
+      results.push({ item_id: item.id, run_id: runId, job_id: jobId });
     } catch (err) {
       console.error(`[seo] Failed to launch item ${item.id}:`, err);
+      failures.push({
+        item_id: item.id,
+        topic: item.topic,
+        error: err instanceof Error ? err.message : 'Unknown launch error',
+      });
     }
   }
 
-  return successResponse({ launched: results.length, runs: results });
+  if (results.length === 0) {
+    return NextResponse.json(
+      {
+        error: failures[0]?.error || 'Failed to launch selected items',
+        launched: 0,
+        failed: failures,
+      },
+      { status: 500 }
+    );
+  }
+
+  if (failures.length > 0) {
+    return successResponse(
+      {
+        launched: results.length,
+        runs: results,
+        failed: failures,
+      },
+      207
+    );
+  }
+
+  return successResponse({ launched: results.length, runs: results, failed: [] });
 }

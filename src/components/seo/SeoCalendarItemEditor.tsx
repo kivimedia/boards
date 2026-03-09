@@ -27,6 +27,7 @@ export default function SeoCalendarItemEditor({ item, calendarId, silos, onClose
   const [launchingSingle, setLaunchingSingle] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isEditable = item.status === 'planned';
@@ -101,17 +102,41 @@ export default function SeoCalendarItemEditor({ item, calendarId, silos, onClose
 
   const handleLaunch = async () => {
     setLaunchingSingle(true);
+    setActionError(null);
     try {
       const res = await fetch(`/api/seo/calendars/${calendarId}/launch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ item_ids: [item.id] }),
       });
-      if (res.ok) onSaved();
+
+      const payload = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setActionError(payload?.error || 'Failed to send topic to writing agent');
+        return;
+      }
+
+      const data = payload?.data || payload || {};
+      const launched = Number(data?.launched || 0);
+      const failedCount = Array.isArray(data?.failed) ? data.failed.length : 0;
+
+      if (launched > 0) {
+        onSaved();
+        return;
+      }
+
+      if (failedCount > 0) {
+        setActionError(data.failed[0]?.error || 'Failed to send topic to writing agent');
+      } else {
+        setActionError('No topic was launched. Please try again.');
+      }
     } catch (err) {
       console.error('Failed to launch item:', err);
+      setActionError(err instanceof Error ? err.message : 'Failed to send topic to writing agent');
+    } finally {
+      setLaunchingSingle(false);
     }
-    setLaunchingSingle(false);
   };
 
   const addKeyword = () => {
@@ -471,6 +496,12 @@ export default function SeoCalendarItemEditor({ item, calendarId, silos, onClose
               <p className="text-xs text-navy/30 dark:text-slate-500 font-body">No images attached</p>
             )}
           </div>
+
+          {actionError && (
+            <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300 font-body">
+              {actionError}
+            </div>
+          )}
 
           {/* Actions */}
           <div className="border-t border-cream-dark dark:border-slate-700 pt-4 flex items-center gap-3">
