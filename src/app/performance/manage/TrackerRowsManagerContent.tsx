@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   TrackerManageConfig,
   TrackerManageField,
@@ -139,6 +139,10 @@ export default function TrackerRowsManagerContent({
   const [openActionsRowId, setOpenActionsRowId] = useState<string | null>(null);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [statusText, setStatusText] = useState<string | null>(null);
+  const [showTopScrollbar, setShowTopScrollbar] = useState(false);
+  const topScrollbarRef = useRef<HTMLDivElement | null>(null);
+  const topScrollbarSpacerRef = useRef<HTMLDivElement | null>(null);
+  const tableScrollerRef = useRef<HTMLDivElement | null>(null);
 
   const groupField = config.groupBy.field;
   const groupQueryParam = config.groupBy.queryParam;
@@ -220,6 +224,94 @@ export default function TrackerRowsManagerContent({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedGroup, config.trackerType]);
+
+  const syncTopScrollbarMetrics = useCallback(() => {
+    const tableScroller = tableScrollerRef.current;
+    const topSpacer = topScrollbarSpacerRef.current;
+    const topScroller = topScrollbarRef.current;
+    if (!tableScroller) return;
+
+    const hasOverflow = tableScroller.scrollWidth > tableScroller.clientWidth + 2;
+    setShowTopScrollbar(hasOverflow);
+    if (topSpacer) {
+      topSpacer.style.width = `${tableScroller.scrollWidth}px`;
+    }
+
+    if (topScroller) {
+      if (!hasOverflow) {
+        topScroller.scrollLeft = 0;
+      } else {
+        topScroller.scrollLeft = tableScroller.scrollLeft;
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    syncTopScrollbarMetrics();
+  }, [
+    syncTopScrollbarMetrics,
+    rows,
+    loading,
+    selectedGroup,
+    openActionsRowId,
+    canManage,
+    config.columns.length,
+    showTopScrollbar,
+  ]);
+
+  useEffect(() => {
+    const onResize = () => syncTopScrollbarMetrics();
+    window.addEventListener('resize', onResize);
+
+    const tableScroller = tableScrollerRef.current;
+    let observer: ResizeObserver | null = null;
+
+    if (typeof ResizeObserver !== 'undefined' && tableScroller) {
+      observer = new ResizeObserver(() => syncTopScrollbarMetrics());
+      observer.observe(tableScroller);
+      if (tableScroller.firstElementChild instanceof HTMLElement) {
+        observer.observe(tableScroller.firstElementChild);
+      }
+    }
+
+    return () => {
+      window.removeEventListener('resize', onResize);
+      observer?.disconnect();
+    };
+  }, [syncTopScrollbarMetrics]);
+
+  useEffect(() => {
+    if (!showTopScrollbar) return;
+    const topScroller = topScrollbarRef.current;
+    const tableScroller = tableScrollerRef.current;
+    if (!topScroller || !tableScroller) return;
+
+    let syncingFromTop = false;
+    let syncingFromBottom = false;
+
+    const onTopScroll = () => {
+      if (syncingFromBottom) return;
+      syncingFromTop = true;
+      tableScroller.scrollLeft = topScroller.scrollLeft;
+      syncingFromTop = false;
+    };
+
+    const onTableScroll = () => {
+      if (syncingFromTop) return;
+      syncingFromBottom = true;
+      topScroller.scrollLeft = tableScroller.scrollLeft;
+      syncingFromBottom = false;
+    };
+
+    topScroller.addEventListener('scroll', onTopScroll);
+    tableScroller.addEventListener('scroll', onTableScroll);
+    topScroller.scrollLeft = tableScroller.scrollLeft;
+
+    return () => {
+      topScroller.removeEventListener('scroll', onTopScroll);
+      tableScroller.removeEventListener('scroll', onTableScroll);
+    };
+  }, [showTopScrollbar]);
 
   const updateDraft = (rowId: string, key: string, value: string) => {
     setDrafts((prev) => ({
@@ -418,7 +510,20 @@ export default function TrackerRowsManagerContent({
             </div>
           )}
 
-          <div className="overflow-x-auto border border-cream-dark/50 dark:border-white/10 rounded-lg">
+          {showTopScrollbar && (
+            <div
+              ref={topScrollbarRef}
+              className="mb-2 overflow-x-auto overflow-y-hidden border border-cream-dark/50 dark:border-white/10 rounded-lg"
+              aria-label="Top horizontal scroll"
+            >
+              <div ref={topScrollbarSpacerRef} className="h-4 min-w-full" />
+            </div>
+          )}
+
+          <div
+            ref={tableScrollerRef}
+            className="overflow-x-auto border border-cream-dark/50 dark:border-white/10 rounded-lg"
+          >
             <table className="w-full text-xs">
               <thead>
                 <tr className="bg-cream-dark/20 dark:bg-white/5 border-b border-cream-dark/40 dark:border-white/10">
@@ -656,4 +761,3 @@ export default function TrackerRowsManagerContent({
     </div>
   );
 }
-
