@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server';
 import { getAuthContext, successResponse, errorResponse, parseBody } from '@/lib/api-helpers';
 import { PKTrackerType } from '@/lib/types';
-import { SupabaseClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
@@ -77,24 +76,6 @@ const CREATE_REQUIRED_FIELDS: Partial<Record<PKTrackerType, string[]>> = {
   google_ads_reports: ['month_label'],
   holiday_tracking: ['account_manager_name'],
 };
-
-async function hasWriteAccess(
-  supabase: SupabaseClient,
-  userId: string
-) {
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', userId)
-    .single();
-
-  if (profile?.role === 'admin') return true;
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if ((user?.email || '').toLowerCase() === 'devi@dailycookie.co') return true;
-
-  return false;
-}
 
 /**
  * GET /api/performance/tracker
@@ -194,12 +175,8 @@ export async function PATCH(request: NextRequest) {
   const parsed = await parseBody<UpdateTrackerRowBody>(request);
   if (!parsed.ok) return parsed.response;
 
-  const { supabase, userId } = auth.ctx;
+  const { supabase } = auth.ctx;
   const { type, id, patch } = parsed.body;
-
-  if (!(await hasWriteAccess(supabase, userId))) {
-    return errorResponse('Access denied', 403);
-  }
 
   if (!type || !TRACKER_TABLES[type]) {
     return errorResponse(
@@ -252,12 +229,8 @@ export async function POST(request: NextRequest) {
   const parsed = await parseBody<CreateTrackerRowBody>(request);
   if (!parsed.ok) return parsed.response;
 
-  const { supabase, userId } = auth.ctx;
+  const { supabase } = auth.ctx;
   const { type, row } = parsed.body;
-
-  if (!(await hasWriteAccess(supabase, userId))) {
-    return errorResponse('Access denied', 403);
-  }
 
   if (!type || !TRACKER_TABLES[type]) {
     return errorResponse(
@@ -323,12 +296,8 @@ export async function DELETE(request: NextRequest) {
   const parsed = await parseBody<DeleteTrackerRowBody>(request);
   if (!parsed.ok) return parsed.response;
 
-  const { supabase, userId } = auth.ctx;
+  const { supabase } = auth.ctx;
   const { type, id } = parsed.body;
-
-  if (!(await hasWriteAccess(supabase, userId))) {
-    return errorResponse('Access denied', 403);
-  }
 
   if (!type || !TRACKER_TABLES[type]) {
     return errorResponse(
