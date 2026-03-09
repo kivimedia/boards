@@ -78,6 +78,9 @@ export default function ManageClientUpdatesContent({
   const [savingRowId, setSavingRowId] = useState<string | null>(null);
   const [deletingRowId, setDeletingRowId] = useState<string | null>(null);
   const [openActionsRowId, setOpenActionsRowId] = useState<string | null>(null);
+  const [bulkActionsMode, setBulkActionsMode] = useState(false);
+  const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [statusText, setStatusText] = useState<string | null>(null);
 
@@ -85,6 +88,12 @@ export default function ManageClientUpdatesContent({
     () => Array.from(new Set(amNames.map((n) => n.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
     [amNames]
   );
+  const selectableRowIds = useMemo(
+    () => rows.map((row) => (row.id ? String(row.id) : '')).filter(Boolean),
+    [rows]
+  );
+  const allSelectableRowsSelected =
+    selectableRowIds.length > 0 && selectableRowIds.every((id) => selectedRowIds.includes(id));
 
   const loadRows = async (am = selectedAm) => {
     if (!am) {
@@ -113,6 +122,10 @@ export default function ManageClientUpdatesContent({
       const payload = json.data || json;
       const nextRows = payload.rows || [];
       setRows(nextRows);
+      const nextRowIds = new Set(
+        nextRows.map((row: Record<string, unknown>) => (row.id ? String(row.id) : '')).filter(Boolean)
+      );
+      setSelectedRowIds((prev) => prev.filter((id) => nextRowIds.has(id)));
 
       const nextDrafts: Record<string, ClientUpdateDraft> = {};
       for (const row of nextRows) {
@@ -264,6 +277,80 @@ export default function ManageClientUpdatesContent({
     }
   };
 
+  const toggleBulkActionsMode = () => {
+    setBulkActionsMode((current) => {
+      const next = !current;
+      if (!next) {
+        setSelectedRowIds([]);
+      }
+      return next;
+    });
+    setOpenActionsRowId(null);
+  };
+
+  const toggleRowSelection = (rowId: string) => {
+    setSelectedRowIds((prev) =>
+      prev.includes(rowId) ? prev.filter((id) => id !== rowId) : [...prev, rowId]
+    );
+  };
+
+  const toggleSelectAllRows = () => {
+    if (allSelectableRowsSelected) {
+      setSelectedRowIds([]);
+      return;
+    }
+    setSelectedRowIds(selectableRowIds);
+  };
+
+  const deleteSelectedRows = async () => {
+    if (selectedRowIds.length === 0) {
+      setErrorText('Select at least one row to delete.');
+      return;
+    }
+
+    setBulkDeleting(true);
+    setErrorText(null);
+    setStatusText(null);
+
+    try {
+      const results = await Promise.allSettled(
+        selectedRowIds.map(async (rowId) => {
+          const res = await fetch('/api/performance/tracker', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'client_updates',
+              id: rowId,
+            }),
+          });
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            throw new Error(json.error || `Failed to delete row ${rowId}`);
+          }
+        })
+      );
+
+      const failed = results.filter((result) => result.status === 'rejected');
+      const successCount = results.length - failed.length;
+
+      if (failed.length > 0) {
+        const firstFailure = failed[0] as PromiseRejectedResult;
+        const reason = firstFailure.reason instanceof Error
+          ? firstFailure.reason.message
+          : 'One or more rows failed to delete.';
+        setErrorText(`${reason} Deleted ${successCount} of ${results.length} selected rows.`);
+      } else {
+        setStatusText(`Deleted ${successCount} selected row${successCount === 1 ? '' : 's'}.`);
+      }
+
+      setSelectedRowIds([]);
+      setOpenActionsRowId(null);
+      await loadRows(selectedAm);
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   return (
     <div className="flex-1 overflow-auto p-6">
       <div className="max-w-7xl mx-auto space-y-4">
@@ -299,13 +386,40 @@ export default function ManageClientUpdatesContent({
             <h3 className="text-sm font-semibold text-navy dark:text-white">
               {selectedAm ? `Client Updates - ${selectedAm}` : 'Client Updates'}
             </h3>
-            <button
-              onClick={() => loadRows(selectedAm)}
-              disabled={loading || !selectedAm}
-              className="text-xs text-electric hover:text-electric/80 font-medium"
-            >
-              {loading ? 'Loading...' : 'Refresh'}
-            </button>
+            {canManage ? (
+              <div className="flex items-center gap-2">
+                {bulkActionsMode && (
+                  <button
+                    onClick={() => void deleteSelectedRows()}
+                    disabled={bulkDeleting || selectedRowIds.length === 0}
+                    className={`text-xs px-2 py-1 rounded ${
+                      bulkDeleting || selectedRowIds.length === 0
+                        ? 'bg-red-100 dark:bg-red-500/20 text-red-300 dark:text-red-500/40 cursor-not-allowed'
+                        : 'bg-red-600 text-white hover:bg-red-700'
+                    }`}
+                  >
+                    {bulkDeleting
+                      ? 'Deleting...'
+                      : `Delete Selected (${selectedRowIds.length})`}
+                  </button>
+                )}
+                <button
+                  onClick={toggleBulkActionsMode}
+                  disabled={!selectedAm}
+                  className="text-xs text-electric hover:text-electric/80 font-medium disabled:text-navy/30 dark:disabled:text-white/30 disabled:cursor-not-allowed"
+                >
+                  {bulkActionsMode ? 'Done' : 'Bulk Actions'}
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => loadRows(selectedAm)}
+                disabled={loading || !selectedAm}
+                className="text-xs text-electric hover:text-electric/80 font-medium"
+              >
+                {loading ? 'Loading...' : 'Refresh'}
+              </button>
+            )}
           </div>
 
           {statusText && (
@@ -331,7 +445,21 @@ export default function ManageClientUpdatesContent({
                   <th className="text-left px-2 py-2 font-medium text-navy/60 dark:text-white/50">Method</th>
                   <th className="text-left px-2 py-2 font-medium text-navy/60 dark:text-white/50">Notes</th>
                   {canManage && (
-                    <th className="text-right px-2 py-2 font-medium text-navy/60 dark:text-white/50">Actions</th>
+                    <th className="text-right px-2 py-2 font-medium text-navy/60 dark:text-white/50">
+                      {bulkActionsMode ? (
+                        <label className="inline-flex items-center gap-1 justify-end cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={allSelectableRowsSelected}
+                            onChange={toggleSelectAllRows}
+                            className="rounded border-cream-dark/70 dark:border-white/20"
+                          />
+                          <span>Select</span>
+                        </label>
+                      ) : (
+                        'Actions'
+                      )}
+                    </th>
                   )}
                 </tr>
               </thead>
@@ -497,52 +625,64 @@ export default function ManageClientUpdatesContent({
                         {canManage && (
                           <td className="px-2 py-2 text-right min-w-[120px]">
                             {rowId ? (
-                              <div className="relative inline-flex items-center justify-end">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setOpenActionsRowId((current) => (current === rowId ? null : rowId))
-                                  }
-                                  disabled={isSaving || isDeleting}
-                                  className={`text-[11px] px-2 py-1 rounded border border-cream-dark/70 dark:border-white/20 ${
-                                    isSaving || isDeleting
-                                      ? 'text-navy/40 dark:text-white/40 cursor-not-allowed'
-                                      : 'text-navy/70 dark:text-white/70 hover:bg-cream-dark/30 dark:hover:bg-white/10'
-                                  }`}
-                                  aria-label="Open actions"
-                                >
-                                  ...
-                                </button>
+                              bulkActionsMode ? (
+                                <label className="inline-flex items-center justify-end gap-1 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedRowIds.includes(rowId)}
+                                    onChange={() => toggleRowSelection(rowId)}
+                                    className="rounded border-cream-dark/70 dark:border-white/20"
+                                  />
+                                  <span className="text-[11px] text-navy/60 dark:text-white/50">Row</span>
+                                </label>
+                              ) : (
+                                <div className="relative inline-flex items-center justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setOpenActionsRowId((current) => (current === rowId ? null : rowId))
+                                    }
+                                    disabled={isSaving || isDeleting}
+                                    className={`text-[11px] px-2 py-1 rounded border border-cream-dark/70 dark:border-white/20 ${
+                                      isSaving || isDeleting
+                                        ? 'text-navy/40 dark:text-white/40 cursor-not-allowed'
+                                        : 'text-navy/70 dark:text-white/70 hover:bg-cream-dark/30 dark:hover:bg-white/10'
+                                    }`}
+                                    aria-label="Open actions"
+                                  >
+                                    ...
+                                  </button>
 
-                                {openActionsRowId === rowId && (
-                                  <div className="absolute top-full right-0 mt-1 min-w-[110px] rounded-md border border-cream-dark/70 dark:border-white/20 bg-white dark:bg-navy-light shadow-lg z-20 p-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => void saveRow(rowId)}
-                                      disabled={isSaving}
-                                      className={`w-full text-left text-[11px] px-2 py-1 rounded ${
-                                        isSaving
-                                          ? 'text-navy/40 dark:text-white/40 cursor-not-allowed'
-                                          : 'text-navy dark:text-white hover:bg-cream-dark/30 dark:hover:bg-white/10'
-                                      }`}
-                                    >
-                                      {isSaving ? 'Saving...' : 'Save'}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => void deleteRow(rowId)}
-                                      disabled={isDeleting}
-                                      className={`w-full text-left text-[11px] px-2 py-1 rounded ${
-                                        isDeleting
-                                          ? 'text-red-300 dark:text-red-500/40 cursor-not-allowed'
-                                          : 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10'
-                                      }`}
-                                    >
-                                      {isDeleting ? 'Deleting...' : 'Delete'}
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
+                                  {openActionsRowId === rowId && (
+                                    <div className="absolute top-full right-0 mt-1 min-w-[110px] rounded-md border border-cream-dark/70 dark:border-white/20 bg-white dark:bg-navy-light shadow-lg z-20 p-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => void saveRow(rowId)}
+                                        disabled={isSaving}
+                                        className={`w-full text-left text-[11px] px-2 py-1 rounded ${
+                                          isSaving
+                                            ? 'text-navy/40 dark:text-white/40 cursor-not-allowed'
+                                            : 'text-navy dark:text-white hover:bg-cream-dark/30 dark:hover:bg-white/10'
+                                        }`}
+                                      >
+                                        {isSaving ? 'Saving...' : 'Save'}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => void deleteRow(rowId)}
+                                        disabled={isDeleting}
+                                        className={`w-full text-left text-[11px] px-2 py-1 rounded ${
+                                          isDeleting
+                                            ? 'text-red-300 dark:text-red-500/40 cursor-not-allowed'
+                                            : 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10'
+                                        }`}
+                                      >
+                                        {isDeleting ? 'Deleting...' : 'Delete'}
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              )
                             ) : (
                               <span className="text-[11px] text-navy/40 dark:text-white/30">No ID</span>
                             )}
