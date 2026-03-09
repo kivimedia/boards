@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef, DragEvent } from 'react';
+import { useEffect, useState, useCallback, useRef, DragEvent, isValidElement, cloneElement, type ReactNode } from 'react';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -211,6 +211,40 @@ function cleanDraftContent(text: string): string {
     // Remove lines that are only whitespace after stripping
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+const SUGGESTION_REGEX = /(\[IMAGE:\s*[^\]]+\])/gi;
+const SUGGESTION_COLOR = '#dc2626';
+const LINK_COLOR = '#78ac37';
+
+function highlightSuggestionTokens(node: ReactNode, keyPrefix = 'suggestion'): ReactNode {
+  if (typeof node === 'string') {
+    const parts = node.split(SUGGESTION_REGEX);
+    if (parts.length === 1) return node;
+    return parts.map((part, index) => {
+      if (/^\[IMAGE:\s*[^\]]+\]$/i.test(part)) {
+        return (
+          <span key={`${keyPrefix}-${index}`} style={{ color: SUGGESTION_COLOR, fontWeight: 600 }}>
+            {part}
+          </span>
+        );
+      }
+      return part;
+    });
+  }
+
+  if (Array.isArray(node)) {
+    return node.map((child, index) => highlightSuggestionTokens(child, `${keyPrefix}-${index}`));
+  }
+
+  if (isValidElement(node) && node.props && 'children' in node.props) {
+    return cloneElement(node, {
+      ...node.props,
+      children: highlightSuggestionTokens((node.props as { children?: ReactNode }).children, keyPrefix),
+    });
+  }
+
+  return node;
 }
 
 // ---------------------------------------------------------------------------
@@ -746,11 +780,41 @@ export default function SeoRunDetail({ runId }: Props) {
         resolvedHref = `${siteUrl}${resolvedHref}`;
       }
       return (
-        <a {...props} href={resolvedHref} target="_blank" rel="noopener noreferrer">
+        <a
+          {...props}
+          href={resolvedHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: LINK_COLOR, textDecoration: 'underline' }}
+        >
           {children}
         </a>
       );
     },
+    p: ({ children, ...props }: React.HTMLAttributes<HTMLParagraphElement>) => (
+      <p {...props}>{highlightSuggestionTokens(children)}</p>
+    ),
+    li: ({ children, ...props }: React.LiHTMLAttributes<HTMLLIElement>) => (
+      <li {...props}>{highlightSuggestionTokens(children)}</li>
+    ),
+    td: ({ children, ...props }: React.TdHTMLAttributes<HTMLTableCellElement>) => (
+      <td {...props}>{highlightSuggestionTokens(children)}</td>
+    ),
+    th: ({ children, ...props }: React.ThHTMLAttributes<HTMLTableHeaderCellElement>) => (
+      <th {...props}>{highlightSuggestionTokens(children)}</th>
+    ),
+    h1: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => (
+      <h1 {...props}>{highlightSuggestionTokens(children)}</h1>
+    ),
+    h2: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => (
+      <h2 {...props}>{highlightSuggestionTokens(children)}</h2>
+    ),
+    h3: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => (
+      <h3 {...props}>{highlightSuggestionTokens(children)}</h3>
+    ),
+    h4: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => (
+      <h4 {...props}>{highlightSuggestionTokens(children)}</h4>
+    ),
   };
 
   return (
