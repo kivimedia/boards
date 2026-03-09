@@ -20,6 +20,7 @@ const PHASE_TO_STATUS: Record<string, SeoPipelineStatus> = {
   planning: 'planning',
   plan_review: 'awaiting_plan_review',
   writing: 'writing',
+  image_sourcing: 'awaiting_images',
   qc: 'scoring',
   humanizing: 'humanizing',
   scoring: 'scoring',
@@ -30,7 +31,7 @@ const PHASE_TO_STATUS: Record<string, SeoPipelineStatus> = {
 };
 
 export const PHASE_ORDER: string[] = [
-  'planning', 'plan_review', 'writing', 'qc', 'humanizing', 'scoring',
+  'planning', 'plan_review', 'writing', 'image_sourcing', 'qc', 'humanizing', 'scoring',
   'gate1', 'publishing', 'visual_qa', 'gate2',
 ];
 
@@ -182,8 +183,8 @@ export async function runPhase(
   if (!PHASE_ORDER.includes(phase)) {
     throw new Error(`Unknown phase: ${phase}. Valid: ${PHASE_ORDER.join(', ')}`);
   }
-  if (phase === 'gate1' || phase === 'gate2' || phase === 'plan_review') {
-    throw new Error(`Gate phases (${phase}) require human input. Use submitGateDecision() instead.`);
+  if (phase === 'gate1' || phase === 'gate2' || phase === 'plan_review' || phase === 'image_sourcing') {
+    throw new Error(`Phase ${phase} requires human interaction and cannot be run directly.`);
   }
 
   const { data: run, error } = await supabase

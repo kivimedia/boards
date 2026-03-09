@@ -193,7 +193,7 @@ export async function POST(
       updates.gate1_decided_by = userId;
       updates.gate1_decided_at = now;
 
-      // Create VPS job to resume pipeline from publishing phase (index 7)
+      // Create VPS job to resume pipeline from publishing phase (index 8)
       const { data: job } = await supabase
         .from('vps_jobs')
         .insert({
@@ -203,7 +203,7 @@ export async function POST(
           payload: {
             team_config_id: run.team_config_id,
             pipeline_run_id: id,
-            resume_from_phase: 7, // publishing (after gate1 at index 6)
+            resume_from_phase: 8, // publishing (after gate1 at index 7)
           },
         })
         .select('id')
@@ -259,7 +259,7 @@ export async function POST(
       updates.gate2_decided_by = userId;
       updates.gate2_decided_at = now;
 
-      // Create VPS job to re-run visual_qa (index 8)
+      // Create VPS job to re-run visual_qa (index 9)
       const { data: job } = await supabase
         .from('vps_jobs')
         .insert({
@@ -269,7 +269,7 @@ export async function POST(
           payload: {
             team_config_id: run.team_config_id,
             pipeline_run_id: id,
-            resume_from_phase: 8, // visual_qa
+            resume_from_phase: 9, // visual_qa
             feedback: feedback_text || null,
           },
         })

@@ -14,6 +14,7 @@ const STATUS_COLORS: Record<string, string> = {
   planning: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
   awaiting_plan_review: 'bg-electric/10 text-electric dark:bg-electric/20 dark:text-blue-300',
   writing: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+  awaiting_images: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
   humanizing: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
   scoring: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300',
   awaiting_approval_1: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
@@ -205,7 +206,7 @@ export default function SeoDashboard() {
                   <p className="text-sm font-semibold text-navy dark:text-white font-heading truncate">{run.topic || 'Untitled'}</p>
                   <p className="text-xs text-navy/50 dark:text-slate-400 font-body">
                     {run.team_config?.site_name && <span className="mr-2">{run.team_config.site_name}</span>}
-                    {run.status === 'awaiting_plan_review' ? 'Plan Review' : run.status === 'awaiting_approval_1' ? 'Gate 1: Content Review' : 'Gate 2: Published Post Review'}
+                    {run.status === 'awaiting_plan_review' ? 'Plan Review' : run.status === 'awaiting_images' ? 'Images Needed' : run.status === 'awaiting_approval_1' ? 'Gate 1: Content Review' : 'Gate 2: Published Post Review'}
                   </p>
                 </div>
                 <StatusBadge status={run.status} />

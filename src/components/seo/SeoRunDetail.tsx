@@ -15,6 +15,7 @@ const PHASES = [
   { key: 'planning', label: 'Planning', icon: '📊' },
   { key: 'awaiting_plan_review', label: 'Plan Review', icon: '📋' },
   { key: 'writing', label: 'Writing', icon: '✍️' },
+  { key: 'awaiting_images', label: 'Images', icon: '📸' },
   { key: 'scoring', label: 'QC', icon: '✅' },
   { key: 'humanizing', label: 'Humanizing', icon: '🧑' },
   { key: 'awaiting_approval_1', label: 'Gate 1', icon: '🚦' },
@@ -1322,6 +1323,125 @@ export default function SeoRunDetail({ runId }: Props) {
           </div>
         </div>
       )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Image Sourcing Panel (awaiting_images) */}
+      {/* ------------------------------------------------------------------ */}
+      {run.status === 'awaiting_images' && (() => {
+        const imgData = run.artifacts?.image_sourcing as {
+          requests?: Array<{ code: string; description: string; index: number }>;
+          slack_message_sent?: boolean;
+          collected_images?: Array<{ code: string; description: string; filename: string }>;
+          matched_count?: number;
+        } | undefined;
+        const requests = imgData?.requests || [];
+        const slackSent = imgData?.slack_message_sent || false;
+        const collected = imgData?.collected_images || [];
+
+        return (
+          <div className="bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800 rounded-xl overflow-hidden">
+            <div className="px-5 py-4">
+              <h2 className="text-base font-bold text-orange-800 dark:text-orange-300 mb-1 font-heading">
+                Image Requests ({requests.length})
+              </h2>
+              <p className="text-sm text-orange-700 dark:text-orange-400 mb-4 font-body">
+                The writing agent identified {requests.length} image(s) needed for this post.
+                {!slackSent
+                  ? ' Send the request to your Slack channel, then collect images after the team uploads them.'
+                  : ' Waiting for team to upload images to Slack. Click "Collect Images" when ready.'}
+              </p>
+
+              {/* Image request list */}
+              <div className="space-y-2 mb-4">
+                {requests.map((req) => (
+                  <div key={req.code} className="flex items-start gap-3 p-3 bg-white dark:bg-dark-card rounded-lg border border-orange-100 dark:border-slate-700">
+                    <span className="px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 text-xs font-mono font-bold rounded shrink-0">
+                      {req.code}
+                    </span>
+                    <p className="text-sm text-navy dark:text-slate-200 font-body">{req.description}</p>
+                    {collected.find(c => c.code === req.code) && (
+                      <span className="ml-auto text-green-600 text-xs font-semibold shrink-0">Matched</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-3">
+                {!slackSent ? (
+                  <button
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(`/api/seo/runs/${runId}/images/request`, {
+                          method: 'POST',
+                        });
+                        if (res.ok) {
+                          fetchRun(); // Refresh to show updated state
+                        } else {
+                          const data = await res.json();
+                          alert(data.error || 'Failed to send Slack message');
+                        }
+                      } catch {
+                        alert('Failed to send Slack message');
+                      }
+                    }}
+                    className="px-4 py-2 text-sm font-semibold text-white bg-orange-600 rounded-lg hover:bg-orange-700 transition-colors font-body"
+                  >
+                    Send to Slack
+                  </button>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(`/api/seo/runs/${runId}/images/collect`, {
+                          method: 'POST',
+                        });
+                        if (res.ok) {
+                          const data = await res.json();
+                          const d = data.data;
+                          alert(`Collected ${d.collected_count} image(s) from Slack (${d.unmatched_count} unmatched). Pipeline resuming to QC phase.`);
+                          fetchRun();
+                        } else {
+                          const data = await res.json();
+                          alert(data.error || 'Failed to collect images');
+                        }
+                      } catch {
+                        alert('Failed to collect images');
+                      }
+                    }}
+                    className="px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors font-body"
+                  >
+                    Collect Images & Continue
+                  </button>
+                )}
+
+                {/* Skip button - continue without images */}
+                <button
+                  onClick={async () => {
+                    if (!confirm('Skip image sourcing and continue to QC without images?')) return;
+                    try {
+                      const res = await fetch(`/api/seo/runs/${runId}/images/collect`, {
+                        method: 'POST',
+                      });
+                      if (res.ok) {
+                        fetchRun();
+                      } else {
+                        const data = await res.json();
+                        alert(data.error || 'Failed to skip');
+                      }
+                    } catch {
+                      alert('Failed to skip');
+                    }
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-orange-600 dark:text-orange-400 bg-white dark:bg-dark-surface border border-orange-200 dark:border-orange-800 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors font-body"
+                >
+                  Skip Images
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ------------------------------------------------------------------ */}
       {/* Review Panel (plan review, gate1, gate2) */}

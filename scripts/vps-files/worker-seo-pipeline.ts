@@ -7,6 +7,84 @@ import { PHASE_SYSTEM_PROMPTS, PHASE_MODELS } from '../shared/seo-prompts.js';
 import type { SeoPipelineRun, SeoTeamConfig } from '../shared/types.js';
 
 // ============================================================================
+// Image Sourcing - extract [IMAGE: ...] tags and send Slack requests
+// ============================================================================
+
+const IMAGE_TAG_REGEX = /\[IMAGE:\s*([^\]]+)\]/gi;
+
+interface ImageRequest {
+  code: string;      // e.g. "IMG-a1b2-1"
+  description: string; // what was inside [IMAGE: ...]
+  index: number;
+}
+
+function extractImageRequests(content: string, runIdShort: string): ImageRequest[] {
+  const requests: ImageRequest[] = [];
+  let match;
+  let idx = 1;
+  while ((match = IMAGE_TAG_REGEX.exec(content)) !== null) {
+    requests.push({
+      code: `IMG-${runIdShort}-${idx}`,
+      description: match[1].trim(),
+      index: idx,
+    });
+    idx++;
+  }
+  return requests;
+}
+
+function buildSlackImageRequestMessage(
+  requests: ImageRequest[],
+  topic: string,
+  siteName: string
+): string {
+  const lines = [
+    `*Image Request for Blog Post*`,
+    `Site: ${siteName}`,
+    `Topic: _${topic}_`,
+    ``,
+    `The writing agent needs ${requests.length} image(s) for this post. Please upload images to this channel with the reference code in your message so we can match them.`,
+    ``,
+  ];
+
+  for (const req of requests) {
+    lines.push(`*\`${req.code}\`* - ${req.description}`);
+  }
+
+  lines.push(
+    ``,
+    `When uploading, include the code (e.g. \`${requests[0]?.code || 'IMG-xxxx-1'}\`) in your message so the agent can match images to the right spots.`,
+    ``,
+    `After all images are uploaded, click "Collect Images" in the pipeline dashboard to continue.`
+  );
+
+  return lines.join('\n');
+}
+
+async function sendSlackImageRequests(
+  teamConfig: SeoTeamConfig,
+  requests: ImageRequest[],
+  topic: string,
+  runId: string
+): Promise<{ ok: boolean; thread_ts?: string; error?: string }> {
+  const slackCreds = teamConfig.slack_credentials;
+  if (!slackCreds?.channel_id || !slackCreds?.access_token_encrypted) {
+    return { ok: false, error: 'No Slack credentials configured for this team' };
+  }
+
+  // We need to decrypt and get a valid token - use the Vercel API helper via direct Slack call
+  // Since VPS worker doesn't have the encryption module, call Slack with the encrypted token
+  // Actually, the VPS worker DOES have access to the same encryption env vars
+  // But to keep it simple, we'll use a direct API call through Supabase edge function
+  // OR - we can inline the token refresh logic here
+
+  // Simplest approach: store the message request in DB and let the Vercel API handle sending
+  // This avoids duplicating encryption logic on VPS
+
+  return { ok: true }; // Placeholder - actual sending done via API
+}
+
+// ============================================================================
 // User Message Builders (contextual prompts per phase)
 // ============================================================================
 
@@ -74,6 +152,11 @@ function buildUserMessage(phase: string, run: SeoPipelineRun, opts?: BuildMessag
         'Follow all writing rules, brand voice guidelines, and SEO requirements from your instructions.',
         'IMPORTANT: Never use em dashes (—) or en dashes (–) anywhere in the output. Use commas, periods, or rewrite the sentence instead.',
         'Mark protected zones around keyword placements, internal links, and factual claims.',
+        '',
+        'IMAGE PLACEHOLDERS: Where a visual would enhance the post, insert [IMAGE: brief description of needed image].',
+        'Examples: [IMAGE: close-up of tent fabric waterproof coating], [IMAGE: team setting up event tent].',
+        'These will be sent to the team for real photos. Place 2-4 image tags throughout the post in logical locations.',
+        '',
         'Output the complete blog post in markdown format with slug and meta_description at the top.',
       ];
       if (opts?.sitemapUrls && opts.sitemapUrls.length > 0) {
@@ -379,6 +462,66 @@ export async function processSeoJob(job: Job<SeoJobData>): Promise<{ paused_at?:
         });
         console.log(`[seo] Job ${vps_job_id} paused at ${phase}`);
         return { paused_at: phase };
+      }
+
+      // Image sourcing phase - extract image requests from writing output and pause
+      if (phase === 'image_sourcing') {
+        // Re-fetch run to get latest writing content
+        const { data: latestRun } = await supabase
+          .from('seo_pipeline_runs')
+          .select('phase_results, final_content, topic, artifacts')
+          .eq('id', pipeline_run_id)
+          .single();
+
+        const writingContent = latestRun?.final_content || latestRun?.phase_results?.writing || '';
+        const runIdShort = pipeline_run_id.slice(0, 8);
+        const imageRequests = extractImageRequests(String(writingContent), runIdShort);
+
+        if (imageRequests.length === 0) {
+          // No image tags found - skip this phase entirely
+          console.log(`[seo] No [IMAGE: ...] tags found in writing output, skipping image_sourcing`);
+          await updateJobProgress(vps_job_id, {
+            current_step: i,
+            total_steps: PHASE_ORDER.length,
+            progress_message: 'No images needed - skipping image sourcing',
+          });
+          continue;
+        }
+
+        // Store image requests in phase_results and artifacts
+        const imageSourceData = {
+          requests: imageRequests,
+          requested_at: new Date().toISOString(),
+          slack_message_sent: false,
+          collected: false,
+        };
+
+        await supabase
+          .from('seo_pipeline_runs')
+          .update({
+            status: 'awaiting_images',
+            current_phase: i,
+            phase_results: {
+              ...(latestRun?.phase_results || {}),
+              image_sourcing: JSON.stringify(imageSourceData),
+            },
+            artifacts: {
+              ...(latestRun?.artifacts || {}),
+              image_sourcing: imageSourceData,
+            },
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', pipeline_run_id);
+
+        await markJobPaused(vps_job_id, 'Waiting for image uploads');
+        await updateJobProgress(vps_job_id, {
+          current_step: i,
+          total_steps: PHASE_ORDER.length,
+          progress_message: `Paused - ${imageRequests.length} image(s) requested via Slack`,
+        });
+
+        console.log(`[seo] Job ${vps_job_id} paused at image_sourcing - ${imageRequests.length} images needed`);
+        return { paused_at: 'image_sourcing' };
       }
 
       // Report progress

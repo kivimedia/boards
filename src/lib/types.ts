@@ -3297,6 +3297,7 @@ export type SeoPipelineStatus =
   | 'planning'
   | 'awaiting_plan_review'
   | 'writing'
+  | 'awaiting_images'
   | 'humanizing'
   | 'scoring'
   | 'awaiting_approval_1'
