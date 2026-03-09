@@ -6,6 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { MarkdownToolbarUI } from '@/components/card/MarkdownToolbar';
 import type { SeoPipelineRun, SeoAgentCall, SeoPhaseFeedback, SeoReviewAttachment } from '@/lib/types';
+import SeoChat from './SeoChat';
 
 // ---------------------------------------------------------------------------
 // Phase timeline config
@@ -1612,6 +1613,9 @@ export default function SeoRunDetail({ runId }: Props) {
           )}
         </div>
       )}
+
+      {/* SEO Orchestrator Chat */}
+      <SeoChat runId={runId} runTopic={run?.topic || undefined} />
     </div>
   );
 }

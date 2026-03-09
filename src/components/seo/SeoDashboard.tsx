@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import type { SeoPipelineRun, SeoTeamConfig } from '@/lib/types';
 import SeoCalendarView from './SeoCalendarView';
+import SeoChat from './SeoChat';
 
 type DashboardTab = 'runs' | 'calendar';
 
@@ -399,6 +400,9 @@ export default function SeoDashboard() {
           </div>
         </div>
       )}
+
+      {/* SEO Orchestrator Chat */}
+      <SeoChat />
     </div>
   );
 }
