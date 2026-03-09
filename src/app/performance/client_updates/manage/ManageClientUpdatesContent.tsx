@@ -120,6 +120,7 @@ export default function ManageClientUpdatesContent({
         am,
         limit: '1000',
         offset: '0',
+        sort: 'date_sent',
       });
       const res = await fetch(`/api/performance/tracker?${params.toString()}`);
       const json = await res.json().catch(() => ({}));
@@ -200,7 +201,14 @@ export default function ManageClientUpdatesContent({
         throw new Error(json.error || 'Failed to save row');
       }
 
-      setStatusText('Row saved.');
+      const ignoredColumns = Array.isArray(json?.data?.ignored_columns)
+        ? json.data.ignored_columns as string[]
+        : [];
+      setStatusText(
+        ignoredColumns.length > 0
+          ? `Row saved. Ignored: ${ignoredColumns.join(', ')} (pending migration).`
+          : 'Row saved.'
+      );
       setOpenActionsRowId(null);
       await loadRows(selectedAm);
     } catch (err) {
@@ -246,7 +254,14 @@ export default function ManageClientUpdatesContent({
       const keepAm = newDraft.account_manager_name.trim();
       setSelectedAm(keepAm);
       setNewDraft(emptyDraft(keepAm));
-      setStatusText('Row added.');
+      const ignoredColumns = Array.isArray(json?.data?.ignored_columns)
+        ? json.data.ignored_columns as string[]
+        : [];
+      setStatusText(
+        ignoredColumns.length > 0
+          ? `Row added. Ignored: ${ignoredColumns.join(', ')} (pending migration).`
+          : 'Row added.'
+      );
       await loadRows(keepAm);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to add row';

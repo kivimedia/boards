@@ -200,6 +200,9 @@ export default function TrackerRowsManagerContent({
         limit: '1000',
         offset: '0',
       });
+      if (config.trackerType === 'client_updates') {
+        params.set('sort', 'date_sent');
+      }
       params.set(groupQueryParam, groupValue);
 
       const res = await fetch(`/api/performance/tracker?${params.toString()}`);
@@ -380,7 +383,14 @@ export default function TrackerRowsManagerContent({
         setGroupValues((prev) => [...prev, updatedGroupValue]);
       }
 
-      setStatusText('Row saved.');
+      const ignoredColumns = Array.isArray(json?.data?.ignored_columns)
+        ? json.data.ignored_columns as string[]
+        : [];
+      setStatusText(
+        ignoredColumns.length > 0
+          ? `Row saved. Ignored: ${ignoredColumns.join(', ')} (pending migration).`
+          : 'Row saved.'
+      );
       setOpenActionsRowId(null);
       await loadRows(selectedGroup);
     } catch (err) {
@@ -428,7 +438,14 @@ export default function TrackerRowsManagerContent({
 
       setSelectedGroup(nextGroupValue);
       setNewDraft(createEmptyDraft(nextGroupValue));
-      setStatusText('Row added.');
+      const ignoredColumns = Array.isArray(json?.data?.ignored_columns)
+        ? json.data.ignored_columns as string[]
+        : [];
+      setStatusText(
+        ignoredColumns.length > 0
+          ? `Row added. Ignored: ${ignoredColumns.join(', ')} (pending migration).`
+          : 'Row added.'
+      );
       await loadRows(nextGroupValue);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to add row';

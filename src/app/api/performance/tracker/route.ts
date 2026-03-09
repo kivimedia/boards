@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getAuthContext, successResponse, errorResponse, parseBody } from '@/lib/api-helpers';
 import { PKTrackerType } from '@/lib/types';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
@@ -77,6 +78,167 @@ const CREATE_REQUIRED_FIELDS: Partial<Record<PKTrackerType, string[]>> = {
   holiday_tracking: ['account_manager_name'],
 };
 
+function extractMissingColumnFromSchemaCacheError(message: string): string | null {
+  const match = message.match(/Could not find the '([^']+)' column/i);
+  return match?.[1] || null;
+}
+
+async function updateRowWithMissingColumnFallback(
+  supabase: SupabaseClient,
+  tableName: string,
+  id: string,
+  patch: Record<string, unknown>
+) {
+  let nextPatch = { ...patch };
+  let ignoredColumns: string[] = [];
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const { data, error } = await supabase
+      .from(tableName)
+      .update(nextPatch)
+      .eq('id', id.trim())
+      .select('*')
+      .single();
+
+    if (!error) return { data, ignoredColumns, error: null };
+
+    const missingColumn = extractMissingColumnFromSchemaCacheError(error.message || '');
+    if (!missingColumn || !Object.prototype.hasOwnProperty.call(nextPatch, missingColumn)) {
+      return { data: null, ignoredColumns, error };
+    }
+
+    delete nextPatch[missingColumn];
+    ignoredColumns = [...ignoredColumns, missingColumn];
+
+    if (Object.keys(nextPatch).length === 0) {
+      const { data: existingRow, error: readError } = await supabase
+        .from(tableName)
+        .select('*')
+        .eq('id', id.trim())
+        .single();
+
+      if (readError) {
+        return { data: null, ignoredColumns, error: readError };
+      }
+
+      return { data: existingRow, ignoredColumns, error: null };
+    }
+  }
+
+  return { data: null, ignoredColumns, error: { message: 'Failed to update row after fallback retries' } };
+}
+
+async function insertRowWithMissingColumnFallback(
+  supabase: SupabaseClient,
+  tableName: string,
+  row: Record<string, unknown>
+) {
+  let nextRow = { ...row };
+  let ignoredColumns: string[] = [];
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const { data, error } = await supabase
+      .from(tableName)
+      .insert(nextRow)
+      .select('*')
+      .single();
+
+    if (!error) return { data, ignoredColumns, error: null };
+
+    const missingColumn = extractMissingColumnFromSchemaCacheError(error.message || '');
+    if (!missingColumn || !Object.prototype.hasOwnProperty.call(nextRow, missingColumn)) {
+      return { data: null, ignoredColumns, error };
+    }
+
+    delete nextRow[missingColumn];
+    ignoredColumns = [...ignoredColumns, missingColumn];
+  }
+
+  return { data: null, ignoredColumns, error: { message: 'Failed to create row after fallback retries' } };
+}
+
+interface SelectTrackerRowsOptions {
+  tableName: string;
+  amFilter: string | null;
+  monthParam: string | null;
+  fromDate: string | null;
+  toDate: string | null;
+  dateCol?: string;
+  limit: number;
+  offset: number;
+  sortCol: string;
+  sortAscending: boolean;
+}
+
+async function selectTrackerRowsWithMissingColumnFallback(
+  supabase: SupabaseClient,
+  options: SelectTrackerRowsOptions
+) {
+  const ignoredColumns: string[] = [];
+  let nextSortCol = options.sortCol;
+  let useDateFilter = true;
+
+  const runQuery = async () => {
+    let query = supabase
+      .from(options.tableName)
+      .select('*', { count: 'exact' })
+      .order(nextSortCol, { ascending: options.sortAscending })
+      .range(options.offset, options.offset + options.limit - 1);
+
+    if (options.amFilter) {
+      query = query.eq('account_manager_name', options.amFilter);
+    }
+
+    if (options.monthParam) {
+      query = query.eq('month_label', options.monthParam);
+    }
+
+    if (useDateFilter && options.dateCol && options.fromDate) {
+      query = query.gte(options.dateCol, options.fromDate);
+    }
+    if (useDateFilter && options.dateCol && options.toDate) {
+      query = query.lte(options.dateCol, options.toDate);
+    }
+
+    return query;
+  };
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const { data, error, count } = await runQuery();
+    if (!error) {
+      return { data: data || [], count: count || 0, ignoredColumns, error: null };
+    }
+
+    const missingColumn = extractMissingColumnFromSchemaCacheError(error.message || '');
+    if (!missingColumn) {
+      return { data: [], count: 0, ignoredColumns, error };
+    }
+
+    let handled = false;
+    if (missingColumn === nextSortCol) {
+      nextSortCol = 'created_at';
+      handled = true;
+    }
+    if (useDateFilter && options.dateCol && missingColumn === options.dateCol) {
+      useDateFilter = false;
+      handled = true;
+    }
+
+    if (!handled || ignoredColumns.includes(missingColumn)) {
+      return { data: [], count: 0, ignoredColumns, error };
+    }
+
+    ignoredColumns.push(missingColumn);
+  }
+
+  return {
+    data: [],
+    count: 0,
+    ignoredColumns,
+    error: { message: 'Failed to query rows after fallback retries' },
+  };
+}
+
 /**
  * GET /api/performance/tracker
  * Query data from a specific PK tracker table.
@@ -113,43 +275,31 @@ export async function GET(request: NextRequest) {
   const offset = parseInt(searchParams.get('offset') || '0', 10);
   const sortCol = searchParams.get('sort') || DATE_COLUMNS[trackerType] || 'created_at';
   const sortOrder = searchParams.get('order') === 'asc' ? true : false;
-
-  let query = supabase
-    .from(tableName)
-    .select('*', { count: 'exact' })
-    .order(sortCol, { ascending: sortOrder })
-    .range(offset, offset + limit - 1);
-
-  // Filter by account manager name (most tracker tables have this column)
-  if (amFilter) {
-    query = query.eq('account_manager_name', amFilter);
-  }
-
-  // Filter by month label (for month-based trackers like google_ads_reports)
   const monthParam = searchParams.get('month');
-  if (monthParam) {
-    query = query.eq('month_label', monthParam);
-  }
-
-  // Date range filter
   const dateCol = DATE_COLUMNS[trackerType];
-  if (dateCol && fromDate) {
-    query = query.gte(dateCol, fromDate);
-  }
-  if (dateCol && toDate) {
-    query = query.lte(dateCol, toDate);
-  }
 
-  const { data, error, count } = await query;
+  const result = await selectTrackerRowsWithMissingColumnFallback(supabase, {
+    tableName,
+    amFilter,
+    monthParam,
+    fromDate,
+    toDate,
+    dateCol,
+    limit,
+    offset,
+    sortCol,
+    sortAscending: sortOrder,
+  });
 
-  if (error) return errorResponse(error.message, 500);
+  if (result.error) return errorResponse(result.error.message, 500);
 
   return successResponse({
     tracker_type: trackerType,
-    rows: data || [],
-    total: count || 0,
+    rows: result.data,
+    total: result.count,
     limit,
     offset,
+    ignored_columns: result.ignoredColumns,
   });
 }
 
@@ -201,16 +351,19 @@ export async function PATCH(request: NextRequest) {
   }
 
   const tableName = TRACKER_TABLES[type];
-  const { data, error } = await supabase
-    .from(tableName)
-    .update(safePatch)
-    .eq('id', id.trim())
-    .select('*')
-    .single();
+  const result = await updateRowWithMissingColumnFallback(
+    supabase,
+    tableName,
+    id,
+    safePatch
+  );
 
-  if (error) return errorResponse(error.message, 500);
+  if (result.error) return errorResponse(result.error.message, 500);
 
-  return successResponse({ row: data });
+  return successResponse({
+    row: result.data,
+    ignored_columns: result.ignoredColumns,
+  });
 }
 
 interface CreateTrackerRowBody {
@@ -269,15 +422,18 @@ export async function POST(request: NextRequest) {
   }
 
   const tableName = TRACKER_TABLES[type];
-  const { data, error } = await supabase
-    .from(tableName)
-    .insert(safeRow)
-    .select('*')
-    .single();
+  const result = await insertRowWithMissingColumnFallback(
+    supabase,
+    tableName,
+    safeRow
+  );
 
-  if (error) return errorResponse(error.message, 500);
+  if (result.error) return errorResponse(result.error.message, 500);
 
-  return successResponse({ row: data }, 201);
+  return successResponse({
+    row: result.data,
+    ignored_columns: result.ignoredColumns,
+  }, 201);
 }
 
 interface DeleteTrackerRowBody {
