@@ -137,6 +137,8 @@ export default function TrackerRowsManagerContent({
   const [savingRowId, setSavingRowId] = useState<string | null>(null);
   const [deletingRowId, setDeletingRowId] = useState<string | null>(null);
   const [openActionsRowId, setOpenActionsRowId] = useState<string | null>(null);
+  const [addingGroupValue, setAddingGroupValue] = useState(false);
+  const [newGroupValue, setNewGroupValue] = useState('');
   const [showManageMenu, setShowManageMenu] = useState(false);
   const [createItemMode, setCreateItemMode] = useState(false);
   const [bulkActionsMode, setBulkActionsMode] = useState(false);
@@ -501,6 +503,29 @@ export default function TrackerRowsManagerContent({
     setSelectedRowIds(selectableRowIds);
   };
 
+  const addGroupItem = () => {
+    const nextValue = newGroupValue.trim();
+    if (!nextValue) {
+      setErrorText(`${config.groupBy.itemLabel} name is required.`);
+      return;
+    }
+
+    const existing = sortedGroupValues.find(
+      (value) => value.toLowerCase() === nextValue.toLowerCase()
+    );
+    const selectedValue = existing || nextValue;
+
+    if (!existing) {
+      setGroupValues((prev) => [...prev, nextValue]);
+      setStatusText(`${config.groupBy.itemLabel} "${nextValue}" added.`);
+    }
+
+    setSelectedGroup(selectedValue);
+    setNewGroupValue('');
+    setAddingGroupValue(false);
+    setErrorText(null);
+  };
+
   const deleteSelectedRows = async () => {
     if (selectedRowIds.length === 0) {
       setErrorText('Select at least one row to delete.');
@@ -561,27 +586,71 @@ export default function TrackerRowsManagerContent({
             Select a {config.groupBy.itemLabel} to manage {config.label} rows.
           </p>
 
-          {sortedGroupValues.length === 0 ? (
+          {sortedGroupValues.length === 0 && (
             <p className="text-xs text-navy/50 dark:text-white/40 mt-3">
               No {config.groupBy.itemLabel}s found yet.
             </p>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 mt-3">
-              {sortedGroupValues.map((groupValue) => (
-                <button
-                  key={groupValue}
-                  onClick={() => setSelectedGroup(groupValue)}
-                  className={`px-3 py-2 rounded-lg text-xs text-left border transition-colors ${
-                    selectedGroup === groupValue
-                      ? 'bg-electric text-white border-electric'
-                      : 'bg-white dark:bg-white/5 border-cream-dark/70 dark:border-white/15 text-navy dark:text-white hover:border-electric/40'
-                  }`}
-                >
-                  {groupValue}
-                </button>
-              ))}
-            </div>
           )}
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 mt-3">
+            {sortedGroupValues.map((groupValue) => (
+              <button
+                key={groupValue}
+                onClick={() => setSelectedGroup(groupValue)}
+                className={`px-3 py-2 rounded-lg text-xs text-left border transition-colors ${
+                  selectedGroup === groupValue
+                    ? 'bg-electric text-white border-electric'
+                    : 'bg-white dark:bg-white/5 border-cream-dark/70 dark:border-white/15 text-navy dark:text-white hover:border-electric/40'
+                }`}
+              >
+                {groupValue}
+              </button>
+            ))}
+            {canManage && !addingGroupValue && (
+              <button
+                onClick={() => {
+                  setAddingGroupValue(true);
+                  setNewGroupValue('');
+                  setErrorText(null);
+                }}
+                className="px-3 py-2 rounded-lg text-xs text-left border border-dashed border-electric/50 text-electric hover:bg-electric/5 transition-colors"
+                aria-label={`Add ${config.groupBy.itemLabel}`}
+              >
+                +
+              </button>
+            )}
+            {canManage && addingGroupValue && (
+              <div className="col-span-2 md:col-span-2 lg:col-span-2 flex items-center gap-2 p-2 rounded-lg border border-cream-dark/70 dark:border-white/20 bg-white dark:bg-white/5">
+                <input
+                  value={newGroupValue}
+                  onChange={(e) => setNewGroupValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') addGroupItem();
+                    if (e.key === 'Escape') {
+                      setAddingGroupValue(false);
+                      setNewGroupValue('');
+                    }
+                  }}
+                  placeholder={`New ${config.groupBy.itemLabel}`}
+                  className={INPUT_CLASS}
+                />
+                <button
+                  onClick={addGroupItem}
+                  className="text-[11px] px-2 py-1 rounded bg-electric text-white hover:bg-electric/90"
+                >
+                  Add
+                </button>
+                <button
+                  onClick={() => {
+                    setAddingGroupValue(false);
+                    setNewGroupValue('');
+                  }}
+                  className="text-[11px] px-2 py-1 rounded border border-cream-dark/70 dark:border-white/20 text-navy/70 dark:text-white/70 hover:bg-cream-dark/30 dark:hover:bg-white/10"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="bg-white dark:bg-white/5 rounded-2xl border border-cream-dark/60 dark:border-white/10 p-4">

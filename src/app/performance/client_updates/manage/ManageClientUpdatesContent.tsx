@@ -82,6 +82,8 @@ export default function ManageClientUpdatesContent({
   const [savingRowId, setSavingRowId] = useState<string | null>(null);
   const [deletingRowId, setDeletingRowId] = useState<string | null>(null);
   const [openActionsRowId, setOpenActionsRowId] = useState<string | null>(null);
+  const [addingAm, setAddingAm] = useState(false);
+  const [newAmName, setNewAmName] = useState('');
   const [showManageMenu, setShowManageMenu] = useState(false);
   const [createItemMode, setCreateItemMode] = useState(false);
   const [bulkActionsMode, setBulkActionsMode] = useState(false);
@@ -318,6 +320,29 @@ export default function ManageClientUpdatesContent({
     setSelectedRowIds(selectableRowIds);
   };
 
+  const addAccountManager = () => {
+    const nextName = newAmName.trim();
+    if (!nextName) {
+      setErrorText('Account manager name is required.');
+      return;
+    }
+
+    const existing = sortedAmNames.find(
+      (name) => name.toLowerCase() === nextName.toLowerCase()
+    );
+    const selectedName = existing || nextName;
+
+    if (!existing) {
+      setAmNames((prev) => [...prev, nextName]);
+      setStatusText(`Account manager "${nextName}" added.`);
+    }
+
+    setSelectedAm(selectedName);
+    setNewAmName('');
+    setAddingAm(false);
+    setErrorText(null);
+  };
+
   const deleteSelectedRows = async () => {
     if (selectedRowIds.length === 0) {
       setErrorText('Select at least one row to delete.');
@@ -376,25 +401,69 @@ export default function ManageClientUpdatesContent({
             Select an account manager to manage Client Updates rows.
           </p>
 
-          {sortedAmNames.length === 0 ? (
+          {sortedAmNames.length === 0 && (
             <p className="text-xs text-navy/50 dark:text-white/40 mt-3">No account managers found yet.</p>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 mt-3">
-              {sortedAmNames.map((am) => (
-                <button
-                  key={am}
-                  onClick={() => setSelectedAm(am)}
-                  className={`px-3 py-2 rounded-lg text-xs text-left border transition-colors ${
-                    selectedAm === am
-                      ? 'bg-electric text-white border-electric'
-                      : 'bg-white dark:bg-white/5 border-cream-dark/70 dark:border-white/15 text-navy dark:text-white hover:border-electric/40'
-                  }`}
-                >
-                  {am}
-                </button>
-              ))}
-            </div>
           )}
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 mt-3">
+            {sortedAmNames.map((am) => (
+              <button
+                key={am}
+                onClick={() => setSelectedAm(am)}
+                className={`px-3 py-2 rounded-lg text-xs text-left border transition-colors ${
+                  selectedAm === am
+                    ? 'bg-electric text-white border-electric'
+                    : 'bg-white dark:bg-white/5 border-cream-dark/70 dark:border-white/15 text-navy dark:text-white hover:border-electric/40'
+                }`}
+              >
+                {am}
+              </button>
+            ))}
+            {canManage && !addingAm && (
+              <button
+                onClick={() => {
+                  setAddingAm(true);
+                  setNewAmName('');
+                  setErrorText(null);
+                }}
+                className="px-3 py-2 rounded-lg text-xs text-left border border-dashed border-electric/50 text-electric hover:bg-electric/5 transition-colors"
+                aria-label="Add account manager"
+              >
+                +
+              </button>
+            )}
+            {canManage && addingAm && (
+              <div className="col-span-2 md:col-span-2 lg:col-span-2 flex items-center gap-2 p-2 rounded-lg border border-cream-dark/70 dark:border-white/20 bg-white dark:bg-white/5">
+                <input
+                  value={newAmName}
+                  onChange={(e) => setNewAmName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') addAccountManager();
+                    if (e.key === 'Escape') {
+                      setAddingAm(false);
+                      setNewAmName('');
+                    }
+                  }}
+                  placeholder="New AM name"
+                  className={INPUT_CLASS}
+                />
+                <button
+                  onClick={addAccountManager}
+                  className="text-[11px] px-2 py-1 rounded bg-electric text-white hover:bg-electric/90"
+                >
+                  Add
+                </button>
+                <button
+                  onClick={() => {
+                    setAddingAm(false);
+                    setNewAmName('');
+                  }}
+                  className="text-[11px] px-2 py-1 rounded border border-cream-dark/70 dark:border-white/20 text-navy/70 dark:text-white/70 hover:bg-cream-dark/30 dark:hover:bg-white/10"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="bg-white dark:bg-white/5 rounded-2xl border border-cream-dark/60 dark:border-white/10 p-4">
