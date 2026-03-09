@@ -26,6 +26,7 @@ interface PerformanceHubContentProps {
 }
 
 const TRACKER_ORDER_STORAGE_KEY = 'kmboards.performance.trackers.order.v1';
+const TRACKER_HIDDEN_STORAGE_KEY = 'kmboards.performance.trackers.hidden.v1';
 
 function readStoredTrackerOrder(): string[] {
   if (typeof window === 'undefined') return [];
@@ -44,6 +45,28 @@ function writeStoredTrackerOrder(order: string[]) {
   if (typeof window === 'undefined') return;
   try {
     window.localStorage.setItem(TRACKER_ORDER_STORAGE_KEY, JSON.stringify(order));
+  } catch {
+    // Ignore storage errors (private mode/quota restrictions).
+  }
+}
+
+function readStoredHiddenTrackerTypes(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(TRACKER_HIDDEN_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is string => typeof item === 'string');
+  } catch {
+    return [];
+  }
+}
+
+function writeStoredHiddenTrackerTypes(hiddenTypes: string[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(TRACKER_HIDDEN_STORAGE_KEY, JSON.stringify(hiddenTypes));
   } catch {
     // Ignore storage errors (private mode/quota restrictions).
   }
@@ -82,6 +105,8 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
   const [activeTab, setActiveTab] = useState<'overview' | 'scorecard' | 'trackers'>('overview');
   const [showTrackerOrderMenu, setShowTrackerOrderMenu] = useState(false);
   const [reorderMode, setReorderMode] = useState(false);
+  const [removeMode, setRemoveMode] = useState(false);
+  const [hiddenTrackerTypes, setHiddenTrackerTypes] = useState<string[]>([]);
   const [draggingTrackerType, setDraggingTrackerType] = useState<string | null>(null);
   const [dragOverTrackerType, setDragOverTrackerType] = useState<string | null>(null);
 
@@ -101,6 +126,13 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
             : readStoredTrackerOrder();
           const next = applyTrackerOrder(filteredTrackers, preferredOrder);
           writeStoredTrackerOrder(next.map((tracker) => tracker.tracker_type));
+          return next;
+        });
+        setHiddenTrackerTypes((current) => {
+          const preferredHidden = current.length > 0 ? current : readStoredHiddenTrackerTypes();
+          const availableTypes = new Set<string>(filteredTrackers.map((tracker) => tracker.tracker_type));
+          const next = preferredHidden.filter((type) => availableTypes.has(type));
+          writeStoredHiddenTrackerTypes(next);
           return next;
         });
       }
@@ -201,10 +233,28 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
     writeStoredTrackerOrder(next.map((tracker) => tracker.tracker_type));
   }, [data]);
 
+  const removeTrackerFromAllTrackers = useCallback((trackerType: string) => {
+    setHiddenTrackerTypes((current) => {
+      if (current.includes(trackerType)) return current;
+      const next = [...current, trackerType];
+      writeStoredHiddenTrackerTypes(next);
+      return next;
+    });
+    setDraggingTrackerType(null);
+    setDragOverTrackerType(null);
+  }, []);
+
+  const restoreRemovedTrackers = useCallback(() => {
+    setHiddenTrackerTypes([]);
+    writeStoredHiddenTrackerTypes([]);
+    setRemoveMode(false);
+  }, []);
+
   useEffect(() => {
     if (activeTab !== 'trackers') {
       setShowTrackerOrderMenu(false);
       setReorderMode(false);
+      setRemoveMode(false);
       setDraggingTrackerType(null);
       setDragOverTrackerType(null);
     }
@@ -251,6 +301,9 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
   ];
 
   const trackers = orderedTrackers.length > 0 ? orderedTrackers : data.trackers;
+  const visibleTrackers = trackers.filter(
+    (tracker) => !hiddenTrackerTypes.includes(tracker.tracker_type)
+  );
 
   // Stats for overview cards
   const totalTrackers = trackers.length;
@@ -493,9 +546,11 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">
               <p className="text-xs text-navy/50 dark:text-white/40">
-                {reorderMode
+                {removeMode
+                  ? 'Remove mode is on. Click Remove on tracker cards to hide them from All Trackers.'
+                  : reorderMode
                   ? 'Reorder mode is on. Drag tracker cards or use Move Up/Down. Order is saved in this browser.'
-                  : 'Click ... to enable rearranging (drag/drop and Move Up/Down).'}
+                  : 'Click ... for All Trackers actions (rearrange, remove, reset).'}
               </p>
               <div className="relative">
                 <button
@@ -510,12 +565,24 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
                     <button
                       type="button"
                       onClick={() => {
+                        setRemoveMode(false);
                         setReorderMode((current) => !current);
                         setShowTrackerOrderMenu(false);
                       }}
                       className="w-full text-left text-[11px] px-2 py-1 rounded text-navy dark:text-white hover:bg-cream-dark/30 dark:hover:bg-white/10"
                     >
                       {reorderMode ? 'Done Rearranging' : 'Rearrange Items'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReorderMode(false);
+                        setRemoveMode((current) => !current);
+                        setShowTrackerOrderMenu(false);
+                      }}
+                      className="w-full text-left text-[11px] px-2 py-1 rounded text-navy dark:text-white hover:bg-cream-dark/30 dark:hover:bg-white/10"
+                    >
+                      {removeMode ? 'Done Removing' : 'Remove'}
                     </button>
                     <button
                       type="button"
@@ -527,30 +594,53 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
                     >
                       Reset Order
                     </button>
+                    {hiddenTrackerTypes.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          restoreRemovedTrackers();
+                          setShowTrackerOrderMenu(false);
+                        }}
+                        className="w-full text-left text-[11px] px-2 py-1 rounded text-navy dark:text-white hover:bg-cream-dark/30 dark:hover:bg-white/10"
+                      >
+                        Restore Removed
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {trackers.map((tracker, index) => (
+            {visibleTrackers.length === 0 ? (
+              <div className="rounded-xl border border-cream-dark/60 dark:border-white/10 bg-white dark:bg-white/5 p-4 text-sm text-navy/60 dark:text-white/60">
+                All trackers are currently removed from this view.
+                <button
+                  onClick={restoreRemovedTrackers}
+                  className="ml-2 text-electric hover:text-electric/80 font-medium"
+                >
+                  Restore Removed
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {visibleTrackers.map((tracker, index) => (
                 <div
                   key={tracker.tracker_type}
                   draggable={reorderMode}
                   onDragStart={(event) => {
-                    if (!reorderMode) return;
+                    if (!reorderMode || removeMode) return;
                     setDraggingTrackerType(tracker.tracker_type);
                     event.dataTransfer.effectAllowed = 'move';
                     event.dataTransfer.setData('text/plain', tracker.tracker_type);
                   }}
                   onDragOver={(event) => {
-                    if (!reorderMode) return;
+                    if (!reorderMode || removeMode) return;
                     event.preventDefault();
                     if (draggingTrackerType && draggingTrackerType !== tracker.tracker_type) {
                       setDragOverTrackerType(tracker.tracker_type);
                     }
                   }}
                   onDrop={(event) => {
-                    if (!reorderMode) return;
+                    if (!reorderMode || removeMode) return;
                     event.preventDefault();
                     const sourceType = event.dataTransfer.getData('text/plain') || draggingTrackerType;
                     if (sourceType) {
@@ -564,7 +654,7 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
                     setDragOverTrackerType(null);
                   }}
                   className={`rounded-xl transition-all ${
-                    reorderMode && dragOverTrackerType === tracker.tracker_type
+                    reorderMode && !removeMode && dragOverTrackerType === tracker.tracker_type
                       ? 'ring-2 ring-electric/40 ring-offset-2 ring-offset-transparent'
                       : ''
                   }`}
@@ -573,7 +663,7 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
                     tracker={tracker}
                     canEdit={!!(canSync || isAdmin)}
                   />
-                  {reorderMode && (
+                  {reorderMode && !removeMode && (
                     <div className="mt-2 px-1 flex items-center justify-end gap-2">
                       <button
                         onClick={() => nudgeTracker(tracker.tracker_type, 'up')}
@@ -588,9 +678,9 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
                       </button>
                       <button
                         onClick={() => nudgeTracker(tracker.tracker_type, 'down')}
-                        disabled={index === trackers.length - 1}
+                        disabled={index === visibleTrackers.length - 1}
                         className={`text-xs px-2 py-1 rounded border transition-colors ${
-                          index === trackers.length - 1
+                          index === visibleTrackers.length - 1
                             ? 'cursor-not-allowed border-cream-dark/40 dark:border-white/10 text-navy/30 dark:text-white/25'
                             : 'border-cream-dark/70 dark:border-white/20 text-navy/70 dark:text-white/70 hover:bg-cream-dark/30 dark:hover:bg-white/10'
                         }`}
@@ -599,9 +689,20 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
                       </button>
                     </div>
                   )}
+                  {removeMode && (
+                    <div className="mt-2 px-1 flex items-center justify-end">
+                      <button
+                        onClick={() => removeTrackerFromAllTrackers(tracker.tracker_type)}
+                        className="text-xs px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
