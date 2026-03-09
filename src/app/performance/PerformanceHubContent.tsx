@@ -25,13 +25,63 @@ interface PerformanceHubContentProps {
   canSync?: boolean;
 }
 
+const TRACKER_ORDER_STORAGE_KEY = 'kmboards.performance.trackers.order.v1';
+
+function readStoredTrackerOrder(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(TRACKER_ORDER_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is string => typeof item === 'string');
+  } catch {
+    return [];
+  }
+}
+
+function writeStoredTrackerOrder(order: string[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(TRACKER_ORDER_STORAGE_KEY, JSON.stringify(order));
+  } catch {
+    // Ignore storage errors (private mode/quota restrictions).
+  }
+}
+
+function applyTrackerOrder(trackers: PKTrackerSummary[], preferredOrder: string[]): PKTrackerSummary[] {
+  if (trackers.length === 0) return [];
+
+  const byType = new Map(trackers.map((tracker) => [tracker.tracker_type, tracker]));
+  const used = new Set<string>();
+  const ordered: PKTrackerSummary[] = [];
+
+  for (const trackerType of preferredOrder) {
+    const tracker = byType.get(trackerType as PKTrackerSummary['tracker_type']);
+    if (!tracker || used.has(trackerType)) continue;
+    ordered.push(tracker);
+    used.add(trackerType);
+  }
+
+  for (const tracker of trackers) {
+    if (used.has(tracker.tracker_type)) continue;
+    ordered.push(tracker);
+    used.add(tracker.tracker_type);
+  }
+
+  return ordered;
+}
+
 export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceHubContentProps) {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [orderedTrackers, setOrderedTrackers] = useState<PKTrackerSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [bumping, setBumping] = useState(false);
   const [bumpResult, setBumpResult] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'scorecard' | 'trackers'>('overview');
+  const [draggingTrackerType, setDraggingTrackerType] = useState<string | null>(null);
+  const [dragOverTrackerType, setDragOverTrackerType] = useState<string | null>(null);
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -39,10 +89,18 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
       if (res.ok) {
         const json = await res.json();
         // Hide sanity_tests - main tracker is sanity_checks
-        json.trackers = (json.trackers || []).filter(
+        const filteredTrackers: PKTrackerSummary[] = (json.trackers || []).filter(
           (t: any) => t.tracker_type !== 'sanity_tests'
         );
-        setData(json);
+        setData({ ...json, trackers: filteredTrackers });
+        setOrderedTrackers((current) => {
+          const preferredOrder = current.length > 0
+            ? current.map((tracker) => tracker.tracker_type)
+            : readStoredTrackerOrder();
+          const next = applyTrackerOrder(filteredTrackers, preferredOrder);
+          writeStoredTrackerOrder(next.map((tracker) => tracker.tracker_type));
+          return next;
+        });
       }
     } finally {
       setLoading(false);
@@ -102,6 +160,45 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
     }
   };
 
+  const moveTracker = useCallback((sourceType: string, targetType: string) => {
+    if (!sourceType || !targetType || sourceType === targetType) return;
+
+    setOrderedTrackers((current) => {
+      const sourceIndex = current.findIndex((tracker) => tracker.tracker_type === sourceType);
+      const targetIndex = current.findIndex((tracker) => tracker.tracker_type === targetType);
+      if (sourceIndex === -1 || targetIndex === -1) return current;
+
+      const next = [...current];
+      const [moved] = next.splice(sourceIndex, 1);
+      next.splice(targetIndex, 0, moved);
+      writeStoredTrackerOrder(next.map((tracker) => tracker.tracker_type));
+      return next;
+    });
+  }, []);
+
+  const nudgeTracker = useCallback((trackerType: string, direction: 'up' | 'down') => {
+    setOrderedTrackers((current) => {
+      const index = current.findIndex((tracker) => tracker.tracker_type === trackerType);
+      if (index === -1) return current;
+
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= current.length) return current;
+
+      const next = [...current];
+      const [moved] = next.splice(index, 1);
+      next.splice(targetIndex, 0, moved);
+      writeStoredTrackerOrder(next.map((tracker) => tracker.tracker_type));
+      return next;
+    });
+  }, []);
+
+  const resetTrackerOrder = useCallback(() => {
+    if (!data) return;
+    const next = [...data.trackers];
+    setOrderedTrackers(next);
+    writeStoredTrackerOrder(next.map((tracker) => tracker.tracker_type));
+  }, [data]);
+
   if (loading) {
     return (
       <div className="flex-1 overflow-auto p-6">
@@ -142,12 +239,14 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
     { id: 'trackers' as const, label: 'All Trackers' },
   ];
 
+  const trackers = orderedTrackers.length > 0 ? orderedTrackers : data.trackers;
+
   // Stats for overview cards
-  const totalTrackers = data.trackers.length;
-  const freshCount = data.trackers.filter(t => t.freshness === 'fresh').length;
-  const staleCount = data.trackers.filter(t => t.freshness === 'stale').length;
-  const overdueCount = data.trackers.filter(t => t.freshness === 'overdue').length;
-  const totalRows = data.trackers.reduce((sum, t) => sum + t.total_rows, 0);
+  const totalTrackers = trackers.length;
+  const freshCount = trackers.filter(t => t.freshness === 'fresh').length;
+  const staleCount = trackers.filter(t => t.freshness === 'stale').length;
+  const overdueCount = trackers.filter(t => t.freshness === 'overdue').length;
+  const totalRows = trackers.reduce((sum, t) => sum + t.total_rows, 0);
 
   return (
     <div className="flex-1 overflow-auto p-6">
@@ -299,7 +398,7 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
                 </button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {data.trackers.slice(0, 6).map(tracker => (
+                {trackers.slice(0, 6).map(tracker => (
                   <TrackerCard key={tracker.tracker_type} tracker={tracker} />
                 ))}
               </div>
@@ -380,14 +479,84 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
 
         {/* All Trackers tab */}
         {activeTab === 'trackers' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {data.trackers.map(tracker => (
-              <TrackerManagerCard
-                key={tracker.tracker_type}
-                tracker={tracker}
-                canEdit={!!(canSync || isAdmin)}
-              />
-            ))}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-navy/50 dark:text-white/40">
+                Drag tracker cards to rearrange. You can also use Move Up/Down. Order is saved in this browser.
+              </p>
+              <button
+                onClick={resetTrackerOrder}
+                className="text-xs px-2 py-1 rounded border border-cream-dark/70 dark:border-white/20 text-navy/70 dark:text-white/70 hover:bg-cream-dark/30 dark:hover:bg-white/10"
+              >
+                Reset Order
+              </button>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {trackers.map((tracker, index) => (
+                <div
+                  key={tracker.tracker_type}
+                  draggable
+                  onDragStart={(event) => {
+                    setDraggingTrackerType(tracker.tracker_type);
+                    event.dataTransfer.effectAllowed = 'move';
+                    event.dataTransfer.setData('text/plain', tracker.tracker_type);
+                  }}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    if (draggingTrackerType && draggingTrackerType !== tracker.tracker_type) {
+                      setDragOverTrackerType(tracker.tracker_type);
+                    }
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    const sourceType = event.dataTransfer.getData('text/plain') || draggingTrackerType;
+                    if (sourceType) {
+                      moveTracker(sourceType, tracker.tracker_type);
+                    }
+                    setDraggingTrackerType(null);
+                    setDragOverTrackerType(null);
+                  }}
+                  onDragEnd={() => {
+                    setDraggingTrackerType(null);
+                    setDragOverTrackerType(null);
+                  }}
+                  className={`rounded-xl transition-all ${
+                    dragOverTrackerType === tracker.tracker_type
+                      ? 'ring-2 ring-electric/40 ring-offset-2 ring-offset-transparent'
+                      : ''
+                  }`}
+                >
+                  <TrackerManagerCard
+                    tracker={tracker}
+                    canEdit={!!(canSync || isAdmin)}
+                  />
+                  <div className="mt-2 px-1 flex items-center justify-end gap-2">
+                    <button
+                      onClick={() => nudgeTracker(tracker.tracker_type, 'up')}
+                      disabled={index === 0}
+                      className={`text-xs px-2 py-1 rounded border transition-colors ${
+                        index === 0
+                          ? 'cursor-not-allowed border-cream-dark/40 dark:border-white/10 text-navy/30 dark:text-white/25'
+                          : 'border-cream-dark/70 dark:border-white/20 text-navy/70 dark:text-white/70 hover:bg-cream-dark/30 dark:hover:bg-white/10'
+                      }`}
+                    >
+                      Move Up
+                    </button>
+                    <button
+                      onClick={() => nudgeTracker(tracker.tracker_type, 'down')}
+                      disabled={index === trackers.length - 1}
+                      className={`text-xs px-2 py-1 rounded border transition-colors ${
+                        index === trackers.length - 1
+                          ? 'cursor-not-allowed border-cream-dark/40 dark:border-white/10 text-navy/30 dark:text-white/25'
+                          : 'border-cream-dark/70 dark:border-white/20 text-navy/70 dark:text-white/70 hover:bg-cream-dark/30 dark:hover:bg-white/10'
+                      }`}
+                    >
+                      Move Down
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
