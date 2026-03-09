@@ -10,6 +10,7 @@ interface ManageClientUpdatesContentProps {
 interface ClientUpdateDraft {
   account_manager_name: string;
   client_name: string;
+  meeting_date: string;
   date_sent: string;
   on_time: '' | 'true' | 'false';
   method: string;
@@ -23,6 +24,7 @@ function emptyDraft(amName = ''): ClientUpdateDraft {
   return {
     account_manager_name: amName,
     client_name: '',
+    meeting_date: '',
     date_sent: '',
     on_time: '',
     method: '',
@@ -41,6 +43,7 @@ function toDraft(row: Record<string, unknown>): ClientUpdateDraft {
   return {
     account_manager_name: String(row.account_manager_name || ''),
     client_name: String(row.client_name || ''),
+    meeting_date: toDateInput(row.meeting_date),
     date_sent: toDateInput(row.date_sent),
     on_time:
       row.on_time === true || row.on_time === 'true'
@@ -57,6 +60,7 @@ function draftToPayload(draft: ClientUpdateDraft) {
   return {
     account_manager_name: draft.account_manager_name.trim(),
     client_name: draft.client_name.trim() || null,
+    meeting_date: draft.meeting_date || null,
     date_sent: draft.date_sent || null,
     on_time: draft.on_time === '' ? null : draft.on_time === 'true',
     method: draft.method.trim() || null,
@@ -473,6 +477,7 @@ export default function ManageClientUpdatesContent({
                 <tr className="bg-cream-dark/20 dark:bg-white/5 border-b border-cream-dark/40 dark:border-white/10">
                   <th className="text-left px-2 py-2 font-medium text-navy/60 dark:text-white/50">AM</th>
                   <th className="text-left px-2 py-2 font-medium text-navy/60 dark:text-white/50">Client</th>
+                  <th className="text-left px-2 py-2 font-medium text-navy/60 dark:text-white/50">Date of Meeting</th>
                   <th className="text-left px-2 py-2 font-medium text-navy/60 dark:text-white/50">Date Sent</th>
                   <th className="text-left px-2 py-2 font-medium text-navy/60 dark:text-white/50">On Time</th>
                   <th className="text-left px-2 py-2 font-medium text-navy/60 dark:text-white/50">Method</th>
@@ -510,6 +515,14 @@ export default function ManageClientUpdatesContent({
                       <input
                         value={newDraft.client_name}
                         onChange={(e) => setNewDraft((prev) => ({ ...prev, client_name: e.target.value }))}
+                        className={INPUT_CLASS}
+                      />
+                    </td>
+                    <td className="px-2 py-2 min-w-[130px]">
+                      <input
+                        type="date"
+                        value={newDraft.meeting_date}
+                        onChange={(e) => setNewDraft((prev) => ({ ...prev, meeting_date: e.target.value }))}
                         className={INPUT_CLASS}
                       />
                     </td>
@@ -564,7 +577,7 @@ export default function ManageClientUpdatesContent({
 
                 {!loading && rows.length === 0 ? (
                   <tr>
-                    <td colSpan={canManage ? 7 : 6} className="px-2 py-4 text-center text-xs text-navy/50 dark:text-white/40">
+                    <td colSpan={canManage ? 8 : 7} className="px-2 py-4 text-center text-xs text-navy/50 dark:text-white/40">
                       {selectedAm ? 'No rows for this account manager.' : 'Select an account manager.'}
                     </td>
                   </tr>
@@ -597,6 +610,18 @@ export default function ManageClientUpdatesContent({
                             />
                           ) : (
                             <span className="text-navy dark:text-white/80">{String(row.client_name || '-')}</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-2 min-w-[130px]">
+                          {canManage ? (
+                            <input
+                              type="date"
+                              value={draft.meeting_date}
+                              onChange={(e) => rowId && updateDraft(rowId, 'meeting_date', e.target.value)}
+                              className={INPUT_CLASS}
+                            />
+                          ) : (
+                            <span className="text-navy dark:text-white/80">{String(row.meeting_date || '-')}</span>
                           )}
                         </td>
                         <td className="px-2 py-2 min-w-[130px]">

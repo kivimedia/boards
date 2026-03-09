@@ -22,6 +22,7 @@ const TRACKER_COLUMNS: Record<string, Array<{ key: string; label: string; type?:
   client_updates: [
     { key: 'account_manager_name', label: 'AM' },
     { key: 'client_name', label: 'Client' },
+    { key: 'meeting_date', label: 'Date of Meeting', type: 'date' },
     { key: 'date_sent', label: 'Date Sent', type: 'date' },
     { key: 'on_time', label: 'On Time', type: 'boolean' },
     { key: 'method', label: 'Method' },
