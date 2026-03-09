@@ -9,7 +9,8 @@ interface ConfigForm {
   site_name: string;
   wp_username: string;
   wp_app_password: string;
-  slack_bot_token: string;
+  slack_access_token: string;
+  slack_refresh_token: string;
   slack_channel_id: string;
   min_qc_score: number;
   max_iterations: number;
@@ -23,7 +24,8 @@ const EMPTY_FORM: ConfigForm = {
   site_name: '',
   wp_username: '',
   wp_app_password: '',
-  slack_bot_token: '',
+  slack_access_token: '',
+  slack_refresh_token: '',
   slack_channel_id: '',
   min_qc_score: 70,
   max_iterations: 3,
@@ -77,7 +79,8 @@ export default function SeoSettings() {
       site_name: config.site_name,
       wp_username: config.wp_credentials?.username || '',
       wp_app_password: config.wp_credentials?.app_password || '',
-      slack_bot_token: config.slack_credentials?.bot_token || '',
+      slack_access_token: '', // Encrypted in DB - don't pre-fill
+      slack_refresh_token: '', // Encrypted in DB - don't pre-fill
       slack_channel_id: config.slack_credentials?.channel_id || '',
       min_qc_score: config.config?.quality_thresholds?.min_qc_score || 70,
       max_iterations: config.config?.quality_thresholds?.max_iterations || 3,
@@ -100,8 +103,9 @@ export default function SeoSettings() {
           username: form.wp_username,
           app_password: form.wp_app_password,
         } : null,
-        slack_credentials: form.slack_bot_token ? {
-          bot_token: form.slack_bot_token,
+        slack_credentials: form.slack_access_token ? {
+          access_token: form.slack_access_token,
+          refresh_token: form.slack_refresh_token,
           channel_id: form.slack_channel_id,
         } : null,
         config: {
@@ -289,11 +293,16 @@ export default function SeoSettings() {
 
               {/* Slack */}
               <div className="border-t border-cream-dark dark:border-slate-700 pt-4">
-                <h3 className="text-sm font-semibold text-navy dark:text-white mb-2 font-heading">Slack Notifications</h3>
-                <div className="grid grid-cols-2 gap-3">
+                <h3 className="text-sm font-semibold text-navy dark:text-white mb-2 font-heading">Slack (Image Source)</h3>
+                <p className="text-xs text-navy/40 dark:text-slate-500 mb-2 font-body">OAuth tokens for fetching images from Slack channels. Tokens are encrypted at rest and auto-refresh.</p>
+                <div className="grid grid-cols-1 gap-3">
                   <div>
-                    <label className="block text-xs text-navy/50 dark:text-slate-400 mb-1 font-body">Bot Token</label>
-                    <input type="password" value={form.slack_bot_token} onChange={e => setForm(f => ({ ...f, slack_bot_token: e.target.value }))} placeholder="xoxb-..." className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm font-body" />
+                    <label className="block text-xs text-navy/50 dark:text-slate-400 mb-1 font-body">Access Token</label>
+                    <input type="password" value={form.slack_access_token} onChange={e => setForm(f => ({ ...f, slack_access_token: e.target.value }))} placeholder="xoxe.xoxp-..." className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm font-body" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-navy/50 dark:text-slate-400 mb-1 font-body">Refresh Token</label>
+                    <input type="password" value={form.slack_refresh_token} onChange={e => setForm(f => ({ ...f, slack_refresh_token: e.target.value }))} placeholder="xoxe-..." className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm font-body" />
                   </div>
                   <div>
                     <label className="block text-xs text-navy/50 dark:text-slate-400 mb-1 font-body">Channel ID</label>

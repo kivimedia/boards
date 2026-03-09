@@ -186,19 +186,58 @@ export async function POST(
       updates.status = 'scrapped';
     }
   } else if (phase === 'gate1') {
-    // Delegate to existing gate logic pattern
     if (decision === 'approve') {
       updates.status = 'publishing';
       updates.gate1_decision = 'approve';
       updates.gate1_feedback = feedback_text || null;
       updates.gate1_decided_by = userId;
       updates.gate1_decided_at = now;
+
+      // Create VPS job to resume pipeline from publishing phase (index 7)
+      const { data: job } = await supabase
+        .from('vps_jobs')
+        .insert({
+          job_type: 'seo',
+          status: 'pending',
+          user_id: userId,
+          payload: {
+            team_config_id: run.team_config_id,
+            pipeline_run_id: id,
+            resume_from_phase: 7, // publishing (after gate1 at index 6)
+          },
+        })
+        .select('id')
+        .single();
+
+      if (job) updates.vps_job_id = job.id;
+
     } else if (decision === 'revise') {
       updates.status = 'writing';
       updates.gate1_decision = 'revise';
       updates.gate1_feedback = feedback_text || null;
       updates.gate1_decided_by = userId;
       updates.gate1_decided_at = now;
+
+      // Create VPS job to re-run from writing phase (index 2) with feedback
+      const { data: job } = await supabase
+        .from('vps_jobs')
+        .insert({
+          job_type: 'seo',
+          status: 'pending',
+          user_id: userId,
+          payload: {
+            team_config_id: run.team_config_id,
+            pipeline_run_id: id,
+            resume_from_phase: 2, // writing (back to writing with revision feedback)
+            feedback: feedback_text || null,
+            regenerate: true,
+          },
+        })
+        .select('id')
+        .single();
+
+      if (job) updates.vps_job_id = job.id;
+
     } else {
       updates.status = 'scrapped';
       updates.gate1_decision = 'scrap';
@@ -219,6 +258,26 @@ export async function POST(
       updates.gate2_feedback = feedback_text || null;
       updates.gate2_decided_by = userId;
       updates.gate2_decided_at = now;
+
+      // Create VPS job to re-run visual_qa (index 8)
+      const { data: job } = await supabase
+        .from('vps_jobs')
+        .insert({
+          job_type: 'seo',
+          status: 'pending',
+          user_id: userId,
+          payload: {
+            team_config_id: run.team_config_id,
+            pipeline_run_id: id,
+            resume_from_phase: 8, // visual_qa
+            feedback: feedback_text || null,
+          },
+        })
+        .select('id')
+        .single();
+
+      if (job) updates.vps_job_id = job.id;
+
     } else {
       updates.status = 'scrapped';
       updates.gate2_decision = 'scrap';

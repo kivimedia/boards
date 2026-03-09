@@ -3320,8 +3320,13 @@ export interface SeoTeamConfig {
     app_password: string;
   } | null;
   slack_credentials: {
-    bot_token: string;
+    // OAuth rotating tokens (encrypted hex strings)
+    access_token_encrypted: string;
+    refresh_token_encrypted: string;
+    token_expires_at: string; // ISO date
     channel_id: string;
+    team_id?: string; // Slack workspace ID
+    scope?: string; // Granted OAuth scopes
   } | null;
   google_credentials: {
     search_console: Record<string, unknown>;
@@ -3455,6 +3460,7 @@ export interface SeoCalendarItem {
   silo: string | null;
   keywords: string[];
   outline_notes: string | null;
+  image_notes: string | null;
   target_word_count: number;
   scheduled_date: string;
   sort_order: number;

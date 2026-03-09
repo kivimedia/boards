@@ -22,6 +22,7 @@ export default function SeoCalendarItemEditor({ item, calendarId, silos, onClose
   const [wordCount, setWordCount] = useState(item.target_word_count);
   const [scheduledDate, setScheduledDate] = useState(item.scheduled_date);
   const [images, setImages] = useState<SeoCalendarItemImage[]>(item.images || []);
+  const [imageNotes, setImageNotes] = useState(item.image_notes || '');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [launchingSingle, setLaunchingSingle] = useState(false);
@@ -45,6 +46,7 @@ export default function SeoCalendarItemEditor({ item, calendarId, silos, onClose
           silo: silo || null,
           keywords,
           outline_notes: outlineNotes || null,
+          image_notes: imageNotes || null,
           target_word_count: wordCount,
           scheduled_date: scheduledDate,
         }),
@@ -215,6 +217,20 @@ export default function SeoCalendarItemEditor({ item, calendarId, silos, onClose
     }
   }, [uploadFiles]);
 
+  // Auto-save image_notes for launched/skipped items (since full Save button is only for planned)
+  const handleImageNotesBlur = async () => {
+    if (isEditable) return; // planned items save via handleSave
+    try {
+      await fetch(`/api/seo/calendars/${calendarId}/items/${item.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_notes: imageNotes || null }),
+      });
+    } catch (err) {
+      console.error('Failed to save image notes:', err);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div
@@ -384,7 +400,7 @@ export default function SeoCalendarItemEditor({ item, calendarId, silos, onClose
             </div>
           </div>
 
-          {/* Images section - full width */}
+          {/* Images section - full width, always editable */}
           <div className="mb-5">
             <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1.5 font-heading">
               Images {images.length > 0 && `(${images.length})`}
@@ -392,6 +408,18 @@ export default function SeoCalendarItemEditor({ item, calendarId, silos, onClose
             <p className="text-xs text-navy/40 dark:text-slate-500 mb-3 font-body">
               Upload images to include in this blog post. Add optional context to tell the writing agent the story behind each image.
             </p>
+
+            {/* Overall image notes */}
+            <div className="mb-3">
+              <textarea
+                value={imageNotes}
+                onChange={e => setImageNotes(e.target.value)}
+                onBlur={handleImageNotesBlur}
+                placeholder="Overall image instructions for this blog post (e.g. style preferences, image placement notes, brand guidelines...)"
+                rows={2}
+                className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-xs text-navy dark:text-slate-100 font-body resize-none"
+              />
+            </div>
 
             {/* Existing images */}
             {images.length > 0 && (
@@ -414,87 +442,72 @@ export default function SeoCalendarItemEditor({ item, calendarId, silos, onClose
                         <span className="text-xs font-medium text-navy dark:text-slate-200 truncate font-body">{img.filename}</span>
                         <span className="text-xs text-navy/30 dark:text-slate-500 font-body">#{idx + 1}</span>
                       </div>
-                      {isEditable ? (
-                        <textarea
-                          value={img.context || ''}
-                          onChange={e => handleUpdateContext(img, e.target.value)}
-                          placeholder="What's the story behind this image? (optional)"
-                          rows={2}
-                          className="w-full px-2.5 py-1.5 rounded-md bg-white dark:bg-dark-card border border-cream-dark dark:border-slate-600 text-xs text-navy dark:text-slate-100 font-body resize-none"
-                        />
-                      ) : (
-                        img.context && (
-                          <p className="text-xs text-navy/70 dark:text-slate-300 font-body">{img.context}</p>
-                        )
-                      )}
+                      <textarea
+                        value={img.context || ''}
+                        onChange={e => handleUpdateContext(img, e.target.value)}
+                        placeholder="What's the story behind this image? (optional)"
+                        rows={2}
+                        className="w-full px-2.5 py-1.5 rounded-md bg-white dark:bg-dark-card border border-cream-dark dark:border-slate-600 text-xs text-navy dark:text-slate-100 font-body resize-none"
+                      />
                     </div>
                     {/* Remove button */}
-                    {isEditable && (
-                      <button
-                        onClick={() => handleRemoveImage(img)}
-                        className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-md text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                        title="Remove image"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                          <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.519.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clipRule="evenodd" />
-                        </svg>
-                      </button>
-                    )}
+                    <button
+                      onClick={() => handleRemoveImage(img)}
+                      className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-md text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                      title="Remove image"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                        <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.519.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clipRule="evenodd" />
+                      </svg>
+                    </button>
                   </div>
                 ))}
               </div>
             )}
 
-            {/* Upload zone */}
-            {isEditable && (
-              <div
-                className={`relative border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer ${
-                  dragOver
-                    ? 'border-electric bg-electric/5 dark:bg-electric/10'
-                    : 'border-cream-dark dark:border-slate-600 hover:border-electric/50 dark:hover:border-electric/50'
-                }`}
-                onClick={() => fileInputRef.current?.click()}
-                onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={handleDrop}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/gif,image/webp"
-                  multiple
-                  className="hidden"
-                  onChange={e => {
-                    if (e.target.files?.length) uploadFiles(e.target.files);
-                    e.target.value = '';
-                  }}
-                />
-                {uploading ? (
-                  <div className="flex items-center justify-center gap-2 py-1">
-                    <div className="w-4 h-4 border-2 border-electric border-t-transparent rounded-full animate-spin" />
-                    <span className="text-xs text-navy/60 dark:text-slate-400 font-body">Uploading...</span>
-                  </div>
-                ) : (
-                  <div className="py-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 mx-auto mb-1 text-navy/30 dark:text-slate-500">
-                      <path d="M9.25 13.25a.75.75 0 001.5 0V4.636l2.955 3.129a.75.75 0 001.09-1.03l-4.25-4.5a.75.75 0 00-1.09 0l-4.25 4.5a.75.75 0 101.09 1.03L9.25 4.636v8.614z" />
-                      <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
-                    </svg>
-                    <span className="text-xs text-navy/50 dark:text-slate-400 font-body">
-                      Drop images here or click to browse
-                    </span>
-                    <span className="block text-[10px] text-navy/30 dark:text-slate-500 font-body mt-0.5">
-                      JPEG, PNG, GIF, WebP - max 10MB each
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Read-only images for launched/skipped */}
-            {!isEditable && images.length === 0 && (
-              <p className="text-xs text-navy/30 dark:text-slate-500 font-body">No images attached</p>
-            )}
+            {/* Upload zone - always available */}
+            <div
+              className={`relative border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer ${
+                dragOver
+                  ? 'border-electric bg-electric/5 dark:bg-electric/10'
+                  : 'border-cream-dark dark:border-slate-600 hover:border-electric/50 dark:hover:border-electric/50'
+              }`}
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                multiple
+                className="hidden"
+                onChange={e => {
+                  if (e.target.files?.length) uploadFiles(e.target.files);
+                  e.target.value = '';
+                }}
+              />
+              {uploading ? (
+                <div className="flex items-center justify-center gap-2 py-1">
+                  <div className="w-4 h-4 border-2 border-electric border-t-transparent rounded-full animate-spin" />
+                  <span className="text-xs text-navy/60 dark:text-slate-400 font-body">Uploading...</span>
+                </div>
+              ) : (
+                <div className="py-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 mx-auto mb-1 text-navy/30 dark:text-slate-500">
+                    <path d="M9.25 13.25a.75.75 0 001.5 0V4.636l2.955 3.129a.75.75 0 001.09-1.03l-4.25-4.5a.75.75 0 00-1.09 0l-4.25 4.5a.75.75 0 101.09 1.03L9.25 4.636v8.614z" />
+                    <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
+                  </svg>
+                  <span className="text-xs text-navy/50 dark:text-slate-400 font-body">
+                    Drop images here or click to browse
+                  </span>
+                  <span className="block text-[10px] text-navy/30 dark:text-slate-500 font-body mt-0.5">
+                    JPEG, PNG, GIF, WebP - max 10MB each
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
           {actionError && (

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { getAuthContext, successResponse, errorResponse, parseBody } from '@/lib/api-helpers';
+import { storeSlackTokens } from '@/lib/integrations/slack-seo';
 
 /**
  * GET /api/seo/configs
@@ -33,7 +34,17 @@ interface CreateConfigBody {
   site_url: string;
   site_name: string;
   wp_credentials?: Record<string, unknown>;
-  slack_credentials?: Record<string, unknown>;
+  slack_credentials?: {
+    // Accept either plaintext tokens (for initial setup) or pre-encrypted
+    access_token?: string;
+    refresh_token?: string;
+    access_token_encrypted?: string;
+    refresh_token_encrypted?: string;
+    channel_id: string;
+    team_id?: string;
+    scope?: string;
+    token_expires_at?: string;
+  };
   google_credentials?: Record<string, unknown>;
   config?: Record<string, unknown>;
 }
@@ -58,15 +69,22 @@ export async function POST(request: NextRequest) {
 
   const { supabase, userId } = auth.ctx;
 
-  const row = {
+  // Build row without slack_credentials (handled separately for encryption)
+  const row: Record<string, unknown> = {
     client_id: client_id?.trim() || null,
     site_url: site_url.trim(),
     site_name: site_name.trim(),
     wp_credentials: wp_credentials || null,
-    slack_credentials: slack_credentials || null,
+    slack_credentials: null,
     google_credentials: google_credentials || null,
     config: config || {},
   };
+
+  // If slack_credentials has pre-encrypted tokens, pass through as-is
+  // If it has plaintext tokens, they'll be encrypted after insert via storeSlackTokens
+  if (slack_credentials?.access_token_encrypted) {
+    row.slack_credentials = slack_credentials;
+  }
 
   let data, error;
 
@@ -88,5 +106,23 @@ export async function POST(request: NextRequest) {
   }
 
   if (error) return errorResponse(error.message, 500);
+
+  // If plaintext Slack tokens were provided, encrypt and store them now
+  const configId = data?.id;
+  if (configId && slack_credentials?.access_token && slack_credentials?.refresh_token) {
+    try {
+      await storeSlackTokens(supabase, configId, {
+        accessToken: slack_credentials.access_token,
+        refreshToken: slack_credentials.refresh_token,
+        channelId: slack_credentials.channel_id,
+        teamId: slack_credentials.team_id,
+        scope: slack_credentials.scope,
+      });
+    } catch (err: any) {
+      console.error('Failed to encrypt Slack tokens:', err.message);
+      // Don't fail the whole request - config was created, tokens can be re-added
+    }
+  }
+
   return successResponse(data, id ? 200 : 201);
 }

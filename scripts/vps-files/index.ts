@@ -406,11 +406,12 @@ function getOrphanPollInterval(): number {
 
 async function pollOrphanedJobs(): Promise<void> {
   try {
-    // Find jobs stuck in pending/queued that aren't in BullMQ
+    // Find jobs stuck in pending that aren't in BullMQ
+    // Only check 'pending' - once re-enqueued they're marked 'queued' and excluded
     const { data: stuckJobs } = await supabase
       .from('vps_jobs')
       .select('id, job_type, payload, status, created_at')
-      .in('status', ['pending', 'queued'])
+      .eq('status', 'pending')
       .order('created_at', { ascending: true })
       .limit(20);
 

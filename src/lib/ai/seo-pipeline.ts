@@ -38,6 +38,7 @@ const PREVIEW_LENGTH = 500;
 // Map phase names to SeoPipelineStatus values
 const PHASE_TO_STATUS: Record<string, SeoPipelineStatus> = {
   planning: 'planning',
+  plan_review: 'awaiting_plan_review',
   writing: 'writing',
   qc: 'scoring',
   humanizing: 'humanizing',
@@ -50,6 +51,7 @@ const PHASE_TO_STATUS: Record<string, SeoPipelineStatus> = {
 
 const PHASE_ORDER: string[] = [
   'planning',
+  'plan_review',
   'writing',
   'qc',
   'humanizing',

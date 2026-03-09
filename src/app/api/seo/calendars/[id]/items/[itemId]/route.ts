@@ -8,6 +8,7 @@ interface EditItemBody {
   silo?: string;
   keywords?: string[];
   outline_notes?: string;
+  image_notes?: string;
   target_word_count?: number;
   scheduled_date?: string;
   sort_order?: number;
@@ -33,10 +34,21 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     .single();
 
   if (!existing) return errorResponse('Item not found', 404);
-  if (existing.status === 'launched') return errorResponse('Cannot edit a launched item', 400);
 
-  const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
   const b = body.body;
+  const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+
+  // image_notes can be updated regardless of item status (images are always manageable)
+  if (b.image_notes !== undefined) updates.image_notes = b.image_notes;
+
+  // All other fields require the item to be in 'planned' status
+  if (existing.status === 'launched') {
+    const hasNonImageFields = b.topic !== undefined || b.silo !== undefined || b.keywords !== undefined
+      || b.outline_notes !== undefined || b.target_word_count !== undefined || b.scheduled_date !== undefined
+      || b.sort_order !== undefined || b.status !== undefined;
+    if (hasNonImageFields) return errorResponse('Cannot edit a launched item (only image_notes allowed)', 400);
+  }
+
   if (b.topic !== undefined) updates.topic = b.topic;
   if (b.silo !== undefined) updates.silo = b.silo;
   if (b.keywords !== undefined) updates.keywords = b.keywords;

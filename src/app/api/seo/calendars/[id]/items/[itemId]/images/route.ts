@@ -67,7 +67,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     .single();
 
   if (!item) return errorResponse('Item not found', 404);
-  if (item.status === 'launched') return errorResponse('Cannot modify a launched item', 400);
+  // Images can be managed regardless of item status (planned, launched, skipped)
 
   const formData = await request.formData();
   const file = formData.get('file') as File | null;
@@ -152,7 +152,7 @@ export async function DELETE(request: NextRequest, { params }: Params) {
     .single();
 
   if (!item) return errorResponse('Item not found', 404);
-  if (item.status === 'launched') return errorResponse('Cannot modify a launched item', 400);
+  // Images can be managed regardless of item status (planned, launched, skipped)
 
   // Remove from storage
   await supabase.storage.from('seo-calendar-images').remove([storagePath]);
@@ -196,7 +196,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     .single();
 
   if (!item) return errorResponse('Item not found', 404);
-  if (item.status === 'launched') return errorResponse('Cannot modify a launched item', 400);
+  // Images can be managed regardless of item status (planned, launched, skipped)
 
   const currentImages = Array.isArray(item.images) ? item.images : [];
   const updatedImages = currentImages.map(
