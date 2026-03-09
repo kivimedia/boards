@@ -80,6 +80,8 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
   const [bumping, setBumping] = useState(false);
   const [bumpResult, setBumpResult] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'scorecard' | 'trackers'>('overview');
+  const [showTrackerOrderMenu, setShowTrackerOrderMenu] = useState(false);
+  const [reorderMode, setReorderMode] = useState(false);
   const [draggingTrackerType, setDraggingTrackerType] = useState<string | null>(null);
   const [dragOverTrackerType, setDragOverTrackerType] = useState<string | null>(null);
 
@@ -198,6 +200,15 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
     setOrderedTrackers(next);
     writeStoredTrackerOrder(next.map((tracker) => tracker.tracker_type));
   }, [data]);
+
+  useEffect(() => {
+    if (activeTab !== 'trackers') {
+      setShowTrackerOrderMenu(false);
+      setReorderMode(false);
+      setDraggingTrackerType(null);
+      setDragOverTrackerType(null);
+    }
+  }, [activeTab]);
 
   if (loading) {
     return (
@@ -482,32 +493,64 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">
               <p className="text-xs text-navy/50 dark:text-white/40">
-                Drag tracker cards to rearrange. You can also use Move Up/Down. Order is saved in this browser.
+                {reorderMode
+                  ? 'Reorder mode is on. Drag tracker cards or use Move Up/Down. Order is saved in this browser.'
+                  : 'Click ... to enable rearranging (drag/drop and Move Up/Down).'}
               </p>
-              <button
-                onClick={resetTrackerOrder}
-                className="text-xs px-2 py-1 rounded border border-cream-dark/70 dark:border-white/20 text-navy/70 dark:text-white/70 hover:bg-cream-dark/30 dark:hover:bg-white/10"
-              >
-                Reset Order
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setShowTrackerOrderMenu((current) => !current)}
+                  className="text-xs px-2 py-1 rounded border border-cream-dark/70 dark:border-white/20 text-navy/70 dark:text-white/70 hover:bg-cream-dark/30 dark:hover:bg-white/10"
+                  aria-label="Tracker order options"
+                >
+                  ...
+                </button>
+                {showTrackerOrderMenu && (
+                  <div className="absolute right-0 mt-1 min-w-[160px] rounded-md border border-cream-dark/70 dark:border-white/20 bg-white dark:bg-navy-light shadow-lg z-20 p-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReorderMode((current) => !current);
+                        setShowTrackerOrderMenu(false);
+                      }}
+                      className="w-full text-left text-[11px] px-2 py-1 rounded text-navy dark:text-white hover:bg-cream-dark/30 dark:hover:bg-white/10"
+                    >
+                      {reorderMode ? 'Done Rearranging' : 'Rearrange Items'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        resetTrackerOrder();
+                        setShowTrackerOrderMenu(false);
+                      }}
+                      className="w-full text-left text-[11px] px-2 py-1 rounded text-navy dark:text-white hover:bg-cream-dark/30 dark:hover:bg-white/10"
+                    >
+                      Reset Order
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {trackers.map((tracker, index) => (
                 <div
                   key={tracker.tracker_type}
-                  draggable
+                  draggable={reorderMode}
                   onDragStart={(event) => {
+                    if (!reorderMode) return;
                     setDraggingTrackerType(tracker.tracker_type);
                     event.dataTransfer.effectAllowed = 'move';
                     event.dataTransfer.setData('text/plain', tracker.tracker_type);
                   }}
                   onDragOver={(event) => {
+                    if (!reorderMode) return;
                     event.preventDefault();
                     if (draggingTrackerType && draggingTrackerType !== tracker.tracker_type) {
                       setDragOverTrackerType(tracker.tracker_type);
                     }
                   }}
                   onDrop={(event) => {
+                    if (!reorderMode) return;
                     event.preventDefault();
                     const sourceType = event.dataTransfer.getData('text/plain') || draggingTrackerType;
                     if (sourceType) {
@@ -521,7 +564,7 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
                     setDragOverTrackerType(null);
                   }}
                   className={`rounded-xl transition-all ${
-                    dragOverTrackerType === tracker.tracker_type
+                    reorderMode && dragOverTrackerType === tracker.tracker_type
                       ? 'ring-2 ring-electric/40 ring-offset-2 ring-offset-transparent'
                       : ''
                   }`}
@@ -530,30 +573,32 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
                     tracker={tracker}
                     canEdit={!!(canSync || isAdmin)}
                   />
-                  <div className="mt-2 px-1 flex items-center justify-end gap-2">
-                    <button
-                      onClick={() => nudgeTracker(tracker.tracker_type, 'up')}
-                      disabled={index === 0}
-                      className={`text-xs px-2 py-1 rounded border transition-colors ${
-                        index === 0
-                          ? 'cursor-not-allowed border-cream-dark/40 dark:border-white/10 text-navy/30 dark:text-white/25'
-                          : 'border-cream-dark/70 dark:border-white/20 text-navy/70 dark:text-white/70 hover:bg-cream-dark/30 dark:hover:bg-white/10'
-                      }`}
-                    >
-                      Move Up
-                    </button>
-                    <button
-                      onClick={() => nudgeTracker(tracker.tracker_type, 'down')}
-                      disabled={index === trackers.length - 1}
-                      className={`text-xs px-2 py-1 rounded border transition-colors ${
-                        index === trackers.length - 1
-                          ? 'cursor-not-allowed border-cream-dark/40 dark:border-white/10 text-navy/30 dark:text-white/25'
-                          : 'border-cream-dark/70 dark:border-white/20 text-navy/70 dark:text-white/70 hover:bg-cream-dark/30 dark:hover:bg-white/10'
-                      }`}
-                    >
-                      Move Down
-                    </button>
-                  </div>
+                  {reorderMode && (
+                    <div className="mt-2 px-1 flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => nudgeTracker(tracker.tracker_type, 'up')}
+                        disabled={index === 0}
+                        className={`text-xs px-2 py-1 rounded border transition-colors ${
+                          index === 0
+                            ? 'cursor-not-allowed border-cream-dark/40 dark:border-white/10 text-navy/30 dark:text-white/25'
+                            : 'border-cream-dark/70 dark:border-white/20 text-navy/70 dark:text-white/70 hover:bg-cream-dark/30 dark:hover:bg-white/10'
+                        }`}
+                      >
+                        Move Up
+                      </button>
+                      <button
+                        onClick={() => nudgeTracker(tracker.tracker_type, 'down')}
+                        disabled={index === trackers.length - 1}
+                        className={`text-xs px-2 py-1 rounded border transition-colors ${
+                          index === trackers.length - 1
+                            ? 'cursor-not-allowed border-cream-dark/40 dark:border-white/10 text-navy/30 dark:text-white/25'
+                            : 'border-cream-dark/70 dark:border-white/20 text-navy/70 dark:text-white/70 hover:bg-cream-dark/30 dark:hover:bg-white/10'
+                        }`}
+                      >
+                        Move Down
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
