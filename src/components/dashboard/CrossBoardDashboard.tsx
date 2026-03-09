@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/client';
 import { BOARD_TYPE_CONFIG } from '@/lib/constants';
 import PipelineView from '@/components/dashboard/PipelineView';
 import type { Board, BoardType } from '@/lib/types';
@@ -24,83 +23,15 @@ interface BoardSummary {
 export default function CrossBoardDashboard() {
   const [boardSummaries, setBoardSummaries] = useState<BoardSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       setLoading(true);
       try {
-        // Fetch all boards
-        const { data: boards } = await supabase
-          .from('boards')
-          .select('*')
-          .order('created_at', { ascending: true });
-
-        if (!boards || boards.length === 0) {
-          setBoardSummaries([]);
-          setLoading(false);
-          return;
-        }
-
-        // Batch: fetch all lists at once
-        const { data: allLists } = await supabase
-          .from('lists')
-          .select('id, name, position, board_id')
-          .order('position', { ascending: true });
-
-        // Batch: count cards per list using a single query with group by
-        const { data: placementCounts } = await supabase
-          .from('card_placements')
-          .select('list_id');
-
-        // Build a count map from placements
-        const listCardCounts = new Map<string, number>();
-        if (placementCounts) {
-          for (const p of placementCounts) {
-            listCardCounts.set(p.list_id, (listCardCounts.get(p.list_id) || 0) + 1);
-          }
-        }
-
-        // Batch: count recently moved cards per board (last 24h)
-        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-        const { data: recentMoves } = await supabase
-          .from('activity_log')
-          .select('board_id')
-          .eq('event_type', 'card_moved')
-          .gte('created_at', oneDayAgo);
-
-        const recentMoveCounts = new Map<string, number>();
-        if (recentMoves) {
-          for (const m of recentMoves) {
-            recentMoveCounts.set(m.board_id, (recentMoveCounts.get(m.board_id) || 0) + 1);
-          }
-        }
-
-        // Group lists by board
-        const listsByBoard = new Map<string, typeof allLists>();
-        for (const list of allLists || []) {
-          if (!listsByBoard.has(list.board_id)) listsByBoard.set(list.board_id, []);
-          listsByBoard.get(list.board_id)!.push(list);
-        }
-
-        // Assemble summaries
-        const summaries: BoardSummary[] = boards.map((board) => {
-          const boardLists = listsByBoard.get(board.id) || [];
-          let totalCards = 0;
-          const listSummaries: ListSummary[] = boardLists.map((list) => {
-            const cardCount = listCardCounts.get(list.id) || 0;
-            totalCards += cardCount;
-            return { id: list.id, name: list.name, cardCount };
-          });
-          return {
-            board,
-            totalCards,
-            lists: listSummaries,
-            recentlyMoved: recentMoveCounts.get(board.id) || 0,
-          };
-        });
-
-        setBoardSummaries(summaries);
+        const res = await fetch('/api/dashboard-summary');
+        if (!res.ok) throw new Error('Failed to fetch dashboard data');
+        const { data } = await res.json();
+        setBoardSummaries(data ?? []);
       } catch (err) {
         console.error('Dashboard fetch failed:', err);
         setBoardSummaries([]);
