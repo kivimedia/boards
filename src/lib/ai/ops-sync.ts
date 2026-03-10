@@ -7,7 +7,6 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const OPENAI_API_BASE = 'https://api.openai.com/v1';
 const ANTHROPIC_API_BASE = 'https://api.anthropic.com/v1';
 const ANTHROPIC_VERSION = '2023-06-01';
-const ANTHROPIC_USAGE_BETA = 'usage-cost-api-2025-02-19';
 
 export type AIVendorSyncProvider = 'openai' | 'anthropic';
 export type AIVendorSyncConnectionType = 'openai_admin_key' | 'anthropic_admin_key';
@@ -223,26 +222,25 @@ async function fetchPagedOpenAI<TBucket>(
 async function fetchPagedAnthropic<TBucket>(
   path: string,
   adminKey: string,
-  body: Record<string, unknown>
+  params: Record<string, unknown>
 ) {
   const pages: TBucket[] = [];
   let page: string | null = null;
 
   while (true) {
+    const search = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (value != null) search.set(key, String(value));
+    }
+    if (page) search.set('page', page);
+
     const payload: PageResponse<TBucket> = await fetchJson<PageResponse<TBucket>>(
-      `${ANTHROPIC_API_BASE}${path}`,
+      `${ANTHROPIC_API_BASE}${path}?${search.toString()}`,
       {
-        method: 'POST',
         headers: {
-          'content-type': 'application/json',
           'x-api-key': adminKey,
           'anthropic-version': ANTHROPIC_VERSION,
-          'anthropic-beta': ANTHROPIC_USAGE_BETA,
         },
-        body: JSON.stringify({
-          ...body,
-          ...(page ? { page } : {}),
-        }),
       }
     );
 
@@ -301,10 +299,8 @@ export function sumAnthropicCosts(buckets: Array<{ results?: Array<Record<string
   let spendUsd = 0;
   for (const bucket of buckets) {
     for (const result of bucket.results ?? []) {
-      const cents =
-        Number(result.cost_cents ?? 0) ||
-        Number((result.cost as { cents?: number } | undefined)?.cents ?? 0) ||
-        0;
+      // API returns `amount` as a decimal string in cents (e.g. "123.45" = $1.2345)
+      const cents = Number(result.amount ?? 0) || 0;
       spendUsd += cents / 100;
     }
   }
@@ -319,18 +315,18 @@ export function sumAnthropicUsage(buckets: Array<{ results?: Array<Record<string
 
   for (const bucket of buckets) {
     for (const result of bucket.results ?? []) {
-      const input = Number(result.input_tokens ?? 0) || 0;
+      const uncachedInput = Number(result.uncached_input_tokens ?? 0) || 0;
       const output = Number(result.output_tokens ?? 0) || 0;
-      const cacheCreate = Number(result.cache_creation_input_tokens ?? 0) || 0;
       const cacheRead = Number(result.cache_read_input_tokens ?? 0) || 0;
-      const total = input + output + cacheCreate + cacheRead;
+      // cache_creation is a nested object with ephemeral_1h_input_tokens and ephemeral_5m_input_tokens
+      const cacheCreation = result.cache_creation as { ephemeral_1h_input_tokens?: number; ephemeral_5m_input_tokens?: number } | undefined;
+      const cacheCreate = (Number(cacheCreation?.ephemeral_1h_input_tokens ?? 0) || 0) +
+        (Number(cacheCreation?.ephemeral_5m_input_tokens ?? 0) || 0);
+      const total = uncachedInput + output + cacheCreate + cacheRead;
 
-      requestCount +=
-        Number(result.requests ?? 0) ||
-        Number(result.request_count ?? 0) ||
-        Number(result.api_requests ?? 0) ||
-        0;
-      inputTokens += input + cacheCreate + cacheRead;
+      // Each result row represents aggregated requests - count 1 per row as minimum
+      requestCount += 1;
+      inputTokens += uncachedInput + cacheCreate + cacheRead;
       outputTokens += output;
       totalTokens += total;
     }

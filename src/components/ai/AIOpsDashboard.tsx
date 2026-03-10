@@ -653,22 +653,36 @@ export default function AIOpsDashboard() {
               </div>
 
               <div className="mt-4 space-y-2">
-                {card.tracks.map((track) => (
-                  <div key={track.key} className="flex items-start justify-between gap-3 rounded-xl bg-cream/70 px-3 py-2 dark:bg-slate-800/60">
-                    <div>
-                      <p className="text-sm font-medium text-navy dark:text-slate-100">{track.label}</p>
-                      <p className="text-[11px] uppercase tracking-wider text-navy/40 dark:text-slate-500">{track.period.replace('_', ' ')}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-navy dark:text-slate-100">
-                        {formatCapacityTrackValue(track.used, track.limit, track.unit)}
-                      </p>
-                      <p className="text-[11px] text-navy/45 dark:text-slate-500">
-                        resets {formatDate(track.resets_at)}
-                      </p>
-                    </div>
+                {!card.isConfigured ? (
+                  <div className="rounded-xl bg-cream/70 px-3 py-4 dark:bg-slate-800/60 text-center">
+                    <p className="text-sm text-navy/40 dark:text-slate-500">No capacity data yet</p>
+                    <p className="text-xs text-navy/30 dark:text-slate-600 mt-1">Click &quot;Set capacity&quot; below to start tracking</p>
                   </div>
-                ))}
+                ) : (
+                  card.tracks.filter((track) => track.used != null || track.limit != null).length > 0
+                    ? card.tracks.filter((track) => track.used != null || track.limit != null).map((track) => (
+                        <div key={track.key} className="flex items-start justify-between gap-3 rounded-xl bg-cream/70 px-3 py-2 dark:bg-slate-800/60">
+                          <div>
+                            <p className="text-sm font-medium text-navy dark:text-slate-100">{track.label}</p>
+                            <p className="text-[11px] uppercase tracking-wider text-navy/40 dark:text-slate-500">{track.period.replace('_', ' ')}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-semibold text-navy dark:text-slate-100">
+                              {formatCapacityTrackValue(track.used, track.limit, track.unit)}
+                            </p>
+                            <p className="text-[11px] text-navy/45 dark:text-slate-500">
+                              resets {formatDate(track.resets_at)}
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    : (
+                        <div className="rounded-xl bg-cream/70 px-3 py-4 dark:bg-slate-800/60 text-center">
+                          <p className="text-sm text-navy/40 dark:text-slate-500">Configured but no usage tracked</p>
+                          <p className="text-xs text-navy/30 dark:text-slate-600 mt-1">Update capacity values to see data here</p>
+                        </div>
+                      )
+                )}
               </div>
 
               <div className="mt-4 flex items-center justify-between gap-3 text-xs text-navy/50 dark:text-slate-400">
