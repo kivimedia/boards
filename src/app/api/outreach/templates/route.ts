@@ -85,6 +85,16 @@ export async function POST(request: NextRequest) {
     return errorResponse('template_number, variant, and template_text are required', 400);
   }
 
+  // Default stage from template_number if not provided (stage is NOT NULL in DB)
+  if (!body.stage) {
+    const STAGE_DEFAULTS: Record<number, string> = {
+      1: 'TO_SEND_CONNECTION', 2: 'CONNECTED', 3: 'LOOM_PERMISSION',
+      4: 'LOOM_SENT', 5: 'REPLIED', 6: 'MESSAGE_SENT',
+      7: 'NUDGE_SENT', 9: 'BOOKED', 10: 'NOT_INTERESTED',
+    };
+    body.stage = STAGE_DEFAULTS[body.template_number] || 'TO_SEND_CONNECTION';
+  }
+
   // Check if template exists (upsert)
   const { data: existing } = await supabase
     .from('li_templates')
