@@ -188,7 +188,7 @@ export default function PageForgePreviewPage({ params }: { params: { token: stri
                     {/* Vertical connector */}
                     {idx < build.phase_timeline.length - 1 && (
                       <div
-                        className={`absolute left-[11px] top-7 w-0.5 h-[calc(100%-28px)] ${
+                        className={`absolute left-[11px] top-6 w-0.5 h-[calc(100%-24px)] ${
                           phase.status === 'completed' ? 'bg-green-500' : 'bg-gray-800'
                         }`}
                       />
