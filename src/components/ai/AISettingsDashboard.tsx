@@ -6,21 +6,18 @@ import AIKeyManager from './AIKeyManager';
 import AIModelConfigTable from './AIModelConfigTable';
 import AICostDashboard from './AICostDashboard';
 import AIBudgetManager from './AIBudgetManager';
-import AIOpsDashboard from './AIOpsDashboard';
-
-type Tab = 'keys' | 'models' | 'usage' | 'budgets' | 'ops';
+type Tab = 'keys' | 'models' | 'usage' | 'budgets';
 
 const TABS: { id: Tab; label: string; description: string }[] = [
   { id: 'keys', label: 'API Keys', description: 'Manage provider API keys' },
   { id: 'models', label: 'Model Config', description: 'Configure models per activity' },
   { id: 'usage', label: 'Usage & Costs', description: 'View spending and token usage' },
   { id: 'budgets', label: 'Budget Controls', description: 'Set spending limits and alerts' },
-  { id: 'ops', label: 'Ops Dashboard', description: 'Track renewals, readiness, and manual vendors' },
 ];
 
 export default function AISettingsDashboard() {
   const [activeTab, setActiveTab] = useState<Tab>('keys');
-  const containerClassName = activeTab === 'ops' ? 'max-w-7xl mx-auto' : 'max-w-5xl mx-auto';
+  const containerClassName = 'max-w-5xl mx-auto';
 
   return (
     <div className="flex-1 overflow-y-auto bg-cream dark:bg-dark-bg p-4 sm:p-6">
@@ -65,7 +62,6 @@ export default function AISettingsDashboard() {
           {activeTab === 'models' && <AIModelConfigTable />}
           {activeTab === 'usage' && <AICostDashboard />}
           {activeTab === 'budgets' && <AIBudgetManager />}
-          {activeTab === 'ops' && <AIOpsDashboard />}
         </div>
       </div>
     </div>
