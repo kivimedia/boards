@@ -17,13 +17,18 @@ export async function GET(request: NextRequest) {
   const siteProfileId = url.searchParams.get('siteProfileId') || undefined;
   const status = url.searchParams.get('status') || undefined;
 
-  const builds = await listBuilds(auth.ctx.supabase, {
-    clientId,
-    siteProfileId,
-    status: status as any,
-  });
+  try {
+    const builds = await listBuilds(auth.ctx.supabase, {
+      clientId,
+      siteProfileId,
+      status: status as any,
+    });
 
-  return NextResponse.json({ builds });
+    return NextResponse.json({ builds });
+  } catch (err) {
+    console.error('GET /api/pageforge/builds error:', err);
+    return errorResponse(err instanceof Error ? err.message : 'Failed to list builds', 500);
+  }
 }
 
 /**
