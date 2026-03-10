@@ -36,6 +36,7 @@ export default function LeadList({ initialStage, batchId }: LeadListProps) {
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const limit = 25;
 
   const fetchLeads = useCallback(async () => {
@@ -96,29 +97,50 @@ export default function LeadList({ initialStage, batchId }: LeadListProps) {
   const handleBulkAction = async (action: 'enrich' | 'qualify' | 'delete') => {
     if (selected.size === 0) return;
     setBulkLoading(true);
+    setBulkMessage(null);
     try {
       const ids = Array.from(selected);
       if (action === 'enrich') {
-        await fetch('/api/outreach/leads/bulk-enrich', {
+        const res = await fetch('/api/outreach/leads/bulk-enrich', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ lead_ids: ids }),
         });
+        const json = await res.json();
+        if (!res.ok) {
+          setBulkMessage({ type: 'error', text: json.error || 'Enrichment failed' });
+          return;
+        }
+        setBulkMessage({ type: 'success', text: `${json.data?.enqueued || ids.length} leads queued for enrichment` });
       } else if (action === 'qualify') {
-        await fetch('/api/outreach/leads/bulk-qualify', {
+        const res = await fetch('/api/outreach/leads/bulk-qualify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ lead_ids: ids }),
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          setBulkMessage({ type: 'error', text: json.error || 'Qualification failed' });
+          return;
+        }
+        const r = json.data;
+        setBulkMessage({
+          type: 'success',
+          text: `Qualified: ${r.qualified}, Disqualified: ${r.disqualified}, Needs Review: ${r.needs_review}${r.errors?.length ? ` (${r.errors.length} errors)` : ''}`,
         });
       } else if (action === 'delete') {
         await Promise.all(ids.map(id =>
           fetch(`/api/outreach/leads/${id}`, { method: 'DELETE' })
         ));
+        setBulkMessage({ type: 'success', text: `${ids.length} leads deleted` });
       }
       setSelected(new Set());
       fetchLeads();
+    } catch (err) {
+      setBulkMessage({ type: 'error', text: err instanceof Error ? err.message : 'Action failed' });
     } finally {
       setBulkLoading(false);
+      setTimeout(() => setBulkMessage(null), 6000);
     }
   };
 
@@ -164,6 +186,19 @@ export default function LeadList({ initialStage, batchId }: LeadListProps) {
           {total} leads
         </span>
       </div>
+
+      {/* Bulk action feedback */}
+      {bulkMessage && (
+        <div className={`flex items-center gap-2 mb-3 px-3 py-2 rounded-lg text-xs font-semibold ${
+          bulkMessage.type === 'success'
+            ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800'
+            : 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
+        }`}>
+          <span>{bulkMessage.type === 'success' ? '\u2713' : '\u2717'}</span>
+          <span>{bulkMessage.text}</span>
+          <button onClick={() => setBulkMessage(null)} className="ml-auto text-current opacity-50 hover:opacity-100">\u00d7</button>
+        </div>
+      )}
 
       {/* Bulk actions */}
       {selected.size > 0 && (

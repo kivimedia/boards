@@ -33,6 +33,11 @@ export default function TemplateEditor() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [saving, setSaving] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createVariant, setCreateVariant] = useState<'A' | 'B'>('A');
+  const [createText, setCreateText] = useState('');
+  const [seeding, setSeeding] = useState(false);
+  const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const sequence = getSequenceOverview();
 
@@ -81,9 +86,66 @@ export default function TemplateEditor() {
     fetchTemplates();
   };
 
-  // Live quality check
+  const handleCreate = async () => {
+    if (!createText.trim() || !selectedSequence) return;
+    setSaving(true);
+    setFeedbackMsg(null);
+    try {
+      const res = await fetch('/api/outreach/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          template_number: selectedNum,
+          variant: createVariant,
+          stage: selectedSequence.stage,
+          template_text: createText,
+          is_followup: selectedSequence.isFollowup,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setFeedbackMsg({ type: 'error', text: json.error || 'Failed to create template' });
+        return;
+      }
+      setFeedbackMsg({ type: 'success', text: `Template T${selectedNum} Variant ${createVariant} created` });
+      setCreating(false);
+      setCreateText('');
+      fetchTemplates();
+    } catch (err) {
+      setFeedbackMsg({ type: 'error', text: err instanceof Error ? err.message : 'Create failed' });
+    } finally {
+      setSaving(false);
+      setTimeout(() => setFeedbackMsg(null), 5000);
+    }
+  };
+
+  const handleSeedDefaults = async () => {
+    setSeeding(true);
+    setFeedbackMsg(null);
+    try {
+      const res = await fetch('/api/outreach/templates/seed', { method: 'POST' });
+      const json = await res.json();
+      if (!res.ok) {
+        setFeedbackMsg({ type: 'error', text: json.error || 'Seed failed' });
+        return;
+      }
+      setFeedbackMsg({ type: 'success', text: 'Default templates loaded successfully' });
+      fetchTemplates();
+    } catch (err) {
+      setFeedbackMsg({ type: 'error', text: err instanceof Error ? err.message : 'Seed failed' });
+    } finally {
+      setSeeding(false);
+      setTimeout(() => setFeedbackMsg(null), 5000);
+    }
+  };
+
+  // Live quality check for editing/creating
   const liveCheck = editText
     ? checkMessageQuality(editText, { templateNumber: selectedNum })
+    : null;
+
+  const createCheck = createText
+    ? checkMessageQuality(createText, { templateNumber: selectedNum })
     : null;
 
   if (loading) {
@@ -180,15 +242,50 @@ export default function TemplateEditor() {
               )}
             </div>
 
+            {/* Feedback message */}
+            {feedbackMsg && (
+              <div className={`flex items-center gap-2 mb-3 px-3 py-2 rounded-lg text-xs font-semibold ${
+                feedbackMsg.type === 'success'
+                  ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800'
+                  : 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
+              }`}>
+                <span>{feedbackMsg.type === 'success' ? '\u2713' : '\u2717'}</span>
+                <span>{feedbackMsg.text}</span>
+                <button onClick={() => setFeedbackMsg(null)} className="ml-auto text-current opacity-50 hover:opacity-100">{'\u00d7'}</button>
+              </div>
+            )}
+
             {/* Variants */}
             {currentTemplates.length === 0 ? (
               <div className="text-center py-8 bg-cream dark:bg-dark-surface rounded-lg">
                 <p className="text-xs text-navy/40 dark:text-slate-500 font-body">
                   No templates configured for T{selectedNum}
                 </p>
-                <p className="text-[10px] text-navy/30 dark:text-slate-600 mt-1">
-                  Run the seed function or create one manually
-                </p>
+                {templates.length === 0 ? (
+                  <div className="mt-3 flex items-center justify-center gap-3">
+                    <button
+                      onClick={handleSeedDefaults}
+                      disabled={seeding}
+                      className="px-4 py-2 text-xs font-semibold text-white bg-electric hover:bg-electric-bright rounded-lg disabled:opacity-50 transition-colors"
+                    >
+                      {seeding ? 'Loading...' : 'Load Default Templates'}
+                    </button>
+                    <span className="text-[10px] text-navy/20 dark:text-slate-700">or</span>
+                    <button
+                      onClick={() => { setCreating(true); setCreateText(''); setCreateVariant('A'); }}
+                      className="px-4 py-2 text-xs font-semibold text-electric border border-electric/30 hover:bg-electric/5 rounded-lg transition-colors"
+                    >
+                      Create Manually
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => { setCreating(true); setCreateText(''); setCreateVariant('A'); }}
+                    className="mt-3 px-4 py-2 text-xs font-semibold text-electric border border-electric/30 hover:bg-electric/5 rounded-lg transition-colors"
+                  >
+                    + Create Template for T{selectedNum}
+                  </button>
+                )}
               </div>
             ) : (
               <div className="space-y-3">
@@ -284,6 +381,80 @@ export default function TemplateEditor() {
                     )}
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Add variant button when templates exist but user might want B variant */}
+            {currentTemplates.length > 0 && currentTemplates.length < 2 && !creating && (
+              <div className="mt-3">
+                <button
+                  onClick={() => {
+                    setCreating(true);
+                    setCreateText('');
+                    setCreateVariant(currentTemplates[0]?.variant === 'A' ? 'B' : 'A');
+                  }}
+                  className="text-[10px] text-electric hover:text-electric-bright font-semibold transition-colors"
+                >
+                  + Add Variant {currentTemplates[0]?.variant === 'A' ? 'B' : 'A'}
+                </button>
+              </div>
+            )}
+
+            {/* Create template form */}
+            {creating && (
+              <div className="mt-4 p-4 rounded-lg border border-electric/30 bg-electric/5 dark:bg-electric/10 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-semibold text-navy dark:text-white font-heading">
+                    New Template - T{selectedNum} Variant {createVariant}
+                  </h4>
+                  <button
+                    onClick={() => setCreating(false)}
+                    className="text-[10px] text-navy/40 dark:text-slate-500 hover:text-navy dark:hover:text-white font-semibold"
+                  >
+                    Cancel
+                  </button>
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className="text-[10px] text-navy/50 dark:text-slate-400 font-body">Variant:</label>
+                  <select
+                    value={createVariant}
+                    onChange={(e) => setCreateVariant(e.target.value as 'A' | 'B')}
+                    className="px-2 py-1 text-xs rounded border border-navy/10 dark:border-slate-700 bg-white dark:bg-dark-card text-navy dark:text-white font-body"
+                  >
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                  </select>
+                  <span className="text-[10px] text-navy/30 dark:text-slate-600 font-body">
+                    Stage: {selectedSequence?.stage}
+                  </span>
+                </div>
+                <textarea
+                  value={createText}
+                  onChange={(e) => setCreateText(e.target.value)}
+                  rows={5}
+                  placeholder="Write your template message here. Use {{first_name}}, {{company}}, {{title}} as placeholders..."
+                  className="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-dark-card border border-navy/10 dark:border-slate-700 text-navy dark:text-slate-100 font-body resize-none focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric placeholder:text-navy/30 dark:placeholder:text-slate-600"
+                />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-navy/30 dark:text-slate-600">{createText.length} chars</span>
+                    {createCheck && (
+                      <span className={`text-[10px] font-semibold ${createCheck.passed ? 'text-green-600' : 'text-red-500'}`}>
+                        Q: {createCheck.scores.overall}
+                      </span>
+                    )}
+                    {createCheck?.hardBlocks.map((b, i) => (
+                      <span key={i} className="text-[9px] text-red-500">{b}</span>
+                    ))}
+                  </div>
+                  <button
+                    onClick={handleCreate}
+                    disabled={saving || !createText.trim() || (createCheck ? !createCheck.passed : false)}
+                    className="px-4 py-1.5 text-[11px] font-semibold text-white bg-electric hover:bg-electric-bright rounded-lg disabled:opacity-50 transition-colors"
+                  >
+                    {saving ? 'Creating...' : 'Create Template'}
+                  </button>
+                </div>
               </div>
             )}
           </div>
