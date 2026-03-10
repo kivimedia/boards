@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Client } from '@/lib/types';
-import { AssetCategory, AssetLink, DiscoveredCard, FileAttachment } from '@/lib/offboarding';
+import { AssetCategory, AssetLink, DiscoveredCard, FileAttachment, WeeklyUpdate } from '@/lib/offboarding';
 import Button from '@/components/ui/Button';
 
 interface OffboardingWizardProps {
@@ -16,10 +16,12 @@ interface DiscoveryResult {
   assets: Record<AssetCategory, AssetLink[]>;
   fileAttachments: FileAttachment[];
   credentialCount: number;
+  weeklyUpdates: WeeklyUpdate[];
   summary: {
     totalCards: number;
     directCards: number;
     heuristicCards: number;
+    boardCards: number;
     figmaLinks: number;
     canvaLinks: number;
     dropboxLinks: number;
@@ -27,6 +29,7 @@ interface DiscoveryResult {
     otherLinks: number;
     fileCount: number;
     credentialCount: number;
+    weeklyUpdateCount: number;
   };
 }
 
@@ -268,9 +271,10 @@ export default function OffboardingWizard({ preselectedClientId }: OffboardingWi
           </div>
 
           {/* Summary stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             {[
-              { label: 'Cards Found', value: discovery.summary.totalCards, sub: `${discovery.summary.directCards} direct, ${discovery.summary.heuristicCards} heuristic` },
+              { label: 'Cards Found', value: discovery.summary.totalCards, sub: `${discovery.summary.directCards} direct, ${discovery.summary.boardCards} board, ${discovery.summary.heuristicCards} heuristic` },
+              { label: 'Weekly Updates', value: discovery.summary.weeklyUpdateCount, sub: 'all time' },
               { label: 'Design Links', value: discovery.summary.figmaLinks + discovery.summary.canvaLinks, sub: `${discovery.summary.figmaLinks} Figma, ${discovery.summary.canvaLinks} Canva` },
               { label: 'File Links', value: discovery.summary.dropboxLinks + discovery.summary.driveLinks, sub: `${discovery.summary.dropboxLinks} Dropbox, ${discovery.summary.driveLinks} Drive` },
               { label: 'Credentials', value: discovery.summary.credentialCount, sub: 'in vault' },
@@ -334,7 +338,10 @@ export default function OffboardingWizard({ preselectedClientId }: OffboardingWi
                     <div className="space-y-1 pl-3">
                       {cards.slice(0, 10).map(card => (
                         <div key={card.id} className="flex items-center gap-2 text-sm">
-                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${card.match_type === 'direct' ? 'bg-brand' : 'bg-amber-400'}`} />
+                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                            card.match_type === 'direct' ? 'bg-brand' :
+                            card.match_type === 'board' ? 'bg-emerald-500' : 'bg-amber-400'
+                          }`} />
                           <span className="text-navy dark:text-slate-300 font-body truncate">{card.title}</span>
                           <span className="text-navy/30 dark:text-slate-600 text-xs font-body">{card.list_name}</span>
                         </div>
@@ -350,7 +357,47 @@ export default function OffboardingWizard({ preselectedClientId }: OffboardingWi
               </div>
               <div className="flex items-center gap-4 mt-3 text-xs text-navy/40 dark:text-slate-500">
                 <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-brand" /> Direct match</span>
+                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Board match</span>
                 <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-400" /> Heuristic match</span>
+              </div>
+            </div>
+          )}
+
+          {/* Weekly updates */}
+          {discovery.weeklyUpdates.length > 0 && (
+            <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-cream-dark dark:border-slate-700">
+              <h3 className="text-sm font-bold text-navy dark:text-white font-heading mb-3">
+                Weekly Updates ({discovery.weeklyUpdates.length})
+              </h3>
+              <div className="space-y-2">
+                {discovery.weeklyUpdates.slice(0, 10).map(update => (
+                  <div key={update.id} className="flex items-start gap-3 text-sm py-2 border-b border-cream-dark dark:border-slate-800 last:border-0">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold font-heading ${
+                          update.status === 'sent' ? 'bg-brand/10 text-brand' :
+                          update.status === 'scheduled' ? 'bg-amber-400/10 text-amber-600' :
+                          'bg-cream-dark dark:bg-slate-700 text-navy/50 dark:text-slate-400'
+                        }`}>
+                          {update.status}
+                        </span>
+                        <span className="text-xs text-navy/40 dark:text-slate-500 font-body">
+                          {new Date(update.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      </div>
+                      {update.ai_summary && (
+                        <p className="text-navy/70 dark:text-slate-400 font-body text-xs line-clamp-2">
+                          {update.ai_summary}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {discovery.weeklyUpdates.length > 10 && (
+                  <div className="text-xs text-navy/40 dark:text-slate-500 font-body pt-1">
+                    ... and {discovery.weeklyUpdates.length - 10} more
+                  </div>
+                )}
               </div>
             </div>
           )}

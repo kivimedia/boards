@@ -5,6 +5,7 @@ import {
   extractAssetLinks,
   buildSearchTerms,
   collectCredentials,
+  collectWeeklyUpdates,
   buildReportData,
   generateCsv,
 } from '@/lib/offboarding';
@@ -61,8 +62,11 @@ export async function POST(request: NextRequest, { params }: Params) {
     ? await collectCredentials(supabase, params.clientId, userId)
     : [];
 
+  // Collect weekly updates
+  const weeklyUpdates = await collectWeeklyUpdates(supabase, params.clientId);
+
   // Build report
-  const report = buildReportData(client, cards, assets, fileAttachments, credentials, searchTerms);
+  const report = buildReportData(client, cards, assets, fileAttachments, credentials, searchTerms, weeklyUpdates);
 
   if (body.format === 'csv') {
     const csv = generateCsv(report);
