@@ -248,7 +248,7 @@ export default function AgentsDashboard() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-[480px] overflow-y-auto">
                 {filteredSkills.map((skill) => {
                   const tier = TIER_CONFIG[skill.quality_tier];
                   const isSelected = selectedSkill?.id === skill.id;
