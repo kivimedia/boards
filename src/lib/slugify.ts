@@ -16,3 +16,13 @@ export function slugify(text: string): string {
 export function isUUID(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
+
+/** Returns true if the string is an 8-char hex short card ID. */
+export function isShortId(value: string): boolean {
+  return /^[0-9a-f]{8}$/i.test(value);
+}
+
+/** Returns the 8-char short ID from a UUID. */
+export function toShortId(uuid: string): string {
+  return uuid.replace(/-/g, '').slice(0, 8);
+}
