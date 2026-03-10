@@ -6,14 +6,16 @@ import AIKeyManager from './AIKeyManager';
 import AIModelConfigTable from './AIModelConfigTable';
 import AICostDashboard from './AICostDashboard';
 import AIBudgetManager from './AIBudgetManager';
+import AIOpsDashboard from './AIOpsDashboard';
 
-type Tab = 'keys' | 'models' | 'usage' | 'budgets';
+type Tab = 'keys' | 'models' | 'usage' | 'budgets' | 'ops';
 
 const TABS: { id: Tab; label: string; description: string }[] = [
   { id: 'keys', label: 'API Keys', description: 'Manage provider API keys' },
   { id: 'models', label: 'Model Config', description: 'Configure models per activity' },
   { id: 'usage', label: 'Usage & Costs', description: 'View spending and token usage' },
   { id: 'budgets', label: 'Budget Controls', description: 'Set spending limits and alerts' },
+  { id: 'ops', label: 'Ops Dashboard', description: 'Track renewals, readiness, and manual vendors' },
 ];
 
 export default function AISettingsDashboard() {
@@ -62,6 +64,7 @@ export default function AISettingsDashboard() {
           {activeTab === 'models' && <AIModelConfigTable />}
           {activeTab === 'usage' && <AICostDashboard />}
           {activeTab === 'budgets' && <AIBudgetManager />}
+          {activeTab === 'ops' && <AIOpsDashboard />}
         </div>
       </div>
     </div>
