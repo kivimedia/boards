@@ -48,10 +48,11 @@ export function isS3Configured(): boolean {
 }
 
 /**
- * Check if a file should go to S3 based on size
+ * Check if a file should go to S3.
+ * All files go to S3 when configured (migrated from Supabase Storage to reduce egress).
  */
 export function shouldUseS3(fileSizeBytes: number): boolean {
-  return fileSizeBytes > SUPABASE_MAX_FILE_SIZE && isS3Configured();
+  return isS3Configured();
 }
 
 /**

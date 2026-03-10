@@ -38,18 +38,11 @@ export async function POST(request: NextRequest, { params }: Params) {
       return errorResponse(`File too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)}MB.`);
     }
 
-    const SUPABASE_MAX = 50 * 1024 * 1024; // 50MB
     let storagePath: string;
     let storageMethod: 'supabase' | 's3';
 
-    if (file.size > SUPABASE_MAX) {
-      // Large file → S3
-      if (!isS3Configured()) {
-        return errorResponse(
-          'File exceeds 50MB Supabase limit. Configure AWS S3 (AWS_S3_ACCESS_KEY_ID, AWS_S3_SECRET_ACCESS_KEY, AWS_S3_BUCKET) for large file uploads.'
-        );
-      }
-
+    if (isS3Configured()) {
+      // All files → S3 (reduces Supabase storage/egress)
       const buffer = Buffer.from(await file.arrayBuffer());
       const s3Key = buildS3Key(cardId, file.name);
       await uploadToS3(s3Key, buffer, file.type || 'application/octet-stream');
@@ -57,7 +50,14 @@ export async function POST(request: NextRequest, { params }: Params) {
       storagePath = `s3://${s3Key}`;
       storageMethod = 's3';
     } else {
-      // Small file → Supabase Storage
+      // Fallback → Supabase Storage (only if S3 not configured)
+      const SUPABASE_MAX = 50 * 1024 * 1024; // 50MB
+      if (file.size > SUPABASE_MAX) {
+        return errorResponse(
+          'File exceeds 50MB Supabase limit. Configure AWS S3 for large file uploads.'
+        );
+      }
+
       const path = `${cardId}/${Date.now()}_${file.name}`;
       const { error: uploadError } = await supabase.storage
         .from('card-attachments')
