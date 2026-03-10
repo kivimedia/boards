@@ -328,8 +328,13 @@ export default function PageForgeDashboard() {
   useEffect(() => {
     async function load() {
       setLoading(true);
-      await Promise.all([fetchBuilds(), fetchSites(), fetchClients()]);
-      setLoading(false);
+      try {
+        await Promise.all([fetchBuilds(), fetchSites(), fetchClients()]);
+      } catch (err) {
+        console.error('Initial load error:', err);
+      } finally {
+        setLoading(false);
+      }
     }
     load();
   }, [fetchBuilds, fetchSites, fetchClients]);
@@ -567,11 +572,12 @@ export default function PageForgeDashboard() {
                         <p className="text-sm font-medium text-navy dark:text-slate-200 truncate max-w-[200px]">
                           {build.page_title}
                         </p>
-                        {build.site_profile?.site_name && (
-                          <p className="text-xs text-navy/40 dark:text-slate-500 mt-0.5">
-                            {build.site_profile.site_name}
-                          </p>
-                        )}
+                        {(() => {
+                          const siteName = build.site_profile?.site_name || sites.find(s => s.id === build.site_profile_id)?.site_name;
+                          return siteName ? (
+                            <p className="text-xs text-navy/40 dark:text-slate-500 mt-0.5">{siteName}</p>
+                          ) : null;
+                        })()}
                       </td>
                       <td className="px-4 py-3">
                         <span
