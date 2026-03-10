@@ -6,23 +6,77 @@ import Anthropic from '@anthropic-ai/sdk';
 // Constants, AI call function, phase tracking, and helpers.
 // ============================================================================
 
+// v2 phase order: desktop-first build, then mobile optimization
 export const PAGEFORGE_PHASE_ORDER: string[] = [
-  'preflight', 'auto_name', 'figma_analysis', 'section_classification', 'markup_generation',
-  'markup_validation', 'deploy_draft', 'draft_review_gate', 'image_optimization', 'vqa_capture',
-  'vqa_comparison', 'vqa_fix_loop', 'functional_qa', 'seo_config',
-  'report_generation', 'developer_review_gate', 'am_signoff_gate',
+  // Pre-build
+  'preflight',                    // 0: Validate WP + both Figma files
+  'auto_name',                    // 1: AI layer naming suggestions
+  // Figma analysis
+  'figma_analysis',               // 2: Extract design data from Desktop Figma
+  'section_classification',       // 3: AI classifies sections
+  // Element mapping gate (skippable)
+  'element_mapping_gate',         // 4: AI proposes Divi5 module per section, user reviews
+  // Desktop build
+  'markup_generation',            // 5: Generate desktop markup using approved mappings
+  'markup_validation',            // 6: Validate block syntax
+  'deploy_draft',                 // 7: Push draft to WordPress
+  'draft_review_gate',            // 8: Human reviews deployed draft
+  'image_optimization',           // 9: Download/compress/upload images
+  // Desktop VQA
+  'vqa_capture',                  // 10: Screenshot WP at 1440px ONLY
+  'vqa_comparison',               // 11: Compare WP desktop vs Desktop Figma
+  'vqa_fix_loop',                 // 12: AI fixes desktop issues
+  'functional_qa',                // 13: Desktop functional checks
+  // Mobile optimization
+  'mobile_markup_generation',     // 14: Generate responsive CSS from Mobile Figma
+  'mobile_deploy',                // 15: Push mobile styles to WP
+  // Mobile VQA
+  'mobile_vqa_capture',           // 16: Screenshot WP at 375px
+  'mobile_vqa_comparison',        // 17: Compare WP mobile vs Mobile Figma
+  'mobile_vqa_fix_loop',          // 18: AI fixes mobile issues
+  'mobile_functional_qa',         // 19: Mobile functional checks
+  // Animation
+  'animation_detection',          // 20: Parse animation annotations from Figma
+  'animation_implementation',     // 21: Divi 5 animations or CSS @keyframes
+  // Finish
+  'seo_config',                   // 22: Yoast meta, alt tags, headings
+  'report_generation',            // 23: Final build report
+  'final_review_gate',            // 24: Side-by-side desktop + mobile review
+  'am_signoff_gate',              // 25: Final AM sign-off
 ];
 
-export const GATE_PHASES = new Set<string>(['draft_review_gate', 'developer_review_gate', 'am_signoff_gate']);
+export const GATE_PHASES = new Set<string>([
+  'element_mapping_gate',
+  'draft_review_gate',
+  'final_review_gate',
+  'am_signoff_gate',
+]);
 
 export const PHASE_TO_ACTIVITY: Record<string, string> = {
-  preflight: 'pageforge_orchestrator', auto_name: 'pageforge_orchestrator', figma_analysis: 'pageforge_builder',
-  section_classification: 'pageforge_builder', markup_generation: 'pageforge_builder',
-  markup_validation: 'pageforge_builder', deploy_draft: 'pageforge_builder',
-  image_optimization: 'pageforge_builder', vqa_capture: 'pageforge_vqa',
-  vqa_comparison: 'pageforge_vqa', vqa_fix_loop: 'pageforge_vqa',
-  functional_qa: 'pageforge_qa', seo_config: 'pageforge_seo',
+  preflight: 'pageforge_orchestrator',
+  auto_name: 'pageforge_orchestrator',
+  figma_analysis: 'pageforge_builder',
+  section_classification: 'pageforge_builder',
+  element_mapping_gate: 'pageforge_builder',
+  markup_generation: 'pageforge_builder',
+  markup_validation: 'pageforge_builder',
+  deploy_draft: 'pageforge_builder',
+  image_optimization: 'pageforge_builder',
+  vqa_capture: 'pageforge_vqa',
+  vqa_comparison: 'pageforge_vqa',
+  vqa_fix_loop: 'pageforge_vqa',
+  functional_qa: 'pageforge_qa',
+  mobile_markup_generation: 'pageforge_builder',
+  mobile_deploy: 'pageforge_builder',
+  mobile_vqa_capture: 'pageforge_vqa',
+  mobile_vqa_comparison: 'pageforge_vqa',
+  mobile_vqa_fix_loop: 'pageforge_vqa',
+  mobile_functional_qa: 'pageforge_qa',
+  animation_detection: 'pageforge_builder',
+  animation_implementation: 'pageforge_builder',
+  seo_config: 'pageforge_seo',
   report_generation: 'pageforge_orchestrator',
+  final_review_gate: 'pageforge_orchestrator',
 };
 
 // Models per activity (can be overridden via DB)

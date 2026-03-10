@@ -36,7 +36,13 @@ export async function POST(request: NextRequest) {
   if (!auth.ok) return auth.response;
 
   const body = await request.json();
-  const { siteProfileId, figmaFileKey, figmaNodeIds, pageTitle, pageSlug, page_builder: pageBuilder, model_profile: modelProfile, custom_models: customModels, boardListId, trackOnBoard } = body;
+  const {
+    siteProfileId, figmaFileKey, figmaNodeIds, pageTitle, pageSlug,
+    page_builder: pageBuilder, model_profile: modelProfile, custom_models: customModels,
+    boardListId, trackOnBoard,
+    // v2: dual Figma + element mapping + animation
+    figmaFileKeyMobile, figmaNodeIdsMobile, reviewElementMappings, hasAnimationPlan, animationFigmaNode,
+  } = body;
 
   if (!siteProfileId || !figmaFileKey || !pageTitle) {
     return errorResponse('siteProfileId, figmaFileKey, and pageTitle are required');
@@ -66,12 +72,18 @@ export async function POST(request: NextRequest) {
       }
     );
 
-    // Store model_profile, custom_models, and page_builder override in the build
+    // Store model_profile, custom_models, mobile Figma, and page_builder override in the build
     const updatePayload: Record<string, unknown> = {
       artifacts: {
         model_profile: modelProfile || 'cost_optimized',
         custom_models: customModels || null,
       },
+      // v2 fields
+      figma_file_key_mobile: figmaFileKeyMobile || null,
+      figma_node_ids_mobile: figmaNodeIdsMobile || [],
+      review_element_mappings: reviewElementMappings || false,
+      has_animation_plan: hasAnimationPlan || false,
+      animation_figma_node: animationFigmaNode || null,
     };
     // Allow overriding the page builder per-build
     if (pageBuilder && pageBuilder !== siteProfile.page_builder) {

@@ -3515,6 +3515,7 @@ export type PageForgeBuildStatus =
   | 'auto_name'
   | 'figma_analysis'
   | 'section_classification'
+  | 'element_mapping_gate'
   | 'markup_generation'
   | 'markup_validation'
   | 'deploy_draft'
@@ -3524,8 +3525,17 @@ export type PageForgeBuildStatus =
   | 'vqa_comparison'
   | 'vqa_fix_loop'
   | 'functional_qa'
+  | 'mobile_markup_generation'
+  | 'mobile_deploy'
+  | 'mobile_vqa_capture'
+  | 'mobile_vqa_comparison'
+  | 'mobile_vqa_fix_loop'
+  | 'mobile_functional_qa'
+  | 'animation_detection'
+  | 'animation_implementation'
   | 'seo_config'
   | 'report_generation'
+  | 'final_review_gate'
   | 'developer_review_gate'
   | 'am_signoff_gate'
   | 'published'
@@ -3579,9 +3589,17 @@ export interface PageForgeBuild {
 
   figma_file_key: string;
   figma_node_ids: string[];
+  figma_file_key_mobile: string | null;
+  figma_node_ids_mobile: string[] | null;
   page_title: string;
   page_slug: string | null;
   page_builder: PageForgeBuilderType;
+
+  // v2 fields
+  build_stage: 'desktop' | 'mobile' | 'complete' | null;
+  review_element_mappings: boolean;
+  has_animation_plan: boolean;
+  animation_figma_node: string | null;
 
   status: PageForgeBuildStatus;
   current_phase: number;
@@ -3598,6 +3616,7 @@ export interface PageForgeBuild {
   vqa_score_tablet: number | null;
   vqa_score_mobile: number | null;
   vqa_score_overall: number | null;
+  vqa_score_mobile_figma: number | null;
 
   lighthouse_performance: number | null;
   lighthouse_accessibility: number | null;
@@ -4106,4 +4125,70 @@ export interface OrchestratorCallbacks {
   onProgress?: (message: string) => void;
   onStepData?: (data: Record<string, unknown>) => void;
   onCostEvent?: (event: { service_name: string; operation: string; cost_usd: number }) => void;
+}
+
+// ============================================================================
+// Executive Dashboard
+// ============================================================================
+
+export interface UpcomingMeeting {
+  id: string;
+  title: string;
+  start_time: string;
+  end_time: string;
+  location: string | null;
+  event_link: string | null;
+  attendees: { email: string; name?: string }[];
+  client_name: string | null;
+  has_prep: boolean;
+  prep_id: string | null;
+}
+
+export interface StuckCard {
+  card_id: string;
+  title: string;
+  board_id: string;
+  board_name: string;
+  list_name: string;
+  priority: CardPriority;
+  due_date: string | null;
+  owner_id: string | null;
+  owner_name: string | null;
+  owner_avatar: string | null;
+  days_stuck: number;
+  last_moved_at: string;
+}
+
+export interface RedFlags {
+  overdueCards: number;
+  failedUpdates: number;
+  pendingApprovalUpdates: number;
+  flaggedTickets: number;
+}
+
+export interface ThroughputPeriod {
+  ticketsCompleted: number;
+  ticketsCreated: number;
+  avgCycleTimeHours: number;
+}
+
+export interface ThroughputData {
+  thisWeek: ThroughputPeriod;
+  lastWeek: ThroughputPeriod;
+  completedDelta: number;
+  cycleDelta: number;
+}
+
+export interface ExecutiveDashboardResponse {
+  upcomingMeetings: UpcomingMeeting[];
+  stuckCards: StuckCard[];
+  redFlags: RedFlags;
+  throughput: ThroughputData;
+  boardSummaries: {
+    board: Board;
+    totalCards: number;
+    lists: { id: string; name: string; cardCount: number }[];
+    recentlyMoved: number;
+  }[];
+  userName: string;
 }

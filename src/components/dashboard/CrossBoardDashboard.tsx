@@ -1,31 +1,35 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { BOARD_TYPE_CONFIG } from '@/lib/constants';
-import PipelineView from '@/components/dashboard/PipelineView';
+import { useCallback, useEffect, useState } from 'react';
 import CreateBoardModal from '@/components/board/CreateBoardModal';
 import Button from '@/components/ui/Button';
-import type { Board, BoardType } from '@/lib/types';
-import { slugify } from '@/lib/slugify';
+import RedFlagsBanner from '@/components/dashboard/RedFlagsBanner';
+import TodaysAgenda from '@/components/dashboard/TodaysAgenda';
+import StuckCards from '@/components/dashboard/StuckCards';
+import TeamThroughput from '@/components/dashboard/TeamThroughput';
+import BoardSummaryGrid from '@/components/dashboard/BoardSummaryGrid';
+import type { ExecutiveDashboardResponse } from '@/lib/types';
 
-interface ListSummary {
-  id: string;
-  name: string;
-  cardCount: number;
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
 }
 
-interface BoardSummary {
-  board: Board;
-  totalCards: number;
-  lists: ListSummary[];
-  recentlyMoved: number;
+function formatDate(): string {
+  return new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
 }
 
 export default function CrossBoardDashboard() {
-  const [boardSummaries, setBoardSummaries] = useState<BoardSummary[]>([]);
+  const [data, setData] = useState<ExecutiveDashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [stuckDays, setStuckDays] = useState(5);
 
   // Listen for global event from CreateMenu (top-bar "New Board" shortcut)
   useEffect(() => {
@@ -34,24 +38,28 @@ export default function CrossBoardDashboard() {
     return () => window.removeEventListener('open-create-board-modal', handler);
   }, []);
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      setLoading(true);
-      try {
-        const res = await fetch('/api/dashboard-summary');
-        if (!res.ok) throw new Error('Failed to fetch dashboard data');
-        const { data } = await res.json();
-        setBoardSummaries(data ?? []);
-      } catch (err) {
-        console.error('Dashboard fetch failed:', err);
-        setBoardSummaries([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDashboardData();
+  const fetchData = useCallback(async (days: number) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/dashboard-executive?stuck_days=${days}`);
+      if (!res.ok) throw new Error('Failed to fetch dashboard data');
+      const { data: responseData } = await res.json();
+      setData(responseData ?? null);
+    } catch (err) {
+      console.error('Dashboard fetch failed:', err);
+      setData(null);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchData(stuckDays);
+  }, [fetchData, stuckDays]);
+
+  const handleThresholdChange = (days: number) => {
+    setStuckDays(days);
+  };
 
   if (loading) {
     return (
@@ -65,135 +73,64 @@ export default function CrossBoardDashboard() {
     );
   }
 
-  const boardsForPipeline = boardSummaries.map((s) => ({
-    id: s.board.id,
-    name: s.board.name,
-    type: s.board.type,
-    color: BOARD_TYPE_CONFIG[s.board.type as BoardType]?.color || '#6366f1',
-    activeCount: s.lists
-      .filter((l) => !['backlog', 'done', 'completed', 'delivered', 'deployed', 'published', 'closed', 'approved', 'archived']
-        .some((p) => l.name.toLowerCase().includes(p)))
-      .reduce((sum, l) => sum + l.cardCount, 0),
-  }));
+  if (!data) {
+    return (
+      <div className="flex-1 overflow-y-auto bg-cream dark:bg-navy p-4 sm:p-6">
+        <div className="max-w-6xl mx-auto text-center py-16">
+          <p className="text-sm text-navy/40 dark:text-slate-500 font-body">
+            Failed to load dashboard data.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const hasRedFlags =
+    data.redFlags.overdueCards +
+    data.redFlags.failedUpdates +
+    data.redFlags.pendingApprovalUpdates +
+    data.redFlags.flaggedTickets > 0;
 
   return (
     <div className="flex-1 overflow-y-auto bg-cream p-4 sm:p-6">
-      <div className="max-w-6xl mx-auto space-y-6">
+      <div className="max-w-6xl mx-auto space-y-5">
+        {/* Header */}
         <div className="flex items-center justify-between">
-          <p className="text-navy/60 dark:text-slate-400 font-body text-sm">
-            Executive overview of all boards and cross-board activity.
-          </p>
+          <div>
+            <h1 className="text-lg font-bold text-navy dark:text-slate-100 font-heading">
+              {getGreeting()}, {data.userName}
+            </h1>
+            <p className="text-navy/50 dark:text-slate-400 text-xs font-body mt-0.5">
+              {formatDate()} - Here is what needs your attention.
+            </p>
+          </div>
           <Button onClick={() => setShowCreateModal(true)}>
             + New Board
           </Button>
         </div>
 
-        {/* Pipeline View - pass pre-computed active counts */}
-        <PipelineView boards={boardsForPipeline} />
+        {/* Red flags banner */}
+        {hasRedFlags && <RedFlagsBanner flags={data.redFlags} />}
 
-        {/* Board Summary Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {boardSummaries.map((summary) => {
-            const config = BOARD_TYPE_CONFIG[summary.board.type as BoardType];
-            const boardColor = config?.color || '#6366f1';
-            const maxCardCount = Math.max(...summary.lists.map((l) => l.cardCount), 1);
-
-            return (
-              <Link
-                key={summary.board.id}
-                href={`/board/${slugify(summary.board.name)}`}
-                className="group block bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 hover:border-transparent p-5 transition-all duration-200 hover:shadow-lg dark:hover:shadow-none"
-                style={{
-                  ['--board-color' as string]: boardColor,
-                }}
-              >
-                {/* Board Header */}
-                <div className="flex items-center gap-3 mb-4">
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center text-lg"
-                    style={{ backgroundColor: `${boardColor}15` }}
-                  >
-                    {config?.icon || '📋'}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-semibold text-navy dark:text-slate-100 font-heading truncate">
-                      {summary.board.name}
-                    </h3>
-                    <p className="text-xs text-navy/40 dark:text-slate-400 font-body">
-                      {config?.label || summary.board.type}
-                    </p>
-                  </div>
-                  <div
-                    className="px-2.5 py-1 rounded-lg text-xs font-bold text-white"
-                    style={{ backgroundColor: boardColor }}
-                  >
-                    {summary.totalCards}
-                  </div>
-                </div>
-
-                {/* Mini Bar Chart - Cards per List */}
-                {summary.lists.length > 0 && (
-                  <div className="space-y-1.5 mb-4">
-                    {summary.lists.slice(0, 6).map((list) => (
-                      <div key={list.id} className="flex items-center gap-2">
-                        <span className="text-[10px] text-navy/40 dark:text-slate-400 font-body w-14 sm:w-20 truncate shrink-0">
-                          {list.name}
-                        </span>
-                        <div className="flex-1 h-2 bg-cream-dark dark:bg-slate-700 rounded-full overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all duration-500"
-                            style={{
-                              width: `${Math.max((list.cardCount / maxCardCount) * 100, list.cardCount > 0 ? 8 : 0)}%`,
-                              backgroundColor: boardColor,
-                              opacity: 0.7,
-                            }}
-                          />
-                        </div>
-                        <span className="text-[10px] text-navy/50 dark:text-slate-400 font-body w-4 text-right shrink-0">
-                          {list.cardCount}
-                        </span>
-                      </div>
-                    ))}
-                    {summary.lists.length > 6 && (
-                      <p className="text-[10px] text-navy/30 dark:text-slate-500 font-body text-center">
-                        +{summary.lists.length - 6} more lists
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Footer Stats */}
-                <div className="flex items-center justify-between pt-3 border-t border-cream-dark/50 dark:border-slate-700">
-                  <div className="flex items-center gap-1.5 text-navy/40 dark:text-slate-400">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="5" y1="12" x2="19" y2="12" />
-                      <polyline points="12 5 19 12 12 19" />
-                    </svg>
-                    <span className="text-[10px] font-body">
-                      {summary.recentlyMoved} moved (24h)
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-navy/30 dark:text-slate-500 font-body">
-                    {summary.lists.length} lists
-                  </span>
-                </div>
-              </Link>
-            );
-          })}
+        {/* Two-column: Agenda + Stuck cards */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          <div className="lg:col-span-2">
+            <TodaysAgenda meetings={data.upcomingMeetings} />
+          </div>
+          <div className="lg:col-span-3">
+            <StuckCards
+              cards={data.stuckCards}
+              daysThreshold={stuckDays}
+              onThresholdChange={handleThresholdChange}
+            />
+          </div>
         </div>
 
-        {boardSummaries.length === 0 && (
-          <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-12 text-center">
-            <div className="w-12 h-12 rounded-xl bg-cream-dark dark:bg-slate-700 flex items-center justify-center mx-auto mb-3">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-navy/30 dark:text-slate-400">
-                <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
-              </svg>
-            </div>
-            <p className="text-sm text-navy/40 dark:text-slate-400 font-body">
-              No boards created yet. Create a board to get started.
-            </p>
-          </div>
-        )}
+        {/* Team throughput */}
+        <TeamThroughput throughput={data.throughput} />
+
+        {/* Board summary grid */}
+        <BoardSummaryGrid summaries={data.boardSummaries} />
       </div>
 
       <CreateBoardModal

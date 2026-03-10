@@ -60,10 +60,13 @@ const PAGE_BUILDERS = [
 interface NewBuildForm {
   site_profile_id: string;
   figma_file_key: string;
+  figma_file_key_mobile: string;
   page_title: string;
   page_builder: string;
   model_profile: string;
   customModels: Record<string, string>;
+  review_element_mappings: boolean;
+  has_animation_plan: boolean;
 }
 
 interface ClientEntry {
@@ -117,10 +120,13 @@ export default function PageForgeDashboard() {
   const [newBuild, setNewBuild] = useState<NewBuildForm>({
     site_profile_id: '',
     figma_file_key: '',
+    figma_file_key_mobile: '',
     page_title: '',
     page_builder: '',
     model_profile: 'cost_optimized',
     customModels: { ...defaultCustomModels },
+    review_element_mappings: false,
+    has_animation_plan: false,
   });
 
   // Figma files combobox
@@ -381,10 +387,13 @@ export default function PageForgeDashboard() {
       const payload: Record<string, unknown> = {
         siteProfileId: newBuild.site_profile_id,
         figmaFileKey: newBuild.figma_file_key,
+        figmaFileKeyMobile: newBuild.figma_file_key_mobile || undefined,
         pageTitle: newBuild.page_title,
         page_builder: newBuild.page_builder || undefined,
         model_profile: newBuild.model_profile,
         trackOnBoard: trackOnBoard || undefined,
+        reviewElementMappings: newBuild.review_element_mappings,
+        hasAnimationPlan: newBuild.has_animation_plan,
       };
       if (newBuild.model_profile === 'custom') {
         payload.custom_models = newBuild.customModels;
@@ -399,7 +408,7 @@ export default function PageForgeDashboard() {
         throw new Error(errBody?.error || errBody?.message || `Create failed (${res.status})`);
       }
       setShowNewBuildModal(false);
-      setNewBuild({ site_profile_id: '', figma_file_key: '', page_title: '', page_builder: '', model_profile: 'cost_optimized', customModels: { ...defaultCustomModels } });
+      setNewBuild({ site_profile_id: '', figma_file_key: '', figma_file_key_mobile: '', page_title: '', page_builder: '', model_profile: 'cost_optimized', customModels: { ...defaultCustomModels }, review_element_mappings: false, has_animation_plan: false });
       setFigmaSearch('');
       setFigmaSelectedName('');
       setShowFigmaDropdown(false);
@@ -912,7 +921,7 @@ export default function PageForgeDashboard() {
                             // Reset figma state when switching sites
                             setFigmaSearch('');
                             setFigmaSelectedName('');
-                            setNewBuild(prev => ({ ...prev, site_profile_id: siteId, figma_file_key: '', page_builder: selectedSite?.page_builder || prev.page_builder }));
+                            setNewBuild(prev => ({ ...prev, site_profile_id: siteId, figma_file_key: '', figma_file_key_mobile: '', page_builder: selectedSite?.page_builder || prev.page_builder }));
                           }}
                           className="flex-1 rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 px-3 py-2.5 font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric"
                         >
@@ -1098,6 +1107,61 @@ export default function PageForgeDashboard() {
                       </div>
                     )}
                   </div>
+
+                  {/* Mobile Figma File (Optional) */}
+                  {newBuild.figma_file_key && figmaFiles.length > 0 && (
+                    <div>
+                      <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1 font-heading">
+                        Mobile Figma File <span className="font-normal text-navy/30 dark:text-slate-500">(Optional)</span>
+                      </label>
+                      <p className="text-[10px] text-navy/40 dark:text-slate-500 font-body mb-2">
+                        Provide a separate mobile design for accurate mobile VQA. If omitted, mobile will use responsive CSS from the desktop build.
+                      </p>
+                      <select
+                        value={newBuild.figma_file_key_mobile}
+                        onChange={(e) => setNewBuild((prev) => ({ ...prev, figma_file_key_mobile: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 font-body focus:outline-none focus:ring-2 focus:ring-electric"
+                      >
+                        <option value="">None - use desktop only</option>
+                        {figmaFiles.map((file) => (
+                          <option key={file.key} value={file.key}>
+                            {file.name} ({file.project_name})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Advanced Options */}
+                  {newBuild.figma_file_key && (
+                    <div className="space-y-3 pt-3 border-t border-cream-dark/50 dark:border-slate-700">
+                      <p className="text-[10px] font-semibold text-navy/40 dark:text-slate-500 font-heading uppercase tracking-wider">
+                        Advanced
+                      </p>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={newBuild.review_element_mappings}
+                          onChange={(e) => setNewBuild((prev) => ({ ...prev, review_element_mappings: e.target.checked }))}
+                          className="w-4 h-4 rounded border-cream-dark dark:border-slate-600 text-electric focus:ring-electric"
+                        />
+                        <span className="text-xs text-navy/70 dark:text-slate-300 font-body">
+                          Review element mappings before build
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={newBuild.has_animation_plan}
+                          onChange={(e) => setNewBuild((prev) => ({ ...prev, has_animation_plan: e.target.checked }))}
+                          className="w-4 h-4 rounded border-cream-dark dark:border-slate-600 text-electric focus:ring-electric"
+                        />
+                        <span className="text-xs text-navy/70 dark:text-slate-300 font-body">
+                          Include animation plan (second Figma page)
+                        </span>
+                      </label>
+                    </div>
+                  )}
 
                   {/* Page Builder */}
                   {newBuild.site_profile_id && (
