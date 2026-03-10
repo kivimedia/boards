@@ -740,10 +740,10 @@ export async function listBuilds(
   supabase: SupabaseClient,
   filters?: { clientId?: string; siteProfileId?: string; status?: PageForgeBuildStatus }
 ): Promise<PageForgeBuild[]> {
-  // Use explicit FK hint to avoid PostgREST ambiguity with multiple tables referencing site_profiles
+  // Simple query without join - site names resolved client-side from the sites list
   let query = supabase
     .from('pageforge_builds')
-    .select('*, site_profile:pageforge_site_profiles!site_profile_id(id, site_name, site_url)')
+    .select('*')
     .order('created_at', { ascending: false })
     .limit(50);
 
@@ -753,21 +753,8 @@ export async function listBuilds(
 
   const { data, error } = await query;
   if (error) {
-    console.error('listBuilds join query failed, trying without join:', error.message);
-    // Fallback: load without site_profile join
-    let fallback = supabase
-      .from('pageforge_builds')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(50);
-    if (filters?.clientId) fallback = fallback.eq('client_id', filters.clientId);
-    if (filters?.siteProfileId) fallback = fallback.eq('site_profile_id', filters.siteProfileId);
-    if (filters?.status) fallback = fallback.eq('status', filters.status);
-    const { data: fallbackData, error: fallbackError } = await fallback;
-    if (fallbackError) {
-      throw new Error(fallbackError.message);
-    }
-    return (fallbackData as PageForgeBuild[]) || [];
+    console.error('listBuilds query error:', error.message);
+    throw new Error(error.message);
   }
   return (data as PageForgeBuild[]) || [];
 }
