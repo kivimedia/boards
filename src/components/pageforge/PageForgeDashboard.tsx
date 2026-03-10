@@ -641,8 +641,14 @@ export default function PageForgeDashboard() {
 
       {activeTab === 'sites' && (
         <div className="space-y-4">
-          {/* Manage Sites link */}
-          <div className="flex items-center justify-end">
+          {/* Manage Sites + Mappings links */}
+          <div className="flex items-center justify-end gap-2">
+            <a
+              href="/pageforge/mappings"
+              className="px-4 py-2 text-xs font-semibold text-navy/60 dark:text-slate-400 border border-navy/20 dark:border-slate-600 rounded-lg hover:bg-navy/5 dark:hover:bg-slate-700 transition-colors font-heading"
+            >
+              Divi 5 Mappings
+            </a>
             <a
               href="/pageforge/sites"
               className="px-4 py-2 text-xs font-semibold text-electric border border-electric rounded-lg hover:bg-electric/5 dark:hover:bg-electric/10 transition-colors font-heading"

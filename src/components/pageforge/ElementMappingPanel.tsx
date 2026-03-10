@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Divi5ModulePicker from './Divi5ModulePicker';
 
 interface MappingProposal {
   id: string;
@@ -26,7 +27,7 @@ export default function ElementMappingPanel({ buildId, isGateActive, onApproveAl
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [overrideValue, setOverrideValue] = useState('');
+  const [overrideSlugs, setOverrideSlugs] = useState<string[]>([]);
 
   const fetchMappings = useCallback(async () => {
     try {
@@ -59,16 +60,16 @@ export default function ElementMappingPanel({ buildId, isGateActive, onApproveAl
   };
 
   const handleOverride = async (mappingId: string) => {
-    if (!overrideValue.trim()) return;
+    if (overrideSlugs.length === 0) return;
     setSaving(true);
     try {
       await fetch(`/api/pageforge/builds/${buildId}/mappings`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mappingId, decision: 'overridden', finalModule: overrideValue.trim() }),
+        body: JSON.stringify({ mappingId, decision: 'overridden', finalModule: overrideSlugs.join(' + ') }),
       });
       setEditingId(null);
-      setOverrideValue('');
+      setOverrideSlugs([]);
       await fetchMappings();
     } finally {
       setSaving(false);
@@ -177,29 +178,29 @@ export default function ElementMappingPanel({ buildId, isGateActive, onApproveAl
                   </p>
                 )}
 
-                {/* Override input */}
+                {/* Override picker */}
                 {editingId === m.id && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={overrideValue}
-                      onChange={(e) => setOverrideValue(e.target.value)}
-                      placeholder="e.g. divi/section + divi/blurb"
-                      className="flex-1 text-xs px-2 py-1 rounded border border-navy/20 dark:border-slate-600 bg-white dark:bg-slate-700 text-navy dark:text-slate-200 focus:ring-1 focus:ring-electric focus:border-electric"
+                  <div className="mt-2 space-y-2">
+                    <Divi5ModulePicker
+                      selectedSlugs={overrideSlugs}
+                      onChange={setOverrideSlugs}
+                      compact
                     />
-                    <button
-                      onClick={() => handleOverride(m.id)}
-                      disabled={saving || !overrideValue.trim()}
-                      className="text-[11px] px-2 py-1 rounded bg-amber-500 text-white font-semibold hover:bg-amber-600 disabled:opacity-50"
-                    >
-                      Save
-                    </button>
-                    <button
-                      onClick={() => { setEditingId(null); setOverrideValue(''); }}
-                      className="text-[11px] px-2 py-1 text-navy/40 dark:text-slate-500 hover:text-navy dark:hover:text-slate-300"
-                    >
-                      Cancel
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleOverride(m.id)}
+                        disabled={saving || overrideSlugs.length === 0}
+                        className="text-[11px] px-2 py-1 rounded bg-amber-500 text-white font-semibold hover:bg-amber-600 disabled:opacity-50"
+                      >
+                        Save Override
+                      </button>
+                      <button
+                        onClick={() => { setEditingId(null); setOverrideSlugs([]); }}
+                        className="text-[11px] px-2 py-1 text-navy/40 dark:text-slate-500 hover:text-navy dark:hover:text-slate-300"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -216,7 +217,7 @@ export default function ElementMappingPanel({ buildId, isGateActive, onApproveAl
                     Accept
                   </button>
                   <button
-                    onClick={() => { setEditingId(m.id); setOverrideValue(m.proposed_divi5_module); }}
+                    onClick={() => { setEditingId(m.id); setOverrideSlugs(m.proposed_divi5_module.split('+').map(s => s.replace(/\(.*?\)/g, '').trim()).filter(Boolean)); }}
                     disabled={saving}
                     className="text-[11px] px-2 py-1 rounded bg-amber-400/10 text-amber-600 dark:text-amber-400 font-medium hover:bg-amber-400/20 transition-colors disabled:opacity-50"
                     title="Override with different module"
