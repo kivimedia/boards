@@ -80,6 +80,7 @@ const CREATE_REQUIRED_FIELDS: Partial<Record<PKTrackerType, string[]>> = {
 
 const AUTO_MIGRATION_CLIENT_UPDATES_TABLE = 'pk_client_updates';
 const AUTO_MIGRATION_CLIENT_UPDATES_COLUMN = 'meeting_date';
+const CLIENT_UPDATES_COMPAT_DATE_COLUMN = 'date_sent';
 
 let ensureClientUpdatesMeetingDateColumnPromise: Promise<boolean> | null = null;
 
@@ -237,8 +238,57 @@ async function tryAutoMigrateMissingTrackerColumn(
 }
 
 function extractMissingColumnFromSchemaCacheError(message: string): string | null {
-  const match = message.match(/Could not find the '([^']+)' column/i);
-  return match?.[1] || null;
+  const schemaCacheMatch = message.match(/Could not find the '([^']+)' column/i);
+  if (schemaCacheMatch?.[1]) {
+    return schemaCacheMatch[1];
+  }
+
+  const postgresMatch = message.match(/column\s+("?[\w.]+"?)\s+does not exist/i);
+  if (postgresMatch?.[1]) {
+    const raw = postgresMatch[1].replace(/"/g, '');
+    const parts = raw.split('.');
+    return parts[parts.length - 1] || raw;
+  }
+
+  return null;
+}
+
+function applyClientUpdatesMeetingDateCompatibility(
+  tableName: string,
+  payload: Record<string, unknown>
+): boolean {
+  if (tableName !== AUTO_MIGRATION_CLIENT_UPDATES_TABLE) return false;
+  if (!Object.prototype.hasOwnProperty.call(payload, AUTO_MIGRATION_CLIENT_UPDATES_COLUMN)) return false;
+  if (Object.prototype.hasOwnProperty.call(payload, CLIENT_UPDATES_COMPAT_DATE_COLUMN)) return false;
+
+  payload[CLIENT_UPDATES_COMPAT_DATE_COLUMN] = payload[AUTO_MIGRATION_CLIENT_UPDATES_COLUMN];
+  return true;
+}
+
+function normalizeClientUpdatesRow(row: Record<string, unknown>): Record<string, unknown> {
+  if (
+    !Object.prototype.hasOwnProperty.call(row, AUTO_MIGRATION_CLIENT_UPDATES_COLUMN) &&
+    Object.prototype.hasOwnProperty.call(row, CLIENT_UPDATES_COMPAT_DATE_COLUMN)
+  ) {
+    return {
+      ...row,
+      [AUTO_MIGRATION_CLIENT_UPDATES_COLUMN]: row[CLIENT_UPDATES_COMPAT_DATE_COLUMN],
+    };
+  }
+
+  if (
+    (row[AUTO_MIGRATION_CLIENT_UPDATES_COLUMN] === null ||
+      row[AUTO_MIGRATION_CLIENT_UPDATES_COLUMN] === undefined ||
+      row[AUTO_MIGRATION_CLIENT_UPDATES_COLUMN] === '') &&
+    row[CLIENT_UPDATES_COMPAT_DATE_COLUMN]
+  ) {
+    return {
+      ...row,
+      [AUTO_MIGRATION_CLIENT_UPDATES_COLUMN]: row[CLIENT_UPDATES_COMPAT_DATE_COLUMN],
+    };
+  }
+
+  return row;
 }
 
 async function updateRowWithMissingColumnFallback(
@@ -270,8 +320,14 @@ async function updateRowWithMissingColumnFallback(
       continue;
     }
 
+    const usedCompatibilityFallback =
+      missingColumn === AUTO_MIGRATION_CLIENT_UPDATES_COLUMN &&
+      applyClientUpdatesMeetingDateCompatibility(tableName, nextPatch);
+
     delete nextPatch[missingColumn];
-    ignoredColumns = [...ignoredColumns, missingColumn];
+    if (!usedCompatibilityFallback) {
+      ignoredColumns = [...ignoredColumns, missingColumn];
+    }
 
     if (Object.keys(nextPatch).length === 0) {
       const { data: existingRow, error: readError } = await supabase
@@ -284,7 +340,14 @@ async function updateRowWithMissingColumnFallback(
         return { data: null, ignoredColumns, error: readError };
       }
 
-      return { data: existingRow, ignoredColumns, error: null };
+      return {
+        data:
+          tableName === AUTO_MIGRATION_CLIENT_UPDATES_TABLE && existingRow
+            ? normalizeClientUpdatesRow(existingRow as Record<string, unknown>)
+            : existingRow,
+        ignoredColumns,
+        error: null,
+      };
     }
   }
 
@@ -318,8 +381,14 @@ async function insertRowWithMissingColumnFallback(
       continue;
     }
 
+    const usedCompatibilityFallback =
+      missingColumn === AUTO_MIGRATION_CLIENT_UPDATES_COLUMN &&
+      applyClientUpdatesMeetingDateCompatibility(tableName, nextRow);
+
     delete nextRow[missingColumn];
-    ignoredColumns = [...ignoredColumns, missingColumn];
+    if (!usedCompatibilityFallback) {
+      ignoredColumns = [...ignoredColumns, missingColumn];
+    }
   }
 
   return { data: null, ignoredColumns, error: { message: 'Failed to create row after fallback retries' } };
@@ -344,6 +413,7 @@ async function selectTrackerRowsWithMissingColumnFallback(
 ) {
   const ignoredColumns: string[] = [];
   let nextSortCol = options.sortCol;
+  let nextDateCol = options.dateCol;
   let useDateFilter = true;
 
   const runQuery = async () => {
@@ -361,11 +431,11 @@ async function selectTrackerRowsWithMissingColumnFallback(
       query = query.eq('month_label', options.monthParam);
     }
 
-    if (useDateFilter && options.dateCol && options.fromDate) {
-      query = query.gte(options.dateCol, options.fromDate);
+    if (useDateFilter && nextDateCol && options.fromDate) {
+      query = query.gte(nextDateCol, options.fromDate);
     }
-    if (useDateFilter && options.dateCol && options.toDate) {
-      query = query.lte(options.dateCol, options.toDate);
+    if (useDateFilter && nextDateCol && options.toDate) {
+      query = query.lte(nextDateCol, options.toDate);
     }
 
     return query;
@@ -389,11 +459,27 @@ async function selectTrackerRowsWithMissingColumnFallback(
 
     let handled = false;
     if (missingColumn === nextSortCol) {
-      nextSortCol = 'created_at';
+      if (
+        options.tableName === AUTO_MIGRATION_CLIENT_UPDATES_TABLE &&
+        nextSortCol === AUTO_MIGRATION_CLIENT_UPDATES_COLUMN
+      ) {
+        nextSortCol = CLIENT_UPDATES_COMPAT_DATE_COLUMN;
+      } else if (nextSortCol !== 'created_at') {
+        nextSortCol = 'created_at';
+      } else {
+        handled = false;
+      }
       handled = true;
     }
-    if (useDateFilter && options.dateCol && missingColumn === options.dateCol) {
-      useDateFilter = false;
+    if (useDateFilter && nextDateCol && missingColumn === nextDateCol) {
+      if (
+        options.tableName === AUTO_MIGRATION_CLIENT_UPDATES_TABLE &&
+        nextDateCol === AUTO_MIGRATION_CLIENT_UPDATES_COLUMN
+      ) {
+        nextDateCol = CLIENT_UPDATES_COMPAT_DATE_COLUMN;
+      } else {
+        useDateFilter = false;
+      }
       handled = true;
     }
 
@@ -466,9 +552,14 @@ export async function GET(request: NextRequest) {
 
   if (result.error) return errorResponse(result.error.message, 500);
 
+  const normalizedRows =
+    trackerType === 'client_updates'
+      ? result.data.map((row) => normalizeClientUpdatesRow(row as Record<string, unknown>))
+      : result.data;
+
   return successResponse({
     tracker_type: trackerType,
-    rows: result.data,
+    rows: normalizedRows,
     total: result.count,
     limit,
     offset,
@@ -533,8 +624,13 @@ export async function PATCH(request: NextRequest) {
 
   if (result.error) return errorResponse(result.error.message, 500);
 
+  const normalizedRow =
+    type === 'client_updates' && result.data
+      ? normalizeClientUpdatesRow(result.data as Record<string, unknown>)
+      : result.data;
+
   return successResponse({
-    row: result.data,
+    row: normalizedRow,
     ignored_columns: result.ignoredColumns,
   });
 }
@@ -603,8 +699,13 @@ export async function POST(request: NextRequest) {
 
   if (result.error) return errorResponse(result.error.message, 500);
 
+  const normalizedRow =
+    type === 'client_updates' && result.data
+      ? normalizeClientUpdatesRow(result.data as Record<string, unknown>)
+      : result.data;
+
   return successResponse({
-    row: result.data,
+    row: normalizedRow,
     ignored_columns: result.ignoredColumns,
   }, 201);
 }
