@@ -78,6 +78,79 @@ const CREATE_REQUIRED_FIELDS: Partial<Record<PKTrackerType, string[]>> = {
   holiday_tracking: ['account_manager_name'],
 };
 
+const AUTO_MIGRATION_CLIENT_UPDATES_TABLE = 'pk_client_updates';
+const AUTO_MIGRATION_CLIENT_UPDATES_COLUMN = 'meeting_date';
+
+let ensureClientUpdatesMeetingDateColumnPromise: Promise<boolean> | null = null;
+
+async function runPgQueryWithServiceRole(query: string): Promise<boolean> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceKey) {
+    return false;
+  }
+
+  const res = await fetch(`${supabaseUrl}/pg/query`, {
+    method: 'POST',
+    headers: {
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ query }),
+  });
+
+  return res.ok;
+}
+
+async function ensureClientUpdatesMeetingDateColumn(): Promise<boolean> {
+  if (ensureClientUpdatesMeetingDateColumnPromise) {
+    return ensureClientUpdatesMeetingDateColumnPromise;
+  }
+
+  ensureClientUpdatesMeetingDateColumnPromise = (async () => {
+    try {
+      const statements = [
+        `ALTER TABLE ${AUTO_MIGRATION_CLIENT_UPDATES_TABLE}
+          ADD COLUMN IF NOT EXISTS ${AUTO_MIGRATION_CLIENT_UPDATES_COLUMN} DATE`,
+        `CREATE INDEX IF NOT EXISTS idx_pk_client_updates_meeting_date
+          ON ${AUTO_MIGRATION_CLIENT_UPDATES_TABLE} (${AUTO_MIGRATION_CLIENT_UPDATES_COLUMN} DESC)`,
+        "NOTIFY pgrst, 'reload schema'",
+      ];
+
+      for (const sql of statements) {
+        const ok = await runPgQueryWithServiceRole(sql);
+        if (!ok) return false;
+      }
+
+      return true;
+    } catch {
+      return false;
+    }
+  })();
+
+  const ok = await ensureClientUpdatesMeetingDateColumnPromise;
+  if (!ok) {
+    ensureClientUpdatesMeetingDateColumnPromise = null;
+  }
+  return ok;
+}
+
+async function tryAutoMigrateMissingTrackerColumn(
+  tableName: string,
+  missingColumn: string
+): Promise<boolean> {
+  if (
+    tableName === AUTO_MIGRATION_CLIENT_UPDATES_TABLE &&
+    missingColumn === AUTO_MIGRATION_CLIENT_UPDATES_COLUMN
+  ) {
+    return ensureClientUpdatesMeetingDateColumn();
+  }
+
+  return false;
+}
+
 function extractMissingColumnFromSchemaCacheError(message: string): string | null {
   const match = message.match(/Could not find the '([^']+)' column/i);
   return match?.[1] || null;
@@ -105,6 +178,11 @@ async function updateRowWithMissingColumnFallback(
     const missingColumn = extractMissingColumnFromSchemaCacheError(error.message || '');
     if (!missingColumn || !Object.prototype.hasOwnProperty.call(nextPatch, missingColumn)) {
       return { data: null, ignoredColumns, error };
+    }
+
+    const autoMigrated = await tryAutoMigrateMissingTrackerColumn(tableName, missingColumn);
+    if (autoMigrated) {
+      continue;
     }
 
     delete nextPatch[missingColumn];
@@ -148,6 +226,11 @@ async function insertRowWithMissingColumnFallback(
     const missingColumn = extractMissingColumnFromSchemaCacheError(error.message || '');
     if (!missingColumn || !Object.prototype.hasOwnProperty.call(nextRow, missingColumn)) {
       return { data: null, ignoredColumns, error };
+    }
+
+    const autoMigrated = await tryAutoMigrateMissingTrackerColumn(tableName, missingColumn);
+    if (autoMigrated) {
+      continue;
     }
 
     delete nextRow[missingColumn];
@@ -212,6 +295,11 @@ async function selectTrackerRowsWithMissingColumnFallback(
     const missingColumn = extractMissingColumnFromSchemaCacheError(error.message || '');
     if (!missingColumn) {
       return { data: [], count: 0, ignoredColumns, error };
+    }
+
+    const autoMigrated = await tryAutoMigrateMissingTrackerColumn(options.tableName, missingColumn);
+    if (autoMigrated) {
+      continue;
     }
 
     let handled = false;
