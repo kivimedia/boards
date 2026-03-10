@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getAuthContext, successResponse, errorResponse, parseBody } from '@/lib/api-helpers';
 import { PKTrackerType } from '@/lib/types';
-import { SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient, createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
@@ -104,13 +104,92 @@ async function runPgQueryWithServiceRole(query: string): Promise<boolean> {
   return res.ok;
 }
 
-async function ensureClientUpdatesMeetingDateColumn(): Promise<boolean> {
+function createServiceRoleClient(): SupabaseClient | null {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceKey) {
+    return null;
+  }
+
+  return createSupabaseClient(supabaseUrl, serviceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
+
+async function runExecSqlRpcWithClient(client: SupabaseClient, query: string): Promise<boolean> {
+  const payloads: Record<string, string>[] = [
+    { query },
+    { sql: query },
+    { sql_query: query },
+  ];
+
+  for (const payload of payloads) {
+    const { error } = await client.rpc('exec_sql', payload);
+    if (!error) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+async function runSqlWithFallbackClients(
+  query: string,
+  supabaseFromRequest?: SupabaseClient
+): Promise<boolean> {
+  if (await runPgQueryWithServiceRole(query)) {
+    return true;
+  }
+
+  const serviceClient = createServiceRoleClient();
+  if (serviceClient && await runExecSqlRpcWithClient(serviceClient, query)) {
+    return true;
+  }
+
+  if (supabaseFromRequest && await runExecSqlRpcWithClient(supabaseFromRequest, query)) {
+    return true;
+  }
+
+  return false;
+}
+
+async function hasColumnInSchemaCache(
+  tableName: string,
+  columnName: string,
+  supabaseFromRequest?: SupabaseClient
+): Promise<boolean> {
+  const serviceClient = createServiceRoleClient();
+  const client = serviceClient || supabaseFromRequest;
+  if (!client) return false;
+
+  const { error } = await client
+    .from(tableName)
+    .select(columnName)
+    .limit(1);
+
+  if (!error) return true;
+  return error.code !== '42703';
+}
+
+async function ensureClientUpdatesMeetingDateColumn(
+  supabaseFromRequest?: SupabaseClient
+): Promise<boolean> {
   if (ensureClientUpdatesMeetingDateColumnPromise) {
     return ensureClientUpdatesMeetingDateColumnPromise;
   }
 
   ensureClientUpdatesMeetingDateColumnPromise = (async () => {
     try {
+      const alreadyExists = await hasColumnInSchemaCache(
+        AUTO_MIGRATION_CLIENT_UPDATES_TABLE,
+        AUTO_MIGRATION_CLIENT_UPDATES_COLUMN,
+        supabaseFromRequest
+      );
+      if (alreadyExists) return true;
+
       const statements = [
         `ALTER TABLE ${AUTO_MIGRATION_CLIENT_UPDATES_TABLE}
           ADD COLUMN IF NOT EXISTS ${AUTO_MIGRATION_CLIENT_UPDATES_COLUMN} DATE`,
@@ -120,11 +199,16 @@ async function ensureClientUpdatesMeetingDateColumn(): Promise<boolean> {
       ];
 
       for (const sql of statements) {
-        const ok = await runPgQueryWithServiceRole(sql);
+        const ok = await runSqlWithFallbackClients(sql, supabaseFromRequest);
         if (!ok) return false;
       }
 
-      return true;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      return hasColumnInSchemaCache(
+        AUTO_MIGRATION_CLIENT_UPDATES_TABLE,
+        AUTO_MIGRATION_CLIENT_UPDATES_COLUMN,
+        supabaseFromRequest
+      );
     } catch {
       return false;
     }
@@ -139,13 +223,14 @@ async function ensureClientUpdatesMeetingDateColumn(): Promise<boolean> {
 
 async function tryAutoMigrateMissingTrackerColumn(
   tableName: string,
-  missingColumn: string
+  missingColumn: string,
+  supabaseFromRequest?: SupabaseClient
 ): Promise<boolean> {
   if (
     tableName === AUTO_MIGRATION_CLIENT_UPDATES_TABLE &&
     missingColumn === AUTO_MIGRATION_CLIENT_UPDATES_COLUMN
   ) {
-    return ensureClientUpdatesMeetingDateColumn();
+    return ensureClientUpdatesMeetingDateColumn(supabaseFromRequest);
   }
 
   return false;
@@ -180,7 +265,7 @@ async function updateRowWithMissingColumnFallback(
       return { data: null, ignoredColumns, error };
     }
 
-    const autoMigrated = await tryAutoMigrateMissingTrackerColumn(tableName, missingColumn);
+    const autoMigrated = await tryAutoMigrateMissingTrackerColumn(tableName, missingColumn, supabase);
     if (autoMigrated) {
       continue;
     }
@@ -228,7 +313,7 @@ async function insertRowWithMissingColumnFallback(
       return { data: null, ignoredColumns, error };
     }
 
-    const autoMigrated = await tryAutoMigrateMissingTrackerColumn(tableName, missingColumn);
+    const autoMigrated = await tryAutoMigrateMissingTrackerColumn(tableName, missingColumn, supabase);
     if (autoMigrated) {
       continue;
     }
@@ -297,7 +382,7 @@ async function selectTrackerRowsWithMissingColumnFallback(
       return { data: [], count: 0, ignoredColumns, error };
     }
 
-    const autoMigrated = await tryAutoMigrateMissingTrackerColumn(options.tableName, missingColumn);
+    const autoMigrated = await tryAutoMigrateMissingTrackerColumn(options.tableName, missingColumn, supabase);
     if (autoMigrated) {
       continue;
     }
