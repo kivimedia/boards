@@ -39,20 +39,28 @@ export async function GET() {
     .in('board_id', boardIds)
     .order('position', { ascending: true });
 
-  // Batch: count cards per list
+  // Count cards per list using parallel exact count queries (avoids 1000-row default limit)
   const listIds = (allLists || []).map((l: any) => l.id);
-  let placementCounts: any[] = [];
-  if (listIds.length > 0) {
-    const { data } = await supabase
-      .from('card_placements')
-      .select('list_id')
-      .in('list_id', listIds);
-    placementCounts = data || [];
-  }
-
   const listCardCounts = new Map<string, number>();
-  for (const p of placementCounts) {
-    listCardCounts.set(p.list_id, (listCardCounts.get(p.list_id) || 0) + 1);
+
+  if (listIds.length > 0) {
+    // Run count queries in parallel batches of 20
+    const batchSize = 20;
+    for (let i = 0; i < listIds.length; i += batchSize) {
+      const batch = listIds.slice(i, i + batchSize);
+      const results = await Promise.all(
+        batch.map((listId: string) =>
+          supabase
+            .from('card_placements')
+            .select('*', { count: 'exact', head: true })
+            .eq('list_id', listId)
+            .then(({ count }) => ({ listId, count: count || 0 }))
+        )
+      );
+      for (const { listId, count } of results) {
+        listCardCounts.set(listId, count);
+      }
+    }
   }
 
   // Batch: count recently moved cards per board (last 24h)

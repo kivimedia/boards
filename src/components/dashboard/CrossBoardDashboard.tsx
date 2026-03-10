@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { BOARD_TYPE_CONFIG } from '@/lib/constants';
 import PipelineView from '@/components/dashboard/PipelineView';
+import CreateBoardModal from '@/components/board/CreateBoardModal';
+import Button from '@/components/ui/Button';
 import type { Board, BoardType } from '@/lib/types';
 import { slugify } from '@/lib/slugify';
 
@@ -23,6 +25,14 @@ interface BoardSummary {
 export default function CrossBoardDashboard() {
   const [boardSummaries, setBoardSummaries] = useState<BoardSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+
+  // Listen for global event from CreateMenu (top-bar "New Board" shortcut)
+  useEffect(() => {
+    const handler = () => setShowCreateModal(true);
+    window.addEventListener('open-create-board-modal', handler);
+    return () => window.removeEventListener('open-create-board-modal', handler);
+  }, []);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -60,16 +70,25 @@ export default function CrossBoardDashboard() {
     name: s.board.name,
     type: s.board.type,
     color: BOARD_TYPE_CONFIG[s.board.type as BoardType]?.color || '#6366f1',
+    activeCount: s.lists
+      .filter((l) => !['backlog', 'done', 'completed', 'delivered', 'deployed', 'published', 'closed', 'approved', 'archived']
+        .some((p) => l.name.toLowerCase().includes(p)))
+      .reduce((sum, l) => sum + l.cardCount, 0),
   }));
 
   return (
     <div className="flex-1 overflow-y-auto bg-cream p-4 sm:p-6">
       <div className="max-w-6xl mx-auto space-y-6">
-        <p className="text-navy/60 dark:text-slate-400 font-body text-sm">
-          Executive overview of all boards and cross-board activity.
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-navy/60 dark:text-slate-400 font-body text-sm">
+            Executive overview of all boards and cross-board activity.
+          </p>
+          <Button onClick={() => setShowCreateModal(true)}>
+            + New Board
+          </Button>
+        </div>
 
-        {/* Pipeline View */}
+        {/* Pipeline View - pass pre-computed active counts */}
         <PipelineView boards={boardsForPipeline} />
 
         {/* Board Summary Grid */}
@@ -176,6 +195,11 @@ export default function CrossBoardDashboard() {
           </div>
         )}
       </div>
+
+      <CreateBoardModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+      />
     </div>
   );
 }
