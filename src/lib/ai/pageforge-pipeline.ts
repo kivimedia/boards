@@ -740,10 +740,10 @@ export async function listBuilds(
   supabase: SupabaseClient,
   filters?: { clientId?: string; siteProfileId?: string; status?: PageForgeBuildStatus }
 ): Promise<PageForgeBuild[]> {
-  // Simple query without join - site names resolved client-side from the sites list
+  // Select only the columns the dashboard needs - avoid huge JSONB blobs (artifacts, agent_costs, etc.)
   let query = supabase
     .from('pageforge_builds')
-    .select('*')
+    .select('id, page_title, site_profile_id, status, vqa_score_overall, total_cost_usd, created_at, current_phase')
     .order('created_at', { ascending: false })
     .limit(50);
 
