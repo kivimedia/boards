@@ -824,6 +824,28 @@ async function syncGenericSheet(
   return { rows_synced: totalRows, errors };
 }
 
+/**
+ * Some trackers are now app-managed (editable in UI), so we intentionally
+ * avoid sheet re-import to preserve manual add/edit/delete changes.
+ */
+async function keepLocallyManagedTrackerRows(
+  supabase: SupabaseClient,
+  tableName: string
+): Promise<SyncResult> {
+  const { count, error } = await supabase
+    .from(tableName)
+    .select('id', { count: 'exact', head: true });
+
+  if (error) {
+    return {
+      rows_synced: 0,
+      errors: [{ tab: tableName, error: error.message }],
+    };
+  }
+
+  return { rows_synced: count || 0, errors: [] };
+}
+
 // ─── MAIN SYNC ORCHESTRATOR ─────────────────────────────────────
 
 const SYNC_HANDLERS: Record<
@@ -831,11 +853,11 @@ const SYNC_HANDLERS: Record<
   (supabase: SupabaseClient, config: PKSyncConfig, auth: JWT) => Promise<SyncResult>
 > = {
   masterlist: async () => ({ rows_synced: 0, errors: [] }), // Hub only, nothing to sync
-  fathom_videos: async (sb, cfg, auth) => syncFathomVideos(sb, cfg.spreadsheet_id, auth),
-  client_updates: async (sb, cfg, auth) => syncClientUpdates(sb, cfg.spreadsheet_id, auth),
+  fathom_videos: async (sb) => keepLocallyManagedTrackerRows(sb, 'pk_fathom_videos'),
+  client_updates: async (sb) => keepLocallyManagedTrackerRows(sb, 'pk_client_updates'),
   ticket_updates: async (sb, cfg, auth) => syncTicketUpdates(sb, cfg.spreadsheet_id, auth),
   daily_goals: async (sb, cfg, auth) => syncDailyGoals(sb, cfg.spreadsheet_id, auth),
-  sanity_checks: async (sb, cfg, auth) => syncSanityChecks(sb, cfg.spreadsheet_id, auth),
+  sanity_checks: async (sb) => keepLocallyManagedTrackerRows(sb, 'pk_sanity_checks'),
   sanity_tests: async (sb, cfg, auth) => syncSanityTests(sb, cfg.spreadsheet_id, cfg.sheet_title, auth),
   pics_monitoring: async (sb, cfg, auth) => syncPicsMonitoring(sb, cfg.spreadsheet_id, auth),
   flagged_tickets: async (sb, cfg, auth) => syncFlaggedTickets(sb, cfg.spreadsheet_id, auth),
