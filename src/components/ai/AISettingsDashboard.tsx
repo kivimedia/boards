@@ -20,10 +20,11 @@ const TABS: { id: Tab; label: string; description: string }[] = [
 
 export default function AISettingsDashboard() {
   const [activeTab, setActiveTab] = useState<Tab>('keys');
+  const containerClassName = activeTab === 'ops' ? 'max-w-7xl mx-auto' : 'max-w-5xl mx-auto';
 
   return (
     <div className="flex-1 overflow-y-auto bg-cream dark:bg-dark-bg p-4 sm:p-6">
-      <div className="max-w-5xl mx-auto">
+      <div className={containerClassName}>
         {/* Back link */}
         <Link
           href="/settings"
