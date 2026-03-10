@@ -6,7 +6,7 @@ import { Card, Label, Profile } from '@/lib/types';
 import Avatar from '@/components/ui/Avatar';
 import CardCheckbox from './CardCheckbox';
 import CardQuickEdit from './CardQuickEdit';
-import { slugify } from '@/lib/slugify';
+import { toShortId } from '@/lib/slugify';
 
 interface BoardCardProps {
   card: Card;
@@ -92,14 +92,7 @@ export default function BoardCard({
 
   const handleCopyLink = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const cardSlug = slugify(card.title);
-    const boardSlug = boardName ? slugify(boardName) : null;
-    const personSlug = assignees.length > 0
-      ? slugify(assignees[0].display_name?.split(' ')[0] ?? assignees[0].display_name ?? 'unassigned')
-      : 'unassigned';
-    const url = boardSlug
-      ? `${window.location.origin}/c/${boardSlug}/${personSlug}/${cardSlug}`
-      : `${window.location.origin}/c/${card.id}/${cardSlug}`;
+    const url = `${window.location.origin}/c/${toShortId(card.id)}`;
     try {
       await navigator.clipboard.writeText(url);
     } catch {
@@ -114,7 +107,7 @@ export default function BoardCard({
     }
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 1500);
-  }, [card.id, card.title, boardName, assignees]);
+  }, [card.id]);
 
   const isOverdue = card.due_date && new Date(card.due_date) < new Date();
   const isDueSoon =

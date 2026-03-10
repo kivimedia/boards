@@ -41,7 +41,7 @@ import ReactMarkdown from 'react-markdown';
 import { MarkdownToolbarUI } from './MarkdownToolbar';
 import { useMentionDropdown } from './useMentionDropdown';
 import MentionDropdown from './MentionDropdown';
-import { slugify } from '@/lib/slugify';
+import { slugify, toShortId } from '@/lib/slugify';
 
 interface CardModalProps {
   cardId: string;
@@ -121,6 +121,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [boardName, setBoardName] = useState('');
   const [listName, setListName] = useState('');
+  const [listId, setListId] = useState<string | null>(null);
   const [cardPosition, setCardPosition] = useState<number | null>(null);
   const [dueDate, setDueDate] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -182,26 +183,40 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
     }
   }, [TABS.length, activeTab]);
 
-  // Update URL to /c/[board-slug]/[assignee]/[card-slug] when modal opens, restore on close
+  // Update URL to /c/[shortId] when modal opens, restore on close
   useEffect(() => {
-    // Wait until we have card title + board name (data fully loaded, not loading state)
-    if (!card?.title || !boardName || cardLoading) return;
+    if (!cardId || cardLoading) return;
 
-    const cardSlug = slugify(card.title);
-    const boardSlug = slugify(boardName);
-    // Use first assignee's first name ("Riza Magno" → "riza"), fallback to "unassigned"
-    const personSlug = assignees.length > 0
-      ? slugify(assignees[0].display_name?.split(' ')[0] ?? assignees[0].display_name ?? 'unassigned')
-      : 'unassigned';
-
-    const path = `/c/${boardSlug}/${personSlug}/${cardSlug}`;
+    const path = `/c/${toShortId(cardId)}`;
     window.history.replaceState(null, '', path);
 
     // On cleanup (modal closes or card changes), restore original pre-modal URL
     return () => {
       window.history.replaceState(null, '', prevUrlRef.current);
     };
-  }, [cardId, card?.title, boardName, assignees, cardLoading]);
+  }, [cardId, cardLoading]);
+
+  // Realtime subscription: update position when cards in the same list are reordered
+  useEffect(() => {
+    if (!listId || !cardId) return;
+    const supabaseClient = createClient();
+    const channel = supabaseClient
+      .channel(`card-position:${listId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'card_placements',
+        filter: `list_id=eq.${listId}`,
+      }, async () => {
+        const res = await fetch(`/api/cards/${cardId}/position`);
+        if (res.ok) {
+          const json = await res.json();
+          setCardPosition(json.cardPosition ?? null);
+        }
+      })
+      .subscribe();
+    return () => { supabaseClient.removeChannel(channel); };
+  }, [listId, cardId]);
 
   // Close More menu on click-outside (portal-aware)
   useEffect(() => {
@@ -296,6 +311,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
       setBoardType(data.boardType || null);
       setBoardName(data.boardName || '');
       setListName(data.listName || '');
+      setListId(data.listId ?? null);
       setCardPosition(data.cardPosition ?? null);
 
       setLabels(data.labels || []);
@@ -1515,7 +1531,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
 
           <button
             onClick={async () => {
-              const url = `${window.location.origin}/card/${cardId}`;
+              const url = `${window.location.origin}/c/${toShortId(cardId)}`;
               try {
                 await navigator.clipboard.writeText(url);
                 setLinkCopied(true);

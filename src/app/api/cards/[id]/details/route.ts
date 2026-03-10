@@ -44,7 +44,7 @@ export async function GET(request: NextRequest, { params }: Params) {
   ] = await Promise.all([
     supabase.from('cards').select('*').eq('id', params.id).single(),
     supabase.from('boards').select('type, name').eq('id', boardId).single(),
-    supabase.from('card_placements').select('list:lists(id, name), position_index').eq('card_id', params.id).eq('is_mirror', false).single(),
+    supabase.from('card_placements').select('list:lists(id, name), position').eq('card_id', params.id).eq('is_mirror', false).single(),
     supabase.from('card_labels').select('label:labels(*)').eq('card_id', params.id),
     supabase.from('labels').select('*').eq('board_id', boardId),
     db.from('card_assignees').select('*').eq('card_id', params.id),
@@ -91,10 +91,19 @@ export async function GET(request: NextRequest, { params }: Params) {
   const { data: { session } } = await supabase.auth.getSession();
   const isAdmin = session?.user?.email === 'ziv@dailycookie.co';
 
-  // Calculate card position in list (1-indexed)
+  // Calculate card rank in list (1-indexed, count of cards with lower position + 1)
   const listId = (placementResult.data?.list as any)?.id;
-  const positionIndex = placementResult.data?.position_index ?? null;
-  const cardPosition = positionIndex !== null ? positionIndex + 1 : null;
+  const positionRaw = placementResult.data?.position ?? null;
+  let cardPosition: number | null = null;
+  if (listId && positionRaw !== null) {
+    const { count } = await supabase
+      .from('card_placements')
+      .select('*', { count: 'exact', head: true })
+      .eq('list_id', listId)
+      .eq('is_mirror', false)
+      .lt('position', positionRaw);
+    cardPosition = (count ?? 0) + 1;
+  }
 
   const responseData = {
     card,
@@ -103,6 +112,7 @@ export async function GET(request: NextRequest, { params }: Params) {
     boardType: boardResult.data?.type || null,
     boardName: boardResult.data?.name || '',
     listName: (placementResult.data?.list as any)?.name || '',
+    listId: listId || null,
     cardPosition,
     labels: cardLabelsResult.data?.map((cl: any) => cl.label).filter(Boolean) || [],
     boardLabels: boardLabelsResult.data || [],
