@@ -117,8 +117,10 @@ export default function PageForgeDashboard() {
   const [showNewBuildModal, setShowNewBuildModal] = useState(false);
   const [creating, setCreating] = useState(false);
   const defaultCustomModels = MODEL_PROFILES.find(p => p.id === 'cost_optimized')!.models;
+  // Restore last selected site profile from localStorage
+  const lastSiteId = typeof window !== 'undefined' ? localStorage.getItem('pf_last_site') || '' : '';
   const [newBuild, setNewBuild] = useState<NewBuildForm>({
-    site_profile_id: '',
+    site_profile_id: lastSiteId,
     figma_file_key: '',
     figma_file_key_mobile: '',
     page_title: '',
@@ -161,14 +163,32 @@ export default function PageForgeDashboard() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  // Fetch Figma files when site profile changes (with streaming progress)
-  const loadFigmaFiles = useCallback(async (siteProfileId: string, bust = false) => {
+  // LocalStorage cache helpers for Figma files
+  const figmaCacheKey = (siteId: string) => `pf_figma_${siteId}`;
+  const FIGMA_LOCAL_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+  const loadFigmaFromLocal = useCallback((siteProfileId: string): FigmaFileEntry[] | null => {
+    try {
+      const raw = localStorage.getItem(figmaCacheKey(siteProfileId));
+      if (!raw) return null;
+      const cached = JSON.parse(raw);
+      if (Date.now() - cached.ts > FIGMA_LOCAL_CACHE_TTL) return null;
+      return cached.files as FigmaFileEntry[];
+    } catch { return null; }
+  }, []);
+
+  const saveFigmaToLocal = useCallback((siteProfileId: string, files: FigmaFileEntry[]) => {
+    try {
+      localStorage.setItem(figmaCacheKey(siteProfileId), JSON.stringify({ files, ts: Date.now() }));
+    } catch { /* quota exceeded - ignore */ }
+  }, []);
+
+  // Fetch Figma files from server (with streaming progress)
+  const fetchFigmaFromServer = useCallback(async (siteProfileId: string, bust = false) => {
     setFigmaFilesLoading(true);
-    setFigmaCached(false);
     setFigmaLoadProgress(null);
     try {
       const qs = bust ? `&bust=1` : '';
-      // Try streaming first for progress updates
       const res = await fetch(`/api/pageforge/figma/files?siteProfileId=${siteProfileId}${qs}&stream=1`);
       if (res.headers.get('content-type')?.includes('text/event-stream') && res.body) {
         const reader = res.body.getReader();
@@ -191,16 +211,17 @@ export default function PageForgeDashboard() {
               if (msg.done && msg.files) {
                 setFigmaFiles(msg.files);
                 setFigmaCached(false);
+                saveFigmaToLocal(siteProfileId, msg.files);
               }
             } catch { /* skip bad JSON */ }
           }
         }
       } else {
-        // Fallback to regular JSON response (e.g. cached hit)
         const json = await res.json();
         if (json.files) {
           setFigmaFiles(json.files);
           setFigmaCached(!!json.cached);
+          saveFigmaToLocal(siteProfileId, json.files);
         }
       }
     } catch {
@@ -209,7 +230,29 @@ export default function PageForgeDashboard() {
       setFigmaFilesLoading(false);
       setFigmaLoadProgress(null);
     }
-  }, []);
+  }, [saveFigmaToLocal]);
+
+  // Load Figma files: instant from localStorage, then background refresh from server
+  const loadFigmaFiles = useCallback(async (siteProfileId: string, forceRefresh = false) => {
+    if (forceRefresh) {
+      // User clicked refresh - clear local cache, fetch fresh from server
+      try { localStorage.removeItem(figmaCacheKey(siteProfileId)); } catch {}
+      setFigmaFiles([]);
+      setFigmaCached(false);
+      await fetchFigmaFromServer(siteProfileId, true);
+      return;
+    }
+    // Try local cache first for instant results
+    const localFiles = loadFigmaFromLocal(siteProfileId);
+    if (localFiles && localFiles.length > 0) {
+      setFigmaFiles(localFiles);
+      setFigmaCached(true);
+      // Don't auto-refresh in background - user can click refresh if they want fresh data
+      return;
+    }
+    // No local cache - fetch from server
+    await fetchFigmaFromServer(siteProfileId);
+  }, [loadFigmaFromLocal, fetchFigmaFromServer]);
 
   useEffect(() => {
     if (!newBuild.site_profile_id) {
@@ -338,6 +381,16 @@ export default function PageForgeDashboard() {
     }
     load();
   }, [fetchBuilds, fetchSites, fetchClients]);
+
+  // Set page_builder from remembered site once sites load
+  useEffect(() => {
+    if (newBuild.site_profile_id && sites.length > 0 && !newBuild.page_builder) {
+      const site = sites.find(s => s.id === newBuild.site_profile_id);
+      if (site?.page_builder) {
+        setNewBuild(prev => ({ ...prev, page_builder: site.page_builder }));
+      }
+    }
+  }, [sites, newBuild.site_profile_id, newBuild.page_builder]);
 
   // Auto-refresh builds every 10 seconds
   useEffect(() => {
@@ -948,6 +1001,8 @@ export default function PageForgeDashboard() {
                             setFigmaSearch('');
                             setFigmaSelectedName('');
                             setNewBuild(prev => ({ ...prev, site_profile_id: siteId, figma_file_key: '', figma_file_key_mobile: '', page_builder: selectedSite?.page_builder || prev.page_builder }));
+                            // Remember last selected site
+                            try { localStorage.setItem('pf_last_site', siteId); } catch {}
                           }}
                           className="flex-1 rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 px-3 py-2.5 font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric"
                         >
