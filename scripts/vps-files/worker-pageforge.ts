@@ -25,7 +25,8 @@ import sharp from 'sharp';
 
 // ============================================================================
 // PAGEFORGE VPS WORKER
-// Processes builds through the 15-phase pipeline with REAL agent logic.
+// Processes builds through the 26-phase pipeline with REAL agent logic.
+// Desktop-first build, then mobile optimization via separate Figma file.
 // Each phase calls actual APIs (Figma, WordPress, Browserless) and AI.
 // ============================================================================
 
@@ -35,6 +36,7 @@ const PHASE_MAX_RETRIES: Record<string, number> = {
   auto_name: 2,
   figma_analysis: 2,
   section_classification: 2,
+  element_mapping_gate: 1,
   markup_generation: 2,
   markup_validation: 1,
   deploy_draft: 2,
@@ -43,9 +45,18 @@ const PHASE_MAX_RETRIES: Record<string, number> = {
   vqa_comparison: 2,
   vqa_fix_loop: 1,
   functional_qa: 2,
+  mobile_markup_generation: 2,
+  mobile_deploy: 2,
+  mobile_vqa_capture: 2,
+  mobile_vqa_comparison: 2,
+  mobile_vqa_fix_loop: 1,
+  mobile_functional_qa: 2,
+  animation_detection: 1,
+  animation_implementation: 2,
   seo_config: 2,
   report_generation: 1,
-  developer_review_gate: 0, // gates never retry
+  final_review_gate: 0,    // gates never retry
+  developer_review_gate: 0,
   am_signoff_gate: 0,
 };
 
@@ -142,6 +153,27 @@ export async function processPageForgeJob(job: Job<PageForgeJobData>): Promise<v
 
     // Gate phases - pause and wait for human decision
     if (GATE_PHASES.has(phase)) {
+      // element_mapping_gate: run AI proposals first, then conditionally pause
+      if (phase === 'element_mapping_gate') {
+        const { data: currentBuild } = await supabase
+          .from('pageforge_builds').select('*').eq('id', build_id).single();
+        if (currentBuild) {
+          await executeElementMappingProposal(
+            build_id, siteProfile, currentBuild as PageForgeBuild, anthropic
+          );
+          // If user opted out of review, auto-approve and skip gate
+          if (!currentBuild.review_element_mappings) {
+            await supabase.from('pageforge_build_mappings')
+              .update({ decision: 'approved', decided_at: new Date().toISOString() })
+              .eq('build_id', build_id).eq('decision', 'pending');
+            console.log(`[pageforge] Element mapping gate skipped (auto-approved)`);
+            await postBuildMessage(supabase, build_id,
+              'Element mappings auto-approved (review was not requested).', phase);
+            continue; // skip gate, proceed to next phase
+          }
+        }
+      }
+
       await supabase.from('pageforge_builds').update({
         status: phase, current_phase: i, updated_at: new Date().toISOString(),
       }).eq('id', build_id);
@@ -151,7 +183,14 @@ export async function processPageForgeJob(job: Job<PageForgeJobData>): Promise<v
         progress_message: `Waiting for ${phase.replace(/_/g, ' ')}`,
       });
 
-      const gateName = phase === 'developer_review_gate' ? 'Developer Review' : 'AM Sign-off';
+      const gateNames: Record<string, string> = {
+        element_mapping_gate: 'Element Mapping Review',
+        draft_review_gate: 'Draft Review',
+        final_review_gate: 'Final Review (Desktop + Mobile)',
+        am_signoff_gate: 'AM Sign-off',
+        developer_review_gate: 'Developer Review',
+      };
+      const gateName = gateNames[phase] || phase.replace(/_/g, ' ');
       await postBuildMessage(supabase, build_id,
         `Waiting for ${gateName}. Please review the build results and approve, revise, or cancel.`,
         phase);
@@ -1506,17 +1545,18 @@ RESPOND WITH JSON: {"markup":"the COMPLETE page markup","sections":[{"name":"sec
     }
 
     // -----------------------------------------------------------------------
-    // PHASE 7: VQA CAPTURE - Screenshots at 3 breakpoints
+    // PHASE 10: VQA CAPTURE - Desktop screenshot only (1440px)
     // -----------------------------------------------------------------------
     case 'vqa_capture': {
       const deployData = artifacts.deploy_draft;
       if (!deployData?.draftUrl) throw new Error('Missing deploy_draft artifacts');
 
-      // Capture WordPress screenshots via Browserless
-      const wpScreenshots = await captureScreenshots(deployData.draftUrl);
+      // Capture WordPress desktop screenshot ONLY (mobile VQA is a separate phase)
+      const desktopShot = await captureScreenshotAtBreakpoint(deployData.draftUrl, 1440);
+      const wpScreenshots: Record<string, string | null> = { desktop: desktopShot, tablet: null, mobile: null };
 
-      // Export Figma screenshots (JPG, scale 0.5 to stay under 5MB API limit)
-      let figmaScreenshots: Record<string, string | null> = { desktop: null, tablet: null, mobile: null };
+      // Export Figma desktop screenshot (JPG, scale 0.5 to stay under 5MB API limit)
+      let figmaScreenshots: Record<string, string | null> = { desktop: null };
       if (siteProfile.figma_personal_token && build.figma_node_ids?.length > 0) {
         try {
           const figmaClient = createFigmaClient(siteProfile.figma_personal_token);
@@ -1524,25 +1564,22 @@ RESPOND WITH JSON: {"markup":"the COMPLETE page markup","sections":[{"name":"sec
           const firstUrl = Object.values(imageResponse.images).find(Boolean);
           if (firstUrl) {
             const buffer = await figmaDownloadImage(firstUrl);
-            console.log(`[pageforge] Figma VQA screenshot raw: ${Math.round(buffer.length / 1024)}KB`);
-            const base64 = await resizeIfNeeded(buffer.toString('base64'));
-            figmaScreenshots = { desktop: base64, tablet: base64, mobile: base64 };
-            console.log(`[pageforge] Figma VQA screenshot ready`);
+            console.log(`[pageforge] Figma desktop VQA screenshot raw: ${Math.round(buffer.length / 1024)}KB`);
+            figmaScreenshots.desktop = await resizeIfNeeded(buffer.toString('base64'));
+            console.log(`[pageforge] Figma desktop VQA screenshot ready`);
           }
         } catch (err) {
-          console.warn('[pageforge] Failed to export Figma VQA screenshots:', err);
+          console.warn('[pageforge] Failed to export Figma desktop VQA screenshot:', err);
         }
       }
 
-      const wpCount = Object.values(wpScreenshots).filter(Boolean).length;
-      const figmaCount = Object.values(figmaScreenshots).filter(Boolean).length;
       await updateBuildArtifacts(supabase, buildId, 'vqa_capture', { wpScreenshots, figmaScreenshots });
-      console.log(`[pageforge] VQA capture complete: ${wpCount} WP screenshots, ${figmaCount} Figma screenshots`);
+      console.log(`[pageforge] VQA desktop capture complete: WP=${!!desktopShot}, Figma=${!!figmaScreenshots.desktop}`);
       break;
     }
 
     // -----------------------------------------------------------------------
-    // PHASE 8: VQA COMPARISON - AI vision comparison
+    // PHASE 11: VQA COMPARISON - Desktop-only AI vision comparison
     // -----------------------------------------------------------------------
     case 'vqa_comparison': {
       const captureData = artifacts.vqa_capture;
@@ -1550,7 +1587,6 @@ RESPOND WITH JSON: {"markup":"the COMPLETE page markup","sections":[{"name":"sec
 
       const { wpScreenshots, figmaScreenshots } = captureData;
       const threshold = siteProfile.vqa_pass_threshold || 80;
-      const figmaData = artifacts.figma_analysis;
       const classifications = artifacts.section_classification;
       const results: Record<string, { score: number; differences: any[] }> = {};
 
@@ -1559,7 +1595,7 @@ RESPOND WITH JSON: {"markup":"the COMPLETE page markup","sections":[{"name":"sec
         ? `\nPage sections (top to bottom):\n${classifications.map((c: any, i: number) => `${i + 1}. "${c.sectionName}" (${c.type})`).join('\n')}`
         : '';
 
-      // DESKTOP: Full-page comparison using both images (already resized to max 7500px)
+      // DESKTOP ONLY comparison (mobile VQA is a separate phase with mobile Figma)
       const figmaDesktop = figmaScreenshots?.desktop;
       const wpDesktop = wpScreenshots?.desktop;
 
@@ -1626,50 +1662,8 @@ Respond with JSON:
         results.desktop = { score: 0, differences: [{ area: 'full', severity: 'critical', description: 'Screenshot not available' }] };
       }
 
-      // TABLET + MOBILE: Responsive-only checks (no Figma reference since it's the same desktop image)
-      for (const bp of ['tablet', 'mobile'] as const) {
-        const wpImg = wpScreenshots?.[bp];
-        if (!wpImg) {
-          results[bp] = { score: 0, differences: [{ area: 'full', severity: 'critical', description: 'Screenshot not available' }] };
-          continue;
-        }
-
-        try {
-          const width = bp === 'tablet' ? 768 : 375;
-          const vqaResult = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa', 'vqa_comparison',
-            getSystemPrompt('pageforge_vqa'),
-            `Evaluate this WordPress page screenshot at ${bp.toUpperCase()} (${width}px) breakpoint for responsive quality.
-
-Image 1: The WordPress page rendered at ${width}px width
-
-Check for responsive issues:
-1. Is all content visible and readable? No text overflow or cut-off?
-2. Do layouts stack properly on smaller screens? No horizontal scroll?
-3. Are font sizes appropriate for the viewport?
-4. Are images properly sized and not overflowing?
-5. Is spacing reasonable (not too cramped or too much whitespace)?
-6. Are interactive elements (buttons, links) large enough to tap?
-
-Score from 0-100 (100 = perfect responsive behavior).
-
-Respond with JSON:
-{"score":N,"differences":[{"area":"element","severity":"critical|major|minor","description":"responsive issue","suggestedFix":"CSS fix"}]}`,
-            anthropic, {
-              images: [{ data: wpImg, mimeType: 'image/jpeg' }],
-            }
-          );
-
-          const jsonMatch = vqaResult.text.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
-            results[bp] = { score: parsed.score || 0, differences: parsed.differences || [] };
-          } else {
-            results[bp] = { score: 70, differences: [] };
-          }
-        } catch (err) {
-          results[bp] = { score: 0, differences: [{ area: 'comparison', severity: 'critical', description: `Failed: ${err instanceof Error ? err.message : String(err)}` }] };
-        }
-      }
+      // NOTE: Tablet/mobile VQA is now handled by separate mobile_vqa_* phases
+      // using the mobile Figma as reference (not the same desktop image)
 
       // Run layout validation to detect narrow columns, mega-sections, decorator grids
       let layoutPenalty = 0;
@@ -1695,20 +1689,17 @@ Respond with JSON:
         }
       }
 
-      // Desktop is primary (70% weight since it's the only real Figma comparison)
+      // Desktop-only scoring (mobile VQA is a separate phase)
       const desktopScore = results.desktop?.score || 0;
-      const tabletScore = results.tablet?.score || 0;
-      const mobileScore = results.mobile?.score || 0;
-      const rawScore = Math.round(desktopScore * 0.7 + tabletScore * 0.15 + mobileScore * 0.15);
-      const overallScore = Math.max(0, rawScore - layoutPenalty);
+      const overallScore = Math.max(0, desktopScore - layoutPenalty);
       if (layoutPenalty > 0) {
-        console.log(`[pageforge] Layout penalty: -${layoutPenalty}% (raw: ${rawScore}%, adjusted: ${overallScore}%)`);
+        console.log(`[pageforge] Layout penalty: -${layoutPenalty}% (raw: ${desktopScore}%, adjusted: ${overallScore}%)`);
       }
       const passed = overallScore >= threshold;
 
       await supabase.from('pageforge_builds').update({
-        vqa_score_desktop: desktopScore, vqa_score_tablet: tabletScore,
-        vqa_score_mobile: mobileScore, vqa_score_overall: overallScore,
+        vqa_score_desktop: desktopScore, vqa_score_overall: overallScore,
+        build_stage: 'desktop',
         updated_at: new Date().toISOString(),
       }).eq('id', buildId);
 
@@ -1717,10 +1708,10 @@ Respond with JSON:
       await updateBuildArtifacts(supabase, buildId, 'vqa_comparison', { results, overallScore, passed, threshold, fixSuggestions });
 
       await postBuildMessage(supabase, buildId,
-        `VQA Comparison: Desktop=${desktopScore}% Tablet=${tabletScore}% Mobile=${mobileScore}% Overall=${overallScore}% (threshold=${threshold}%, ${passed ? 'PASSED' : 'needs fixes'})`,
+        `Desktop VQA: ${desktopScore}%${layoutPenalty > 0 ? ` (-${layoutPenalty}% layout penalty = ${overallScore}%)` : ''} (threshold=${threshold}%, ${passed ? 'PASSED' : 'needs fixes'})`,
         'vqa_comparison');
 
-      console.log(`[pageforge] VQA scores: D=${desktopScore} T=${tabletScore} M=${mobileScore} Overall=${overallScore} (threshold=${threshold}, passed=${passed})`);
+      console.log(`[pageforge] Desktop VQA: ${desktopScore}% (adjusted: ${overallScore}%, threshold=${threshold}, passed=${passed})`);
       break;
     }
 
@@ -2386,262 +2377,14 @@ Score 0-100. Respond with JSON:
         lastScore = newScore;
       }
 
-      // Final full 3-breakpoint comparison after all fixes
+      // Update final desktop score (mobile VQA is handled by separate phases)
       if (currentIteration > 0) {
-        // Mobile/Tablet responsive fix pass - uses Puppeteer DOM analysis + AI to fix concrete issues
-        if (lastScore >= 80 && build.wp_page_id && siteProfile.wp_username && siteProfile.wp_app_password) {
-          try {
-            console.log('[pageforge] Running mobile responsive fix pass...');
-            const savedMarkup = currentMarkup;
-            const fixBuilder = build.page_builder || 'gutenberg';
-            const wpClient = createWpClient({ restUrl: siteProfile.wp_rest_url, username: siteProfile.wp_username, appPassword: siteProfile.wp_app_password });
-
-            // Run Puppeteer audit at mobile width to find concrete issues
-            const mobileAudit = await runMobileAudit(draftUrl);
-            console.log(`[pageforge] Mobile audit: overflow=${mobileAudit.hasHorizontalScroll}, overflowPx=${mobileAudit.overflowPx}, fixedWidths=${mobileAudit.fixedWidthElements.length}, noWrapFlex=${mobileAudit.noWrapContainers.length}, smallTaps=${mobileAudit.smallTapTargets}`);
-
-            if (mobileAudit.hasHorizontalScroll || mobileAudit.fixedWidthElements.length > 0 || mobileAudit.noWrapContainers.length > 0 || mobileAudit.smallTapTargets > 5) {
-              // Build concrete fix report for the AI
-              const issueReport = [];
-              if (mobileAudit.hasHorizontalScroll) {
-                issueReport.push(`CRITICAL: Page has horizontal scroll (${mobileAudit.overflowPx}px overflow on 375px viewport)`);
-              }
-              for (const fw of mobileAudit.fixedWidthElements) {
-                issueReport.push(`Fixed width element: ${fw.selector} has inline "${fw.widthRule}" (${fw.computedWidth}px > 375px viewport)`);
-              }
-              for (const nw of mobileAudit.noWrapContainers) {
-                issueReport.push(`Non-wrapping ${nw.display} container: ${nw.selector} (${nw.computedWidth}px wide, children overflow). ${nw.gridCols ? 'Grid columns: ' + nw.gridCols : ''}`);
-              }
-              if (mobileAudit.smallTapTargets > 0) {
-                issueReport.push(`${mobileAudit.smallTapTargets} tap targets are smaller than 44px (poor mobile usability)`);
-              }
-
-              // Find existing style block
-              const styleMatch = currentMarkup.match(/<style[^>]*>([\s\S]*?)<\/style>/);
-              const existingCSS = styleMatch ? styleMatch[1] : '';
-
-              // Send concrete issues to AI to generate targeted CSS fixes
-              const mobileFixResult = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa_fix', 'vqa_fix_loop',
-                getSystemPrompt('pageforge_vqa'),
-                `MOBILE RESPONSIVE FIX - Fix these SPECIFIC issues found by automated DOM analysis at 375px viewport:
-
-${issueReport.join('\n')}
-
-RULES:
-1. Generate ONLY @media queries. Never change existing desktop CSS.
-2. Use @media (max-width: 768px) for ALL fixes (covers both tablet and mobile).
-3. For fixed-width elements: use max-width: 100% !important; and width: 100% !important;
-4. For non-wrapping flex: use flex-wrap: wrap !important; flex-direction: column !important;
-5. For fixed grid columns: use grid-template-columns: 1fr !important;
-6. For horizontal overflow: add overflow-x: hidden on the container.
-7. For images wider than viewport: img { max-width: 100% !important; height: auto !important; }
-8. For small tap targets on links/buttons: min-height: 44px; min-width: 44px; padding: 12px;
-9. Target elements using Divi classes (et_pb_section, et_pb_row, et_pb_column, etc.) when available.
-10. Use !important on all rules to override Divi inline styles.
-
-Existing CSS:
-\`\`\`css
-${existingCSS.substring(0, 2000)}
-\`\`\`
-
-Search for "</style>" and replace with your @media block + "</style>".
-
-Respond with JSON:
-{"patches":[{"search":"</style>","replace":"@media (max-width: 768px) { ... }\\n</style>","description":"what this fixes"}]}`,
-                anthropic, { maxTokens: 8000 }
-              );
-
-              const mfJson = mobileFixResult.text.match(/\{[\s\S]*\}/);
-              if (mfJson) {
-                const mfParsed = JSON.parse(mfJson[0]);
-                if (mfParsed.patches?.length > 0) {
-                  let mfMarkup = currentMarkup;
-                  let mfApplied = 0;
-                  for (const patch of mfParsed.patches) {
-                    if (patch.search && patch.replace && mfMarkup.includes(patch.search)) {
-                      mfMarkup = mfMarkup.replace(patch.search, patch.replace);
-                      mfApplied++;
-                    }
-                  }
-                  if (mfApplied > 0) {
-                    currentMarkup = mfMarkup;
-                    await wpUpdatePage(wpClient, build.wp_page_id, { content: prepareMarkupForDeploy(currentMarkup, fixBuilder) });
-                    console.log(`[pageforge] Applied ${mfApplied} mobile fix patches`);
-                    await new Promise(resolve => setTimeout(resolve, 12000));
-
-                    // Verify: re-run mobile audit to check if issues resolved
-                    const postAudit = await runMobileAudit(draftUrl);
-                    console.log(`[pageforge] Post-fix audit: overflow=${postAudit.hasHorizontalScroll} (${postAudit.overflowPx}px), fixedWidths=${postAudit.fixedWidthElements.length}, noWrapFlex=${postAudit.noWrapContainers.length}`);
-
-                    // Rollback if horizontal scroll got WORSE
-                    if (postAudit.overflowPx > mobileAudit.overflowPx + 20) {
-                      console.log(`[pageforge] Mobile fix made overflow worse (${mobileAudit.overflowPx}->${postAudit.overflowPx}), ROLLING BACK`);
-                      currentMarkup = savedMarkup;
-                      await wpUpdatePage(wpClient, build.wp_page_id, { content: prepareMarkupForDeploy(currentMarkup, fixBuilder) });
-                      await new Promise(resolve => setTimeout(resolve, 8000));
-                    } else {
-                      await updateBuildArtifacts(supabase, buildId, 'markup_generation', { ...artifacts.markup_generation, markup: currentMarkup });
-                      console.log(`[pageforge] Mobile fixes kept: overflow ${mobileAudit.overflowPx}px -> ${postAudit.overflowPx}px`);
-
-                      // If overflow still exists, try one more round with updated audit data
-                      if (postAudit.hasHorizontalScroll && postAudit.overflowPx > 10) {
-                        console.log(`[pageforge] Still has overflow, running round 2...`);
-                        const round2Report = [];
-                        if (postAudit.hasHorizontalScroll) round2Report.push(`Still has ${postAudit.overflowPx}px horizontal overflow`);
-                        for (const fw of postAudit.fixedWidthElements) round2Report.push(`Fixed width: ${fw.selector} = ${fw.computedWidth}px`);
-                        for (const nw of postAudit.noWrapContainers) round2Report.push(`Non-wrapping: ${nw.selector} (${nw.display}, ${nw.computedWidth}px)`);
-
-                        const round2Result = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa_fix', 'vqa_fix_loop',
-                          getSystemPrompt('pageforge_vqa'),
-                          `MOBILE FIX ROUND 2 - Previous round reduced overflow but ${postAudit.overflowPx}px remains.
-
-Remaining issues:
-${round2Report.join('\n')}
-
-Add MORE @media rules to fix these remaining elements. Previous responsive CSS is already in the stylesheet.
-Target specific Divi classes and use !important.
-Common Divi overflow causes: et_pb_section padding, et_pb_row width, et_pb_column min-width.
-Try: .et_pb_section, .et_pb_row { max-width: 100vw !important; overflow-x: hidden !important; padding-left: 15px !important; padding-right: 15px !important; }
-
-Search for "</style>" and add more rules before it.
-Respond with JSON: {"patches":[{"search":"</style>","replace":"...\\n</style>","description":"..."}]}`,
-                          anthropic, { maxTokens: 4000 }
-                        );
-                        const r2Json = round2Result.text.match(/\{[\s\S]*\}/);
-                        if (r2Json) {
-                          const r2Parsed = JSON.parse(r2Json[0]);
-                          let r2Markup = currentMarkup;
-                          let r2Applied = 0;
-                          for (const patch of (r2Parsed.patches || [])) {
-                            if (patch.search && patch.replace && r2Markup.includes(patch.search)) {
-                              r2Markup = r2Markup.replace(patch.search, patch.replace);
-                              r2Applied++;
-                            }
-                          }
-                          if (r2Applied > 0) {
-                            currentMarkup = r2Markup;
-                            await wpUpdatePage(wpClient, build.wp_page_id, { content: prepareMarkupForDeploy(currentMarkup, fixBuilder) });
-                            await updateBuildArtifacts(supabase, buildId, 'markup_generation', { ...artifacts.markup_generation, markup: currentMarkup });
-                            await new Promise(resolve => setTimeout(resolve, 12000));
-                            const r2Audit = await runMobileAudit(draftUrl);
-                            console.log(`[pageforge] Round 2 result: overflow=${r2Audit.overflowPx}px (was ${postAudit.overflowPx}px)`);
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            } else {
-              console.log('[pageforge] Mobile audit passed - no issues found');
-            }
-          } catch (err) {
-            console.warn('[pageforge] Mobile responsive fix pass failed:', err);
-          }
-        }
-
-        try {
-          const finalShots = await captureScreenshots(draftUrl);
-          await updateBuildArtifacts(supabase, buildId, 'vqa_capture', {
-            ...artifacts.vqa_capture,
-            wpScreenshots: finalShots,
-          });
-
-          // Score tablet and mobile for USABILITY (not Figma comparison)
-          // Mobile/tablet quality = no horizontal scroll, readable content, proper layout, tappable buttons
-          const finalDesktop = comparisonData.overallScore || lastScore;
-          let tabletScore = 0;
-          let mobileScore = 0;
-
-          // Run Puppeteer audit for concrete metrics
-          let mobileMetrics: MobileAuditResult | null = null;
-          try {
-            mobileMetrics = await runMobileAudit(draftUrl);
-          } catch { /* will use AI-only scoring */ }
-
-          for (const bp of ['tablet', 'mobile'] as const) {
-            const wpImg = finalShots[bp];
-            if (!wpImg) continue;
-            const width = bp === 'tablet' ? 768 : 375;
-            try {
-              // Include Puppeteer audit data for concrete scoring context
-              let auditContext = '';
-              if (mobileMetrics && bp === 'mobile') {
-                auditContext = `\n\nAUTOMATED AUDIT RESULTS (from Puppeteer at ${width}px):
-- Horizontal scroll: ${mobileMetrics.hasHorizontalScroll ? 'YES (' + mobileMetrics.overflowPx + 'px overflow) - CRITICAL BUG' : 'NONE (good)'}
-- Fixed-width overflow elements: ${mobileMetrics.fixedWidthElements.length}
-- Non-wrapping flex/grid containers: ${mobileMetrics.noWrapContainers.length}
-- Tap targets < 44px: ${mobileMetrics.smallTapTargets}
-${!mobileMetrics.hasHorizontalScroll ? '- The page has NO horizontal scroll - this is a major quality indicator' : ''}`;
-              }
-
-              const bpResult = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa', 'vqa_fix_loop',
-                getSystemPrompt('pageforge_vqa'),
-                `Evaluate this WordPress page at ${bp.toUpperCase()} (${width}px) for RESPONSIVE QUALITY and USABILITY.
-Image 1: WordPress page rendered at ${width}px width.
-
-Score the page 0-100 based on these ${bp} usability criteria:
-
-LAYOUT (30 points):
-- No horizontal scrolling (critical - if horizontal scroll exists, max 15 pts in this category)
-- Content fills viewport width appropriately
-- Columns stack vertically when needed
-- No content cut off or hidden
-
-READABILITY (25 points):
-- Text is readable without zooming (min 14px)
-- Adequate line spacing
-- Good contrast between text and background
-- Headings are properly sized
-
-CONTENT COMPLETENESS (20 points):
-- All sections from the desktop version are visible
-- Images display correctly (not broken, not stretched)
-- Colors and backgrounds render properly
-
-USABILITY (15 points):
-- Buttons and links are tappable (min 44px)
-- Navigation works on ${bp}
-- No overlapping elements
-- Forms are usable
-
-POLISH (10 points):
-- Consistent spacing and padding
-- Professional appearance on ${bp}
-- No visual glitches or artifacts${auditContext}
-
-Score 0-100 (100 = perfect ${bp} responsive experience).
-Respond with JSON: {"score":N,"differences":[{"area":"...","severity":"critical|major|minor","description":"..."}]}`,
-                anthropic, { images: [{ data: wpImg, mimeType: 'image/jpeg' }] }
-              );
-              const jsonMatch = bpResult.text.match(/\{[\s\S]*\}/);
-              if (jsonMatch) {
-                const parsed = JSON.parse(jsonMatch[0]);
-                if (bp === 'tablet') tabletScore = parsed.score || 70;
-                else mobileScore = parsed.score || 70;
-              } else {
-                if (bp === 'tablet') tabletScore = 75;
-                else mobileScore = 75;
-              }
-            } catch (err) {
-              console.warn(`[pageforge] Final ${bp} scoring failed:`, err);
-              if (bp === 'tablet') tabletScore = 70;
-              else mobileScore = 70;
-            }
-          }
-
-          const finalOverall = Math.round(finalDesktop * 0.7 + tabletScore * 0.15 + mobileScore * 0.15);
-          console.log(`[pageforge] Final scores: D=${finalDesktop} T=${tabletScore} M=${mobileScore} Overall=${finalOverall}`);
-
-          await supabase.from('pageforge_builds').update({
-            vqa_score_overall: finalOverall,
-            vqa_score_tablet: tabletScore,
-            vqa_score_mobile: mobileScore,
-            updated_at: new Date().toISOString(),
-          }).eq('id', buildId);
-        } catch (err) {
-          console.warn('[pageforge] Final screenshot capture failed:', err);
-        }
+        await supabase.from('pageforge_builds').update({
+          vqa_score_desktop: lastScore,
+          vqa_score_overall: lastScore,
+          build_stage: 'desktop',
+          updated_at: new Date().toISOString(),
+        }).eq('id', buildId);
       }
 
       await updateBuildArtifacts(supabase, buildId, 'vqa_fix_loop', {
@@ -2658,7 +2401,7 @@ Respond with JSON: {"score":N,"differences":[{"area":"...","severity":"critical|
     }
 
     // -----------------------------------------------------------------------
-    // PHASE 10: FUNCTIONAL QA - Links, responsive, Lighthouse, a11y
+    // PHASE 13: FUNCTIONAL QA - Desktop links, Lighthouse, a11y
     // -----------------------------------------------------------------------
     case 'functional_qa': {
       const deployData = artifacts.deploy_draft;
@@ -2721,7 +2464,7 @@ Respond with JSON: {"score":N,"differences":[{"area":"...","severity":"critical|
     }
 
     // -----------------------------------------------------------------------
-    // PHASE 11: SEO CONFIG - Meta tags, headings, Yoast
+    // PHASE 22: SEO CONFIG - Meta tags, headings, Yoast
     // -----------------------------------------------------------------------
     case 'seo_config': {
       const markupData = artifacts.markup_generation;
@@ -2776,7 +2519,7 @@ Respond with JSON: {"score":N,"differences":[{"area":"...","severity":"critical|
     }
 
     // -----------------------------------------------------------------------
-    // PHASE 12: REPORT GENERATION - AI compiles final report
+    // PHASE 23: REPORT GENERATION - AI compiles final report
     // -----------------------------------------------------------------------
     case 'report_generation': {
       // Fetch all agent calls
@@ -2798,9 +2541,844 @@ Respond with JSON: {"score":N,"differences":[{"area":"...","severity":"critical|
       break;
     }
 
+    // -----------------------------------------------------------------------
+    // PHASE 14: MOBILE MARKUP GENERATION - Responsive CSS from Mobile Figma
+    // -----------------------------------------------------------------------
+    case 'mobile_markup_generation': {
+      const markupData = artifacts.markup_generation;
+      if (!markupData?.markup) throw new Error('Missing markup_generation artifacts');
+
+      // Skip if no mobile Figma provided
+      if (!build.figma_file_key_mobile) {
+        console.log('[pageforge] No mobile Figma - generating basic responsive CSS');
+        // Run mobile audit to find issues to fix
+        const deployData = artifacts.deploy_draft;
+        if (deployData?.draftUrl) {
+          const mobileAudit = await runMobileAudit(deployData.draftUrl);
+          if (mobileAudit.hasHorizontalScroll || mobileAudit.fixedWidthElements.length > 0) {
+            const mobileCSS = `@media (max-width: 768px) {
+  .et_pb_section, .et_pb_row { max-width: 100vw !important; overflow-x: hidden !important; padding-left: 15px !important; padding-right: 15px !important; }
+  .et_pb_column { width: 100% !important; }
+  img { max-width: 100% !important; height: auto !important; }
+}`;
+            await updateBuildArtifacts(supabase, buildId, 'mobile_markup_generation', { mobileCSS, source: 'auto-generated', hasMobileFigma: false });
+          } else {
+            await updateBuildArtifacts(supabase, buildId, 'mobile_markup_generation', { mobileCSS: '', source: 'none-needed', hasMobileFigma: false });
+          }
+        } else {
+          await updateBuildArtifacts(supabase, buildId, 'mobile_markup_generation', { mobileCSS: '', source: 'skipped', hasMobileFigma: false });
+        }
+        break;
+      }
+
+      // Fetch mobile Figma design data
+      const figmaClient = createFigmaClient(siteProfile.figma_personal_token!);
+      const mobileNodeIds = build.figma_node_ids_mobile || [];
+      let mobileFigmaData: any = null;
+
+      if (mobileNodeIds.length > 0) {
+        const mobileNodes = await figmaGetFileNodes(figmaClient, build.figma_file_key_mobile, mobileNodeIds);
+        mobileFigmaData = mobileNodes;
+      } else {
+        const mobileFile = await figmaGetFile(figmaClient, build.figma_file_key_mobile);
+        mobileFigmaData = mobileFile;
+      }
+
+      // Extract mobile design tokens
+      const mobileColors = figmaExtractColors(mobileFigmaData);
+      const mobileTypography = figmaExtractTypography(mobileFigmaData);
+      const mobileSections = figmaExtractSections(mobileFigmaData);
+
+      // Get mobile Figma screenshot for reference
+      let mobileFigmaScreenshot: string | null = null;
+      try {
+        const nodeId = mobileNodeIds[0] || mobileFigmaData?.document?.children?.[0]?.id;
+        if (nodeId) {
+          const imgResp = await figmaGetImages(figmaClient, build.figma_file_key_mobile, [nodeId], { format: 'jpg', scale: 0.5 });
+          const imgUrl = Object.values(imgResp.images).find(Boolean);
+          if (imgUrl) {
+            const buffer = await figmaDownloadImage(imgUrl);
+            mobileFigmaScreenshot = await resizeIfNeeded(buffer.toString('base64'));
+          }
+        }
+      } catch (err) {
+        console.warn('[pageforge] Failed to get mobile Figma screenshot:', err);
+      }
+
+      // AI generates responsive CSS by comparing desktop markup with mobile Figma
+      const existingMarkup = markupData.markup.substring(0, 4000);
+      const mobileSectionSummary = mobileSections.map((s: FigmaSection, i: number) =>
+        `${i + 1}. "${s.name}" - ${s.width}x${s.height}px`
+      ).join('\n');
+
+      const mobileGenResult = await callPageForgeAgent(supabase, buildId, 'pageforge_builder', 'mobile_markup_generation',
+        getSystemPrompt('pageforge_builder'),
+        `Generate responsive CSS overrides to make the desktop WordPress page match this MOBILE Figma design.
+
+MOBILE FIGMA SECTIONS:
+${mobileSectionSummary}
+
+MOBILE TYPOGRAPHY: ${JSON.stringify(mobileTypography).substring(0, 1000)}
+MOBILE COLORS: ${JSON.stringify(mobileColors).substring(0, 500)}
+
+CURRENT DESKTOP MARKUP (first 4000 chars):
+${existingMarkup}
+
+Generate ONLY @media CSS rules that adapt the desktop layout to match the mobile Figma design.
+Rules:
+1. Use @media (max-width: 768px) for tablet and @media (max-width: 480px) for mobile-specific
+2. Target Divi 5 classes: .et_pb_section_N, .et_pb_row, .et_pb_column, etc.
+3. Use !important to override Divi inline styles
+4. Stack columns vertically, adjust font sizes, padding, margins
+5. Ensure no horizontal scroll (max-width: 100vw, overflow-x: hidden)
+
+${mobileFigmaScreenshot ? 'Image 1: Mobile Figma design reference' : ''}
+
+Respond with JSON:
+{"mobileCSS":"@media (max-width: 768px) { ... }","changes":["description of each change"]}`,
+        anthropic, {
+          ...(mobileFigmaScreenshot ? { images: [{ data: mobileFigmaScreenshot, mimeType: 'image/jpeg' }] } : {}),
+          maxTokens: 8000,
+        }
+      );
+
+      let mobileCSS = '';
+      try {
+        const jsonMatch = mobileGenResult.text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          mobileCSS = parsed.mobileCSS || '';
+        }
+      } catch { /* use empty */ }
+
+      await updateBuildArtifacts(supabase, buildId, 'mobile_markup_generation', {
+        mobileCSS,
+        mobileFigmaScreenshot,
+        hasMobileFigma: true,
+        source: 'figma-guided',
+      });
+      console.log(`[pageforge] Mobile CSS generated: ${mobileCSS.length} chars`);
+      break;
+    }
+
+    // -----------------------------------------------------------------------
+    // PHASE 15: MOBILE DEPLOY - Push mobile responsive styles to WordPress
+    // -----------------------------------------------------------------------
+    case 'mobile_deploy': {
+      const mobileData = artifacts.mobile_markup_generation;
+      const markupData = artifacts.markup_generation;
+      if (!markupData?.markup) throw new Error('Missing markup_generation artifacts');
+
+      const mobileCSS = mobileData?.mobileCSS || '';
+      if (!mobileCSS) {
+        console.log('[pageforge] No mobile CSS to deploy');
+        await updateBuildArtifacts(supabase, buildId, 'mobile_deploy', { skipped: true, reason: 'No mobile CSS' });
+        break;
+      }
+
+      // Inject mobile CSS into existing markup
+      let currentMarkup = markupData.markup;
+      const styleMatch = currentMarkup.match(/<\/style>/);
+      if (styleMatch) {
+        currentMarkup = currentMarkup.replace('</style>', `\n/* Mobile responsive overrides */\n${mobileCSS}\n</style>`);
+      } else {
+        currentMarkup = `<style>\n${mobileCSS}\n</style>\n${currentMarkup}`;
+      }
+
+      // Deploy to WordPress
+      if (build.wp_page_id && siteProfile.wp_username && siteProfile.wp_app_password) {
+        const wpClient = createWpClient({ restUrl: siteProfile.wp_rest_url, username: siteProfile.wp_username, appPassword: siteProfile.wp_app_password });
+        const fixBuilder = build.page_builder || 'gutenberg';
+        await wpUpdatePage(wpClient, build.wp_page_id, { content: prepareMarkupForDeploy(currentMarkup, fixBuilder) });
+        await new Promise(resolve => setTimeout(resolve, 10000)); // wait for WP cache
+      }
+
+      await updateBuildArtifacts(supabase, buildId, 'markup_generation', { ...markupData, markup: currentMarkup });
+      await updateBuildArtifacts(supabase, buildId, 'mobile_deploy', { deployed: true, cssLength: mobileCSS.length });
+      console.log(`[pageforge] Mobile CSS deployed (${mobileCSS.length} chars)`);
+      break;
+    }
+
+    // -----------------------------------------------------------------------
+    // PHASE 16: MOBILE VQA CAPTURE - Screenshot at 375px + mobile Figma
+    // -----------------------------------------------------------------------
+    case 'mobile_vqa_capture': {
+      const deployData = artifacts.deploy_draft;
+      if (!deployData?.draftUrl) throw new Error('Missing deploy_draft artifacts');
+
+      // Capture WordPress at mobile width
+      const wpMobile = await captureScreenshotAtBreakpoint(deployData.draftUrl, 375);
+
+      // Export mobile Figma screenshot (use mobile Figma file if available, else desktop)
+      let figmaMobileScreenshot: string | null = null;
+      const mobileFigmaKey = build.figma_file_key_mobile || build.figma_file_key;
+      const mobileNodeIds = build.figma_node_ids_mobile || build.figma_node_ids;
+
+      if (siteProfile.figma_personal_token && mobileNodeIds?.length > 0) {
+        try {
+          const figmaClient = createFigmaClient(siteProfile.figma_personal_token);
+          const imageResponse = await figmaGetImages(figmaClient, mobileFigmaKey, [mobileNodeIds[0]], { format: 'jpg', scale: 0.5 });
+          const firstUrl = Object.values(imageResponse.images).find(Boolean);
+          if (firstUrl) {
+            const buffer = await figmaDownloadImage(firstUrl);
+            figmaMobileScreenshot = await resizeIfNeeded(buffer.toString('base64'));
+          }
+        } catch (err) {
+          console.warn('[pageforge] Failed to export mobile Figma screenshot:', err);
+        }
+      }
+
+      await updateBuildArtifacts(supabase, buildId, 'mobile_vqa_capture', {
+        wpMobile,
+        figmaMobileScreenshot,
+        hasMobileFigma: !!build.figma_file_key_mobile,
+      });
+      console.log(`[pageforge] Mobile VQA capture: WP=${!!wpMobile}, Figma=${!!figmaMobileScreenshot}`);
+      break;
+    }
+
+    // -----------------------------------------------------------------------
+    // PHASE 17: MOBILE VQA COMPARISON - Compare WP mobile vs Mobile Figma
+    // -----------------------------------------------------------------------
+    case 'mobile_vqa_comparison': {
+      const captureData = artifacts.mobile_vqa_capture;
+      if (!captureData) throw new Error('Missing mobile_vqa_capture artifacts');
+
+      const { wpMobile, figmaMobileScreenshot, hasMobileFigma } = captureData;
+      const threshold = siteProfile.vqa_pass_threshold || 80;
+      let mobileScore = 0;
+      let differences: any[] = [];
+
+      if (wpMobile && figmaMobileScreenshot && hasMobileFigma) {
+        // Full comparison: mobile WP vs mobile Figma
+        try {
+          const vqaResult = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa', 'mobile_vqa_comparison',
+            getSystemPrompt('pageforge_vqa'),
+            `Compare the MOBILE Figma design against the WordPress page at MOBILE (375px).
+
+Image 1: Mobile Figma design (the SOURCE OF TRUTH for mobile layout)
+Image 2: WordPress page at 375px (what was built)
+
+This is a MOBILE-SPECIFIC comparison. The mobile Figma may have different layout than desktop:
+- Different column stacking
+- Different font sizes
+- Different spacing/padding
+- Different image sizes or cropping
+- Elements may be hidden or reordered on mobile
+
+Evaluate:
+1. LAYOUT MATCH: Does the WP mobile layout match the mobile Figma layout? Columns stacked correctly?
+2. TYPOGRAPHY: Font sizes match mobile Figma? Headings proportional?
+3. SPACING: Padding and margins match mobile design?
+4. IMAGES: Correct sizing and cropping for mobile?
+5. NAVIGATION: Mobile nav matches Figma (hamburger menu, etc.)?
+6. NO HORIZONTAL SCROLL: Critical mobile issue
+
+Scoring: 0-100 (100 = perfect mobile match)
+Respond with JSON:
+{"score":N,"differences":[{"area":"element","severity":"critical|major|minor","description":"specific issue","suggestedFix":"CSS @media fix"}]}`,
+            anthropic, {
+              images: [
+                { data: figmaMobileScreenshot, mimeType: 'image/jpeg' },
+                { data: wpMobile, mimeType: 'image/jpeg' },
+              ],
+            }
+          );
+
+          const jsonMatch = vqaResult.text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            mobileScore = parsed.score || 0;
+            differences = parsed.differences || [];
+          }
+        } catch (err) {
+          console.warn('[pageforge] Mobile VQA comparison failed:', err);
+        }
+      } else if (wpMobile) {
+        // No mobile Figma - just evaluate responsive quality
+        try {
+          const mobileAudit = await runMobileAudit(artifacts.deploy_draft?.draftUrl || '');
+          const auditContext = mobileAudit.hasHorizontalScroll
+            ? `CRITICAL: Page has ${mobileAudit.overflowPx}px horizontal overflow`
+            : 'No horizontal scroll (good)';
+
+          const vqaResult = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa', 'mobile_vqa_comparison',
+            getSystemPrompt('pageforge_vqa'),
+            `Evaluate this WordPress page at MOBILE (375px) for responsive quality.
+Image 1: WordPress page at 375px.
+${auditContext}
+Score 0-100 for mobile usability.
+Respond with JSON: {"score":N,"differences":[{"area":"...","severity":"critical|major|minor","description":"...","suggestedFix":"..."}]}`,
+            anthropic, { images: [{ data: wpMobile, mimeType: 'image/jpeg' }] }
+          );
+          const jsonMatch = vqaResult.text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            mobileScore = parsed.score || 60;
+            differences = parsed.differences || [];
+          }
+        } catch (err) {
+          mobileScore = 60;
+        }
+      }
+
+      const passed = mobileScore >= threshold;
+
+      await supabase.from('pageforge_builds').update({
+        vqa_score_mobile: mobileScore,
+        vqa_score_mobile_figma: hasMobileFigma ? mobileScore : null,
+        build_stage: 'mobile',
+        updated_at: new Date().toISOString(),
+      }).eq('id', buildId);
+
+      const fixSuggestions = differences.filter((d: any) => d.suggestedFix).map((d: any) => d.suggestedFix);
+      await updateBuildArtifacts(supabase, buildId, 'mobile_vqa_comparison', {
+        mobileScore, differences, passed, threshold, fixSuggestions, hasMobileFigma,
+      });
+
+      await postBuildMessage(supabase, buildId,
+        `Mobile VQA: ${mobileScore}% ${hasMobileFigma ? '(vs mobile Figma)' : '(responsive check)'} (threshold=${threshold}%, ${passed ? 'PASSED' : 'needs fixes'})`,
+        'mobile_vqa_comparison');
+
+      console.log(`[pageforge] Mobile VQA: ${mobileScore}% (figma=${hasMobileFigma}, passed=${passed})`);
+      break;
+    }
+
+    // -----------------------------------------------------------------------
+    // PHASE 18: MOBILE VQA FIX LOOP - Fix mobile issues
+    // -----------------------------------------------------------------------
+    case 'mobile_vqa_fix_loop': {
+      const compData = artifacts.mobile_vqa_comparison;
+      const markupData = artifacts.markup_generation;
+      if (!compData || !markupData) throw new Error('Missing upstream artifacts');
+
+      if (compData.passed) {
+        await updateBuildArtifacts(supabase, buildId, 'mobile_vqa_fix_loop', { skipped: true, reason: 'Mobile VQA passed' });
+        console.log('[pageforge] Mobile VQA passed, skipping fix loop');
+        break;
+      }
+
+      const maxLoops = Math.min(siteProfile.max_vqa_fix_loops || 10, 10); // Cap mobile fixes at 10
+      const threshold = siteProfile.vqa_pass_threshold || 80;
+      let currentMarkup = markupData.markup;
+      let lastMobileScore = compData.mobileScore || 0;
+      const deployData = artifacts.deploy_draft;
+      const draftUrl = deployData?.draftUrl;
+      if (!draftUrl) throw new Error('Missing draft URL');
+
+      const figmaMobileScreenshot = artifacts.mobile_vqa_capture?.figmaMobileScreenshot;
+
+      for (let iter = 0; iter < maxLoops; iter++) {
+        console.log(`[pageforge] Mobile fix iteration ${iter + 1}/${maxLoops} (score: ${lastMobileScore}%)`);
+
+        // Run mobile audit for concrete issues
+        const mobileAudit = await runMobileAudit(draftUrl);
+        const diffs = compData.differences || [];
+        const issueReport = [];
+
+        if (mobileAudit.hasHorizontalScroll) {
+          issueReport.push(`Horizontal scroll: ${mobileAudit.overflowPx}px overflow`);
+        }
+        for (const fw of mobileAudit.fixedWidthElements.slice(0, 5)) {
+          issueReport.push(`Fixed width: ${fw.selector} = ${fw.computedWidth}px`);
+        }
+        for (const d of diffs.slice(0, 8)) {
+          issueReport.push(`${d.severity}: ${d.description}`);
+        }
+
+        if (issueReport.length === 0 && lastMobileScore >= threshold) break;
+
+        // AI generates mobile CSS fixes
+        const fixResult = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa_fix', 'mobile_vqa_fix_loop',
+          getSystemPrompt('pageforge_vqa'),
+          `Fix these MOBILE issues (375px viewport):
+
+${issueReport.join('\n')}
+
+Current score: ${lastMobileScore}%, target: ${threshold}%
+
+${figmaMobileScreenshot ? 'Image 1: Mobile Figma reference\nImage 2: Current WordPress at 375px' : 'Image 1: Current WordPress at 375px'}
+
+Generate @media CSS fixes. Use !important. Target Divi 5 classes.
+Respond with JSON:
+{"patches":[{"search":"</style>","replace":"@media (max-width: 768px) { ... }\\n</style>","description":"fix"}]}`,
+          anthropic, {
+            images: [
+              ...(figmaMobileScreenshot ? [{ data: figmaMobileScreenshot, mimeType: 'image/jpeg' as const }] : []),
+              ...(await (async () => {
+                const shot = await captureScreenshotAtBreakpoint(draftUrl, 375);
+                return shot ? [{ data: shot, mimeType: 'image/jpeg' as const }] : [];
+              })()),
+            ],
+            maxTokens: 6000,
+          }
+        );
+
+        const fixJson = fixResult.text.match(/\{[\s\S]*\}/);
+        if (!fixJson) break;
+
+        const fixParsed = JSON.parse(fixJson[0]);
+        let patchesApplied = 0;
+        for (const patch of (fixParsed.patches || [])) {
+          if (patch.search && patch.replace && currentMarkup.includes(patch.search)) {
+            currentMarkup = currentMarkup.replace(patch.search, patch.replace);
+            patchesApplied++;
+          }
+        }
+
+        if (patchesApplied === 0) {
+          console.log('[pageforge] No mobile patches applied, stopping');
+          break;
+        }
+
+        // Deploy updated markup
+        if (build.wp_page_id && siteProfile.wp_username && siteProfile.wp_app_password) {
+          const wpClient = createWpClient({ restUrl: siteProfile.wp_rest_url, username: siteProfile.wp_username, appPassword: siteProfile.wp_app_password });
+          await wpUpdatePage(wpClient, build.wp_page_id, { content: prepareMarkupForDeploy(currentMarkup, build.page_builder || 'gutenberg') });
+          await new Promise(resolve => setTimeout(resolve, 10000));
+        }
+
+        await updateBuildArtifacts(supabase, buildId, 'markup_generation', { ...markupData, markup: currentMarkup });
+
+        // Re-score
+        const newShot = await captureScreenshotAtBreakpoint(draftUrl, 375);
+        if (newShot && figmaMobileScreenshot) {
+          try {
+            const reScoreResult = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa', 'mobile_vqa_fix_loop',
+              getSystemPrompt('pageforge_vqa'),
+              `Re-score: Compare mobile Figma (Image 1) vs WordPress at 375px (Image 2). Score 0-100.
+Respond with JSON: {"score":N,"differences":[]}`,
+              anthropic, {
+                images: [
+                  { data: figmaMobileScreenshot, mimeType: 'image/jpeg' },
+                  { data: newShot, mimeType: 'image/jpeg' },
+                ],
+              }
+            );
+            const scoreJson = reScoreResult.text.match(/\{[\s\S]*\}/);
+            if (scoreJson) {
+              const scoreParsed = JSON.parse(scoreJson[0]);
+              lastMobileScore = scoreParsed.score || lastMobileScore;
+              compData.differences = scoreParsed.differences || [];
+            }
+          } catch { /* keep last score */ }
+        }
+
+        console.log(`[pageforge] Mobile fix iter ${iter + 1}: applied ${patchesApplied} patches, score=${lastMobileScore}%`);
+
+        if (lastMobileScore >= threshold) {
+          console.log(`[pageforge] Mobile VQA PASSED at iteration ${iter + 1}`);
+          break;
+        }
+      }
+
+      await supabase.from('pageforge_builds').update({
+        vqa_score_mobile: lastMobileScore,
+        vqa_score_mobile_figma: build.figma_file_key_mobile ? lastMobileScore : null,
+        updated_at: new Date().toISOString(),
+      }).eq('id', buildId);
+
+      // Compute final combined score (desktop 60% + mobile 40%)
+      const desktopScore = build.vqa_score_desktop || 0;
+      const combinedScore = Math.round(desktopScore * 0.6 + lastMobileScore * 0.4);
+      await supabase.from('pageforge_builds').update({
+        vqa_score_overall: combinedScore,
+        updated_at: new Date().toISOString(),
+      }).eq('id', buildId);
+
+      await updateBuildArtifacts(supabase, buildId, 'mobile_vqa_fix_loop', { finalMobileScore: lastMobileScore, combinedScore });
+      console.log(`[pageforge] Mobile fix loop done: mobile=${lastMobileScore}%, combined=${combinedScore}%`);
+      break;
+    }
+
+    // -----------------------------------------------------------------------
+    // PHASE 19: MOBILE FUNCTIONAL QA - Mobile-specific checks
+    // -----------------------------------------------------------------------
+    case 'mobile_functional_qa': {
+      const deployData = artifacts.deploy_draft;
+      if (!deployData?.draftUrl) throw new Error('Missing deploy_draft artifacts');
+
+      const pageUrl = deployData.draftUrl;
+      const mobileAudit = await runMobileAudit(pageUrl);
+
+      // Lighthouse mobile audit
+      let mobileLighthouse = { performance: 0, accessibility: 0, bestPractices: 0, seo: 0 };
+      try {
+        const lighthouse = (await import('lighthouse')).default;
+        const chromeLauncher = await import('chrome-launcher');
+        if (!process.env.CHROME_PATH) process.env.CHROME_PATH = puppeteer.executablePath();
+        const chrome = await chromeLauncher.launch({ chromeFlags: ['--headless', '--no-sandbox', '--disable-gpu'] });
+        try {
+          const lhResult = await lighthouse(pageUrl, {
+            port: chrome.port, output: 'json', logLevel: 'error',
+            onlyCategories: ['performance', 'accessibility', 'best-practices', 'seo'],
+            formFactor: 'mobile',
+            screenEmulation: { mobile: true, width: 375, height: 812, deviceScaleFactor: 2, disabled: false },
+          });
+          if (lhResult?.lhr) {
+            const cats = lhResult.lhr.categories || {};
+            mobileLighthouse = {
+              performance: Math.round((cats.performance?.score || 0) * 100),
+              accessibility: Math.round((cats.accessibility?.score || 0) * 100),
+              bestPractices: Math.round((cats['best-practices']?.score || 0) * 100),
+              seo: Math.round((cats.seo?.score || 0) * 100),
+            };
+          }
+        } finally { await chrome.kill(); }
+      } catch (err) {
+        console.warn('[pageforge] Mobile Lighthouse failed:', err instanceof Error ? err.message : err);
+      }
+
+      const checks = {
+        noHorizontalScroll: !mobileAudit.hasHorizontalScroll,
+        noFixedWidthOverflow: mobileAudit.fixedWidthElements.length === 0,
+        adequateTapTargets: mobileAudit.smallTapTargets <= 3,
+        lighthousePerf: mobileLighthouse.performance >= (siteProfile.lighthouse_min_score || 70),
+        lighthouseA11y: mobileLighthouse.accessibility >= 80,
+      };
+      const passed = Object.values(checks).filter(Boolean).length;
+      const total = Object.keys(checks).length;
+
+      await updateBuildArtifacts(supabase, buildId, 'mobile_functional_qa', {
+        mobileAudit: {
+          hasHorizontalScroll: mobileAudit.hasHorizontalScroll,
+          overflowPx: mobileAudit.overflowPx,
+          fixedWidthElements: mobileAudit.fixedWidthElements.length,
+          smallTapTargets: mobileAudit.smallTapTargets,
+        },
+        mobileLighthouse,
+        checks,
+        passed, total,
+      });
+
+      await supabase.from('pageforge_builds').update({
+        build_stage: 'complete',
+        updated_at: new Date().toISOString(),
+      }).eq('id', buildId);
+
+      await postBuildMessage(supabase, buildId,
+        `Mobile QA: ${passed}/${total} checks passed. Lighthouse: P=${mobileLighthouse.performance} A=${mobileLighthouse.accessibility}. H-scroll: ${mobileAudit.hasHorizontalScroll ? 'YES' : 'no'}`,
+        'mobile_functional_qa');
+      console.log(`[pageforge] Mobile QA: ${passed}/${total}, LH P=${mobileLighthouse.performance}`);
+      break;
+    }
+
+    // -----------------------------------------------------------------------
+    // PHASE 20: ANIMATION DETECTION - Parse animation annotations from Figma
+    // -----------------------------------------------------------------------
+    case 'animation_detection': {
+      if (!build.has_animation_plan) {
+        console.log('[pageforge] No animation plan - skipping');
+        await updateBuildArtifacts(supabase, buildId, 'animation_detection', { skipped: true, reason: 'No animation plan' });
+        break;
+      }
+
+      // Look for animation annotations in the Figma file
+      let animationPlan: any[] = [];
+      if (siteProfile.figma_personal_token) {
+        try {
+          const figmaClient = createFigmaClient(siteProfile.figma_personal_token);
+          const figmaFile = await figmaGetFile(figmaClient, build.figma_file_key);
+          const pages = figmaFile.document.children || [];
+
+          // Check for a second page (common animation plan location) or frames named "Animation"/"Motion"
+          let animationNodes: any[] = [];
+
+          // Check second page
+          if (pages.length > 1) {
+            animationNodes = pages[1].children || [];
+            console.log(`[pageforge] Found second Figma page: "${pages[1].name}" with ${animationNodes.length} nodes`);
+          }
+
+          // Also check for animation-named frames on first page
+          const firstPage = pages[0];
+          if (firstPage?.children) {
+            const animFrames = firstPage.children.filter((n: any) =>
+              /animation|motion|interact|hover/i.test(n.name) && n.visible !== false
+            );
+            if (animFrames.length > 0) {
+              animationNodes = [...animationNodes, ...animFrames];
+            }
+          }
+
+          // If specific animation node was provided
+          if (build.animation_figma_node) {
+            const nodeResult = await figmaGetFileNodes(figmaClient, build.figma_file_key, [build.animation_figma_node]);
+            if (nodeResult?.nodes) {
+              const node = Object.values(nodeResult.nodes)[0];
+              if (node) animationNodes = [node];
+            }
+          }
+
+          if (animationNodes.length > 0) {
+            // Get Figma image of animation plan for AI analysis
+            const animNodeIds = animationNodes.slice(0, 3).map((n: any) => n.id).filter(Boolean);
+            let animScreenshot: string | null = null;
+            if (animNodeIds.length > 0) {
+              try {
+                const imgResp = await figmaGetImages(figmaClient, build.figma_file_key, animNodeIds, { format: 'jpg', scale: 0.5 });
+                const imgUrl = Object.values(imgResp.images).find(Boolean);
+                if (imgUrl) {
+                  const buffer = await figmaDownloadImage(imgUrl);
+                  animScreenshot = await resizeIfNeeded(buffer.toString('base64'));
+                }
+              } catch { /* no screenshot */ }
+            }
+
+            // AI parses animation annotations
+            const aiResult = await callPageForgeAgent(supabase, buildId, 'pageforge_builder', 'animation_detection',
+              getSystemPrompt('pageforge_builder'),
+              `Parse these animation annotations from the Figma design into a structured plan.
+
+Look for:
+- Scroll-triggered animations (fade in, slide up, etc.)
+- Hover effects (scale, color change, shadow)
+- Page load animations (hero entrance, staggered cards)
+- Parallax effects
+- Transition timing and easing
+
+${animScreenshot ? 'Image 1: Animation plan from Figma' : ''}
+
+Node names found: ${animationNodes.map((n: any) => n.name).join(', ')}
+
+Respond with JSON:
+{"animations":[{"target":"CSS selector or section name","trigger":"scroll|hover|load","type":"fadeIn|slideUp|scale|parallax|custom","duration":"0.5s","delay":"0s","easing":"ease-out","description":"what it does"}]}`,
+              anthropic, {
+                ...(animScreenshot ? { images: [{ data: animScreenshot, mimeType: 'image/jpeg' }] } : {}),
+              }
+            );
+
+            try {
+              const jsonMatch = aiResult.text.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                const parsed = JSON.parse(jsonMatch[0]);
+                animationPlan = parsed.animations || [];
+              }
+            } catch { /* empty plan */ }
+          }
+        } catch (err) {
+          console.warn('[pageforge] Animation detection failed:', err);
+        }
+      }
+
+      await updateBuildArtifacts(supabase, buildId, 'animation_detection', {
+        animationPlan,
+        animationCount: animationPlan.length,
+      });
+      console.log(`[pageforge] Detected ${animationPlan.length} animations`);
+      break;
+    }
+
+    // -----------------------------------------------------------------------
+    // PHASE 21: ANIMATION IMPLEMENTATION - Apply animations
+    // -----------------------------------------------------------------------
+    case 'animation_implementation': {
+      const animData = artifacts.animation_detection;
+      if (!animData || animData.skipped || !animData.animationPlan?.length) {
+        console.log('[pageforge] No animations to implement');
+        await updateBuildArtifacts(supabase, buildId, 'animation_implementation', { skipped: true, reason: 'No animation plan' });
+        break;
+      }
+
+      const markupData = artifacts.markup_generation;
+      if (!markupData?.markup) throw new Error('Missing markup_generation artifacts');
+
+      const animationPlan = animData.animationPlan;
+
+      // AI generates CSS animations and applies them
+      const animResult = await callPageForgeAgent(supabase, buildId, 'pageforge_builder', 'animation_implementation',
+        getSystemPrompt('pageforge_builder'),
+        `Implement these animations in the WordPress page markup:
+
+ANIMATION PLAN:
+${JSON.stringify(animationPlan, null, 2)}
+
+CURRENT MARKUP (first 3000 chars):
+${markupData.markup.substring(0, 3000)}
+
+DIVI 5 NATIVE ANIMATIONS (prefer these when possible):
+- Module Settings > Advanced > Animation has: fadeIn, slideUp, slideDown, slideLeft, slideRight, bounce, zoom, flip, fold, roll
+- Properties: animation_style, animation_direction, animation_duration, animation_delay, animation_intensity, animation_starting_opacity
+
+For animations that Divi 5 can't handle natively, generate CSS @keyframes.
+
+Rules:
+1. Use Divi 5 native animation module settings when the animation type matches
+2. For custom animations, inject CSS @keyframes + IntersectionObserver JS
+3. For hover effects, use CSS :hover transitions
+4. For scroll-triggered, use IntersectionObserver with .animate class toggle
+5. Keep animations subtle and professional (not distracting)
+6. All animation CSS goes in @media (prefers-reduced-motion: no-preference) block
+
+Respond with JSON:
+{"patches":[{"search":"string to find in markup","replace":"replacement with animation attributes","description":"what animation this adds"}],"customCSS":"any @keyframes or animation CSS to inject","customJS":"any IntersectionObserver JS to inject"}`,
+        anthropic, { maxTokens: 8000 }
+      );
+
+      let patchesApplied = 0;
+      let currentMarkup = markupData.markup;
+
+      try {
+        const jsonMatch = animResult.text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+
+          // Apply markup patches
+          for (const patch of (parsed.patches || [])) {
+            if (patch.search && patch.replace && currentMarkup.includes(patch.search)) {
+              currentMarkup = currentMarkup.replace(patch.search, patch.replace);
+              patchesApplied++;
+            }
+          }
+
+          // Inject custom CSS
+          if (parsed.customCSS) {
+            const cssBlock = `\n/* PageForge animations */\n@media (prefers-reduced-motion: no-preference) {\n${parsed.customCSS}\n}`;
+            if (currentMarkup.includes('</style>')) {
+              currentMarkup = currentMarkup.replace('</style>', `${cssBlock}\n</style>`);
+            } else {
+              currentMarkup = `<style>${cssBlock}</style>\n${currentMarkup}`;
+            }
+          }
+
+          // Inject custom JS
+          if (parsed.customJS) {
+            currentMarkup += `\n<script>\n/* PageForge animation observers */\n${parsed.customJS}\n</script>`;
+          }
+        }
+      } catch (err) {
+        console.warn('[pageforge] Animation implementation parsing failed:', err);
+      }
+
+      // Deploy if patches were applied
+      if (patchesApplied > 0 && build.wp_page_id && siteProfile.wp_username && siteProfile.wp_app_password) {
+        const wpClient = createWpClient({ restUrl: siteProfile.wp_rest_url, username: siteProfile.wp_username, appPassword: siteProfile.wp_app_password });
+        await wpUpdatePage(wpClient, build.wp_page_id, { content: prepareMarkupForDeploy(currentMarkup, build.page_builder || 'gutenberg') });
+        await updateBuildArtifacts(supabase, buildId, 'markup_generation', { ...markupData, markup: currentMarkup });
+        await new Promise(resolve => setTimeout(resolve, 8000));
+      }
+
+      await updateBuildArtifacts(supabase, buildId, 'animation_implementation', {
+        animationsApplied: patchesApplied,
+        totalPlanned: animationPlan.length,
+      });
+      console.log(`[pageforge] Animations: ${patchesApplied}/${animationPlan.length} applied`);
+      break;
+    }
+
     default:
       console.warn(`[pageforge] Unknown phase: ${phase}`);
   }
+}
+
+// ============================================================================
+// ELEMENT MAPPING PROPOSAL (called before element_mapping_gate)
+// ============================================================================
+
+async function executeElementMappingProposal(
+  buildId: string,
+  siteProfile: PageForgeSiteProfile,
+  build: PageForgeBuild,
+  anthropic: Anthropic
+): Promise<void> {
+  const artifacts = (build.artifacts || {}) as Record<string, any>;
+  const classifications = artifacts.section_classification;
+
+  if (!classifications?.length) {
+    console.log('[pageforge] No section classifications - skipping mapping proposal');
+    return;
+  }
+
+  // Check if proposals already exist (e.g., on resume)
+  const { count } = await supabase
+    .from('pageforge_build_mappings')
+    .select('id', { count: 'exact', head: true })
+    .eq('build_id', buildId);
+  if (count && count > 0) {
+    console.log(`[pageforge] Mapping proposals already exist (${count}), skipping`);
+    return;
+  }
+
+  // Fetch knowledge base for this site profile
+  const { data: knowledgeBase } = await supabase
+    .from('pageforge_element_mappings')
+    .select('figma_element_type, divi5_module, confidence_score, times_approved, times_overridden')
+    .eq('site_profile_id', build.site_profile_id)
+    .order('confidence_score', { ascending: false });
+
+  const kbContext = knowledgeBase?.length
+    ? `\nKNOWN MAPPINGS (from previous builds):\n${knowledgeBase.map((k: any) => `- ${k.figma_element_type} -> ${k.divi5_module} (confidence: ${Math.round(k.confidence_score * 100)}%, approved: ${k.times_approved}, overridden: ${k.times_overridden})`).join('\n')}`
+    : '';
+
+  const sectionsJson = classifications.map((c: any, i: number) => ({
+    index: i,
+    name: c.sectionName || c.name || `Section ${i}`,
+    type: c.type || 'unknown',
+    childCount: c.childCount || 0,
+    hasImages: c.hasImages || false,
+    dimensions: c.dimensions || null,
+  }));
+
+  // AI proposes Divi 5 module mapping for each section
+  const result = await callPageForgeAgent(supabase, buildId, 'pageforge_builder', 'element_mapping_gate',
+    getSystemPrompt('pageforge_builder'),
+    `Propose the best Divi 5 module for each Figma section.
+
+SECTIONS:
+${JSON.stringify(sectionsJson, null, 2)}
+${kbContext}
+
+PAGE BUILDER: ${build.page_builder}
+
+For each section, recommend the best Divi 5 module combination. Common mappings:
+- hero/banner -> divi/section + divi/image + divi/text + divi/button
+- features/services -> divi/section + divi/blurb (repeated)
+- gallery -> divi/section + divi/gallery or divi/image (grid)
+- testimonials -> divi/section + divi/testimonial
+- contact -> divi/section + divi/contact-form
+- cta -> divi/section + divi/cta
+- text/about -> divi/section + divi/text
+- pricing -> divi/section + divi/pricing-table
+- team -> divi/section + divi/person
+- stats/counters -> divi/section + divi/number-counter
+- video -> divi/section + divi/video
+- accordion/faq -> divi/section + divi/accordion
+- tabs -> divi/section + divi/tabs
+- blog -> divi/section + divi/blog
+- footer -> divi/section + multiple divi/text
+
+Respond with JSON:
+{"mappings":[{"section_index":0,"section_name":"...","figma_element_type":"hero","proposed_divi5_module":"divi/section + divi/image + divi/text + divi/button","proposed_config":{},"proposal_reasoning":"why this module combo fits"}]}`,
+    anthropic
+  );
+
+  try {
+    const jsonMatch = result.text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      const mappings = parsed.mappings || [];
+
+      if (mappings.length > 0) {
+        const rows = mappings.map((m: any) => ({
+          build_id: buildId,
+          section_index: m.section_index,
+          section_name: m.section_name || `Section ${m.section_index}`,
+          figma_element_type: m.figma_element_type || 'unknown',
+          proposed_divi5_module: m.proposed_divi5_module,
+          proposed_config: m.proposed_config || {},
+          proposal_reasoning: m.proposal_reasoning || null,
+          decision: 'pending',
+        }));
+
+        await supabase.from('pageforge_build_mappings').insert(rows);
+        console.log(`[pageforge] Inserted ${rows.length} mapping proposals`);
+      }
+    }
+  } catch (err) {
+    console.warn('[pageforge] Failed to parse mapping proposals:', err);
+  }
+
+  await updateBuildArtifacts(supabase, buildId, 'element_mapping_gate', { proposalsGenerated: true });
 }
 
 // ============================================================================
@@ -3786,6 +4364,37 @@ async function captureScreenshots(pageUrl: string): Promise<Record<string, strin
     if (browser) await browser.close();
   }
   return screenshots;
+}
+
+/**
+ * Capture a single breakpoint screenshot (lighter than captureScreenshots which does all 3).
+ * Used by desktop-only VQA and mobile VQA phases.
+ */
+async function captureScreenshotAtBreakpoint(pageUrl: string, width: number): Promise<string | null> {
+  let browser;
+  try {
+    browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+    });
+    const page = await browser.newPage();
+    await page.setCacheEnabled(false);
+    await page.setExtraHTTPHeaders({ 'Cache-Control': 'no-cache, no-store', 'Pragma': 'no-cache' });
+    await page.setViewport({ width, height: 900 });
+    await page.goto(pageUrl, { waitUntil: 'networkidle2', timeout: 45000 });
+    try { await page.evaluate(() => (document as any).fonts?.ready); } catch { /* fonts API not available */ }
+    await new Promise(r => setTimeout(r, 3000));
+    const buffer = await page.screenshot({ fullPage: true, type: 'png' });
+    console.log(`[pageforge] Screenshot at ${width}px: ${Math.round(Buffer.from(buffer).length / 1024)}KB`);
+    const base64 = await resizeIfNeeded(Buffer.from(buffer).toString('base64'));
+    await page.close();
+    return base64;
+  } catch (err) {
+    console.error(`[pageforge] Screenshot at ${width}px failed:`, err);
+    return null;
+  } finally {
+    if (browser) await browser.close();
+  }
 }
 
 // Layout validation - checks that content uses full viewport width (not trapped in narrow column)
