@@ -252,6 +252,10 @@ export default function PageForgeDashboard() {
   const fetchBuilds = useCallback(async () => {
     try {
       const res = await fetch('/api/pageforge/builds');
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => null);
+        throw new Error(errBody?.error || `HTTP ${res.status}`);
+      }
       const json = await res.json();
       if (json.builds) {
         setBuilds(json.builds);
@@ -259,7 +263,7 @@ export default function PageForgeDashboard() {
       }
     } catch (err) {
       console.error('Failed to fetch builds:', err);
-      setError('Failed to load builds');
+      setError(`Failed to load builds: ${err instanceof Error ? err.message : 'unknown'}`);
     }
   }, []);
 
@@ -1115,7 +1119,7 @@ export default function PageForgeDashboard() {
                   </div>
 
                   {/* Mobile Figma File (Optional) */}
-                  {newBuild.figma_file_key && figmaFiles.length > 0 && (
+                  {newBuild.figma_file_key && (
                     <div>
                       <label className="block text-xs font-semibold text-navy/60 dark:text-slate-300 mb-1 font-heading">
                         Mobile Figma File <span className="font-normal text-navy/30 dark:text-slate-500">(Optional)</span>
@@ -1123,18 +1127,33 @@ export default function PageForgeDashboard() {
                       <p className="text-[10px] text-navy/40 dark:text-slate-500 font-body mb-2">
                         Provide a separate mobile design for accurate mobile VQA. If omitted, mobile will use responsive CSS from the desktop build.
                       </p>
-                      <select
+                      <input
+                        type="text"
                         value={newBuild.figma_file_key_mobile}
-                        onChange={(e) => setNewBuild((prev) => ({ ...prev, figma_file_key_mobile: e.target.value }))}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const figmaUrlMatch = val.match(/figma\.com\/(?:file|design)\/([A-Za-z0-9]+)/);
+                          setNewBuild((prev) => ({ ...prev, figma_file_key_mobile: figmaUrlMatch ? figmaUrlMatch[1] : val }));
+                        }}
+                        placeholder="Paste Figma file key or URL"
                         className="w-full px-3 py-2 rounded-lg border border-cream-dark dark:border-slate-700 bg-white dark:bg-dark-surface text-sm text-navy dark:text-slate-100 font-body focus:outline-none focus:ring-2 focus:ring-electric"
-                      >
-                        <option value="">None - use desktop only</option>
-                        {figmaFiles.map((file) => (
-                          <option key={file.key} value={file.key}>
-                            {file.name} ({file.project_name})
-                          </option>
-                        ))}
-                      </select>
+                      />
+                      {figmaFiles.length > 0 && (
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            if (e.target.value) setNewBuild((prev) => ({ ...prev, figma_file_key_mobile: e.target.value }));
+                          }}
+                          className="mt-1.5 w-full px-3 py-1.5 rounded-lg border border-cream-dark/50 dark:border-slate-700 bg-cream/30 dark:bg-dark-surface text-xs text-navy/60 dark:text-slate-400 font-body"
+                        >
+                          <option value="">Or pick from team files...</option>
+                          {figmaFiles.map((file) => (
+                            <option key={file.key} value={file.key}>
+                              {file.name} ({file.project_name})
+                            </option>
+                          ))}
+                        </select>
+                      )}
                     </div>
                   )}
 

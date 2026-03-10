@@ -750,7 +750,11 @@ export async function listBuilds(
   if (filters?.siteProfileId) query = query.eq('site_profile_id', filters.siteProfileId);
   if (filters?.status) query = query.eq('status', filters.status);
 
-  const { data } = await query;
+  const { data, error } = await query;
+  if (error) {
+    console.error('listBuilds query error:', error.message);
+    throw new Error(error.message);
+  }
   return (data as PageForgeBuild[]) || [];
 }
 
