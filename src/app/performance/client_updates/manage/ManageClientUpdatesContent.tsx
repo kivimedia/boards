@@ -41,7 +41,7 @@ function toDraft(row: Record<string, unknown>): ClientUpdateDraft {
   return {
     account_manager_name: String(row.account_manager_name || ''),
     client_name: String(row.client_name || ''),
-    meeting_date: toDateInput(row.meeting_date),
+    meeting_date: toDateInput(row.meeting_date ?? row.date_sent),
     on_time:
       row.on_time === true || row.on_time === 'true'
         ? 'true'
@@ -198,7 +198,7 @@ export default function ManageClientUpdatesContent({
       }
 
       const ignoredColumns = Array.isArray(json?.data?.ignored_columns)
-        ? json.data.ignored_columns as string[]
+        ? (json.data.ignored_columns as string[]).filter((col) => col !== 'meeting_date')
         : [];
       setStatusText(
         ignoredColumns.length > 0
@@ -251,7 +251,7 @@ export default function ManageClientUpdatesContent({
       setSelectedAm(keepAm);
       setNewDraft(emptyDraft(keepAm));
       const ignoredColumns = Array.isArray(json?.data?.ignored_columns)
-        ? json.data.ignored_columns as string[]
+        ? (json.data.ignored_columns as string[]).filter((col) => col !== 'meeting_date')
         : [];
       setStatusText(
         ignoredColumns.length > 0
@@ -692,7 +692,7 @@ export default function ManageClientUpdatesContent({
                               className={INPUT_CLASS}
                             />
                           ) : (
-                            <span className="text-navy dark:text-white/80">{String(row.meeting_date || '-')}</span>
+                            <span className="text-navy dark:text-white/80">{String(row.meeting_date || row.date_sent || '-')}</span>
                           )}
                         </td>
                         <td className="px-2 py-2 min-w-[110px]">
