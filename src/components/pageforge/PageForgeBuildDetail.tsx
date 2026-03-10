@@ -725,10 +725,10 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
 
                 return (
                   <div key={name} className="flex items-start gap-3 relative">
-                    {/* Vertical connector line */}
+                    {/* Vertical connector line - starts below circle, ends above next circle */}
                     {idx < PHASE_NAMES.length - 1 && (
                       <div
-                        className={`absolute left-3 top-6 w-0.5 h-full ${
+                        className={`absolute left-[11px] top-7 w-0.5 h-[calc(100%-28px)] ${
                           phaseStatus === 'completed'
                             ? 'bg-success'
                             : isWaitingGate
