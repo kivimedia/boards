@@ -57,6 +57,12 @@ export interface AIVendorAccount {
   sync_error: string | null;
   is_manual: boolean;
   metadata: Record<string, unknown>;
+  sync_connection_id?: string | null;
+  external_account_ref?: string | null;
+  tracked_requests_current_period?: number | null;
+  tracked_input_tokens_current_period?: number | null;
+  tracked_output_tokens_current_period?: number | null;
+  tracked_total_tokens_current_period?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -106,6 +112,27 @@ export interface AIOpsDashboardData {
     vendorName: string;
     renewalAt: string;
     sourceType: AIVendorSourceType;
+  }>;
+  connections?: Array<{
+    id: string;
+    provider_key: 'openai' | 'anthropic';
+    connection_type: 'openai_admin_key' | 'anthropic_admin_key';
+    label: string;
+    config?: {
+      monthlyBudgetUsd?: number | null;
+      billingAnchorDay?: number | null;
+    };
+    is_active: boolean;
+    last_tested_at: string | null;
+    last_synced_at: string | null;
+    last_sync_status: 'pending' | 'ok' | 'warning' | 'error';
+    last_error: string | null;
+  }>;
+  capabilities?: Array<{
+    providerKey: 'openai' | 'anthropic' | 'google' | 'claude';
+    title: string;
+    syncMode: 'live_admin' | 'app_usage' | 'manual';
+    description: string;
   }>;
 }
 
@@ -492,7 +519,12 @@ export async function getOpsDashboardData(supabase: SupabaseClient): Promise<AIO
 
   const vendorViews = vendors.map((vendor) => buildVendorView(vendor));
   const alerts = computeOpsAlerts(vendorViews);
-  const recommendation = recommendVendor(vendorViews);
+  const recommendationCandidates = vendorViews.filter((vendor) => {
+    const isInternalUsage = vendor.external_account_ref?.startsWith('internal_usage:');
+    const hasLiveSyncPeer = vendorViews.some((peer) => peer.provider_key === vendor.provider_key && !!peer.sync_connection_id);
+    return !(isInternalUsage && hasLiveSyncPeer);
+  });
+  const recommendation = recommendVendor(recommendationCandidates);
   const renewals = vendorViews
     .filter((vendor) => vendor.renewal_at)
     .sort((a, b) => new Date(a.renewal_at!).getTime() - new Date(b.renewal_at!).getTime())
@@ -505,9 +537,28 @@ export async function getOpsDashboardData(supabase: SupabaseClient): Promise<AIO
     }));
 
   const usageRows = usageSummaryResult.data ?? [];
-  const trackedAiUsage = usageRows.reduce((sum, row) => sum + Number(row.cost_usd ?? 0), 0);
+  const usageByProvider = new Map<string, number>();
+  for (const row of usageRows) {
+    const provider = String(row.provider);
+    usageByProvider.set(provider, (usageByProvider.get(provider) ?? 0) + (Number(row.cost_usd ?? 0) || 0));
+  }
+
+  const syncedAiApiProviders = new Set(
+    vendorViews
+      .filter((vendor) => vendor.category === 'ai_api' && !!vendor.sync_connection_id)
+      .map((vendor) => vendor.provider_key)
+      .filter(Boolean) as string[]
+  );
+
+  const fallbackInternalAiSpend = Array.from(usageByProvider.entries()).reduce((sum, [provider, cost]) => {
+    return syncedAiApiProviders.has(provider) ? sum : sum + cost;
+  }, 0);
+
   const manualAiSpend = vendorViews
     .filter((vendor) => vendor.category === 'ai_subscription')
+    .reduce((sum, vendor) => sum + (vendor.spend_current_period ?? 0), 0);
+  const syncedAiApiSpend = vendorViews
+    .filter((vendor) => vendor.category === 'ai_api' && !!vendor.sync_connection_id)
     .reduce((sum, vendor) => sum + (vendor.spend_current_period ?? 0), 0);
   const trackedSoftwareSpendCurrentPeriod = vendorViews
     .filter((vendor) => vendor.category !== 'ai_subscription' && vendor.category !== 'ai_api')
@@ -515,9 +566,9 @@ export async function getOpsDashboardData(supabase: SupabaseClient): Promise<AIO
 
   return {
     summary: {
-      aiSpendCurrentPeriod: trackedAiUsage + manualAiSpend,
+      aiSpendCurrentPeriod: fallbackInternalAiSpend + syncedAiApiSpend + manualAiSpend,
       trackedSoftwareSpendCurrentPeriod,
-      totalTrackedSpend: trackedAiUsage + manualAiSpend + trackedSoftwareSpendCurrentPeriod,
+      totalTrackedSpend: fallbackInternalAiSpend + syncedAiApiSpend + manualAiSpend + trackedSoftwareSpendCurrentPeriod,
       activeAlertCount: alerts.length,
       renewalCount: renewals.length,
     },
