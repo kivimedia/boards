@@ -65,6 +65,19 @@ const emptySyncForm: SyncForm = {
   billingAnchorDay: '',
 };
 
+const ADMIN_KEY_LINKS: Record<SyncForm['provider_key'], { href: string; label: string; hint: string }> = {
+  openai: {
+    href: 'https://platform.openai.com/settings/organization/admin-keys',
+    label: 'Create OpenAI admin key',
+    hint: 'Requires Organization Owner access.',
+  },
+  anthropic: {
+    href: 'https://console.anthropic.com/settings/organization',
+    label: 'Open Anthropic organization settings',
+    hint: 'Admin API keys are provisioned in Console -> Settings -> Organization.',
+  },
+};
+
 function formatMoney(value: number | null | undefined) {
   if (value == null) return 'Unknown';
   return new Intl.NumberFormat('en-US', {
@@ -153,6 +166,7 @@ export default function AIOpsDashboard() {
   const anthropicConnection = connections.find((connection) => connection.provider_key === 'anthropic' && connection.is_active) ?? null;
   const selectedProviderConnection =
     connections.find((connection) => connection.provider_key === connectionForm.provider_key && connection.is_active) ?? null;
+  const selectedAdminKeyLink = ADMIN_KEY_LINKS[connectionForm.provider_key];
 
   const highlightedVendor = useMemo(
     () => vendors.find((vendor) => vendor.id === data?.recommendation.vendorAccountId) ?? null,
@@ -462,6 +476,22 @@ export default function AIOpsDashboard() {
                     <option value="openai">OpenAI</option>
                     <option value="anthropic">Anthropic</option>
                   </select>
+                  <a
+                    href={selectedAdminKeyLink.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-electric hover:text-electric/80"
+                  >
+                    {selectedAdminKeyLink.label}
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                      <polyline points="15 3 21 3 21 9" />
+                      <line x1="10" y1="14" x2="21" y2="3" />
+                    </svg>
+                  </a>
+                  <p className="mt-1 text-[11px] text-navy/45 dark:text-slate-500">
+                    {selectedAdminKeyLink.hint}
+                  </p>
                 </label>
                 <label className="block">
                   <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Label</span>
