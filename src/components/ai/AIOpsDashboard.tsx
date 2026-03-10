@@ -104,6 +104,16 @@ function formatDate(value: string | null | undefined) {
   return new Date(value).toLocaleString();
 }
 
+function formatErrorPreview(value: string | null | undefined) {
+  if (!value) return '';
+  const firstLine = value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean) ?? value.trim();
+
+  return firstLine.length > 180 ? `${firstLine.slice(0, 177)}...` : firstLine;
+}
+
 function badgeClass(status: AIOpsVendorView['status']) {
   if (status === 'healthy' || status === 'renewed_recently') return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20';
   if (status === 'nearing_limit' || status === 'manual_update_needed') return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20';
@@ -139,6 +149,7 @@ export default function AIOpsDashboard() {
   const [syncing, setSyncing] = useState(false);
   const [editingVendorId, setEditingVendorId] = useState<string | null>(null);
   const [editingConnectionId, setEditingConnectionId] = useState<string | null>(null);
+  const [showVendorForm, setShowVendorForm] = useState(false);
   const [vendorForm, setVendorForm] = useState<AIVendorAccountInput>(emptyVendorForm);
   const [connectionForm, setConnectionForm] = useState<SyncForm>(emptySyncForm);
   const [syncMessage, setSyncMessage] = useState('');
@@ -177,6 +188,36 @@ export default function AIOpsDashboard() {
     () => vendors.find((vendor) => vendor.id === data?.recommendation.vendorAccountId) ?? null,
     [data, vendors]
   );
+  const setupStatusItems = [
+    {
+      title: 'OpenAI',
+      description: openAiConnection ? `${openAiConnection.label} saved for live org usage sync.` : 'Add an admin key to pull org usage and spend.',
+      badgeLabel: openAiConnection ? 'Connected' : 'Needs key',
+      badgeClassName: openAiConnection
+        ? connectionStatusBadge(openAiConnection.last_sync_status)
+        : 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
+    },
+    {
+      title: 'Anthropic',
+      description: anthropicConnection ? `${anthropicConnection.label} saved for live org usage sync.` : 'Add an admin key to pull org usage and spend.',
+      badgeLabel: anthropicConnection ? 'Connected' : 'Needs key',
+      badgeClassName: anthropicConnection
+        ? connectionStatusBadge(anthropicConnection.last_sync_status)
+        : 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
+    },
+    {
+      title: 'Gemini',
+      description: 'Agency Board only tracks Gemini usage it makes itself right now.',
+      badgeLabel: 'App usage',
+      badgeClassName: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/20',
+    },
+    {
+      title: 'Claude Web',
+      description: 'Subscription renewals and availability still need manual tracking.',
+      badgeLabel: 'Manual',
+      badgeClassName: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20',
+    },
+  ];
 
   function setVendorField<K extends keyof AIVendorAccountInput>(key: K, value: AIVendorAccountInput[K]) {
     setVendorForm((current) => ({ ...current, [key]: value }));
@@ -201,6 +242,7 @@ export default function AIOpsDashboard() {
 
   function resetVendorForm() {
     setEditingVendorId(null);
+    setShowVendorForm(false);
     setVendorForm(emptyVendorForm);
   }
 
@@ -211,6 +253,7 @@ export default function AIOpsDashboard() {
 
   function startEditVendor(vendor: AIOpsVendorView) {
     setEditingVendorId(vendor.id);
+    setShowVendorForm(true);
     setVendorForm({
       provider_key: vendor.provider_key ?? undefined,
       provider_name: vendor.provider_name,
@@ -229,6 +272,12 @@ export default function AIOpsDashboard() {
       notes: vendor.notes ?? '',
       no_overage_allowed: vendor.no_overage_allowed,
     });
+  }
+
+  function startNewVendor() {
+    setEditingVendorId(null);
+    setVendorForm(emptyVendorForm);
+    setShowVendorForm(true);
   }
 
   function startEditConnection(connection: SyncConnection) {
@@ -393,6 +442,44 @@ export default function AIOpsDashboard() {
         {syncMessage && <p className="mt-3 text-xs text-white/75">{syncMessage}</p>}
       </div>
 
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_360px]">
+        <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-5">
+          <p className="text-xs uppercase tracking-[0.18em] text-navy/45 dark:text-slate-500">Start here</p>
+          <h3 className="mt-2 text-xl font-heading font-semibold text-navy dark:text-slate-100">Use this page in three steps</h3>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="rounded-2xl bg-cream/70 px-4 py-4 dark:bg-slate-800/60">
+              <p className="text-xs font-semibold uppercase tracking-wider text-electric">1. Connect</p>
+              <p className="mt-2 text-sm font-medium text-navy dark:text-slate-100">Add OpenAI or Anthropic admin keys for live org usage.</p>
+            </div>
+            <div className="rounded-2xl bg-cream/70 px-4 py-4 dark:bg-slate-800/60">
+              <p className="text-xs font-semibold uppercase tracking-wider text-electric">2. Fill gaps</p>
+              <p className="mt-2 text-sm font-medium text-navy dark:text-slate-100">Add manual vendors for Claude Web, Gemini limits, or anything that does not sync.</p>
+            </div>
+            <div className="rounded-2xl bg-cream/70 px-4 py-4 dark:bg-slate-800/60">
+              <p className="text-xs font-semibold uppercase tracking-wider text-electric">3. Decide</p>
+              <p className="mt-2 text-sm font-medium text-navy dark:text-slate-100">Use the recommendation, alerts, and vendor cards to pick the safest provider right now.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-5">
+          <p className="text-xs uppercase tracking-[0.18em] text-navy/45 dark:text-slate-500">Setup status</p>
+          <div className="mt-4 space-y-3">
+            {setupStatusItems.map((item) => (
+              <div key={item.title} className="rounded-2xl border border-cream-dark px-4 py-3 dark:border-slate-700">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-heading font-semibold text-navy dark:text-slate-100">{item.title}</p>
+                  <span className={`inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold ${item.badgeClassName}`}>
+                    {item.badgeLabel}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm text-navy/60 dark:text-slate-400">{item.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
         <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-5">
           <p className="text-navy/50 dark:text-slate-400 font-body text-xs uppercase tracking-wider mb-1">AI spend</p>
@@ -412,53 +499,6 @@ export default function AIOpsDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-        <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-4">
-          <div className="flex items-center justify-between gap-2">
-            <p className="font-heading font-semibold text-navy dark:text-slate-100">OpenAI</p>
-            <span className={`inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold capitalize ${openAiConnection ? connectionStatusBadge(openAiConnection.last_sync_status) : 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'}`}>
-              {openAiConnection ? 'Connected' : 'Not connected'}
-            </span>
-          </div>
-          <p className="mt-2 text-xs text-navy/50 dark:text-slate-400">
-            {openAiConnection ? `${openAiConnection.label} saved` : 'Add an OpenAI admin key for live org usage sync.'}
-          </p>
-        </div>
-        <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-4">
-          <div className="flex items-center justify-between gap-2">
-            <p className="font-heading font-semibold text-navy dark:text-slate-100">Anthropic</p>
-            <span className={`inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold capitalize ${anthropicConnection ? connectionStatusBadge(anthropicConnection.last_sync_status) : 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'}`}>
-              {anthropicConnection ? 'Connected' : 'Not connected'}
-            </span>
-          </div>
-          <p className="mt-2 text-xs text-navy/50 dark:text-slate-400">
-            {anthropicConnection ? `${anthropicConnection.label} saved` : 'Add an Anthropic admin key for live org usage sync.'}
-          </p>
-        </div>
-        <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-4">
-          <div className="flex items-center justify-between gap-2">
-            <p className="font-heading font-semibold text-navy dark:text-slate-100">Gemini</p>
-            <span className="inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold capitalize bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/20">
-              App usage only
-            </span>
-          </div>
-          <p className="mt-2 text-xs text-navy/50 dark:text-slate-400">
-            Agency Board tracks Gemini usage it makes itself, not your whole Google billing account.
-          </p>
-        </div>
-        <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-4">
-          <div className="flex items-center justify-between gap-2">
-            <p className="font-heading font-semibold text-navy dark:text-slate-100">Claude Web</p>
-            <span className="inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold capitalize bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20">
-              Manual
-            </span>
-          </div>
-          <p className="mt-2 text-xs text-navy/50 dark:text-slate-400">
-            Subscription renewals and session availability still need manual tracking.
-          </p>
-        </div>
-      </div>
-
       {error && (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
@@ -466,7 +506,7 @@ export default function AIOpsDashboard() {
       )}
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.05fr_1.35fr]">
-        <div className="space-y-6">
+        <div className="space-y-6 xl:sticky xl:top-6 self-start">
           <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-5">
             <div className="flex items-center justify-between gap-3 mb-4">
               <div>
@@ -621,7 +661,14 @@ export default function AIOpsDashboard() {
                           Last sync: {formatDate(connection.last_synced_at)}
                         </p>
                         {connection.last_error && (
-                          <p className="mt-2 text-sm text-red-600">{connection.last_error}</p>
+                          <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200">
+                            <p className="font-medium">Last sync failed</p>
+                            <p className="mt-1">{formatErrorPreview(connection.last_error)}</p>
+                            <details className="mt-2">
+                              <summary className="cursor-pointer text-xs font-medium">Show raw error</summary>
+                              <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-[11px]">{connection.last_error}</pre>
+                            </details>
+                          </div>
                         )}
                       </div>
                       <div className="flex items-center gap-2">
@@ -635,99 +682,109 @@ export default function AIOpsDashboard() {
             )}
           </div>
 
-          <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-5">
-            <div className="flex items-center justify-between gap-3 mb-4">
-              <div>
-                <h3 className="text-base font-heading font-semibold text-navy dark:text-slate-100">
-                  {editingVendorId ? 'Edit tracked vendor' : 'Add tracked vendor'}
-                </h3>
-                <p className="text-xs text-navy/40 dark:text-slate-500 font-body mt-1">
-                  Manual fallback for Claude, Gemini limits, renewals, or any vendor without live sync.
-                </p>
-              </div>
-              {editingVendorId && (
+          {showVendorForm ? (
+            <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-5">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div>
+                  <h3 className="text-base font-heading font-semibold text-navy dark:text-slate-100">
+                    {editingVendorId ? 'Edit tracked vendor' : 'Add tracked vendor'}
+                  </h3>
+                  <p className="text-xs text-navy/40 dark:text-slate-500 font-body mt-1">
+                    Manual fallback for Claude, Gemini limits, renewals, or any vendor without live sync.
+                  </p>
+                </div>
                 <Button size="sm" variant="ghost" onClick={resetVendorForm}>Cancel</Button>
-              )}
+              </div>
+
+              <form className="space-y-4" onSubmit={handleVendorSubmit}>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Provider name</span>
+                    <input className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.provider_name} onChange={(e) => setVendorField('provider_name', e.target.value)} required />
+                  </label>
+                  <label className="block">
+                    <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Product type</span>
+                    <input className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.product_type} onChange={(e) => setVendorField('product_type', e.target.value)} required />
+                  </label>
+                  <label className="block">
+                    <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Category</span>
+                    <select className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.category} onChange={(e) => setVendorField('category', e.target.value as AIVendorCategory)}>
+                      {CATEGORIES.map((category) => <option key={category} value={category}>{category.replace(/_/g, ' ')}</option>)}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Source</span>
+                    <select className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.source_type} onChange={(e) => setVendorField('source_type', e.target.value as AIVendorSourceType)}>
+                      {SOURCE_TYPES.map((sourceType) => <option key={sourceType} value={sourceType}>{sourceType.replace(/_/g, ' ')}</option>)}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Plan name</span>
+                    <input className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.plan_name ?? ''} onChange={(e) => setVendorField('plan_name', e.target.value)} />
+                  </label>
+                  <label className="block">
+                    <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Account label</span>
+                    <input className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.account_label ?? ''} onChange={(e) => setVendorField('account_label', e.target.value)} />
+                  </label>
+                  <label className="block">
+                    <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Current spend</span>
+                    <input type="number" step="0.01" className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.spend_current_period ?? ''} onChange={(e) => setVendorField('spend_current_period', e.target.value === '' ? null : Number(e.target.value))} />
+                  </label>
+                  <label className="block">
+                    <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Budget limit</span>
+                    <input type="number" step="0.01" className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.budget_limit ?? ''} onChange={(e) => setVendorField('budget_limit', e.target.value === '' ? null : Number(e.target.value))} />
+                  </label>
+                  <label className="block">
+                    <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Remaining budget</span>
+                    <input type="number" step="0.01" className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.remaining_budget ?? ''} onChange={(e) => setVendorField('remaining_budget', e.target.value === '' ? null : Number(e.target.value))} />
+                  </label>
+                  <label className="block">
+                    <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Remaining credits</span>
+                    <input type="number" step="1" className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.remaining_credits ?? ''} onChange={(e) => setVendorField('remaining_credits', e.target.value === '' ? null : Number(e.target.value))} />
+                  </label>
+                  <label className="block">
+                    <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Estimated capacity (0-1)</span>
+                    <input type="number" min="0" max="1" step="0.01" className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.estimated_remaining_capacity ?? ''} onChange={(e) => setVendorField('estimated_remaining_capacity', e.target.value === '' ? null : Number(e.target.value))} />
+                  </label>
+                  <label className="block">
+                    <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Renewal</span>
+                    <input type="datetime-local" className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.renewal_at ?? ''} onChange={(e) => setVendorField('renewal_at', e.target.value)} />
+                  </label>
+                </div>
+
+                <label className="block">
+                  <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Provider URL</span>
+                  <input className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.provider_url ?? ''} onChange={(e) => setVendorField('provider_url', e.target.value)} />
+                </label>
+
+                <label className="block">
+                  <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Notes</span>
+                  <textarea className="w-full min-h-[110px] px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.notes ?? ''} onChange={(e) => setVendorField('notes', e.target.value)} />
+                </label>
+
+                <label className="flex items-center gap-2 text-sm text-navy dark:text-slate-200">
+                  <input type="checkbox" checked={vendorForm.no_overage_allowed ?? false} onChange={(e) => setVendorField('no_overage_allowed', e.target.checked)} />
+                  Never allow overage usage on this provider
+                </label>
+
+                <div className="flex justify-end">
+                  <Button type="submit" loading={savingVendor}>
+                    {editingVendorId ? 'Update vendor' : 'Add vendor'}
+                  </Button>
+                </div>
+              </form>
             </div>
-
-            <form className="space-y-4" onSubmit={handleVendorSubmit}>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <label className="block">
-                  <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Provider name</span>
-                  <input className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.provider_name} onChange={(e) => setVendorField('provider_name', e.target.value)} required />
-                </label>
-                <label className="block">
-                  <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Product type</span>
-                  <input className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.product_type} onChange={(e) => setVendorField('product_type', e.target.value)} required />
-                </label>
-                <label className="block">
-                  <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Category</span>
-                  <select className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.category} onChange={(e) => setVendorField('category', e.target.value as AIVendorCategory)}>
-                    {CATEGORIES.map((category) => <option key={category} value={category}>{category.replace(/_/g, ' ')}</option>)}
-                  </select>
-                </label>
-                <label className="block">
-                  <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Source</span>
-                  <select className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.source_type} onChange={(e) => setVendorField('source_type', e.target.value as AIVendorSourceType)}>
-                    {SOURCE_TYPES.map((sourceType) => <option key={sourceType} value={sourceType}>{sourceType.replace(/_/g, ' ')}</option>)}
-                  </select>
-                </label>
-                <label className="block">
-                  <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Plan name</span>
-                  <input className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.plan_name ?? ''} onChange={(e) => setVendorField('plan_name', e.target.value)} />
-                </label>
-                <label className="block">
-                  <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Account label</span>
-                  <input className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.account_label ?? ''} onChange={(e) => setVendorField('account_label', e.target.value)} />
-                </label>
-                <label className="block">
-                  <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Current spend</span>
-                  <input type="number" step="0.01" className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.spend_current_period ?? ''} onChange={(e) => setVendorField('spend_current_period', e.target.value === '' ? null : Number(e.target.value))} />
-                </label>
-                <label className="block">
-                  <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Budget limit</span>
-                  <input type="number" step="0.01" className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.budget_limit ?? ''} onChange={(e) => setVendorField('budget_limit', e.target.value === '' ? null : Number(e.target.value))} />
-                </label>
-                <label className="block">
-                  <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Remaining budget</span>
-                  <input type="number" step="0.01" className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.remaining_budget ?? ''} onChange={(e) => setVendorField('remaining_budget', e.target.value === '' ? null : Number(e.target.value))} />
-                </label>
-                <label className="block">
-                  <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Remaining credits</span>
-                  <input type="number" step="1" className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.remaining_credits ?? ''} onChange={(e) => setVendorField('remaining_credits', e.target.value === '' ? null : Number(e.target.value))} />
-                </label>
-                <label className="block">
-                  <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Estimated capacity (0-1)</span>
-                  <input type="number" min="0" max="1" step="0.01" className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.estimated_remaining_capacity ?? ''} onChange={(e) => setVendorField('estimated_remaining_capacity', e.target.value === '' ? null : Number(e.target.value))} />
-                </label>
-                <label className="block">
-                  <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Renewal</span>
-                  <input type="datetime-local" className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.renewal_at ?? ''} onChange={(e) => setVendorField('renewal_at', e.target.value)} />
-                </label>
+          ) : (
+            <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-dashed border-cream-dark dark:border-slate-700 p-5">
+              <h3 className="text-base font-heading font-semibold text-navy dark:text-slate-100">Need to track something manually?</h3>
+              <p className="mt-2 text-sm text-navy/60 dark:text-slate-400">
+                Add Claude Web renewals, Gemini limits, or any vendor without live sync only when you need it.
+              </p>
+              <div className="mt-4">
+                <Button size="sm" variant="secondary" onClick={startNewVendor}>Add manual vendor</Button>
               </div>
-
-              <label className="block">
-                <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Provider URL</span>
-                <input className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.provider_url ?? ''} onChange={(e) => setVendorField('provider_url', e.target.value)} />
-              </label>
-
-              <label className="block">
-                <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Notes</span>
-                <textarea className="w-full min-h-[110px] px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm" value={vendorForm.notes ?? ''} onChange={(e) => setVendorField('notes', e.target.value)} />
-              </label>
-
-              <label className="flex items-center gap-2 text-sm text-navy dark:text-slate-200">
-                <input type="checkbox" checked={vendorForm.no_overage_allowed ?? false} onChange={(e) => setVendorField('no_overage_allowed', e.target.checked)} />
-                Never allow overage usage on this provider
-              </label>
-
-              <div className="flex justify-end">
-                <Button type="submit" loading={savingVendor}>
-                  {editingVendorId ? 'Update vendor' : 'Add vendor'}
-                </Button>
-              </div>
-            </form>
-          </div>
+            </div>
+          )}
         </div>
 
         <div className="space-y-6">
@@ -739,7 +796,10 @@ export default function AIOpsDashboard() {
                   Manual, app-tracked, and live-sync readiness cards.
                 </p>
               </div>
-              <Button size="sm" variant="secondary" onClick={fetchData}>Refresh</Button>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="ghost" onClick={fetchData}>Refresh</Button>
+                <Button size="sm" variant="secondary" onClick={startNewVendor}>Add manual vendor</Button>
+              </div>
             </div>
 
             {vendors.length === 0 ? (
@@ -797,7 +857,14 @@ export default function AIOpsDashboard() {
                       Last synced: {formatDate(vendor.last_synced_at)}
                     </p>
                     {vendor.sync_error && (
-                      <p className="mt-2 text-sm text-red-600">{vendor.sync_error}</p>
+                      <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200">
+                        <p className="font-medium">Vendor sync warning</p>
+                        <p className="mt-1">{formatErrorPreview(vendor.sync_error)}</p>
+                        <details className="mt-2">
+                          <summary className="cursor-pointer text-xs font-medium">Show raw error</summary>
+                          <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-[11px]">{vendor.sync_error}</pre>
+                        </details>
+                      </div>
                     )}
                   </div>
                 ))}
