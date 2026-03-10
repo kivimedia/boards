@@ -3272,6 +3272,71 @@ Respond with JSON:
 }
 
 // ============================================================================
+// ELEMENT MAPPING KNOWLEDGE BASE SEED
+// Seeds default Figma-to-Divi5 mappings when knowledge base is empty.
+// ============================================================================
+
+const DEFAULT_ELEMENT_MAPPINGS: Array<{ figma_element_type: string; divi5_module: string; confidence_score: number }> = [
+  { figma_element_type: 'hero', divi5_module: 'divi/section + divi/image + divi/text + divi/button', confidence_score: 0.8 },
+  { figma_element_type: 'hero_banner', divi5_module: 'divi/hero', confidence_score: 0.85 },
+  { figma_element_type: 'features', divi5_module: 'divi/section + divi/blurb (repeated)', confidence_score: 0.8 },
+  { figma_element_type: 'services', divi5_module: 'divi/section + divi/blurb (repeated)', confidence_score: 0.8 },
+  { figma_element_type: 'gallery', divi5_module: 'divi/section + divi/gallery', confidence_score: 0.75 },
+  { figma_element_type: 'image_grid', divi5_module: 'divi/section + divi/image (grid)', confidence_score: 0.7 },
+  { figma_element_type: 'testimonials', divi5_module: 'divi/section + divi/testimonial', confidence_score: 0.85 },
+  { figma_element_type: 'contact', divi5_module: 'divi/section + divi/contact-form', confidence_score: 0.9 },
+  { figma_element_type: 'cta', divi5_module: 'divi/section + divi/cta', confidence_score: 0.85 },
+  { figma_element_type: 'about', divi5_module: 'divi/section + divi/text + divi/image', confidence_score: 0.75 },
+  { figma_element_type: 'text_block', divi5_module: 'divi/section + divi/text', confidence_score: 0.9 },
+  { figma_element_type: 'pricing', divi5_module: 'divi/section + divi/pricing-table', confidence_score: 0.85 },
+  { figma_element_type: 'team', divi5_module: 'divi/section + divi/person', confidence_score: 0.85 },
+  { figma_element_type: 'stats', divi5_module: 'divi/section + divi/number-counter', confidence_score: 0.8 },
+  { figma_element_type: 'counters', divi5_module: 'divi/section + divi/number-counter', confidence_score: 0.8 },
+  { figma_element_type: 'video', divi5_module: 'divi/section + divi/video', confidence_score: 0.9 },
+  { figma_element_type: 'faq', divi5_module: 'divi/section + divi/accordion', confidence_score: 0.9 },
+  { figma_element_type: 'accordion', divi5_module: 'divi/section + divi/accordion', confidence_score: 0.9 },
+  { figma_element_type: 'tabs', divi5_module: 'divi/section + divi/tabs', confidence_score: 0.85 },
+  { figma_element_type: 'blog', divi5_module: 'divi/section + divi/blog', confidence_score: 0.85 },
+  { figma_element_type: 'footer', divi5_module: 'divi/section + divi/text (multi-column)', confidence_score: 0.7 },
+  { figma_element_type: 'navigation', divi5_module: 'divi/section + divi/menu', confidence_score: 0.8 },
+  { figma_element_type: 'slider', divi5_module: 'divi/section + divi/slider', confidence_score: 0.85 },
+  { figma_element_type: 'carousel', divi5_module: 'divi/section + divi/group-carousel', confidence_score: 0.8 },
+  { figma_element_type: 'before_after', divi5_module: 'divi/section + divi/before-after-image', confidence_score: 0.9 },
+  { figma_element_type: 'map', divi5_module: 'divi/section + divi/map', confidence_score: 0.9 },
+  { figma_element_type: 'social', divi5_module: 'divi/section + divi/social-media-follow', confidence_score: 0.85 },
+  { figma_element_type: 'login', divi5_module: 'divi/section + divi/login', confidence_score: 0.9 },
+  { figma_element_type: 'portfolio', divi5_module: 'divi/section + divi/filterable-portfolio', confidence_score: 0.8 },
+  { figma_element_type: 'countdown', divi5_module: 'divi/section + divi/countdown-timer', confidence_score: 0.9 },
+  { figma_element_type: 'icon_list', divi5_module: 'divi/section + divi/icon-list', confidence_score: 0.85 },
+  { figma_element_type: 'progress_bar', divi5_module: 'divi/section + divi/bar-counters', confidence_score: 0.85 },
+];
+
+async function seedKnowledgeBaseIfEmpty(siteProfileId: string): Promise<void> {
+  const { count } = await supabase
+    .from('pageforge_element_mappings')
+    .select('id', { count: 'exact', head: true })
+    .eq('site_profile_id', siteProfileId);
+
+  if (count && count > 0) return; // Already seeded
+
+  const rows = DEFAULT_ELEMENT_MAPPINGS.map(m => ({
+    site_profile_id: siteProfileId,
+    figma_element_type: m.figma_element_type,
+    divi5_module: m.divi5_module,
+    confidence_score: m.confidence_score,
+    times_approved: 1,
+    times_overridden: 0,
+  }));
+
+  const { error } = await supabase.from('pageforge_element_mappings').insert(rows);
+  if (error) {
+    console.warn('[pageforge] Failed to seed knowledge base:', error.message);
+  } else {
+    console.log(`[pageforge] Seeded knowledge base with ${rows.length} default mappings for site ${siteProfileId}`);
+  }
+}
+
+// ============================================================================
 // ELEMENT MAPPING PROPOSAL (called before element_mapping_gate)
 // ============================================================================
 
@@ -3288,6 +3353,9 @@ async function executeElementMappingProposal(
     console.log('[pageforge] No section classifications - skipping mapping proposal');
     return;
   }
+
+  // Seed knowledge base with defaults if empty (first build for this site)
+  await seedKnowledgeBaseIfEmpty(build.site_profile_id);
 
   // Check if proposals already exist (e.g., on resume)
   const { count } = await supabase

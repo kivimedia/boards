@@ -13,6 +13,8 @@ import type {
 } from '@/lib/types';
 import PageForgeChatPanel from './PageForgeChatPanel';
 import PageForgeDesignerSuggestions from './PageForgeDesignerSuggestions';
+import ElementMappingPanel from './ElementMappingPanel';
+import AnimationPlanPanel from './AnimationPlanPanel';
 
 // ---------------------------------------------------------------------------
 // Phase definitions (order matters)
@@ -841,6 +843,35 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
               })}
             </div>
           </div>
+
+          {/* Element Mapping Panel (shows after element_mapping_gate phase) */}
+          {build.current_phase >= PHASE_KEYS.indexOf('element_mapping_gate') && (
+            <div className="mt-6">
+              <ElementMappingPanel
+                buildId={build.id}
+                isGateActive={build.status === ('element_mapping_gate' as PageForgeBuildStatus)}
+                onApproveAll={() => handleGateSubmit('approve')}
+              />
+            </div>
+          )}
+
+          {/* Animation Plan Panel (shows after animation phases) */}
+          {(() => {
+            const artifacts = (build.artifacts || {}) as Record<string, any>;
+            const animDetection = artifacts.animation_detection;
+            const animImpl = artifacts.animation_implementation;
+            if (!animDetection || animDetection.skipped) return null;
+            return (
+              <div className="mt-6">
+                <AnimationPlanPanel
+                  animationPlan={animDetection.animationPlan || []}
+                  animationsApplied={animImpl?.animationsApplied || 0}
+                  totalPlanned={animDetection.animationCount || 0}
+                  hasAnimationPlan={!!build.has_animation_plan}
+                />
+              </div>
+            );
+          })()}
 
           {/* Chat Panel */}
           <div className="mt-6">
