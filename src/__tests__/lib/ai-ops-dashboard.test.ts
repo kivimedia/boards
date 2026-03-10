@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildVendorView, computeOpsAlerts, recommendVendor, type AIVendorAccount } from '@/lib/ai/ops-dashboard';
+import { buildCapacityCards, buildVendorView, computeOpsAlerts, recommendVendor, type AIVendorAccount } from '@/lib/ai/ops-dashboard';
 
 function makeVendor(overrides: Partial<AIVendorAccount> = {}): AIVendorAccount {
   return {
@@ -86,5 +86,44 @@ describe('ai ops dashboard alerts', () => {
     ]);
 
     expect(alerts.some((alert) => alert.severity === 'critical')).toBe(true);
+  });
+});
+
+describe('ai ops dashboard capacity cards', () => {
+  it('builds a configured card from vendor capacity metadata', () => {
+    const cards = buildCapacityCards([
+      buildVendorView(makeVendor({
+        provider_key: 'claude',
+        provider_name: 'Claude Web',
+        plan_name: 'Claude Team',
+        metadata: {
+          capacity_profile: 'claude_team',
+          capacity_plan_label: 'Claude Team',
+          capacity_tracks: [
+            {
+              key: 'session_messages',
+              label: 'Current session',
+              used: 120,
+              limit: 225,
+              unit: 'messages',
+              period: 'session',
+              resets_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+            },
+          ],
+        },
+      })),
+    ]);
+
+    const claudeCard = cards.find((card) => card.profile === 'claude_team');
+    expect(claudeCard?.isConfigured).toBe(true);
+    expect(claudeCard?.tracks[0]?.limit).toBe(225);
+  });
+
+  it('returns placeholders when no manual capacity tracker exists yet', () => {
+    const cards = buildCapacityCards([]);
+
+    expect(cards.some((card) => card.profile === 'claude_team' && !card.isConfigured)).toBe(true);
+    expect(cards.some((card) => card.profile === 'chatgpt_business' && !card.isConfigured)).toBe(true);
+    expect(cards.some((card) => card.profile === 'gemini_ultra' && !card.isConfigured)).toBe(true);
   });
 });

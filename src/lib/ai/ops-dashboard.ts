@@ -29,6 +29,104 @@ export type AIVendorCategory =
 
 export type AIVendorConfidence = 'high' | 'medium' | 'low';
 
+export type AICapacityProfile =
+  | 'claude_team'
+  | 'chatgpt_business'
+  | 'gemini_ultra'
+  | 'custom';
+
+export type AICapacityPeriod = 'billing_cycle' | 'weekly' | 'daily' | 'session' | 'rolling';
+
+export interface AICapacityTrack {
+  key: string;
+  label: string;
+  used: number | null;
+  limit: number | null;
+  unit: string;
+  period: AICapacityPeriod;
+  resets_at: string | null;
+}
+
+export interface AICapacityCard {
+  profile: AICapacityProfile;
+  vendorAccountId: string | null;
+  providerName: string;
+  title: string;
+  planLabel: string;
+  syncMode: 'manual' | 'live_admin' | 'app_usage';
+  sourceType: AIVendorSourceType;
+  confidence: AIVendorConfidence;
+  status: AIVendorStatus | 'not_configured';
+  renewalAt: string | null;
+  lastSyncedAt: string | null;
+  extraUsageEnabled: boolean | null;
+  noOverageAllowed: boolean;
+  isConfigured: boolean;
+  notes: string[];
+  tracks: AICapacityTrack[];
+}
+
+type CapacityProfileDefinition = {
+  title: string;
+  planLabel: string;
+  providerName: string;
+  syncMode: AICapacityCard['syncMode'];
+  notes: string[];
+  tracks: Array<Pick<AICapacityTrack, 'key' | 'label' | 'unit' | 'period'>>;
+};
+
+export const CAPACITY_PROFILE_DEFINITIONS: Record<AICapacityProfile, CapacityProfileDefinition> = {
+  claude_team: {
+    title: 'Claude',
+    planLabel: 'Claude Team',
+    providerName: 'Claude Web',
+    syncMode: 'manual',
+    notes: ['Track 5-hour session, weekly model limits, and Claude Code hours.'],
+    tracks: [
+      { key: 'session_messages', label: 'Current session', unit: 'messages', period: 'session' },
+      { key: 'weekly_all_models', label: 'Weekly all models', unit: 'messages', period: 'weekly' },
+      { key: 'weekly_sonnet', label: 'Weekly Sonnet', unit: 'messages', period: 'weekly' },
+      { key: 'claude_code_sonnet_hours', label: 'Claude Code Sonnet', unit: 'hours', period: 'weekly' },
+      { key: 'claude_code_opus_hours', label: 'Claude Code Opus', unit: 'hours', period: 'weekly' },
+    ],
+  },
+  chatgpt_business: {
+    title: 'Codex',
+    planLabel: 'ChatGPT Business',
+    providerName: 'ChatGPT / Codex',
+    syncMode: 'manual',
+    notes: ['Track included usage, weekly headroom, and current session headroom.'],
+    tracks: [
+      { key: 'included_usage', label: 'Included usage', unit: 'units', period: 'billing_cycle' },
+      { key: 'weekly_capacity', label: 'Weekly capacity', unit: 'units', period: 'weekly' },
+      { key: 'current_session', label: 'Current session', unit: 'units', period: 'session' },
+    ],
+  },
+  gemini_ultra: {
+    title: 'Gemini',
+    planLabel: 'Gemini Ultra',
+    providerName: 'Gemini',
+    syncMode: 'manual',
+    notes: ['Track each daily Gemini bucket separately instead of one blended limit.'],
+    tracks: [
+      { key: 'pro_prompts', label: 'Pro prompts', unit: 'prompts', period: 'daily' },
+      { key: 'thinking_prompts', label: 'Thinking prompts', unit: 'prompts', period: 'daily' },
+      { key: 'agent_requests', label: 'Agent requests', unit: 'requests', period: 'daily' },
+      { key: 'deep_research', label: 'Deep Research', unit: 'requests', period: 'daily' },
+    ],
+  },
+  custom: {
+    title: 'Custom tracker',
+    planLabel: 'Custom',
+    providerName: 'Custom',
+    syncMode: 'manual',
+    notes: ['Use a custom capacity tracker when a product does not fit the built-in profiles.'],
+    tracks: [
+      { key: 'primary_capacity', label: 'Primary capacity', unit: 'units', period: 'billing_cycle' },
+    ],
+  },
+};
+
 export interface AIVendorAccount {
   id: string;
   owner_user_id: string | null;
@@ -105,6 +203,7 @@ export interface AIOpsDashboardData {
     vendorAccountId: string | null;
     confidence: AIVendorConfidence;
   };
+  capacityCards: AICapacityCard[];
   vendors: AIOpsVendorView[];
   alerts: AIOpsAlert[];
   renewals: Array<{
@@ -153,6 +252,170 @@ export interface AIVendorAccountInput {
   provider_url?: string | null;
   notes?: string | null;
   no_overage_allowed?: boolean;
+  metadata?: Record<string, unknown> | null;
+}
+
+type VendorCapacityMetadata = {
+  capacity_profile?: AICapacityProfile;
+  capacity_plan_label?: string | null;
+  capacity_tracks?: Array<Partial<AICapacityTrack>>;
+  extra_usage_enabled?: boolean | null;
+};
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return value as Record<string, unknown>;
+}
+
+function toCapacityProfile(value: unknown): AICapacityProfile | null {
+  return value === 'claude_team' || value === 'chatgpt_business' || value === 'gemini_ultra' || value === 'custom'
+    ? value
+    : null;
+}
+
+function toCapacityPeriod(value: unknown): AICapacityPeriod {
+  return value === 'billing_cycle' || value === 'weekly' || value === 'daily' || value === 'session' || value === 'rolling'
+    ? value
+    : 'billing_cycle';
+}
+
+function toBooleanOrNull(value: unknown): boolean | null {
+  if (typeof value === 'boolean') return value;
+  return null;
+}
+
+function extractCapacityMetadata(metadata: unknown): VendorCapacityMetadata {
+  const record = asRecord(metadata);
+  const profile = toCapacityProfile(record.capacity_profile);
+  const tracksRaw = Array.isArray(record.capacity_tracks) ? record.capacity_tracks : [];
+
+  return {
+    capacity_profile: profile ?? undefined,
+    capacity_plan_label: typeof record.capacity_plan_label === 'string' ? record.capacity_plan_label : null,
+    capacity_tracks: tracksRaw.map((track) => asRecord(track)),
+    extra_usage_enabled: toBooleanOrNull(record.extra_usage_enabled),
+  };
+}
+
+function inferCapacityProfile(vendor: Pick<AIVendorAccount, 'provider_key' | 'provider_name' | 'product_type' | 'category' | 'plan_name'>) {
+  const normalizedName = `${vendor.provider_name} ${vendor.product_type} ${vendor.plan_name ?? ''}`.toLowerCase();
+  if (vendor.category === 'ai_subscription' || normalizedName.includes('team') || normalizedName.includes('ultra') || normalizedName.includes('business')) {
+    if (vendor.provider_key === 'claude' || normalizedName.includes('claude')) return 'claude_team';
+    if (vendor.provider_key === 'openai' || normalizedName.includes('chatgpt') || normalizedName.includes('codex')) return 'chatgpt_business';
+    if (vendor.provider_key === 'google' || normalizedName.includes('gemini')) return 'gemini_ultra';
+  }
+
+  return null;
+}
+
+function buildCapacityTracks(
+  vendor: Pick<AIVendorAccount, 'renewal_at' | 'metadata'>,
+  profile: AICapacityProfile
+): AICapacityTrack[] {
+  const metadata = extractCapacityMetadata(vendor.metadata);
+  const definition = CAPACITY_PROFILE_DEFINITIONS[profile];
+  const storedTracks = new Map<string, Partial<AICapacityTrack>>();
+
+  for (const track of metadata.capacity_tracks ?? []) {
+    if (typeof track.key === 'string') {
+      storedTracks.set(track.key, track);
+    }
+  }
+
+  return definition.tracks.map((trackDef) => {
+    const stored = storedTracks.get(trackDef.key) ?? {};
+    return {
+      key: trackDef.key,
+      label: typeof stored.label === 'string' && stored.label.trim() ? stored.label : trackDef.label,
+      used: toNumber(stored.used),
+      limit: toNumber(stored.limit),
+      unit: typeof stored.unit === 'string' && stored.unit.trim() ? stored.unit : trackDef.unit,
+      period: toCapacityPeriod(stored.period ?? trackDef.period),
+      resets_at: typeof stored.resets_at === 'string' ? stored.resets_at : vendor.renewal_at ?? null,
+    };
+  });
+}
+
+function deriveCapacityFromMetadata(metadata: unknown) {
+  const capacityMetadata = extractCapacityMetadata(metadata);
+  const primary = capacityMetadata.capacity_tracks?.find((track) => toNumber(track.used) != null || toNumber(track.limit) != null);
+  const used = toNumber(primary?.used);
+  const limit = toNumber(primary?.limit);
+  if (used == null || limit == null || limit <= 0) return null;
+
+  const remaining = Math.max(0, limit - used);
+  return {
+    remainingCredits: remaining,
+    estimatedRemainingCapacity: remaining / limit,
+  };
+}
+
+function buildCapacityCard(vendor: AIOpsVendorView, profile: AICapacityProfile): AICapacityCard {
+  const metadata = extractCapacityMetadata(vendor.metadata);
+  const definition = CAPACITY_PROFILE_DEFINITIONS[profile];
+
+  return {
+    profile,
+    vendorAccountId: vendor.id,
+    providerName: vendor.provider_name,
+    title: definition.title,
+    planLabel: metadata.capacity_plan_label || vendor.plan_name || definition.planLabel,
+    syncMode: definition.syncMode,
+    sourceType: vendor.source_type,
+    confidence: vendor.confidence_level,
+    status: vendor.status,
+    renewalAt: vendor.renewal_at,
+    lastSyncedAt: vendor.last_synced_at,
+    extraUsageEnabled: metadata.extra_usage_enabled ?? null,
+    noOverageAllowed: vendor.no_overage_allowed,
+    isConfigured: true,
+    notes: vendor.explanation_bits.length > 0 ? vendor.explanation_bits : definition.notes,
+    tracks: buildCapacityTracks(vendor, profile),
+  };
+}
+
+function buildPlaceholderCapacityCard(profile: AICapacityProfile): AICapacityCard {
+  const definition = CAPACITY_PROFILE_DEFINITIONS[profile];
+  return {
+    profile,
+    vendorAccountId: null,
+    providerName: definition.providerName,
+    title: definition.title,
+    planLabel: definition.planLabel,
+    syncMode: definition.syncMode,
+    sourceType: 'manual',
+    confidence: 'low',
+    status: 'not_configured',
+    renewalAt: null,
+    lastSyncedAt: null,
+    extraUsageEnabled: null,
+    noOverageAllowed: false,
+    isConfigured: false,
+    notes: definition.notes,
+    tracks: buildCapacityTracks({ renewal_at: null, metadata: { capacity_tracks: [] } }, profile),
+  };
+}
+
+export function buildCapacityCards(vendors: AIOpsVendorView[]): AICapacityCard[] {
+  const cards = new Map<AICapacityProfile, AICapacityCard>();
+
+  for (const vendor of [...vendors].sort((a, b) => b.readiness_score - a.readiness_score)) {
+    const metadataProfile = extractCapacityMetadata(vendor.metadata).capacity_profile;
+    const inferredProfile = metadataProfile ?? inferCapacityProfile(vendor);
+    if (!inferredProfile) continue;
+
+    if (!cards.has(inferredProfile)) {
+      cards.set(inferredProfile, buildCapacityCard(vendor, inferredProfile));
+    }
+  }
+
+  for (const profile of ['claude_team', 'chatgpt_business', 'gemini_ultra'] as const) {
+    if (!cards.has(profile)) {
+      cards.set(profile, buildPlaceholderCapacityCard(profile));
+    }
+  }
+
+  return Array.from(cards.values());
 }
 
 function addDays(date: Date, days: number) {
@@ -361,9 +624,53 @@ function toNumber(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function normalizeVendorMetadata(metadata: unknown) {
+  const record = asRecord(metadata);
+  const capacityMetadata = extractCapacityMetadata(record);
+  const definition = capacityMetadata.capacity_profile
+    ? CAPACITY_PROFILE_DEFINITIONS[capacityMetadata.capacity_profile]
+    : null;
+
+  const capacityTracks = (capacityMetadata.capacity_tracks ?? [])
+    .map((track) => ({
+      key: typeof track.key === 'string' ? track.key : '',
+      label: typeof track.label === 'string' ? track.label.trim() : '',
+      used: toNumber(track.used),
+      limit: toNumber(track.limit),
+      unit: typeof track.unit === 'string' ? track.unit.trim() : '',
+      period: toCapacityPeriod(track.period),
+      resets_at: typeof track.resets_at === 'string' && track.resets_at ? new Date(track.resets_at).toISOString() : null,
+    }))
+    .filter((track) => track.key);
+
+  return {
+    ...record,
+    capacity_profile: capacityMetadata.capacity_profile ?? null,
+    capacity_plan_label: capacityMetadata.capacity_plan_label?.trim() || null,
+    extra_usage_enabled: capacityMetadata.extra_usage_enabled ?? null,
+    capacity_tracks: capacityTracks.length > 0
+      ? capacityTracks
+      : (definition?.tracks ?? []).map((track) => ({
+          key: track.key,
+          label: track.label,
+          used: null,
+          limit: null,
+          unit: track.unit,
+          period: track.period,
+          resets_at: null,
+        })),
+  };
+}
+
 function normalizeInput(input: AIVendorAccountInput) {
   const now = new Date();
   const sourceType = input.source_type ?? 'manual';
+  const metadata = normalizeVendorMetadata(input.metadata);
+  const derivedCapacity = deriveCapacityFromMetadata(metadata);
+  const remainingCredits = toNumber(input.remaining_credits) ?? derivedCapacity?.remainingCredits ?? null;
+  const estimatedRemainingCapacity =
+    toNumber(input.estimated_remaining_capacity) ?? derivedCapacity?.estimatedRemainingCapacity ?? null;
+
   return {
     provider_key: input.provider_key ?? null,
     provider_name: input.provider_name.trim(),
@@ -375,13 +682,14 @@ function normalizeInput(input: AIVendorAccountInput) {
     spend_current_period: toNumber(input.spend_current_period),
     budget_limit: toNumber(input.budget_limit),
     remaining_budget: toNumber(input.remaining_budget),
-    remaining_credits: toNumber(input.remaining_credits),
-    estimated_remaining_capacity: toNumber(input.estimated_remaining_capacity),
+    remaining_credits: remainingCredits,
+    estimated_remaining_capacity: estimatedRemainingCapacity,
     renewal_at: input.renewal_at ? new Date(input.renewal_at).toISOString() : null,
     provider_url: input.provider_url?.trim() || null,
     notes: input.notes?.trim() || null,
     no_overage_allowed: Boolean(input.no_overage_allowed),
     is_manual: sourceType !== 'api_synced',
+    metadata,
     last_synced_at: now.toISOString(),
     stale_after: staleAfterForSource(sourceType, now),
   };
@@ -409,7 +717,6 @@ export async function createVendorAccount(
   };
   const derived = buildVendorView({
     id: 'temp',
-    metadata: {},
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     status: 'unknown',
@@ -426,6 +733,7 @@ export async function createVendorAccount(
       ...baseRecord,
       status: derived.status,
       confidence_level: derived.confidence_level,
+      metadata: normalized.metadata,
     })
     .select('*')
     .single();
@@ -474,6 +782,7 @@ export async function updateVendorAccount(
     notes: input.notes ?? existing.notes,
     no_overage_allowed: input.no_overage_allowed ?? existing.no_overage_allowed,
     provider_key: input.provider_key ?? existing.provider_key,
+    metadata: input.metadata ?? (existing.metadata as Record<string, unknown>),
   });
 
   const derived = buildVendorView({
@@ -490,6 +799,7 @@ export async function updateVendorAccount(
       ...normalized,
       status: derived.status,
       confidence_level: derived.confidence_level,
+      metadata: normalized.metadata,
     })
     .eq('id', vendorId)
     .select('*')
@@ -525,6 +835,7 @@ export async function getOpsDashboardData(supabase: SupabaseClient): Promise<AIO
     return !(isInternalUsage && hasLiveSyncPeer);
   });
   const recommendation = recommendVendor(recommendationCandidates);
+  const capacityCards = buildCapacityCards(vendorViews);
   const renewals = vendorViews
     .filter((vendor) => vendor.renewal_at)
     .sort((a, b) => new Date(a.renewal_at!).getTime() - new Date(b.renewal_at!).getTime())
@@ -573,6 +884,7 @@ export async function getOpsDashboardData(supabase: SupabaseClient): Promise<AIO
       renewalCount: renewals.length,
     },
     recommendation,
+    capacityCards,
     vendors: vendorViews,
     alerts,
     renewals,
