@@ -720,15 +720,15 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
                 const phase = phases.find((p) => p.phase_index === idx);
                 const phaseStatus = phase?.status ?? 'pending';
                 const isCurrent = build.current_phase === idx;
-                const isGate = idx >= 13; // Developer Review Gate (13), AM Sign-off Gate (14)
+                const isGate = ['element_mapping_gate', 'draft_review_gate', 'final_review_gate', 'am_signoff_gate'].includes(PHASE_KEYS[idx]);
                 const isWaitingGate = isGate && isCurrent && GATE_STATUSES.includes(build.status as PageForgeBuildStatus);
 
                 return (
                   <div key={name} className="flex items-start gap-3 relative">
-                    {/* Vertical connector line - starts below circle, ends above next circle */}
+                    {/* Vertical connector line - seamlessly connects bottom of this circle to top of next */}
                     {idx < PHASE_NAMES.length - 1 && (
                       <div
-                        className={`absolute left-[11px] top-7 w-0.5 h-[calc(100%-28px)] ${
+                        className={`absolute left-[11px] top-6 w-0.5 h-[calc(100%-24px)] ${
                           phaseStatus === 'completed'
                             ? 'bg-success'
                             : isWaitingGate
