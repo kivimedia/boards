@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { getAuthContext, successResponse, errorResponse, parseBody } from '@/lib/api-helpers';
-import { discoverClientCards, extractAssetLinks, buildSearchTerms } from '@/lib/offboarding';
+import { discoverClientCards, extractAssetLinks, buildSearchTerms, collectWeeklyUpdates } from '@/lib/offboarding';
 
 interface Params {
   params: { clientId: string };
@@ -49,6 +49,9 @@ export async function POST(request: NextRequest, { params }: Params) {
     .select('id', { count: 'exact', head: true })
     .eq('client_id', params.clientId);
 
+  // Fetch weekly updates
+  const weeklyUpdates = await collectWeeklyUpdates(supabase, params.clientId);
+
   return successResponse({
     client,
     searchTerms,
@@ -56,10 +59,12 @@ export async function POST(request: NextRequest, { params }: Params) {
     assets,
     fileAttachments,
     credentialCount: credentialCount || 0,
+    weeklyUpdates,
     summary: {
       totalCards: cards.length,
       directCards: cards.filter(c => c.match_type === 'direct').length,
       heuristicCards: cards.filter(c => c.match_type === 'heuristic').length,
+      boardCards: cards.filter(c => c.match_type === 'board').length,
       figmaLinks: assets.figma.length,
       canvaLinks: assets.canva.length,
       dropboxLinks: assets.dropbox.length,
@@ -67,6 +72,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       otherLinks: assets.other.length,
       fileCount: fileAttachments.length,
       credentialCount: credentialCount || 0,
+      weeklyUpdateCount: weeklyUpdates.length,
     },
   });
 }

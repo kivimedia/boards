@@ -14,7 +14,17 @@ export interface DiscoveredCard {
   board_name: string;
   board_type: string;
   list_name: string;
-  match_type: 'direct' | 'heuristic';
+  match_type: 'direct' | 'heuristic' | 'board';
+}
+
+export interface WeeklyUpdate {
+  id: string;
+  client_id: string;
+  status: string;
+  ai_summary: string | null;
+  meeting_time: string | null;
+  sent_at: string | null;
+  created_at: string;
 }
 
 export type AssetCategory = 'figma' | 'canva' | 'dropbox' | 'drive' | 'other';
@@ -43,6 +53,7 @@ export interface OffboardingReport {
   fileAttachments: FileAttachment[];
   credentials: CredentialDecrypted[];
   searchTerms: string[];
+  weeklyUpdates: WeeklyUpdate[];
 }
 
 // ─── URL Patterns ───────────────────────────────────────────────────────────────
@@ -156,60 +167,82 @@ export async function buildSearchTerms(
 
 // ─── Discover Cards ─────────────────────────────────────────────────────────────
 
+async function getPlacementsForCards(
+  supabase: SupabaseClient,
+  cardIds: string[],
+): Promise<Map<string, { board_name: string; board_type: string; list_name: string }>> {
+  const map = new Map<string, { board_name: string; board_type: string; list_name: string }>();
+  if (cardIds.length === 0) return map;
+
+  const { data: placements } = await supabase
+    .from('card_placements')
+    .select('card_id, lists!inner(title, boards!inner(name, type))')
+    .in('card_id', cardIds);
+
+  if (placements) {
+    for (const p of placements as any[]) {
+      if (!map.has(p.card_id)) {
+        map.set(p.card_id, {
+          board_name: p.lists?.boards?.name || 'Unknown',
+          board_type: p.lists?.boards?.type || 'unknown',
+          list_name: p.lists?.title || 'Unknown',
+        });
+      }
+    }
+  }
+  return map;
+}
+
 export async function discoverClientCards(
   supabase: SupabaseClient,
   clientId: string,
   searchTerms: string[],
 ): Promise<DiscoveredCard[]> {
-  // Step 1: Direct match - cards with client_id
-  const { data: directCards } = await supabase
-    .from('card_placements')
-    .select(`
-      cards!inner(id, title, description, client_id, created_at, updated_at),
-      lists!inner(title, boards!inner(name, type))
-    `)
-    .eq('cards.client_id', clientId);
+  // Step 1: Direct match - cards with client_id set
+  const { data: directCardRows } = await supabase
+    .from('cards')
+    .select('id, title, description, client_id, created_at, updated_at')
+    .eq('client_id', clientId);
 
   const directMap = new Map<string, DiscoveredCard>();
-  if (directCards) {
-    for (const row of directCards as any[]) {
-      const card = row.cards;
-      if (!directMap.has(card.id)) {
-        directMap.set(card.id, {
-          id: card.id,
-          title: card.title,
-          description: card.description,
-          client_id: card.client_id,
-          created_at: card.created_at,
-          updated_at: card.updated_at,
-          board_name: row.lists?.boards?.name || 'Unknown',
-          board_type: row.lists?.boards?.type || 'unknown',
-          list_name: row.lists?.title || 'Unknown',
-          match_type: 'direct',
-        });
-      }
+  if (directCardRows && directCardRows.length > 0) {
+    const placements = await getPlacementsForCards(supabase, directCardRows.map((c: any) => c.id));
+    for (const card of directCardRows as any[]) {
+      const p = placements.get(card.id);
+      directMap.set(card.id, {
+        id: card.id,
+        title: card.title,
+        description: card.description,
+        client_id: card.client_id,
+        created_at: card.created_at,
+        updated_at: card.updated_at,
+        board_name: p?.board_name || 'Unknown',
+        board_type: p?.board_type || 'unknown',
+        list_name: p?.list_name || 'Unknown',
+        match_type: 'direct',
+      });
     }
   }
 
-  // Step 2: Heuristic - search by terms in title/description
+  // Step 2: Heuristic - search by terms in card title/description
   const heuristicMap = new Map<string, DiscoveredCard>();
   if (searchTerms.length > 0) {
-    // Search each term individually to avoid complex OR in Supabase
     for (const term of searchTerms) {
       const likePattern = `%${term}%`;
       const { data: matchedCards } = await supabase
-        .from('card_placements')
-        .select(`
-          cards!inner(id, title, description, client_id, created_at, updated_at),
-          lists!inner(title, boards!inner(name, type))
-        `)
-        .or(`title.ilike.${likePattern},description.ilike.${likePattern}`, { referencedTable: 'cards' })
+        .from('cards')
+        .select('id, title, description, client_id, created_at, updated_at')
+        .or(`title.ilike.${likePattern},description.ilike.${likePattern}`)
         .limit(100);
 
-      if (matchedCards) {
-        for (const row of matchedCards as any[]) {
-          const card = row.cards;
-          if (!directMap.has(card.id) && !heuristicMap.has(card.id)) {
+      if (matchedCards && matchedCards.length > 0) {
+        const newCards = (matchedCards as any[]).filter(
+          c => !directMap.has(c.id) && !heuristicMap.has(c.id),
+        );
+        if (newCards.length > 0) {
+          const placements = await getPlacementsForCards(supabase, newCards.map((c: any) => c.id));
+          for (const card of newCards) {
+            const p = placements.get(card.id);
             heuristicMap.set(card.id, {
               id: card.id,
               title: card.title,
@@ -217,9 +250,9 @@ export async function discoverClientCards(
               client_id: card.client_id,
               created_at: card.created_at,
               updated_at: card.updated_at,
-              board_name: row.lists?.boards?.name || 'Unknown',
-              board_type: row.lists?.boards?.type || 'unknown',
-              list_name: row.lists?.title || 'Unknown',
+              board_name: p?.board_name || 'Unknown',
+              board_type: p?.board_type || 'unknown',
+              list_name: p?.list_name || 'Unknown',
               match_type: 'heuristic',
             });
           }
@@ -228,8 +261,64 @@ export async function discoverClientCards(
     }
   }
 
-  // Combine: direct first, then heuristic
-  return Array.from(directMap.values()).concat(Array.from(heuristicMap.values()));
+  // Step 3: Board-linked cards - all cards in boards linked to this client
+  const boardLinkedMap = new Map<string, DiscoveredCard>();
+
+  const { data: clientBoards } = await supabase
+    .from('client_boards')
+    .select('board_id')
+    .eq('client_id', clientId)
+    .eq('is_active', true);
+
+  const linkedBoardIds = (clientBoards || []).map((b: any) => b.board_id);
+
+  if (linkedBoardIds.length > 0) {
+    // Get all lists in those boards
+    const { data: lists } = await supabase
+      .from('lists')
+      .select('id, title, board_id, boards!inner(name, type)')
+      .in('board_id', linkedBoardIds);
+
+    if (lists && lists.length > 0) {
+      const listIds = lists.map((l: any) => l.id);
+      const listInfoMap = new Map(lists.map((l: any) => [l.id, l]));
+
+      // Batch to avoid large IN queries
+      for (let i = 0; i < listIds.length; i += 50) {
+        const batch = listIds.slice(i, i + 50);
+        const { data: placements } = await supabase
+          .from('card_placements')
+          .select('list_id, cards!inner(id, title, description, client_id, created_at, updated_at)')
+          .in('list_id', batch);
+
+        if (placements) {
+          for (const row of placements as any[]) {
+            const card = row.cards;
+            if (!directMap.has(card.id) && !heuristicMap.has(card.id) && !boardLinkedMap.has(card.id)) {
+              const listInfo = listInfoMap.get(row.list_id) as any;
+              boardLinkedMap.set(card.id, {
+                id: card.id,
+                title: card.title,
+                description: card.description,
+                client_id: card.client_id,
+                created_at: card.created_at,
+                updated_at: card.updated_at,
+                board_name: listInfo?.boards?.name || 'Unknown',
+                board_type: listInfo?.boards?.type || 'unknown',
+                list_name: listInfo?.title || 'Unknown',
+                match_type: 'board',
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Combine: direct first, then heuristic, then board-linked
+  return Array.from(directMap.values())
+    .concat(Array.from(heuristicMap.values()))
+    .concat(Array.from(boardLinkedMap.values()));
 }
 
 // ─── Extract Asset Links ────────────────────────────────────────────────────────
@@ -415,6 +504,22 @@ export async function collectCredentials(
   return decrypted;
 }
 
+// ─── Collect Weekly Updates ─────────────────────────────────────────────────────
+
+export async function collectWeeklyUpdates(
+  supabase: SupabaseClient,
+  clientId: string,
+): Promise<WeeklyUpdate[]> {
+  const { data, error } = await supabase
+    .from('client_weekly_updates')
+    .select('id, client_id, status, ai_summary, meeting_time, sent_at, created_at')
+    .eq('client_id', clientId)
+    .order('created_at', { ascending: false });
+
+  if (error || !data) return [];
+  return data as WeeklyUpdate[];
+}
+
 // ─── Build Report Data ──────────────────────────────────────────────────────────
 
 export function buildReportData(
@@ -424,6 +529,7 @@ export function buildReportData(
   fileAttachments: FileAttachment[],
   credentials: CredentialDecrypted[],
   searchTerms: string[],
+  weeklyUpdates: WeeklyUpdate[] = [],
 ): OffboardingReport {
   return {
     client,
@@ -433,6 +539,7 @@ export function buildReportData(
     fileAttachments,
     credentials,
     searchTerms,
+    weeklyUpdates,
   };
 }
 
@@ -503,6 +610,21 @@ export function generateCsv(report: OffboardingReport): string {
       escapeCsv(card.match_type),
       escapeCsv(new Date(card.created_at).toLocaleDateString()),
     ].join(','));
+  }
+
+  // Weekly updates
+  if (report.weeklyUpdates.length > 0) {
+    lines.push('');
+    lines.push('=== WEEKLY UPDATES ===');
+    lines.push('Date,Status,Summary,Sent At');
+    for (const update of report.weeklyUpdates) {
+      lines.push([
+        escapeCsv(new Date(update.created_at).toLocaleDateString()),
+        escapeCsv(update.status),
+        escapeCsv(update.ai_summary),
+        escapeCsv(update.sent_at ? new Date(update.sent_at).toLocaleDateString() : null),
+      ].join(','));
+    }
   }
 
   return lines.join('\n');
