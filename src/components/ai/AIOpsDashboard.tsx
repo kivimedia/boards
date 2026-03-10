@@ -39,6 +39,11 @@ type SyncForm = {
   billingAnchorDay: string;
 };
 
+const DEFAULT_SYNC_LABELS: Record<SyncForm['provider_key'], string> = {
+  openai: 'OpenAI admin',
+  anthropic: 'Anthropic admin',
+};
+
 const emptyVendorForm: AIVendorAccountInput = {
   provider_name: '',
   product_type: '',
@@ -59,7 +64,7 @@ const emptyVendorForm: AIVendorAccountInput = {
 
 const emptySyncForm: SyncForm = {
   provider_key: 'openai',
-  label: 'OpenAI admin',
+  label: DEFAULT_SYNC_LABELS.openai,
   secret: '',
   monthlyBudgetUsd: '',
   billingAnchorDay: '',
@@ -179,6 +184,19 @@ export default function AIOpsDashboard() {
 
   function setConnectionField<K extends keyof SyncForm>(key: K, value: SyncForm[K]) {
     setConnectionForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function handleConnectionProviderChange(provider_key: SyncForm['provider_key']) {
+    setConnectionForm((current) => {
+      const shouldResetLabel =
+        current.label.trim() === '' || current.label === DEFAULT_SYNC_LABELS[current.provider_key];
+
+      return {
+        ...current,
+        provider_key,
+        label: shouldResetLabel ? DEFAULT_SYNC_LABELS[provider_key] : current.label,
+      };
+    });
   }
 
   function resetVendorForm() {
@@ -471,7 +489,7 @@ export default function AIOpsDashboard() {
                   <select
                     className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm"
                     value={connectionForm.provider_key}
-                    onChange={(e) => setConnectionField('provider_key', e.target.value as SyncForm['provider_key'])}
+                    onChange={(e) => handleConnectionProviderChange(e.target.value as SyncForm['provider_key'])}
                   >
                     <option value="openai">OpenAI</option>
                     <option value="anthropic">Anthropic</option>
