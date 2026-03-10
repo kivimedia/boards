@@ -19,7 +19,7 @@ export default async function PageForgeBuildPage({ params }: { params: { buildId
       <SidebarWithBoards />
       <main className="flex-1 flex flex-col overflow-hidden">
         <Header title="Build Detail" />
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto bg-cream dark:bg-dark-bg">
           <PageForgeBuildDetail buildId={params.buildId} />
         </div>
       </main>

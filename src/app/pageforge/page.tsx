@@ -19,7 +19,7 @@ export default async function PageForgePage() {
       <SidebarWithBoards />
       <main className="flex-1 flex flex-col overflow-hidden">
         <Header title="PageForge" />
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto bg-cream dark:bg-dark-bg">
           <PageForgeDashboard />
         </div>
       </main>
