@@ -149,6 +149,10 @@ export default function AIOpsDashboard() {
   const vendors = data?.vendors ?? [];
   const connections = data?.connections ?? [];
   const capabilities = data?.capabilities ?? [];
+  const openAiConnection = connections.find((connection) => connection.provider_key === 'openai' && connection.is_active) ?? null;
+  const anthropicConnection = connections.find((connection) => connection.provider_key === 'anthropic' && connection.is_active) ?? null;
+  const selectedProviderConnection =
+    connections.find((connection) => connection.provider_key === connectionForm.provider_key && connection.is_active) ?? null;
 
   const highlightedVendor = useMemo(
     () => vendors.find((vendor) => vendor.id === data?.recommendation.vendorAccountId) ?? null,
@@ -376,6 +380,53 @@ export default function AIOpsDashboard() {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+        <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-heading font-semibold text-navy dark:text-slate-100">OpenAI</p>
+            <span className={`inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold capitalize ${openAiConnection ? connectionStatusBadge(openAiConnection.last_sync_status) : 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'}`}>
+              {openAiConnection ? 'Connected' : 'Not connected'}
+            </span>
+          </div>
+          <p className="mt-2 text-xs text-navy/50 dark:text-slate-400">
+            {openAiConnection ? `${openAiConnection.label} saved` : 'Add an OpenAI admin key for live org usage sync.'}
+          </p>
+        </div>
+        <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-heading font-semibold text-navy dark:text-slate-100">Anthropic</p>
+            <span className={`inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold capitalize ${anthropicConnection ? connectionStatusBadge(anthropicConnection.last_sync_status) : 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'}`}>
+              {anthropicConnection ? 'Connected' : 'Not connected'}
+            </span>
+          </div>
+          <p className="mt-2 text-xs text-navy/50 dark:text-slate-400">
+            {anthropicConnection ? `${anthropicConnection.label} saved` : 'Add an Anthropic admin key for live org usage sync.'}
+          </p>
+        </div>
+        <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-heading font-semibold text-navy dark:text-slate-100">Gemini</p>
+            <span className="inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold capitalize bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/20">
+              App usage only
+            </span>
+          </div>
+          <p className="mt-2 text-xs text-navy/50 dark:text-slate-400">
+            Agency Board tracks Gemini usage it makes itself, not your whole Google billing account.
+          </p>
+        </div>
+        <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-heading font-semibold text-navy dark:text-slate-100">Claude Web</p>
+            <span className="inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold capitalize bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20">
+              Manual
+            </span>
+          </div>
+          <p className="mt-2 text-xs text-navy/50 dark:text-slate-400">
+            Subscription renewals and session availability still need manual tracking.
+          </p>
+        </div>
+      </div>
+
       {error && (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
@@ -432,6 +483,12 @@ export default function AIOpsDashboard() {
                     required={!editingConnectionId}
                   />
                 </label>
+                {selectedProviderConnection && !editingConnectionId && (
+                  <div className="sm:col-span-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-800 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200">
+                    {selectedProviderConnection.provider_key === 'openai' ? 'OpenAI' : 'Anthropic'} is already connected as `{selectedProviderConnection.label}`.
+                    Use the edit button below if you want to replace or update that saved connection.
+                  </div>
+                )}
                 <label className="block">
                   <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Monthly budget (optional)</span>
                   <input
