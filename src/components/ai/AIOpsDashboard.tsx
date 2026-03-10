@@ -72,9 +72,9 @@ const ADMIN_KEY_LINKS: Record<SyncForm['provider_key'], { href: string; label: s
     hint: 'Requires Organization Owner access.',
   },
   anthropic: {
-    href: 'https://console.anthropic.com/settings/organization',
-    label: 'Open Anthropic organization settings',
-    hint: 'Admin API keys are provisioned in Console -> Settings -> Organization.',
+    href: 'https://platform.claude.com/settings/admin-keys',
+    label: 'Open Anthropic admin keys',
+    hint: 'Requires an organization admin role and an org account, not an individual account.',
   },
 };
 
