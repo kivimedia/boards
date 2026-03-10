@@ -37,7 +37,6 @@ export const TRACKER_MANAGE_CONFIGS: Partial<Record<PKTrackerType, TrackerManage
       { key: 'account_manager_name', label: 'AM', type: 'text', required: true },
       { key: 'client_name', label: 'Client', type: 'text' },
       { key: 'meeting_date', label: 'Date of Meeting', type: 'date' },
-      { key: 'date_sent', label: 'Date Sent', type: 'date' },
       { key: 'on_time', label: 'On Time', type: 'boolean' },
       { key: 'method', label: 'Method', type: 'text' },
       { key: 'notes', label: 'Notes', type: 'text' },

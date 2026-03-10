@@ -321,13 +321,13 @@ async function syncClientUpdates(
       const records = tabData.rows.map((row, idx) => ({
         account_manager_name: amName,
         client_name: row['CLIENT'] || null,
-        date_sent: parseDate(row['DATE SENT'] || row['DATE']),
+        meeting_date: parseDate(row['DATE SENT'] || row['DATE']),
         on_time: parseBoolean(row['UPDATE SENT ON TIME?'] || row['UPDATE SENT ON TIME'] || row['UPDATE SENT ON TIME(?)']),
         method: row['METHOD(Email,Whatsapp,etc.)'] || row['METHOD'] || null,
         notes: row['NOTES'] || null,
         source_tab: sheet.title,
         source_row: idx + 2,
-      })).filter(r => r.client_name || r.date_sent);
+      })).filter(r => r.client_name || r.meeting_date);
 
       if (records.length > 0) {
         const { error } = await supabase.from('pk_client_updates').insert(records);

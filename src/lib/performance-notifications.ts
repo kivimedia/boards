@@ -285,8 +285,8 @@ export async function notifyAMsPendingTasks(
       .gte('meeting_date', cutoffDate),
     supabase
       .from('pk_client_updates')
-      .select('account_manager_name, client_name, date_sent, on_time')
-      .gte('date_sent', cutoffDate),
+      .select('account_manager_name, client_name, meeting_date, on_time')
+      .gte('meeting_date', cutoffDate),
     supabase
       .from('pk_sanity_tests')
       .select('account_manager_name, client_name, test_date, test_done, email_received')
@@ -328,7 +328,7 @@ export async function notifyAMsPendingTasks(
     const am = getOrCreate(amName);
     am.clientUpdatesMissingOnTimeMark.push({
       task_label: clientName,
-      task_date: row.date_sent || null,
+      task_date: row.meeting_date || null,
       notes: 'Missing Yes/No mark in On Time',
     });
   }

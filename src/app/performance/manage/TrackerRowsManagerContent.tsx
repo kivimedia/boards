@@ -201,7 +201,7 @@ export default function TrackerRowsManagerContent({
         offset: '0',
       });
       if (config.trackerType === 'client_updates') {
-        params.set('sort', 'date_sent');
+        params.set('sort', 'meeting_date');
       }
       params.set(groupQueryParam, groupValue);
 

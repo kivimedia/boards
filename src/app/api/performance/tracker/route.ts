@@ -33,7 +33,7 @@ const TRACKER_TABLES: Record<string, string> = {
  */
 const DATE_COLUMNS: Record<string, string> = {
   fathom_videos: 'meeting_date',
-  client_updates: 'date_sent',
+  client_updates: 'meeting_date',
   ticket_updates: 'created_at',
   daily_goals: 'entry_date',
   sanity_checks: 'check_date',
