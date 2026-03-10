@@ -3,12 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Button from '@/components/ui/Button';
 import type {
+  AICapacityPeriod,
+  AICapacityProfile,
   AIOpsDashboardData,
   AIVendorAccountInput,
   AIVendorCategory,
   AIVendorSourceType,
   AIOpsVendorView,
 } from '@/lib/ai/ops-dashboard';
+import { CAPACITY_PROFILE_DEFINITIONS } from '@/lib/ai/ops-dashboard';
 
 const CATEGORIES: AIVendorCategory[] = [
   'ai_subscription',
@@ -39,9 +42,59 @@ type SyncForm = {
   billingAnchorDay: string;
 };
 
+type CapacityTrackForm = {
+  key: string;
+  label: string;
+  used: string;
+  limit: string;
+  unit: string;
+  period: AICapacityPeriod;
+  resets_at: string;
+};
+
+type CapacityFormState = {
+  profile: AICapacityProfile | '';
+  planLabel: string;
+  extraUsageEnabled: 'unknown' | 'enabled' | 'disabled';
+  tracks: CapacityTrackForm[];
+};
+
 const DEFAULT_SYNC_LABELS: Record<SyncForm['provider_key'], string> = {
   openai: 'OpenAI admin',
   anthropic: 'Anthropic admin',
+};
+
+const PROFILE_VENDOR_DEFAULTS: Record<AICapacityProfile, Partial<AIVendorAccountInput>> = {
+  claude_team: {
+    provider_key: 'claude',
+    provider_name: 'Claude Web',
+    product_type: 'Team subscription',
+    category: 'ai_subscription',
+    plan_name: 'Claude Team',
+    source_type: 'manual',
+  },
+  chatgpt_business: {
+    provider_key: 'openai',
+    provider_name: 'ChatGPT / Codex',
+    product_type: 'Business subscription',
+    category: 'ai_subscription',
+    plan_name: 'ChatGPT Business',
+    source_type: 'manual',
+  },
+  gemini_ultra: {
+    provider_key: 'google',
+    provider_name: 'Gemini',
+    product_type: 'Ultra subscription',
+    category: 'ai_subscription',
+    plan_name: 'Gemini Ultra',
+    source_type: 'manual',
+  },
+  custom: {
+    provider_name: 'Custom tracker',
+    product_type: 'Manual tracker',
+    category: 'ai_subscription',
+    source_type: 'manual',
+  },
 };
 
 const emptyVendorForm: AIVendorAccountInput = {
@@ -60,6 +113,13 @@ const emptyVendorForm: AIVendorAccountInput = {
   provider_url: '',
   notes: '',
   no_overage_allowed: false,
+};
+
+const emptyCapacityForm: CapacityFormState = {
+  profile: '',
+  planLabel: '',
+  extraUsageEnabled: 'unknown',
+  tracks: [],
 };
 
 const emptySyncForm: SyncForm = {
@@ -82,6 +142,95 @@ const ADMIN_KEY_LINKS: Record<SyncForm['provider_key'], { href: string; label: s
     hint: 'Requires an organization admin role and an org account, not an individual account.',
   },
 };
+
+function trackFormValue(value: number | null | undefined) {
+  return value == null || Number.isNaN(value) ? '' : String(value);
+}
+
+function emptyTracksForProfile(profile: AICapacityProfile | ''): CapacityTrackForm[] {
+  if (!profile) return [];
+  return CAPACITY_PROFILE_DEFINITIONS[profile].tracks.map((track) => ({
+    key: track.key,
+    label: track.label,
+    used: '',
+    limit: '',
+    unit: track.unit,
+    period: track.period,
+    resets_at: '',
+  }));
+}
+
+function parseCapacityForm(metadata: unknown): CapacityFormState {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return emptyCapacityForm;
+  const record = metadata as Record<string, unknown>;
+  const profileValue = record.capacity_profile;
+  const profile =
+    profileValue === 'claude_team' || profileValue === 'chatgpt_business' || profileValue === 'gemini_ultra' || profileValue === 'custom'
+      ? profileValue
+      : '';
+  const baseTracks = emptyTracksForProfile(profile);
+  const storedTracks = Array.isArray(record.capacity_tracks) ? record.capacity_tracks : [];
+  const trackMap = new Map<string, Record<string, unknown>>();
+
+  for (const track of storedTracks) {
+    if (track && typeof track === 'object' && !Array.isArray(track)) {
+      const entry = track as Record<string, unknown>;
+      if (typeof entry.key === 'string') {
+        trackMap.set(entry.key, entry);
+      }
+    }
+  }
+
+  return {
+    profile,
+    planLabel: typeof record.capacity_plan_label === 'string' ? record.capacity_plan_label : '',
+    extraUsageEnabled:
+      record.extra_usage_enabled === true
+        ? 'enabled'
+        : record.extra_usage_enabled === false
+          ? 'disabled'
+          : 'unknown',
+    tracks: baseTracks.map((track) => {
+      const stored = trackMap.get(track.key);
+      return {
+        ...track,
+        label: typeof stored?.label === 'string' && stored.label ? stored.label : track.label,
+        used: trackFormValue(typeof stored?.used === 'number' ? stored.used : Number(stored?.used ?? NaN)),
+        limit: trackFormValue(typeof stored?.limit === 'number' ? stored.limit : Number(stored?.limit ?? NaN)),
+        unit: typeof stored?.unit === 'string' && stored.unit ? stored.unit : track.unit,
+        period:
+          stored?.period === 'billing_cycle' || stored?.period === 'weekly' || stored?.period === 'daily' || stored?.period === 'session' || stored?.period === 'rolling'
+            ? stored.period
+            : track.period,
+        resets_at: typeof stored?.resets_at === 'string' && stored.resets_at
+          ? stored.resets_at.slice(0, 16)
+          : '',
+      };
+    }),
+  };
+}
+
+function buildCapacityMetadata(capacityForm: CapacityFormState) {
+  if (!capacityForm.profile) return {};
+
+  return {
+    capacity_profile: capacityForm.profile,
+    capacity_plan_label: capacityForm.planLabel || null,
+    extra_usage_enabled:
+      capacityForm.extraUsageEnabled === 'unknown'
+        ? null
+        : capacityForm.extraUsageEnabled === 'enabled',
+    capacity_tracks: capacityForm.tracks.map((track) => ({
+      key: track.key,
+      label: track.label,
+      used: track.used === '' ? null : Number(track.used),
+      limit: track.limit === '' ? null : Number(track.limit),
+      unit: track.unit,
+      period: track.period,
+      resets_at: track.resets_at ? new Date(track.resets_at).toISOString() : null,
+    })),
+  };
+}
 
 function formatMoney(value: number | null | undefined) {
   if (value == null) return 'Unknown';
@@ -114,6 +263,13 @@ function formatErrorPreview(value: string | null | undefined) {
   return firstLine.length > 180 ? `${firstLine.slice(0, 177)}...` : firstLine;
 }
 
+function formatCapacityTrackValue(used: number | null | undefined, limit: number | null | undefined, unit: string) {
+  if (used == null && limit == null) return 'Not set';
+  const left = used == null ? '?' : used;
+  const right = limit == null ? '?' : limit;
+  return `${left}/${right} ${unit}`;
+}
+
 function badgeClass(status: AIOpsVendorView['status']) {
   if (status === 'healthy' || status === 'renewed_recently') return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20';
   if (status === 'nearing_limit' || status === 'manual_update_needed') return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20';
@@ -140,6 +296,14 @@ function connectionStatusBadge(status: SyncConnection['last_sync_status']) {
   return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
 }
 
+function capacityCardStatusBadge(status: NonNullable<AIOpsDashboardData['capacityCards']>[number]['status']) {
+  if (status === 'not_configured') return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
+  if (status === 'healthy' || status === 'renewed_recently') return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20';
+  if (status === 'nearing_limit' || status === 'manual_update_needed') return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20';
+  if (status === 'exhausted') return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-500/10 dark:text-red-300 dark:border-red-500/20';
+  return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
+}
+
 export default function AIOpsDashboard() {
   const [data, setData] = useState<AIOpsDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -151,6 +315,7 @@ export default function AIOpsDashboard() {
   const [editingConnectionId, setEditingConnectionId] = useState<string | null>(null);
   const [showVendorForm, setShowVendorForm] = useState(false);
   const [vendorForm, setVendorForm] = useState<AIVendorAccountInput>(emptyVendorForm);
+  const [capacityForm, setCapacityForm] = useState<CapacityFormState>(emptyCapacityForm);
   const [connectionForm, setConnectionForm] = useState<SyncForm>(emptySyncForm);
   const [syncMessage, setSyncMessage] = useState('');
 
@@ -176,10 +341,9 @@ export default function AIOpsDashboard() {
   }, [fetchData]);
 
   const vendors = data?.vendors ?? [];
+  const capacityCards = data?.capacityCards ?? [];
   const connections = data?.connections ?? [];
   const capabilities = data?.capabilities ?? [];
-  const openAiConnection = connections.find((connection) => connection.provider_key === 'openai' && connection.is_active) ?? null;
-  const anthropicConnection = connections.find((connection) => connection.provider_key === 'anthropic' && connection.is_active) ?? null;
   const selectedProviderConnection =
     connections.find((connection) => connection.provider_key === connectionForm.provider_key && connection.is_active) ?? null;
   const selectedAdminKeyLink = ADMIN_KEY_LINKS[connectionForm.provider_key];
@@ -188,39 +352,43 @@ export default function AIOpsDashboard() {
     () => vendors.find((vendor) => vendor.id === data?.recommendation.vendorAccountId) ?? null,
     [data, vendors]
   );
-  const setupStatusItems = [
-    {
-      title: 'OpenAI',
-      description: openAiConnection ? `${openAiConnection.label} saved for live org usage sync.` : 'Add an admin key to pull org usage and spend.',
-      badgeLabel: openAiConnection ? 'Connected' : 'Needs key',
-      badgeClassName: openAiConnection
-        ? connectionStatusBadge(openAiConnection.last_sync_status)
-        : 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
-    },
-    {
-      title: 'Anthropic',
-      description: anthropicConnection ? `${anthropicConnection.label} saved for live org usage sync.` : 'Add an admin key to pull org usage and spend.',
-      badgeLabel: anthropicConnection ? 'Connected' : 'Needs key',
-      badgeClassName: anthropicConnection
-        ? connectionStatusBadge(anthropicConnection.last_sync_status)
-        : 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
-    },
-    {
-      title: 'Gemini',
-      description: 'Agency Board only tracks Gemini usage it makes itself right now.',
-      badgeLabel: 'App usage',
-      badgeClassName: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/20',
-    },
-    {
-      title: 'Claude Web',
-      description: 'Subscription renewals and availability still need manual tracking.',
-      badgeLabel: 'Manual',
-      badgeClassName: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20',
-    },
-  ];
-
   function setVendorField<K extends keyof AIVendorAccountInput>(key: K, value: AIVendorAccountInput[K]) {
     setVendorForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function setCapacityField<K extends keyof CapacityFormState>(key: K, value: CapacityFormState[K]) {
+    setCapacityForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function setCapacityTrackField(index: number, key: keyof CapacityTrackForm, value: string) {
+    setCapacityForm((current) => ({
+      ...current,
+      tracks: current.tracks.map((track, trackIndex) =>
+        trackIndex === index ? { ...track, [key]: value } : track
+      ),
+    }));
+  }
+
+  function applyCapacityProfile(profile: AICapacityProfile | '') {
+    setCapacityForm((current) => ({
+      profile,
+      planLabel: profile ? CAPACITY_PROFILE_DEFINITIONS[profile].planLabel : '',
+      extraUsageEnabled: current.extraUsageEnabled,
+      tracks: emptyTracksForProfile(profile),
+    }));
+
+    if (!profile) return;
+
+    setVendorForm((current) => ({
+      ...current,
+      ...PROFILE_VENDOR_DEFAULTS[profile],
+      provider_name: current.provider_name || PROFILE_VENDOR_DEFAULTS[profile].provider_name || '',
+      product_type: current.product_type || PROFILE_VENDOR_DEFAULTS[profile].product_type || '',
+      plan_name: current.plan_name || PROFILE_VENDOR_DEFAULTS[profile].plan_name || '',
+      provider_key: current.provider_key ?? PROFILE_VENDOR_DEFAULTS[profile].provider_key,
+      category: current.category || PROFILE_VENDOR_DEFAULTS[profile].category || 'ai_subscription',
+      source_type: current.source_type || PROFILE_VENDOR_DEFAULTS[profile].source_type || 'manual',
+    }));
   }
 
   function setConnectionField<K extends keyof SyncForm>(key: K, value: SyncForm[K]) {
@@ -244,6 +412,7 @@ export default function AIOpsDashboard() {
     setEditingVendorId(null);
     setShowVendorForm(false);
     setVendorForm(emptyVendorForm);
+    setCapacityForm(emptyCapacityForm);
   }
 
   function resetConnectionForm() {
@@ -271,12 +440,28 @@ export default function AIOpsDashboard() {
       provider_url: vendor.provider_url ?? '',
       notes: vendor.notes ?? '',
       no_overage_allowed: vendor.no_overage_allowed,
+      metadata: vendor.metadata,
     });
+    setCapacityForm(parseCapacityForm(vendor.metadata));
   }
 
-  function startNewVendor() {
+  function startNewVendor(profile: AICapacityProfile | '' = '') {
     setEditingVendorId(null);
-    setVendorForm(emptyVendorForm);
+    if (profile) {
+      setVendorForm({
+        ...emptyVendorForm,
+        ...PROFILE_VENDOR_DEFAULTS[profile],
+      });
+      setCapacityForm({
+        profile,
+        planLabel: CAPACITY_PROFILE_DEFINITIONS[profile].planLabel,
+        extraUsageEnabled: 'unknown',
+        tracks: emptyTracksForProfile(profile),
+      });
+    } else {
+      setVendorForm(emptyVendorForm);
+      setCapacityForm(emptyCapacityForm);
+    }
     setShowVendorForm(true);
   }
 
@@ -301,7 +486,10 @@ export default function AIOpsDashboard() {
         {
           method: editingVendorId ? 'PATCH' : 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(vendorForm),
+          body: JSON.stringify({
+            ...vendorForm,
+            metadata: buildCapacityMetadata(capacityForm),
+          }),
         }
       );
       const json = await res.json();
@@ -442,41 +630,72 @@ export default function AIOpsDashboard() {
         {syncMessage && <p className="mt-3 text-xs text-white/75">{syncMessage}</p>}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_360px]">
-        <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-5">
-          <p className="text-xs uppercase tracking-[0.18em] text-navy/45 dark:text-slate-500">Start here</p>
-          <h3 className="mt-2 text-xl font-heading font-semibold text-navy dark:text-slate-100">Use this page in three steps</h3>
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
-            <div className="rounded-2xl bg-cream/70 px-4 py-4 dark:bg-slate-800/60">
-              <p className="text-xs font-semibold uppercase tracking-wider text-electric">1. Connect</p>
-              <p className="mt-2 text-sm font-medium text-navy dark:text-slate-100">Add OpenAI or Anthropic admin keys for live org usage.</p>
-            </div>
-            <div className="rounded-2xl bg-cream/70 px-4 py-4 dark:bg-slate-800/60">
-              <p className="text-xs font-semibold uppercase tracking-wider text-electric">2. Fill gaps</p>
-              <p className="mt-2 text-sm font-medium text-navy dark:text-slate-100">Add manual vendors for Claude Web, Gemini limits, or anything that does not sync.</p>
-            </div>
-            <div className="rounded-2xl bg-cream/70 px-4 py-4 dark:bg-slate-800/60">
-              <p className="text-xs font-semibold uppercase tracking-wider text-electric">3. Decide</p>
-              <p className="mt-2 text-sm font-medium text-navy dark:text-slate-100">Use the recommendation, alerts, and vendor cards to pick the safest provider right now.</p>
-            </div>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-navy/45 dark:text-slate-500">Capacity view</p>
+            <h3 className="mt-1 text-xl font-heading font-semibold text-navy dark:text-slate-100">What is left right now</h3>
           </div>
+          <p className="text-sm text-navy/50 dark:text-slate-400">Track session, weekly, and renewal windows instead of generic connection state.</p>
         </div>
-
-        <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-5">
-          <p className="text-xs uppercase tracking-[0.18em] text-navy/45 dark:text-slate-500">Setup status</p>
-          <div className="mt-4 space-y-3">
-            {setupStatusItems.map((item) => (
-              <div key={item.title} className="rounded-2xl border border-cream-dark px-4 py-3 dark:border-slate-700">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="font-heading font-semibold text-navy dark:text-slate-100">{item.title}</p>
-                  <span className={`inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold ${item.badgeClassName}`}>
-                    {item.badgeLabel}
-                  </span>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+          {capacityCards.map((card) => (
+            <div key={card.profile} className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.18em] text-navy/45 dark:text-slate-500">{card.providerName}</p>
+                  <h4 className="mt-1 text-2xl font-heading font-bold text-navy dark:text-slate-100">{card.title}</h4>
+                  <p className="mt-1 text-sm text-navy/55 dark:text-slate-400">{card.planLabel}</p>
                 </div>
-                <p className="mt-2 text-sm text-navy/60 dark:text-slate-400">{item.description}</p>
+                <span className={`inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold capitalize ${capacityCardStatusBadge(card.status)}`}>
+                  {card.status === 'not_configured' ? 'Not configured' : card.status.replace(/_/g, ' ')}
+                </span>
               </div>
-            ))}
-          </div>
+
+              <div className="mt-4 space-y-2">
+                {card.tracks.map((track) => (
+                  <div key={track.key} className="flex items-start justify-between gap-3 rounded-xl bg-cream/70 px-3 py-2 dark:bg-slate-800/60">
+                    <div>
+                      <p className="text-sm font-medium text-navy dark:text-slate-100">{track.label}</p>
+                      <p className="text-[11px] uppercase tracking-wider text-navy/40 dark:text-slate-500">{track.period.replace('_', ' ')}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-navy dark:text-slate-100">
+                        {formatCapacityTrackValue(track.used, track.limit, track.unit)}
+                      </p>
+                      <p className="text-[11px] text-navy/45 dark:text-slate-500">
+                        resets {formatDate(track.resets_at)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 flex items-center justify-between gap-3 text-xs text-navy/50 dark:text-slate-400">
+                <div>
+                  <p>Renews {formatDate(card.renewalAt)}</p>
+                  <p>
+                    Extra usage{' '}
+                    {card.extraUsageEnabled == null ? 'unknown' : card.extraUsageEnabled ? 'enabled' : 'disabled'}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    if (card.vendorAccountId) {
+                      const vendor = vendors.find((entry) => entry.id === card.vendorAccountId);
+                      if (vendor) startEditVendor(vendor);
+                      return;
+                    }
+                    startNewVendor(card.profile);
+                  }}
+                >
+                  {card.isConfigured ? 'Update capacity' : 'Set capacity'}
+                </Button>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -697,6 +916,89 @@ export default function AIOpsDashboard() {
               </div>
 
               <form className="space-y-4" onSubmit={handleVendorSubmit}>
+                <div className="rounded-2xl bg-cream/70 p-4 dark:bg-slate-800/60">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <label className="block">
+                      <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Capacity profile</span>
+                      <select
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm"
+                        value={capacityForm.profile}
+                        onChange={(e) => applyCapacityProfile(e.target.value as AICapacityProfile | '')}
+                      >
+                        <option value="">None</option>
+                        <option value="claude_team">Claude Team</option>
+                        <option value="chatgpt_business">ChatGPT Business / Codex</option>
+                        <option value="gemini_ultra">Gemini Ultra</option>
+                        <option value="custom">Custom tracker</option>
+                      </select>
+                    </label>
+                    <label className="block">
+                      <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Plan label</span>
+                      <input
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm"
+                        value={capacityForm.planLabel}
+                        onChange={(e) => setCapacityField('planLabel', e.target.value)}
+                        placeholder="Claude Team / ChatGPT Business / Gemini Ultra"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Extra usage</span>
+                      <select
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-dark-bg border border-cream-dark dark:border-slate-700 text-sm"
+                        value={capacityForm.extraUsageEnabled}
+                        onChange={(e) => setCapacityField('extraUsageEnabled', e.target.value as CapacityFormState['extraUsageEnabled'])}
+                      >
+                        <option value="unknown">Unknown</option>
+                        <option value="enabled">Enabled</option>
+                        <option value="disabled">Disabled</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  {capacityForm.profile && (
+                    <div className="mt-4 space-y-3">
+                      <p className="text-xs uppercase tracking-[0.18em] text-navy/45 dark:text-slate-500">Capacity tracks</p>
+                      {capacityForm.tracks.map((track, index) => (
+                        <div key={track.key} className="grid grid-cols-1 gap-3 rounded-2xl border border-cream-dark bg-white px-4 py-4 dark:border-slate-700 dark:bg-dark-bg lg:grid-cols-[minmax(0,1.2fr)_120px_120px_140px]">
+                          <div>
+                            <p className="font-medium text-navy dark:text-slate-100">{track.label}</p>
+                            <p className="text-xs uppercase tracking-wider text-navy/40 dark:text-slate-500">{track.period.replace('_', ' ')}</p>
+                          </div>
+                          <label className="block">
+                            <span className="block text-[11px] font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Used</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-slate-900 border border-cream-dark dark:border-slate-700 text-sm"
+                              value={track.used}
+                              onChange={(e) => setCapacityTrackField(index, 'used', e.target.value)}
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="block text-[11px] font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Limit</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-slate-900 border border-cream-dark dark:border-slate-700 text-sm"
+                              value={track.limit}
+                              onChange={(e) => setCapacityTrackField(index, 'limit', e.target.value)}
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="block text-[11px] font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Reset time</span>
+                            <input
+                              type="datetime-local"
+                              className="w-full px-3 py-2 rounded-xl bg-cream dark:bg-slate-900 border border-cream-dark dark:border-slate-700 text-sm"
+                              value={track.resets_at}
+                              onChange={(e) => setCapacityTrackField(index, 'resets_at', e.target.value)}
+                            />
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <label className="block">
                     <span className="block text-xs font-semibold text-navy/50 dark:text-slate-400 mb-1 uppercase tracking-wider font-heading">Provider name</span>
@@ -776,12 +1078,14 @@ export default function AIOpsDashboard() {
             </div>
           ) : (
             <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-dashed border-cream-dark dark:border-slate-700 p-5">
-              <h3 className="text-base font-heading font-semibold text-navy dark:text-slate-100">Need to track something manually?</h3>
+              <h3 className="text-base font-heading font-semibold text-navy dark:text-slate-100">Need to track a web-plan limit manually?</h3>
               <p className="mt-2 text-sm text-navy/60 dark:text-slate-400">
-                Add Claude Web renewals, Gemini limits, or any vendor without live sync only when you need it.
+                Start from a plan template instead of a blank vendor form.
               </p>
-              <div className="mt-4">
-                <Button size="sm" variant="secondary" onClick={startNewVendor}>Add manual vendor</Button>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button size="sm" variant="secondary" onClick={() => startNewVendor('claude_team')}>Track Claude Team</Button>
+                <Button size="sm" variant="secondary" onClick={() => startNewVendor('chatgpt_business')}>Track Codex</Button>
+                <Button size="sm" variant="secondary" onClick={() => startNewVendor('gemini_ultra')}>Track Gemini Ultra</Button>
               </div>
             </div>
           )}
@@ -798,7 +1102,7 @@ export default function AIOpsDashboard() {
               </div>
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="ghost" onClick={fetchData}>Refresh</Button>
-                <Button size="sm" variant="secondary" onClick={startNewVendor}>Add manual vendor</Button>
+                <Button size="sm" variant="secondary" onClick={() => startNewVendor()}>Add manual vendor</Button>
               </div>
             </div>
 
@@ -808,7 +1112,11 @@ export default function AIOpsDashboard() {
               </div>
             ) : (
               <div className="space-y-3">
-                {vendors.map((vendor) => (
+                {vendors.map((vendor) => {
+                  const vendorCapacity = parseCapacityForm(vendor.metadata);
+                  const primaryTrack = vendorCapacity.tracks[0];
+
+                  return (
                   <div key={vendor.id} className="rounded-2xl border border-cream-dark dark:border-slate-700 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -821,6 +1129,15 @@ export default function AIOpsDashboard() {
                         <p className="text-xs text-navy/40 dark:text-slate-500 mt-1">
                           {vendor.product_type} - {vendor.category.replace(/_/g, ' ')} - {vendor.source_type.replace(/_/g, ' ')}
                         </p>
+                        {vendorCapacity.profile && primaryTrack && (
+                          <p className="mt-2 text-xs text-electric">
+                            {vendorCapacity.planLabel || CAPACITY_PROFILE_DEFINITIONS[vendorCapacity.profile].planLabel}: {primaryTrack.label} {formatCapacityTrackValue(
+                              primaryTrack.used === '' ? null : Number(primaryTrack.used),
+                              primaryTrack.limit === '' ? null : Number(primaryTrack.limit),
+                              primaryTrack.unit,
+                            )}
+                          </p>
+                        )}
                       </div>
                       <Button size="sm" variant="ghost" onClick={() => startEditVendor(vendor)}>Edit</Button>
                     </div>
@@ -867,7 +1184,7 @@ export default function AIOpsDashboard() {
                       </div>
                     )}
                   </div>
-                ))}
+                )})}
               </div>
             )}
           </div>
