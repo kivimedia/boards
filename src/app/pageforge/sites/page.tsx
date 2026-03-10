@@ -19,7 +19,7 @@ export default async function PageForgeSitesPage() {
       <SidebarWithBoards />
       <main className="flex-1 flex flex-col overflow-hidden">
         <Header title="Manage Sites" />
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto bg-cream dark:bg-dark-bg">
           <PageForgeSitesList />
         </div>
       </main>
