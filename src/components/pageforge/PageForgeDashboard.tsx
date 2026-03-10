@@ -435,19 +435,24 @@ export default function PageForgeDashboard() {
   // ------- Loading -------
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
         <div className="w-8 h-8 border-2 border-electric/30 border-t-electric rounded-full animate-spin" />
+        <p className="text-xs text-navy/30 dark:text-slate-600 font-body">Loading builds...</p>
       </div>
     );
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
-      {/* Action bar */}
-      <div className="flex items-center justify-end gap-2">
+    <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-5">
+      {/* Page header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-bold text-navy dark:text-slate-100 font-heading">Figma to WordPress</h1>
+          <p className="text-xs text-navy/40 dark:text-slate-500 font-body mt-0.5">Build and publish pages from your Figma designs</p>
+        </div>
         <button
           onClick={() => setShowNewBuildModal(true)}
-          className="px-4 py-2 text-sm font-semibold text-white bg-electric hover:bg-electric-bright rounded-lg transition-colors"
+          className="px-4 py-2 text-sm font-semibold text-white bg-electric hover:bg-electric-bright rounded-lg shadow-card hover:shadow-card-hover hover:translate-y-[-1px] transition-all duration-200"
         >
           + New Build
         </button>
@@ -467,18 +472,18 @@ export default function PageForgeDashboard() {
       )}
 
       {/* Stats cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: 'Total Builds', value: stats.totalBuilds.toString(), color: 'text-navy dark:text-slate-100' },
-          { label: 'Active', value: stats.activeBuilds.toString(), color: 'text-electric' },
-          { label: 'Published', value: stats.publishedBuilds.toString(), color: 'text-success' },
-          { label: 'Avg Cost', value: `$${stats.avgCost.toFixed(2)}`, color: 'text-warning' },
+          { label: 'Total Builds', value: stats.totalBuilds.toString(), color: 'text-navy dark:text-slate-100', accent: 'border-l-navy/20 dark:border-l-slate-500' },
+          { label: 'Active', value: stats.activeBuilds.toString(), color: 'text-electric', accent: 'border-l-electric' },
+          { label: 'Published', value: stats.publishedBuilds.toString(), color: 'text-success', accent: 'border-l-success' },
+          { label: 'Avg Cost', value: `$${stats.avgCost.toFixed(2)}`, color: 'text-warning', accent: 'border-l-warning' },
         ].map((stat) => (
           <div
             key={stat.label}
-            className="bg-white dark:bg-slate-800 rounded-xl border border-navy/5 dark:border-slate-700 p-4"
+            className={`bg-white dark:bg-dark-surface rounded-xl border border-cream-dark dark:border-slate-700 border-l-[3px] ${stat.accent} p-4 shadow-card dark:shadow-none`}
           >
-            <span className="text-[10px] font-semibold text-navy/40 dark:text-slate-500 uppercase">
+            <span className="text-[10px] font-semibold text-navy/40 dark:text-slate-500 uppercase tracking-wide">
               {stat.label}
             </span>
             <p className={`text-2xl font-bold font-heading mt-1 ${stat.color}`}>
@@ -489,7 +494,7 @@ export default function PageForgeDashboard() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-navy/10 dark:border-slate-700">
+      <div className="flex gap-1 border-b border-cream-dark dark:border-slate-700">
         {(['builds', 'sites'] as const).map((tab) => (
           <button
             key={tab}
@@ -507,7 +512,7 @@ export default function PageForgeDashboard() {
 
       {/* Tab content */}
       {activeTab === 'builds' && (
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-navy/5 dark:border-slate-700 overflow-hidden">
+        <div className="bg-white dark:bg-dark-surface rounded-xl border border-cream-dark dark:border-slate-700 shadow-card dark:shadow-none overflow-hidden">
           {/* Archive toggle */}
           {archivedCount > 0 && (
             <div className="px-4 py-2 border-b border-navy/5 dark:border-slate-700 flex items-center justify-end">
@@ -524,7 +529,12 @@ export default function PageForgeDashboard() {
           )}
           {visibleBuilds.length === 0 ? (
             <div className="text-center py-16">
-              <p className="text-sm text-navy/40 dark:text-slate-500">No builds yet</p>
+              <div className="w-12 h-12 rounded-full bg-cream dark:bg-slate-700 flex items-center justify-center mx-auto mb-3">
+                <svg className="w-6 h-6 text-navy/20 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                </svg>
+              </div>
+              <p className="text-sm font-medium text-navy/50 dark:text-slate-400">No builds yet</p>
               <p className="text-xs text-navy/30 dark:text-slate-600 mt-1">
                 Create your first build to get started
               </p>
@@ -551,7 +561,7 @@ export default function PageForgeDashboard() {
                     <tr
                       key={build.id}
                       onClick={() => window.location.href = `/pageforge/${build.id}`}
-                      className="hover:bg-navy/[0.02] dark:hover:bg-slate-700/30 transition-colors cursor-pointer"
+                      className="hover:bg-cream/60 dark:hover:bg-slate-700/40 transition-colors duration-150 cursor-pointer"
                     >
                       <td className="px-4 py-3">
                         <p className="text-sm font-medium text-navy dark:text-slate-200 truncate max-w-[200px]">
@@ -662,7 +672,7 @@ export default function PageForgeDashboard() {
           </div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {sites.length === 0 ? (
-              <div className="col-span-full text-center py-16 bg-white dark:bg-slate-800 rounded-xl border border-navy/5 dark:border-slate-700">
+              <div className="col-span-full text-center py-16 bg-white dark:bg-dark-surface rounded-xl border border-cream-dark dark:border-slate-700 shadow-card dark:shadow-none">
                 <p className="text-sm text-navy/40 dark:text-slate-500">No site profiles</p>
                 <p className="text-xs text-navy/30 dark:text-slate-600 mt-1">
                   Create a site profile to connect WordPress
@@ -672,7 +682,7 @@ export default function PageForgeDashboard() {
               sites.map((site) => (
                 <div
                   key={site.id}
-                  className="bg-white dark:bg-slate-800 rounded-xl border border-navy/5 dark:border-slate-700 p-4 space-y-3 hover:border-navy/20 dark:hover:border-slate-500 transition-colors"
+                  className="bg-white dark:bg-dark-surface rounded-xl border border-cream-dark dark:border-slate-700 p-4 space-y-3 shadow-card dark:shadow-none hover:shadow-card-hover hover:translate-y-[-1px] dark:hover:border-slate-500 transition-all duration-200"
                 >
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-navy dark:text-slate-200 truncate">
