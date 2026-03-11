@@ -40,7 +40,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    const actionLink = data?.properties?.action_link || null;
+    // Rewrite the action link to use the production URL (Supabase may return localhost)
+    let actionLink = data?.properties?.action_link || null;
+    if (actionLink) {
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://kmboards.co';
+      actionLink = actionLink.replace(/http:\/\/localhost:\d+/g, siteUrl);
+    }
 
     // Send the recovery email via Resend
     let emailSent = false;
