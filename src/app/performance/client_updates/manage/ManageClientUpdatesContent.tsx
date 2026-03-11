@@ -557,7 +557,7 @@ export default function ManageClientUpdatesContent({
                 <tr className="bg-cream-dark/20 dark:bg-white/5 border-b border-cream-dark/40 dark:border-white/10">
                   <th className="text-left px-2 py-2 font-medium text-navy/60 dark:text-white/50">AM</th>
                   <th className="text-left px-2 py-2 font-medium text-navy/60 dark:text-white/50">Client</th>
-                  <th className="text-left px-2 py-2 font-medium text-navy/60 dark:text-white/50">Date of Meeting</th>
+                  <th className="text-left px-2 py-2 font-medium text-navy/60 dark:text-white/50">Date Sent</th>
                   <th className="text-left px-2 py-2 font-medium text-navy/60 dark:text-white/50">On Time</th>
                   <th className="text-left px-2 py-2 font-medium text-navy/60 dark:text-white/50">Method</th>
                   <th className="text-left px-2 py-2 font-medium text-navy/60 dark:text-white/50">Notes</th>

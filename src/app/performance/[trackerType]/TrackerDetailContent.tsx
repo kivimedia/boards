@@ -53,7 +53,7 @@ const TRACKER_COLUMNS: Record<
   client_updates: [
     { key: 'account_manager_name', label: 'AM' },
     { key: 'client_name', label: 'Client' },
-    { key: 'meeting_date', label: 'Date of Meeting', type: 'date' },
+    { key: 'meeting_date', label: 'Date Sent', type: 'date' },
     { key: 'on_time', label: 'On Time', type: 'boolean' },
     { key: 'method', label: 'Method' },
     { key: 'notes', label: 'Notes' },
@@ -184,6 +184,22 @@ function toEditableColumns(
   }));
 }
 
+function normalizeColumnsForTracker(
+  trackerType: PKTrackerType,
+  columns: EditableColumn[]
+): EditableColumn[] {
+  if (trackerType !== 'client_updates') return columns;
+  return columns.map((column) => {
+    if (
+      column.key === 'meeting_date' &&
+      (column.label === 'Meeting Date' || column.label === 'Date of Meeting')
+    ) {
+      return { ...column, label: 'Date Sent' };
+    }
+    return column;
+  });
+}
+
 function buildEmptyRow(columns: EditableColumn[], id: string): EditableRow {
   const values: Record<string, string> = {};
   for (const column of columns) values[column.key] = '';
@@ -259,7 +275,12 @@ export default function TrackerDetailContent({
             parsed.settings
           ) {
             if (cancelled) return;
-            setColumns(parsed.columns as EditableColumn[]);
+            setColumns(
+              normalizeColumnsForTracker(
+                trackerType,
+                parsed.columns as EditableColumn[]
+              )
+            );
             setRows(parsed.rows as EditableRow[]);
             setColumnCounter(parsed.settings.columnCounter || 1);
             setRowCounter(parsed.settings.rowCounter || 1);
@@ -300,6 +321,7 @@ export default function TrackerDetailContent({
         if (initialColumns.length === 0) {
           initialColumns = [{ key: 'notes', label: 'Notes', type: 'text' }];
         }
+        initialColumns = normalizeColumnsForTracker(trackerType, initialColumns);
 
         const initialRows: EditableRow[] =
           apiRows.length > 0
