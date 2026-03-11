@@ -253,16 +253,38 @@ function extractMissingColumnFromSchemaCacheError(message: string): string | nul
   return null;
 }
 
-function applyClientUpdatesMeetingDateCompatibility(
+function applyClientUpdatesDateCompatibility(
   tableName: string,
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
+  missingColumn: string
 ): boolean {
   if (tableName !== AUTO_MIGRATION_CLIENT_UPDATES_TABLE) return false;
-  if (!Object.prototype.hasOwnProperty.call(payload, AUTO_MIGRATION_CLIENT_UPDATES_COLUMN)) return false;
-  if (Object.prototype.hasOwnProperty.call(payload, CLIENT_UPDATES_COMPAT_DATE_COLUMN)) return false;
 
-  payload[CLIENT_UPDATES_COMPAT_DATE_COLUMN] = payload[AUTO_MIGRATION_CLIENT_UPDATES_COLUMN];
-  return true;
+  if (missingColumn === AUTO_MIGRATION_CLIENT_UPDATES_COLUMN) {
+    if (!Object.prototype.hasOwnProperty.call(payload, AUTO_MIGRATION_CLIENT_UPDATES_COLUMN)) {
+      return false;
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, CLIENT_UPDATES_COMPAT_DATE_COLUMN)) {
+      return false;
+    }
+    payload[CLIENT_UPDATES_COMPAT_DATE_COLUMN] =
+      payload[AUTO_MIGRATION_CLIENT_UPDATES_COLUMN];
+    return true;
+  }
+
+  if (missingColumn === CLIENT_UPDATES_COMPAT_DATE_COLUMN) {
+    if (!Object.prototype.hasOwnProperty.call(payload, CLIENT_UPDATES_COMPAT_DATE_COLUMN)) {
+      return false;
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, AUTO_MIGRATION_CLIENT_UPDATES_COLUMN)) {
+      return false;
+    }
+    payload[AUTO_MIGRATION_CLIENT_UPDATES_COLUMN] =
+      payload[CLIENT_UPDATES_COMPAT_DATE_COLUMN];
+    return true;
+  }
+
+  return false;
 }
 
 function normalizeClientUpdatesRow(row: Record<string, unknown>): Record<string, unknown> {
@@ -350,9 +372,11 @@ async function updateRowWithMissingColumnFallback(
       continue;
     }
 
-    const usedCompatibilityFallback =
-      missingColumn === AUTO_MIGRATION_CLIENT_UPDATES_COLUMN &&
-      applyClientUpdatesMeetingDateCompatibility(tableName, nextPatch);
+    const usedCompatibilityFallback = applyClientUpdatesDateCompatibility(
+      tableName,
+      nextPatch,
+      missingColumn
+    );
 
     delete nextPatch[missingColumn];
     if (!usedCompatibilityFallback) {
@@ -411,9 +435,11 @@ async function insertRowWithMissingColumnFallback(
       continue;
     }
 
-    const usedCompatibilityFallback =
-      missingColumn === AUTO_MIGRATION_CLIENT_UPDATES_COLUMN &&
-      applyClientUpdatesMeetingDateCompatibility(tableName, nextRow);
+    const usedCompatibilityFallback = applyClientUpdatesDateCompatibility(
+      tableName,
+      nextRow,
+      missingColumn
+    );
 
     delete nextRow[missingColumn];
     if (!usedCompatibilityFallback) {
@@ -494,6 +520,11 @@ async function selectTrackerRowsWithMissingColumnFallback(
         nextSortCol === AUTO_MIGRATION_CLIENT_UPDATES_COLUMN
       ) {
         nextSortCol = CLIENT_UPDATES_COMPAT_DATE_COLUMN;
+      } else if (
+        options.tableName === AUTO_MIGRATION_CLIENT_UPDATES_TABLE &&
+        nextSortCol === CLIENT_UPDATES_COMPAT_DATE_COLUMN
+      ) {
+        nextSortCol = AUTO_MIGRATION_CLIENT_UPDATES_COLUMN;
       } else if (nextSortCol !== 'created_at') {
         nextSortCol = 'created_at';
       } else {
@@ -507,6 +538,11 @@ async function selectTrackerRowsWithMissingColumnFallback(
         nextDateCol === AUTO_MIGRATION_CLIENT_UPDATES_COLUMN
       ) {
         nextDateCol = CLIENT_UPDATES_COMPAT_DATE_COLUMN;
+      } else if (
+        options.tableName === AUTO_MIGRATION_CLIENT_UPDATES_TABLE &&
+        nextDateCol === CLIENT_UPDATES_COMPAT_DATE_COLUMN
+      ) {
+        nextDateCol = AUTO_MIGRATION_CLIENT_UPDATES_COLUMN;
       } else {
         useDateFilter = false;
       }
