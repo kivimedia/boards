@@ -32,3 +32,41 @@ export async function GET(
 
   return successResponse({ template, runs: runs || [] });
 }
+
+/**
+ * PUT /api/teams/[id] - Update template (phases, name, description, etc.)
+ */
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const auth = await getAuthContext();
+  if (!auth.ok) return auth.response;
+
+  const { supabase } = auth.ctx;
+  const { id } = await params;
+
+  const body = await request.json();
+  const updates: Record<string, unknown> = {};
+
+  if (body.phases !== undefined) updates.phases = body.phases;
+  if (body.name !== undefined) updates.name = body.name;
+  if (body.description !== undefined) updates.description = body.description;
+
+  if (Object.keys(updates).length === 0) {
+    return errorResponse('No fields to update', 400);
+  }
+
+  updates.updated_at = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from('agent_team_templates')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) return errorResponse(error.message, 500);
+
+  return successResponse({ template: data });
+}

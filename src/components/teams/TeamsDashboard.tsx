@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { AVAILABLE_MODELS, AGENT_ROLES, MODEL_PROFILES } from '@/lib/ai/pageforge-constants';
 import type { SeoTeamConfig } from '@/lib/types';
+import TeamModelEditor from './TeamModelEditor';
 
 interface TeamTemplate {
   id: string;
@@ -70,6 +71,7 @@ export default function TeamsDashboard() {
 
   // New Run modal state
   const [showNewRun, setShowNewRun] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<TeamTemplate | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [selectedClientId, setSelectedClientId] = useState('');
   const [selectedSiteConfigId, setSelectedSiteConfigId] = useState('');
@@ -382,9 +384,19 @@ export default function TeamsDashboard() {
             <div key={t.id} className="bg-white dark:bg-dark-card rounded-xl p-4 border border-cream-dark dark:border-slate-700">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-sm font-bold text-navy dark:text-white font-heading">{t.name}</h3>
-                <span className="text-xs text-navy/40 dark:text-slate-500 font-body">
-                  {t.phases.length} phases
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setEditingTemplate(t)}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold text-electric hover:bg-electric/10 transition-colors font-heading"
+                    title="Configure models for each agent"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m8.66-15-5.2 3m-6.92 4-5.2 3M22.66 18l-5.2-3m-6.92-4-5.2-3"/></svg>
+                    Models
+                  </button>
+                  <span className="text-xs text-navy/40 dark:text-slate-500 font-body">
+                    {t.phases.length} phases
+                  </span>
+                </div>
               </div>
               <p className="text-xs text-navy/50 dark:text-slate-400 font-body mb-3 line-clamp-2">{t.description}</p>
               <div className="flex items-center gap-1 flex-wrap">
@@ -785,6 +797,15 @@ export default function TeamsDashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Team Model Editor Modal */}
+      {editingTemplate && (
+        <TeamModelEditor
+          template={editingTemplate}
+          onClose={() => setEditingTemplate(null)}
+          onSaved={() => fetchData()}
+        />
       )}
     </div>
   );
