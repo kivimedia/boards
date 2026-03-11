@@ -234,6 +234,132 @@ function extractAMName(tabTitle: string): string {
   return tabTitle;
 }
 
+const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+const STABLE_ID_QUERY_PAGE_SIZE = 1000;
+const STABLE_INSERT_BATCH_SIZE = 500;
+
+type SourceTrackedRecord = Record<string, unknown> & {
+  id?: string;
+  source_tab?: unknown;
+  source_row?: unknown;
+};
+
+function buildSourceKey(
+  record: Pick<SourceTrackedRecord, 'source_tab' | 'source_row'>
+): string | null {
+  const sourceTab =
+    typeof record.source_tab === 'string' ? record.source_tab.trim() : '';
+  if (!sourceTab) return null;
+
+  const sourceRowRaw = record.source_row;
+  const sourceRow =
+    typeof sourceRowRaw === 'number'
+      ? sourceRowRaw
+      : typeof sourceRowRaw === 'string' && sourceRowRaw.trim()
+        ? Number(sourceRowRaw)
+        : NaN;
+
+  if (!Number.isFinite(sourceRow)) return null;
+  return `${sourceTab}::${Math.trunc(sourceRow)}`;
+}
+
+async function getExistingIdsBySourceKey(
+  supabase: SupabaseClient,
+  tableName: string,
+  filter?: { column: string; value: string }
+): Promise<Map<string, string>> {
+  const idsBySourceKey = new Map<string, string>();
+  let offset = 0;
+
+  while (true) {
+    let query = supabase
+      .from(tableName)
+      .select('id,source_tab,source_row')
+      .neq('id', ZERO_UUID)
+      .order('id', { ascending: true })
+      .range(offset, offset + STABLE_ID_QUERY_PAGE_SIZE - 1);
+
+    if (filter) {
+      query = query.eq(filter.column, filter.value);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      const message = (error.message || '').toLowerCase();
+      if (
+        error.code === '42703' ||
+        message.includes('source_tab') ||
+        message.includes('source_row')
+      ) {
+        return new Map();
+      }
+      throw new Error(error.message);
+    }
+
+    const rows = (data || []) as Array<{
+      id: string;
+      source_tab: string | null;
+      source_row: number | null;
+    }>;
+
+    for (const row of rows) {
+      const sourceKey = buildSourceKey(row);
+      if (!sourceKey || idsBySourceKey.has(sourceKey)) continue;
+      idsBySourceKey.set(sourceKey, row.id);
+    }
+
+    if (rows.length < STABLE_ID_QUERY_PAGE_SIZE) {
+      break;
+    }
+    offset += STABLE_ID_QUERY_PAGE_SIZE;
+  }
+
+  return idsBySourceKey;
+}
+
+function withStableIds(
+  records: Record<string, unknown>[],
+  idsBySourceKey: Map<string, string>
+): SourceTrackedRecord[] {
+  return records.map((record) => {
+    const nextRecord: SourceTrackedRecord = { ...record };
+    const sourceKey = buildSourceKey(nextRecord);
+    if (!sourceKey) return nextRecord;
+
+    const existingId = idsBySourceKey.get(sourceKey);
+    if (existingId) {
+      nextRecord.id = existingId;
+    }
+    return nextRecord;
+  });
+}
+
+async function insertRowsWithStableIds(
+  supabase: SupabaseClient,
+  tableName: string,
+  records: Record<string, unknown>[],
+  idsBySourceKey: Map<string, string>,
+  errors: SyncResult['errors'],
+  tab: string
+): Promise<number> {
+  if (records.length === 0) return 0;
+
+  const prepared = withStableIds(records, idsBySourceKey);
+  let inserted = 0;
+
+  for (let i = 0; i < prepared.length; i += STABLE_INSERT_BATCH_SIZE) {
+    const chunk = prepared.slice(i, i + STABLE_INSERT_BATCH_SIZE);
+    const { error } = await supabase.from(tableName).insert(chunk);
+    if (error) {
+      errors.push({ tab, error: error.message });
+      return inserted;
+    }
+    inserted += chunk.length;
+  }
+
+  return inserted;
+}
+
 async function syncFathomVideos(
   supabase: SupabaseClient,
   spreadsheetId: string,
@@ -244,9 +370,13 @@ async function syncFathomVideos(
 
   let totalRows = 0;
   const errors: SyncResult['errors'] = [];
+  const existingIdsBySourceKey = await getExistingIdsBySourceKey(
+    supabase,
+    'pk_fathom_videos'
+  );
 
   // Clear existing data for full refresh
-  await supabase.from('pk_fathom_videos').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  await supabase.from('pk_fathom_videos').delete().neq('id', ZERO_UUID);
 
   for (const sheet of doc.sheetsByIndex) {
     if (!isAMTab(sheet.title)) { console.log(`[PK Fathom] Skipping non-AM tab "${sheet.title}"`); continue; }
@@ -283,9 +413,14 @@ async function syncFathomVideos(
       }).filter(r => r.client_name || r.meeting_date || r.date_watched || r.fathom_video_link);
 
       if (records.length > 0) {
-        const { error } = await supabase.from('pk_fathom_videos').insert(records);
-        if (error) errors.push({ tab: sheet.title, error: error.message });
-        else totalRows += records.length;
+        totalRows += await insertRowsWithStableIds(
+          supabase,
+          'pk_fathom_videos',
+          records,
+          existingIdsBySourceKey,
+          errors,
+          sheet.title
+        );
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -306,8 +441,12 @@ async function syncClientUpdates(
 
   let totalRows = 0;
   const errors: SyncResult['errors'] = [];
+  const existingIdsBySourceKey = await getExistingIdsBySourceKey(
+    supabase,
+    'pk_client_updates'
+  );
 
-  await supabase.from('pk_client_updates').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  await supabase.from('pk_client_updates').delete().neq('id', ZERO_UUID);
 
   for (const sheet of doc.sheetsByIndex) {
     if (!isAMTab(sheet.title)) { console.log(`[PK ClientUpdates] Skipping non-AM tab "${sheet.title}"`); continue; }
@@ -330,9 +469,14 @@ async function syncClientUpdates(
       })).filter(r => r.client_name || r.meeting_date);
 
       if (records.length > 0) {
-        const { error } = await supabase.from('pk_client_updates').insert(records);
-        if (error) errors.push({ tab: sheet.title, error: error.message });
-        else totalRows += records.length;
+        totalRows += await insertRowsWithStableIds(
+          supabase,
+          'pk_client_updates',
+          records,
+          existingIdsBySourceKey,
+          errors,
+          sheet.title
+        );
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -353,8 +497,12 @@ async function syncSanityChecks(
 
   let totalRows = 0;
   const errors: SyncResult['errors'] = [];
+  const existingIdsBySourceKey = await getExistingIdsBySourceKey(
+    supabase,
+    'pk_sanity_checks'
+  );
 
-  await supabase.from('pk_sanity_checks').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  await supabase.from('pk_sanity_checks').delete().neq('id', ZERO_UUID);
 
   for (const sheet of doc.sheetsByIndex) {
     if (!isAMTab(sheet.title)) { console.log(`[PK SanityChecks] Skipping non-AM tab "${sheet.title}"`); continue; }
@@ -377,9 +525,14 @@ async function syncSanityChecks(
       })).filter(r => r.client_name || r.check_date);
 
       if (records.length > 0) {
-        const { error } = await supabase.from('pk_sanity_checks').insert(records);
-        if (error) errors.push({ tab: sheet.title, error: error.message });
-        else totalRows += records.length;
+        totalRows += await insertRowsWithStableIds(
+          supabase,
+          'pk_sanity_checks',
+          records,
+          existingIdsBySourceKey,
+          errors,
+          sheet.title
+        );
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -400,8 +553,12 @@ async function syncDailyGoals(
 
   let totalRows = 0;
   const errors: SyncResult['errors'] = [];
+  const existingIdsBySourceKey = await getExistingIdsBySourceKey(
+    supabase,
+    'pk_daily_goals'
+  );
 
-  await supabase.from('pk_daily_goals').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  await supabase.from('pk_daily_goals').delete().neq('id', ZERO_UUID);
 
   // Only sync data tabs (FEB'26, 2026 Records), skip dashboards
   const dataTabs = doc.sheetsByIndex.filter(
@@ -427,9 +584,14 @@ async function syncDailyGoals(
       })).filter(r => r.designer_dev !== 'Unknown' || r.entry_date);
 
       if (records.length > 0) {
-        const { error } = await supabase.from('pk_daily_goals').insert(records);
-        if (error) errors.push({ tab: sheet.title, error: error.message });
-        else totalRows += records.length;
+        totalRows += await insertRowsWithStableIds(
+          supabase,
+          'pk_daily_goals',
+          records,
+          existingIdsBySourceKey,
+          errors,
+          sheet.title
+        );
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -451,6 +613,11 @@ async function syncSanityTests(
 
   let totalRows = 0;
   const errors: SyncResult['errors'] = [];
+  const existingIdsBySourceKey = await getExistingIdsBySourceKey(
+    supabase,
+    'pk_sanity_tests',
+    { column: 'source_sheet', value: sheetTitle }
+  );
 
   // Only clear rows from this specific source sheet
   await supabase.from('pk_sanity_tests').delete().eq('source_sheet', sheetTitle);
@@ -491,9 +658,14 @@ async function syncSanityTests(
       })).filter(r => r.client_name || r.test_date);
 
       if (records.length > 0) {
-        const { error } = await supabase.from('pk_sanity_tests').insert(records);
-        if (error) errors.push({ tab: sheet.title, error: error.message });
-        else totalRows += records.length;
+        totalRows += await insertRowsWithStableIds(
+          supabase,
+          'pk_sanity_tests',
+          records,
+          existingIdsBySourceKey,
+          errors,
+          sheet.title
+        );
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -514,8 +686,12 @@ async function syncTicketUpdates(
 
   let totalRows = 0;
   const errors: SyncResult['errors'] = [];
+  const existingIdsBySourceKey = await getExistingIdsBySourceKey(
+    supabase,
+    'pk_ticket_updates'
+  );
 
-  await supabase.from('pk_ticket_updates').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  await supabase.from('pk_ticket_updates').delete().neq('id', ZERO_UUID);
 
   for (const sheet of doc.sheetsByIndex) {
     if (doc.sheetsByIndex.indexOf(sheet) >= MAX_TABS_PER_SHEET) break;
@@ -535,9 +711,14 @@ async function syncTicketUpdates(
         })).filter(r => r.report_timeframe);
 
         if (records.length > 0) {
-          const { error } = await supabase.from('pk_ticket_updates').insert(records);
-          if (error) errors.push({ tab: sheet.title, error: error.message });
-          else totalRows += records.length;
+          totalRows += await insertRowsWithStableIds(
+            supabase,
+            'pk_ticket_updates',
+            records,
+            existingIdsBySourceKey,
+            errors,
+            sheet.title
+          );
         }
       } else {
         // Monthly tabs: structured client lists
@@ -551,9 +732,14 @@ async function syncTicketUpdates(
         })).filter(r => r.client_name);
 
         if (records.length > 0) {
-          const { error } = await supabase.from('pk_ticket_updates').insert(records);
-          if (error) errors.push({ tab: sheet.title, error: error.message });
-          else totalRows += records.length;
+          totalRows += await insertRowsWithStableIds(
+            supabase,
+            'pk_ticket_updates',
+            records,
+            existingIdsBySourceKey,
+            errors,
+            sheet.title
+          );
         }
       }
     } catch (e: unknown) {
@@ -575,8 +761,12 @@ async function syncFlaggedTickets(
 
   let totalRows = 0;
   const errors: SyncResult['errors'] = [];
+  const existingIdsBySourceKey = await getExistingIdsBySourceKey(
+    supabase,
+    'pk_flagged_tickets'
+  );
 
-  await supabase.from('pk_flagged_tickets').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  await supabase.from('pk_flagged_tickets').delete().neq('id', ZERO_UUID);
 
   const teamTabs = doc.sheetsByIndex.filter(
     s => ['Designers', 'Developers', 'Video Editor'].includes(s.title)
@@ -601,9 +791,14 @@ async function syncFlaggedTickets(
       })).filter(r => r.person_name !== 'Unknown' || r.date_range);
 
       if (records.length > 0) {
-        const { error } = await supabase.from('pk_flagged_tickets').insert(records);
-        if (error) errors.push({ tab: sheet.title, error: error.message });
-        else totalRows += records.length;
+        totalRows += await insertRowsWithStableIds(
+          supabase,
+          'pk_flagged_tickets',
+          records,
+          existingIdsBySourceKey,
+          errors,
+          sheet.title
+        );
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -624,8 +819,12 @@ async function syncPingdom(
 
   let totalRows = 0;
   const errors: SyncResult['errors'] = [];
+  const existingIdsBySourceKey = await getExistingIdsBySourceKey(
+    supabase,
+    'pk_pingdom_tests'
+  );
 
-  await supabase.from('pk_pingdom_tests').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  await supabase.from('pk_pingdom_tests').delete().neq('id', ZERO_UUID);
 
   // Sync quarter tabs (e.g. "2026 | QUARTER 1") and plain year tabs (e.g. "2025")
   const dataTabs = doc.sheetsByIndex.filter(
@@ -650,9 +849,14 @@ async function syncPingdom(
       })).filter(r => r.client_name || r.test_date);
 
       if (records.length > 0) {
-        const { error } = await supabase.from('pk_pingdom_tests').insert(records);
-        if (error) errors.push({ tab: sheet.title, error: error.message });
-        else totalRows += records.length;
+        totalRows += await insertRowsWithStableIds(
+          supabase,
+          'pk_pingdom_tests',
+          records,
+          existingIdsBySourceKey,
+          errors,
+          sheet.title
+        );
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -673,8 +877,12 @@ async function syncPicsMonitoring(
 
   let totalRows = 0;
   const errors: SyncResult['errors'] = [];
+  const existingIdsBySourceKey = await getExistingIdsBySourceKey(
+    supabase,
+    'pk_pics_monitoring'
+  );
 
-  await supabase.from('pk_pics_monitoring').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  await supabase.from('pk_pics_monitoring').delete().neq('id', ZERO_UUID);
 
   const amTabs = doc.sheetsByIndex.filter(s => isAMTab(s.title));
 
@@ -696,9 +904,14 @@ async function syncPicsMonitoring(
       })).filter(r => r.client_name || r.check_date);
 
       if (records.length > 0) {
-        const { error } = await supabase.from('pk_pics_monitoring').insert(records);
-        if (error) errors.push({ tab: sheet.title, error: error.message });
-        else totalRows += records.length;
+        totalRows += await insertRowsWithStableIds(
+          supabase,
+          'pk_pics_monitoring',
+          records,
+          existingIdsBySourceKey,
+          errors,
+          sheet.title
+        );
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -718,24 +931,36 @@ async function syncUpdateSchedule(
   await doc.loadInfo();
 
   const errors: SyncResult['errors'] = [];
+  const existingIdsBySourceKey = await getExistingIdsBySourceKey(
+    supabase,
+    'pk_update_schedule'
+  );
 
-  await supabase.from('pk_update_schedule').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  await supabase.from('pk_update_schedule').delete().neq('id', ZERO_UUID);
 
   try {
-    const tabData = await fetchTabData(spreadsheetId, doc.sheetsByIndex[0].title, auth);
+    const sourceTab = doc.sheetsByIndex[0]?.title || 'Update Schedule';
+    const tabData = await fetchTabData(spreadsheetId, sourceTab, auth);
 
     const records = tabData.rows.map((row, idx) => ({
       account_manager_name: row['Account Manager'] || null,
       client_name: row['Client'] || null,
       preferred_time: row['Preferred Time'] || null,
       notes: row['Notes'] || null,
+      source_tab: sourceTab,
       source_row: idx + 2,
     })).filter(r => r.client_name);
 
     if (records.length > 0) {
-      const { error } = await supabase.from('pk_update_schedule').insert(records);
-      if (error) errors.push({ tab: 'Update Schedule', error: error.message });
-      return { rows_synced: records.length, errors };
+      const inserted = await insertRowsWithStableIds(
+        supabase,
+        'pk_update_schedule',
+        records,
+        existingIdsBySourceKey,
+        errors,
+        sourceTab
+      );
+      return { rows_synced: inserted, errors };
     }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -754,11 +979,16 @@ async function syncWebsiteStatus(
   await doc.loadInfo();
 
   const errors: SyncResult['errors'] = [];
+  const existingIdsBySourceKey = await getExistingIdsBySourceKey(
+    supabase,
+    'pk_website_status'
+  );
 
-  await supabase.from('pk_website_status').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  await supabase.from('pk_website_status').delete().neq('id', ZERO_UUID);
 
   try {
-    const tabData = await fetchTabData(spreadsheetId, doc.sheetsByIndex[0].title, auth);
+    const sourceTab = doc.sheetsByIndex[0]?.title || 'Sheet1';
+    const tabData = await fetchTabData(spreadsheetId, sourceTab, auth);
 
     const records = tabData.rows.map((row, idx) => ({
       account_manager_name: row['Account Manger'] || row['Account Manager'] || null,
@@ -767,13 +997,20 @@ async function syncWebsiteStatus(
       website_link: row['Website Link'] || null,
       status: row['Status'] || null,
       notes: row['Notes'] || null,
+      source_tab: sourceTab,
       source_row: idx + 2,
     })).filter(r => r.client_name);
 
     if (records.length > 0) {
-      const { error } = await supabase.from('pk_website_status').insert(records);
-      if (error) errors.push({ tab: 'Sheet1', error: error.message });
-      return { rows_synced: records.length, errors };
+      const inserted = await insertRowsWithStableIds(
+        supabase,
+        'pk_website_status',
+        records,
+        existingIdsBySourceKey,
+        errors,
+        sourceTab
+      );
+      return { rows_synced: inserted, errors };
     }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -796,8 +1033,12 @@ async function syncGenericSheet(
 
   let totalRows = 0;
   const errors: SyncResult['errors'] = [];
+  const existingIdsBySourceKey = await getExistingIdsBySourceKey(
+    supabase,
+    tableName
+  );
 
-  await supabase.from(tableName).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  await supabase.from(tableName).delete().neq('id', ZERO_UUID);
 
   for (const sheet of doc.sheetsByIndex) {
     if (doc.sheetsByIndex.indexOf(sheet) >= MAX_TABS_PER_SHEET) break;
@@ -811,9 +1052,14 @@ async function syncGenericSheet(
         .filter((r): r is Record<string, unknown> => r !== null);
 
       if (records.length > 0) {
-        const { error } = await supabase.from(tableName).insert(records);
-        if (error) errors.push({ tab: sheet.title, error: error.message });
-        else totalRows += records.length;
+        totalRows += await insertRowsWithStableIds(
+          supabase,
+          tableName,
+          records,
+          existingIdsBySourceKey,
+          errors,
+          sheet.title
+        );
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -891,7 +1137,7 @@ const SYNC_HANDLERS: Record<
     syncGenericSheet(sb, cfg.spreadsheet_id, 'pk_google_analytics_status', auth, (row, tab, idx) => {
       const content = Object.values(row).filter(v => v).join(' | ');
       if (!content) return null;
-      return { phase: row['Phase 1'] ? 'Phase 1' : 'Phase 2', status: Object.values(row)[0] || null, raw_content: content, source_row: idx };
+      return { phase: row['Phase 1'] ? 'Phase 1' : 'Phase 2', status: Object.values(row)[0] || null, raw_content: content, source_tab: tab, source_row: idx };
     }),
   other_activities: async (sb, cfg, auth) =>
     syncGenericSheet(sb, cfg.spreadsheet_id, 'pk_other_activities', auth, (row, tab, idx) => {

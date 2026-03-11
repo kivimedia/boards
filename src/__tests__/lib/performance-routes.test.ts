@@ -22,14 +22,12 @@ describe('Performance API Routes', () => {
   });
 
   describe('/api/performance/tracker', () => {
-    it('exports GET as a function', async () => {
+    it('exports GET, PATCH, POST, and DELETE', async () => {
       const mod = await import('@/app/api/performance/tracker/route');
       expect(typeof mod.GET).toBe('function');
-    });
-
-    it('does not export POST', async () => {
-      const mod = await import('@/app/api/performance/tracker/route');
-      expect((mod as any).POST).toBeUndefined();
+      expect(typeof mod.PATCH).toBe('function');
+      expect(typeof mod.POST).toBe('function');
+      expect(typeof mod.DELETE).toBe('function');
     });
   });
 
