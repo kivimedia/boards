@@ -12,26 +12,49 @@ import type {
 // ============================================================================
 
 export const MODEL_PRICING: AIModelPricing[] = [
-  // Anthropic
+  // ── Anthropic ──────────────────────────────────────────────────────────
   { provider: 'anthropic', model_id: 'claude-opus-4-6', input_cost_per_1k: 0.005, output_cost_per_1k: 0.025 },
+  { provider: 'anthropic', model_id: 'claude-sonnet-4-6', input_cost_per_1k: 0.003, output_cost_per_1k: 0.015 },
   { provider: 'anthropic', model_id: 'claude-sonnet-4-5-20250929', input_cost_per_1k: 0.003, output_cost_per_1k: 0.015 },
   { provider: 'anthropic', model_id: 'claude-haiku-4-5-20251001', input_cost_per_1k: 0.001, output_cost_per_1k: 0.005 },
-  // OpenAI
-  { provider: 'openai', model_id: 'o3', input_cost_per_1k: 0.01, output_cost_per_1k: 0.04 },
+
+  // ── OpenAI - GPT-5 family ─────────────────────────────────────────────
+  { provider: 'openai', model_id: 'gpt-5.4-pro', input_cost_per_1k: 0.021, output_cost_per_1k: 0.168 },
+  { provider: 'openai', model_id: 'gpt-5.4', input_cost_per_1k: 0.0025, output_cost_per_1k: 0.02 },
+  { provider: 'openai', model_id: 'gpt-5.3', input_cost_per_1k: 0.003, output_cost_per_1k: 0.015 },
+  { provider: 'openai', model_id: 'gpt-5.2', input_cost_per_1k: 0.00175, output_cost_per_1k: 0.014 },
+  { provider: 'openai', model_id: 'gpt-5.1', input_cost_per_1k: 0.00125, output_cost_per_1k: 0.01 },
+  { provider: 'openai', model_id: 'gpt-5', input_cost_per_1k: 0.00125, output_cost_per_1k: 0.01 },
+  { provider: 'openai', model_id: 'gpt-5-mini', input_cost_per_1k: 0.00025, output_cost_per_1k: 0.002 },
+  { provider: 'openai', model_id: 'gpt-5-nano', input_cost_per_1k: 0.00005, output_cost_per_1k: 0.0004 },
+
+  // ── OpenAI - O-series (reasoning) ─────────────────────────────────────
+  { provider: 'openai', model_id: 'o3-pro', input_cost_per_1k: 0.02, output_cost_per_1k: 0.08 },
+  { provider: 'openai', model_id: 'o3', input_cost_per_1k: 0.002, output_cost_per_1k: 0.008 },
+  { provider: 'openai', model_id: 'o4-mini', input_cost_per_1k: 0.0011, output_cost_per_1k: 0.0044 },
   { provider: 'openai', model_id: 'o3-mini', input_cost_per_1k: 0.0011, output_cost_per_1k: 0.0044 },
   { provider: 'openai', model_id: 'o1', input_cost_per_1k: 0.015, output_cost_per_1k: 0.06 },
-  { provider: 'openai', model_id: 'o1-mini', input_cost_per_1k: 0.003, output_cost_per_1k: 0.012 },
+
+  // ── OpenAI - GPT-4 family (previous gen) ──────────────────────────────
   { provider: 'openai', model_id: 'gpt-4.1', input_cost_per_1k: 0.002, output_cost_per_1k: 0.008 },
   { provider: 'openai', model_id: 'gpt-4.1-mini', input_cost_per_1k: 0.0004, output_cost_per_1k: 0.0016 },
   { provider: 'openai', model_id: 'gpt-4.1-nano', input_cost_per_1k: 0.0001, output_cost_per_1k: 0.0004 },
   { provider: 'openai', model_id: 'gpt-4o', input_cost_per_1k: 0.0025, output_cost_per_1k: 0.01 },
   { provider: 'openai', model_id: 'gpt-4o-mini', input_cost_per_1k: 0.00015, output_cost_per_1k: 0.0006 },
   { provider: 'openai', model_id: 'sora-2', input_cost_per_1k: 0.01, output_cost_per_1k: 0.04 },
-  // Google
+
+  // ── Google - Gemini 3 family (latest) ─────────────────────────────────
+  { provider: 'google', model_id: 'gemini-3.1-pro', input_cost_per_1k: 0.002, output_cost_per_1k: 0.012 },
+  { provider: 'google', model_id: 'gemini-3-flash', input_cost_per_1k: 0.0005, output_cost_per_1k: 0.003 },
+  { provider: 'google', model_id: 'gemini-3.1-flash-lite', input_cost_per_1k: 0.00025, output_cost_per_1k: 0.0015 },
+
+  // ── Google - Gemini 2.5 family ────────────────────────────────────────
   { provider: 'google', model_id: 'gemini-2.5-pro', input_cost_per_1k: 0.00125, output_cost_per_1k: 0.01 },
-  { provider: 'google', model_id: 'gemini-2.5-flash', input_cost_per_1k: 0.00015, output_cost_per_1k: 0.0006 },
-  { provider: 'google', model_id: 'gemini-1.5-pro', input_cost_per_1k: 0.00125, output_cost_per_1k: 0.005 },
-  // Replicate (per-image pricing, not per-token; cost logged directly in metadata)
+  { provider: 'google', model_id: 'gemini-2.5-flash', input_cost_per_1k: 0.0003, output_cost_per_1k: 0.0025 },
+  { provider: 'google', model_id: 'gemini-2.5-flash-lite', input_cost_per_1k: 0.0001, output_cost_per_1k: 0.0004 },
+  { provider: 'google', model_id: 'gemini-2.0-flash', input_cost_per_1k: 0.0001, output_cost_per_1k: 0.0004 },
+
+  // ── Replicate (per-image, not per-token) ──────────────────────────────
   { provider: 'replicate', model_id: 'flux-1.1-pro', input_cost_per_1k: 0, output_cost_per_1k: 0 },
   { provider: 'replicate', model_id: 'flux-schnell', input_cost_per_1k: 0, output_cost_per_1k: 0 },
 ];
