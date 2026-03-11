@@ -102,6 +102,25 @@ export const TRACKER_MANAGE_CONFIGS: Partial<Record<PKTrackerType, TrackerManage
       { key: 'notes', label: 'Notes', type: 'textarea' },
     ],
   },
+  pingdom_tests: {
+    trackerType: 'pingdom_tests',
+    label: PK_TRACKER_LABELS.pingdom_tests,
+    tableName: 'pk_pingdom_tests',
+    groupBy: {
+      field: 'account_manager_name',
+      queryParam: 'am',
+      label: 'Account Managers',
+      itemLabel: 'account manager',
+    },
+    columns: [
+      { key: 'account_manager_name', label: 'AM', type: 'text', required: true },
+      { key: 'test_date', label: 'Test Date', type: 'date' },
+      { key: 'client_name', label: 'Client', type: 'text' },
+      { key: 'client_website', label: 'Website', type: 'text' },
+      { key: 'report_attachment', label: 'Report Attachment', type: 'text' },
+      { key: 'quarter_label', label: 'Quarter', type: 'text' },
+    ],
+  },
   google_ads_reports: {
     trackerType: 'google_ads_reports',
     label: PK_TRACKER_LABELS.google_ads_reports,
