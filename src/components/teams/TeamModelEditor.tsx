@@ -33,9 +33,9 @@ interface TeamModelEditorProps {
 
 // Combine PageForge models with all models from pricing table
 function getAllModels(): { id: string; label: string; provider: string }[] {
-  const pfModels = AVAILABLE_MODELS.map(m => ({ ...m }));
+  const pfModels: { id: string; label: string; provider: string }[] = AVAILABLE_MODELS.map(m => ({ id: m.id, label: m.label, provider: m.provider }));
   const pricingModels = MODEL_PRICING
-    .filter(m => m.input_cost_per_1k > 0) // skip zero-cost entries
+    .filter(m => m.input_cost_per_1k > 0)
     .map(m => ({ id: m.model_id, label: m.model_id, provider: m.provider }));
 
   const seen = new Set(pfModels.map(m => m.id));
