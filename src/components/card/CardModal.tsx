@@ -149,6 +149,7 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
   const [moreMenuPos, setMoreMenuPos] = useState({ top: 0, left: 0 });
   const [linkCopied, setLinkCopied] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [uploadingDescImage, setUploadingDescImage] = useState(false);
   // Profiling refs
   const openTimeRef = useRef(performance.now());
   const timingsRef = useRef<Record<string, number>>({});
@@ -474,6 +475,36 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
 
   const handlePriorityChange = (priority: CardPriority) => {
     updateCard({ priority } as any);
+  };
+
+  const handleDescriptionImagePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = Array.from(e.clipboardData.items);
+    const imageItem = items.find((item) => item.type.startsWith('image/'));
+    if (!imageItem) return;
+
+    e.preventDefault();
+    const file = imageItem.getAsFile();
+    if (!file) return;
+
+    const ta = descMention.textareaRef.current;
+    const cursor = ta?.selectionStart ?? description.length;
+    const placeholder = '![Uploading image...]()';
+    const newDesc = description.slice(0, cursor) + placeholder + description.slice(cursor);
+    setDescription(newDesc);
+    setUploadingDescImage(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file, `paste-${Date.now()}.png`);
+      const res = await fetch(`/api/cards/${cardId}/description-images`, { method: 'POST', body: formData });
+      const json = await res.json();
+      if (!res.ok || !json.data?.url) throw new Error(json.error || 'Upload failed');
+      setDescription((prev) => prev.replace(placeholder, `![image](${json.data.url})`));
+    } catch {
+      setDescription((prev) => prev.replace(placeholder, ''));
+    } finally {
+      setUploadingDescImage(false);
+    }
   };
 
   const handleCoverImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -963,10 +994,16 @@ export default function CardModal({ cardId, boardId, onClose, onRefresh, allCard
                                     }
                                   }
                                 }}
+                                onPaste={handleDescriptionImagePaste}
                                 className="w-full p-3 rounded-b-xl rounded-t-none bg-cream dark:bg-navy border border-cream-dark dark:border-slate-700 border-t-0 text-sm text-navy dark:text-slate-100 placeholder:text-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric resize-none overflow-hidden font-body min-h-[120px]"
-                                placeholder="Add a description... (supports **bold**, *italic*, # Heading, - bullet, @ to mention)"
+                                placeholder="Add a description... (supports **bold**, *italic*, # Heading, - bullet, @ to mention, paste images)"
                                 autoFocus
                               />
+                              {uploadingDescImage && (
+                                <div className="absolute bottom-2 right-2 text-xs text-electric/70 font-body animate-pulse">
+                                  Uploading image...
+                                </div>
+                              )}
                               {descMention.showDropdown && (
                                 <MentionDropdown
                                   profiles={descMention.filteredProfiles}
