@@ -14,6 +14,7 @@ const MANAGE_PAGE_TRACKERS = new Set([
   'fathom_videos',
   'sanity_checks',
   'pics_monitoring',
+  'pingdom_tests',
   'google_ads_reports',
   'holiday_tracking',
 ]);

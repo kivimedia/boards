@@ -38,6 +38,12 @@ interface TrackerStoragePayload {
   };
 }
 
+const TRACKER_STORAGE_NAMESPACES: Partial<Record<PKTrackerType, string>> = {
+  fathom_videos: 'tracker:fathom_videos',
+  google_ads_reports: 'tracker:google_ads_reports',
+  pingdom_tests: 'tracker:pingdom_tests',
+};
+
 const TRACKER_COLUMNS: Record<
   string,
   Array<{ key: string; label: string; type?: 'date' | 'boolean' | 'link' }>
@@ -210,7 +216,7 @@ export default function TrackerDetailContent({
   trackerType,
   label,
 }: TrackerDetailContentProps) {
-  const storageKey = `tracker:${trackerType}`;
+  const storageKey = TRACKER_STORAGE_NAMESPACES[trackerType] || `tracker:${trackerType}`;
   const frequency = PK_TRACKER_FREQUENCIES[trackerType] || '';
 
   const [columns, setColumns] = useState<EditableColumn[]>([]);

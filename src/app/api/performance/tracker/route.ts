@@ -65,6 +65,7 @@ const CREATABLE_TRACKER_TYPES = new Set<PKTrackerType>([
   'fathom_videos',
   'sanity_checks',
   'pics_monitoring',
+  'pingdom_tests',
   'google_ads_reports',
   'holiday_tracking',
 ]);
@@ -74,6 +75,7 @@ const CREATE_REQUIRED_FIELDS: Partial<Record<PKTrackerType, string[]>> = {
   fathom_videos: ['account_manager_name'],
   sanity_checks: ['account_manager_name'],
   pics_monitoring: ['account_manager_name'],
+  pingdom_tests: ['account_manager_name'],
   google_ads_reports: ['month_label'],
   holiday_tracking: ['account_manager_name'],
 };
