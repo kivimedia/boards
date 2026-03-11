@@ -23,13 +23,67 @@ const PROVIDER_LABELS: Record<AIProvider, string> = {
   replicate: 'Replicate',
 };
 
-function getModelsForProvider(provider: AIProvider): string[] {
-  return MODEL_PRICING
-    .filter((p) => p.provider === provider)
-    .map((p) => p.model_id);
+// ============================================================================
+// Team Hierarchy
+// ============================================================================
+
+interface TeamGroup {
+  id: string;
+  label: string;
+  icon: string;
+  description: string;
+  activities: AIActivity[];
 }
 
-// Hardcoded defaults to detect unmodified configs
+const TEAMS: TeamGroup[] = [
+  {
+    id: 'chatbot',
+    label: 'Chatbot & Assistants',
+    icon: '💬',
+    description: 'AI-powered chat across tickets, boards, and global search',
+    activities: ['chatbot_ticket', 'chatbot_board', 'chatbot_global', 'brief_assist', 'email_draft'],
+  },
+  {
+    id: 'agents',
+    label: 'Agent Execution',
+    icon: '🤖',
+    description: 'Autonomous agent tasks, web research, and standalone runs',
+    activities: ['agent_execution', 'agent_standalone_execution', 'web_research'],
+  },
+  {
+    id: 'review',
+    label: 'Design & QA Review',
+    icon: '🎨',
+    description: 'AI-powered design review and dev QA checks',
+    activities: ['design_review', 'dev_qa'],
+  },
+  {
+    id: 'pageforge',
+    label: 'PageForge',
+    icon: '🏗️',
+    description: 'Website building pipeline - orchestration, building, QA, SEO',
+    activities: ['pageforge_orchestrator', 'pageforge_builder', 'pageforge_vqa', 'pageforge_qa', 'pageforge_seo'],
+  },
+  {
+    id: 'content',
+    label: 'Content & Creative',
+    icon: '✨',
+    description: 'Image generation, video, and creative writing',
+    activities: ['nano_banana_edit', 'nano_banana_generate', 'video_generation', 'replicate_generate', 'image_prompt_enhance'],
+  },
+  {
+    id: 'knowledge',
+    label: 'Knowledge & Intelligence',
+    icon: '🧠',
+    description: 'Embeddings, indexing, client brain, and board summaries',
+    activities: ['knowledge_index', 'board_summary', 'client_brain', 'fathom_analysis', 'fathom_embedding'],
+  },
+];
+
+// ============================================================================
+// Defaults
+// ============================================================================
+
 const DEFAULTS: Record<AIActivity, { provider: AIProvider; model_id: string; temperature: number; max_tokens: number }> = {
   design_review: { provider: 'anthropic', model_id: 'claude-sonnet-4-5-20250929', temperature: 0.3, max_tokens: 4096 },
   dev_qa: { provider: 'anthropic', model_id: 'claude-sonnet-4-5-20250929', temperature: 0.2, max_tokens: 4096 },
@@ -58,6 +112,12 @@ const DEFAULTS: Record<AIActivity, { provider: AIProvider; model_id: string; tem
   fathom_embedding: { provider: 'openai', model_id: 'text-embedding-3-small', temperature: 0, max_tokens: 0 },
 };
 
+function getModelsForProvider(provider: AIProvider): string[] {
+  return MODEL_PRICING
+    .filter((p) => p.provider === provider)
+    .map((p) => p.model_id);
+}
+
 function isDefaultConfig(config: AIModelConfig): boolean {
   const def = DEFAULTS[config.activity];
   if (!def) return false;
@@ -69,13 +129,33 @@ function isDefaultConfig(config: AIModelConfig): boolean {
   );
 }
 
+// ============================================================================
+// Provider badge colors
+// ============================================================================
+
+function providerBadge(provider: string) {
+  const colors: Record<string, string> = {
+    anthropic: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950 dark:text-orange-300 dark:border-orange-800',
+    openai: 'bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800',
+    google: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800',
+    replicate: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-800',
+  };
+  return colors[provider] || 'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-950 dark:text-gray-300 dark:border-gray-800';
+}
+
+// ============================================================================
+// Component
+// ============================================================================
+
 export default function AIModelConfigTable() {
   const [configs, setConfigs] = useState<AIModelConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<Toast | null>(null);
+  const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set(TEAMS.map(t => t.id)));
 
   // Edit modal state
   const [editConfig, setEditConfig] = useState<AIModelConfig | null>(null);
+  const [editActivity, setEditActivity] = useState<AIActivity | null>(null);
   const [editProvider, setEditProvider] = useState<AIProvider>('anthropic');
   const [editModelId, setEditModelId] = useState('');
   const [editTemp, setEditTemp] = useState('0.5');
@@ -91,9 +171,7 @@ export default function AIModelConfigTable() {
     try {
       const res = await fetch('/api/ai/models');
       const json = await res.json();
-      if (json.data) {
-        setConfigs(json.data);
-      }
+      if (json.data) setConfigs(json.data);
     } catch {
       showToast('error', 'Failed to load model configurations.');
     } finally {
@@ -101,52 +179,79 @@ export default function AIModelConfigTable() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchConfigs();
-  }, [fetchConfigs]);
+  useEffect(() => { fetchConfigs(); }, [fetchConfigs]);
 
-  const openEdit = (config: AIModelConfig) => {
+  const toggleTeam = (teamId: string) => {
+    setExpandedTeams(prev => {
+      const next = new Set(prev);
+      if (next.has(teamId)) next.delete(teamId);
+      else next.add(teamId);
+      return next;
+    });
+  };
+
+  const expandAll = () => setExpandedTeams(new Set(TEAMS.map(t => t.id)));
+  const collapseAll = () => setExpandedTeams(new Set());
+
+  const getConfigForActivity = (activity: AIActivity): AIModelConfig | null => {
+    return configs.find((c) => c.activity === activity) || null;
+  };
+
+  const openEdit = (activity: AIActivity) => {
+    const config = getConfigForActivity(activity);
+    const def = DEFAULTS[activity];
+    setEditActivity(activity);
     setEditConfig(config);
-    setEditProvider(config.provider);
-    setEditModelId(config.model_id);
-    setEditTemp(String(config.temperature));
-    setEditMaxTokens(String(config.max_tokens));
+    setEditProvider(config?.provider || def.provider);
+    setEditModelId(config?.model_id || def.model_id);
+    setEditTemp(String(config ? Number(config.temperature) : def.temperature));
+    setEditMaxTokens(String(config?.max_tokens || def.max_tokens));
   };
 
   const handleSaveEdit = async () => {
-    if (!editConfig) return;
+    if (!editActivity) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/ai/models/${editConfig.id}`, {
-        method: 'PUT',
+      const config = getConfigForActivity(editActivity);
+      const method = config ? 'PUT' : 'POST';
+      const url = config ? `/api/ai/models/${config.id}` : '/api/ai/models';
+      const body: Record<string, unknown> = {
+        provider: editProvider,
+        model_id: editModelId,
+        temperature: parseFloat(editTemp),
+        max_tokens: parseInt(editMaxTokens, 10),
+      };
+      if (!config) body.activity = editActivity;
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          provider: editProvider,
-          model_id: editModelId,
-          temperature: parseFloat(editTemp),
-          max_tokens: parseInt(editMaxTokens, 10),
-        }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || 'Failed to update config');
+        throw new Error(err.error || 'Failed to save config');
       }
-      showToast('success', `Model config for ${ACTIVITY_LABELS[editConfig.activity]} updated.`);
+      showToast('success', `${ACTIVITY_LABELS[editActivity]} model config saved.`);
+      setEditActivity(null);
       setEditConfig(null);
       await fetchConfigs();
     } catch (err) {
-      showToast('error', err instanceof Error ? err.message : 'Failed to update config.');
+      showToast('error', err instanceof Error ? err.message : 'Failed to save config.');
     } finally {
       setSaving(false);
     }
   };
 
-  // Build a merged list: all activities, with DB config if it exists, or default fallback
-  const allActivities = getAllActivities();
-
-  const getConfigForActivity = (activity: AIActivity): AIModelConfig | null => {
-    return configs.find((c) => c.activity === activity) || null;
-  };
+  // Count customized vs total for each team
+  function teamStats(team: TeamGroup) {
+    let customized = 0;
+    for (const a of team.activities) {
+      const config = getConfigForActivity(a);
+      if (config && !isDefaultConfig(config)) customized++;
+    }
+    return { total: team.activities.length, customized };
+  }
 
   if (loading) {
     return (
@@ -163,7 +268,7 @@ export default function AIModelConfigTable() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Toast */}
       {toast && (
         <div
@@ -177,106 +282,166 @@ export default function AIModelConfigTable() {
           `}
         >
           <div className="flex items-center gap-2">
-            {toast.type === 'success' ? (
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-            ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="15" y1="9" x2="9" y2="15" />
-                <line x1="9" y1="9" x2="15" y2="15" />
-              </svg>
-            )}
+            {toast.type === 'success' ? '✅' : '❌'}
             <span>{toast.message}</span>
           </div>
         </div>
       )}
 
-      <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b-2 border-cream-dark dark:border-slate-700 bg-cream/50 dark:bg-navy/50">
-                <th className="text-left px-6 py-3 font-heading font-semibold text-navy dark:text-slate-300 text-xs uppercase tracking-wider">Activity</th>
-                <th className="text-left px-4 py-3 font-heading font-semibold text-navy dark:text-slate-300 text-xs uppercase tracking-wider">Provider</th>
-                <th className="text-left px-4 py-3 font-heading font-semibold text-navy dark:text-slate-300 text-xs uppercase tracking-wider">Model</th>
-                <th className="text-center px-4 py-3 font-heading font-semibold text-navy dark:text-slate-300 text-xs uppercase tracking-wider">Temp</th>
-                <th className="text-center px-4 py-3 font-heading font-semibold text-navy dark:text-slate-300 text-xs uppercase tracking-wider">Max Tokens</th>
-                <th className="text-right px-6 py-3 font-heading font-semibold text-navy dark:text-slate-300 text-xs uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-cream-dark dark:divide-slate-700">
-              {allActivities.map((activity) => {
-                const config = getConfigForActivity(activity);
-                const def = DEFAULTS[activity];
-                const provider = config?.provider || def.provider;
-                const modelId = config?.model_id || def.model_id;
-                const temperature = config ? Number(config.temperature) : def.temperature;
-                const maxTokens = config?.max_tokens || def.max_tokens;
-                const isDefault = config ? isDefaultConfig(config) : true;
+      {/* Header with expand/collapse */}
+      <div className="flex items-center justify-between">
+        <p className="text-navy/50 dark:text-slate-400 font-body text-sm">
+          {TEAMS.length} teams · {getAllActivities().length} agents
+        </p>
+        <div className="flex items-center gap-2">
+          <button onClick={expandAll} className="text-xs text-electric hover:underline font-body">Expand All</button>
+          <span className="text-navy/20 dark:text-slate-600">·</span>
+          <button onClick={collapseAll} className="text-xs text-electric hover:underline font-body">Collapse All</button>
+        </div>
+      </div>
 
-                return (
-                  <tr key={activity} className="hover:bg-cream/30 dark:hover:bg-slate-800/30 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <span className="font-body font-medium text-navy dark:text-slate-100">
+      {/* Team Cards */}
+      {TEAMS.map((team) => {
+        const expanded = expandedTeams.has(team.id);
+        const stats = teamStats(team);
+
+        return (
+          <div
+            key={team.id}
+            className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 overflow-hidden transition-all duration-200"
+          >
+            {/* Team Header */}
+            <button
+              onClick={() => toggleTeam(team.id)}
+              className="w-full flex items-center justify-between px-6 py-4 hover:bg-cream/30 dark:hover:bg-slate-800/30 transition-colors text-left"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{team.icon}</span>
+                <div>
+                  <h3 className="font-heading font-semibold text-navy dark:text-slate-100 text-base">
+                    {team.label}
+                  </h3>
+                  <p className="text-navy/50 dark:text-slate-400 font-body text-xs mt-0.5">
+                    {team.description}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {stats.customized > 0 && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-electric/10 text-electric border border-electric/20">
+                    {stats.customized} customized
+                  </span>
+                )}
+                <span className="text-navy/30 dark:text-slate-500 font-body text-xs">
+                  {stats.total} agents
+                </span>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className={`text-navy/30 dark:text-slate-500 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </div>
+            </button>
+
+            {/* Activity List (collapsible) */}
+            {expanded && (
+              <div className="border-t-2 border-cream-dark dark:border-slate-700">
+                {team.activities.map((activity, idx) => {
+                  const config = getConfigForActivity(activity);
+                  const def = DEFAULTS[activity];
+                  const provider = config?.provider || def.provider;
+                  const modelId = config?.model_id || def.model_id;
+                  const temperature = config ? Number(config.temperature) : def.temperature;
+                  const maxTokens = config?.max_tokens || def.max_tokens;
+                  const isDefault = config ? isDefaultConfig(config) : true;
+
+                  return (
+                    <div
+                      key={activity}
+                      className={`
+                        flex items-center justify-between px-6 py-3 hover:bg-cream/20 dark:hover:bg-slate-800/20 transition-colors cursor-pointer
+                        ${idx < team.activities.length - 1 ? 'border-b border-cream-dark/50 dark:border-slate-700/50' : ''}
+                      `}
+                      onClick={() => openEdit(activity)}
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-navy/20 dark:bg-slate-600 flex-shrink-0" />
+                        <span className="font-body font-medium text-navy dark:text-slate-100 text-sm truncate">
                           {ACTIVITY_LABELS[activity]}
                         </span>
                         {isDefault && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-navy/5 text-navy/40 border border-navy/10">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-navy/5 text-navy/40 border border-navy/10 flex-shrink-0">
                             Default
                           </span>
                         )}
                       </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <span className="font-body text-navy/70 dark:text-slate-300">
-                        {PROVIDER_LABELS[provider] || provider}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <span className="font-body text-navy/70 dark:text-slate-300 font-mono text-xs">
-                        {modelId}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <span className="font-body text-navy/70 dark:text-slate-300">{temperature}</span>
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <span className="font-body text-navy/70 dark:text-slate-300">{maxTokens.toLocaleString()}</span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      {config ? (
-                        <Button variant="ghost" size="sm" onClick={() => openEdit(config)}>
-                          Edit
-                        </Button>
-                      ) : (
-                        <span className="text-navy/30 dark:text-slate-500 font-body text-xs">No DB config</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+
+                      <div className="flex items-center gap-4 flex-shrink-0">
+                        {/* Provider badge */}
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${providerBadge(provider)}`}>
+                          {PROVIDER_LABELS[provider] || provider}
+                        </span>
+
+                        {/* Model */}
+                        <span className="font-mono text-xs text-navy/60 dark:text-slate-400 w-48 text-right truncate hidden sm:block">
+                          {modelId}
+                        </span>
+
+                        {/* Temp & tokens - hidden on small screens */}
+                        <span className="text-navy/40 dark:text-slate-500 text-xs w-10 text-center hidden lg:block">
+                          {temperature}
+                        </span>
+                        <span className="text-navy/40 dark:text-slate-500 text-xs w-16 text-right hidden lg:block">
+                          {maxTokens > 0 ? maxTokens.toLocaleString() : '—'}
+                        </span>
+
+                        {/* Edit icon */}
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="text-navy/20 dark:text-slate-600"
+                        >
+                          <polyline points="9 18 15 12 9 6" />
+                        </svg>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
 
       {/* Edit Model Config Modal */}
       <Modal
-        isOpen={!!editConfig}
-        onClose={() => setEditConfig(null)}
+        isOpen={!!editActivity}
+        onClose={() => { setEditActivity(null); setEditConfig(null); }}
         size="md"
       >
         <div className="p-6">
           <h3 className="text-navy dark:text-slate-100 font-heading font-semibold text-lg mb-1">
-            Edit Model Configuration
+            Configure Model
           </h3>
-          {editConfig && (
+          {editActivity && (
             <p className="text-navy/50 dark:text-slate-400 font-body text-sm mb-6">
-              {ACTIVITY_LABELS[editConfig.activity]}
+              {ACTIVITY_LABELS[editActivity]}
             </p>
           )}
 
@@ -292,22 +457,16 @@ export default function AIModelConfigTable() {
                   const newProvider = e.target.value as AIProvider;
                   setEditProvider(newProvider);
                   const models = getModelsForProvider(newProvider);
-                  if (models.length > 0) {
-                    setEditModelId(models[0]);
-                  }
+                  if (models.length > 0) setEditModelId(models[0]);
                 }}
                 className="appearance-none w-full px-3.5 py-2.5 pr-10 rounded-xl bg-white dark:bg-dark-surface border-2 border-navy/20 dark:border-slate-700 text-navy dark:text-slate-100 text-sm font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric transition-all duration-200"
               >
                 {PROVIDERS.map((p) => (
-                  <option key={p} value={p}>
-                    {PROVIDER_LABELS[p]}
-                  </option>
+                  <option key={p} value={p}>{PROVIDER_LABELS[p]}</option>
                 ))}
               </select>
               <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-navy/30">
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-navy/30"><polyline points="6 9 12 15 18 9" /></svg>
               </div>
             </div>
           </div>
@@ -324,15 +483,11 @@ export default function AIModelConfigTable() {
                 className="appearance-none w-full px-3.5 py-2.5 pr-10 rounded-xl bg-white dark:bg-dark-surface border-2 border-navy/20 dark:border-slate-700 text-navy dark:text-slate-100 text-sm font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric transition-all duration-200"
               >
                 {getModelsForProvider(editProvider).map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
+                  <option key={m} value={m}>{m}</option>
                 ))}
               </select>
               <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-navy/30">
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-navy/30"><polyline points="6 9 12 15 18 9" /></svg>
               </div>
             </div>
           </div>
@@ -366,7 +521,7 @@ export default function AIModelConfigTable() {
 
           {/* Actions */}
           <div className="flex items-center justify-end gap-3">
-            <Button variant="ghost" size="md" onClick={() => setEditConfig(null)}>
+            <Button variant="ghost" size="md" onClick={() => { setEditActivity(null); setEditConfig(null); }}>
               Cancel
             </Button>
             <Button
