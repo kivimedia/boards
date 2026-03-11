@@ -291,6 +291,21 @@ function normalizeClientUpdatesRow(row: Record<string, unknown>): Record<string,
   return row;
 }
 
+const UPDATE_ROW_RETRY_ATTEMPTS = 20;
+const UPDATE_ROW_RETRY_DELAY_MS = 300;
+
+function isNoRowsReturnedError(error: { message?: string; code?: string } | null | undefined): boolean {
+  if (!error) return false;
+  if (error.code === 'PGRST116') return true;
+
+  const message = (error.message || '').toLowerCase();
+  return (
+    message.includes('no rows') ||
+    message.includes('0 rows') ||
+    message.includes('json object requested')
+  );
+}
+
 async function updateRowWithMissingColumnFallback(
   supabase: SupabaseClient,
   tableName: string,
@@ -300,7 +315,7 @@ async function updateRowWithMissingColumnFallback(
   let nextPatch = { ...patch };
   let ignoredColumns: string[] = [];
 
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (let attempt = 0; attempt < UPDATE_ROW_RETRY_ATTEMPTS; attempt++) {
     const { data, error } = await supabase
       .from(tableName)
       .update(nextPatch)
@@ -309,6 +324,21 @@ async function updateRowWithMissingColumnFallback(
       .single();
 
     if (!error) return { data, ignoredColumns, error: null };
+
+    if (isNoRowsReturnedError(error)) {
+      if (attempt < UPDATE_ROW_RETRY_ATTEMPTS - 1) {
+        await new Promise((resolve) => setTimeout(resolve, UPDATE_ROW_RETRY_DELAY_MS));
+        continue;
+      }
+
+      return {
+        data: null,
+        ignoredColumns,
+        error: {
+          message: 'Row not found. It may be refreshing during sync. Please retry.',
+        },
+      };
+    }
 
     const missingColumn = extractMissingColumnFromSchemaCacheError(error.message || '');
     if (!missingColumn || !Object.prototype.hasOwnProperty.call(nextPatch, missingColumn)) {
