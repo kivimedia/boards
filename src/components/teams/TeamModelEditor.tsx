@@ -35,7 +35,7 @@ interface TeamModelEditorProps {
 function getAllModels(): { id: string; label: string; provider: string }[] {
   const pfModels = AVAILABLE_MODELS.map(m => ({ ...m }));
   const pricingModels = MODEL_PRICING
-    .filter(m => m.input_cost_per_1m > 0) // skip embeddings
+    .filter(m => m.input_cost_per_1k > 0) // skip zero-cost entries
     .map(m => ({ id: m.model_id, label: m.model_id, provider: m.provider }));
 
   const seen = new Set(pfModels.map(m => m.id));
