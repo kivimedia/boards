@@ -5,6 +5,7 @@ import Link from 'next/link';
 import type { AgentSkill, AgentQualityTier } from '@/lib/types';
 import { useVpsAgentJob } from '@/hooks/useVpsAgentJob';
 import VpsJobProgress from '@/components/agents/VpsJobProgress';
+import { AVAILABLE_MODELS } from '@/lib/ai/pageforge-constants';
 
 const TIER_CONFIG: Record<AgentQualityTier, { label: string; color: string; bg: string; emoji: string }> = {
   genuinely_smart: { label: 'Smart', color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-100 dark:bg-emerald-900/30', emoji: '' },
@@ -40,6 +41,7 @@ export default function AgentsDashboard() {
   const [useVps, setUseVps] = useState(false);
   const outputRef = useRef<HTMLDivElement>(null);
   const vpsState = useVpsAgentJob();
+  const [savingModel, setSavingModel] = useState(false);
 
   useEffect(() => {
     fetchSkills();
@@ -64,6 +66,29 @@ export default function AgentsDashboard() {
       const json = await res.json();
       setBoards((json.data ?? []).map((b: any) => ({ id: b.id, name: b.name })));
     } catch {}
+  };
+
+  const handleModelChange = async (skillId: string, modelId: string) => {
+    setSavingModel(true);
+    try {
+      const res = await fetch(`/api/agents/skills/${skillId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model_override: modelId || null,
+        }),
+      });
+      if (res.ok) {
+        // Update local state
+        setSkills(prev => prev.map(s =>
+          s.id === skillId ? { ...s, model_override: modelId || null } : s
+        ));
+        if (selectedSkill?.id === skillId) {
+          setSelectedSkill(prev => prev ? { ...prev, model_override: modelId || null } : null);
+        }
+      }
+    } catch {}
+    setSavingModel(false);
   };
 
   const runAgent = async () => {
@@ -276,6 +301,11 @@ export default function AgentsDashboard() {
                         <span className="text-[10px] text-navy/40 dark:text-slate-500">
                           {CATEGORY_CONFIG[skill.category]?.label}
                         </span>
+                        {skill.model_override && (
+                          <span className="text-[9px] px-1 py-0.5 rounded bg-electric/10 text-electric font-medium truncate max-w-[80px]" title={skill.model_override}>
+                            {AVAILABLE_MODELS.find(m => m.id === skill.model_override)?.label || skill.model_override}
+                          </span>
+                        )}
                       </div>
                     </button>
                   );
@@ -527,6 +557,36 @@ export default function AgentsDashboard() {
                     style={{ width: `${selectedSkill.quality_score}%` }}
                   />
                 </div>
+              </div>
+
+              {/* Model Override */}
+              <div className="mb-4">
+                <label className="text-[10px] font-semibold text-navy/40 dark:text-slate-500 uppercase tracking-wider mb-1.5 block">
+                  AI Model
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedSkill.model_override || ''}
+                    onChange={(e) => handleModelChange(selectedSkill.id, e.target.value)}
+                    disabled={savingModel}
+                    className="appearance-none w-full px-3 py-2 pr-8 rounded-lg border border-navy/10 dark:border-slate-600 bg-cream dark:bg-slate-900 text-xs text-navy dark:text-slate-100 font-body focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric transition-all disabled:opacity-50"
+                  >
+                    <option value="">Default (Sonnet 4.5)</option>
+                    {AVAILABLE_MODELS.map(m => (
+                      <option key={m.id} value={m.id}>{m.label}</option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                    {savingModel ? (
+                      <div className="w-3 h-3 border-2 border-electric/30 border-t-electric rounded-full animate-spin" />
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-navy/30"><polyline points="6 9 12 15 18 9" /></svg>
+                    )}
+                  </div>
+                </div>
+                <p className="text-[10px] text-navy/30 dark:text-slate-600 mt-1">
+                  Overrides the global agent model for this skill only
+                </p>
               </div>
 
               {/* Strengths */}

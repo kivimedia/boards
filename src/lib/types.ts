@@ -2682,6 +2682,10 @@ export interface AgentSkill {
   // Reference material
   reference_docs: { name: string; content_summary: string; quality: string }[];
 
+  // Model override (per-skill)
+  model_override: string | null;
+  provider_override: string | null;
+
   // Metadata
   version: string;
   is_active: boolean;
