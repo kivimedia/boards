@@ -225,8 +225,8 @@ export async function executeAgentSkill(
     const client = await createAnthropicClient(supabase);
     if (!client) throw new Error('Anthropic API key not configured. Go to Settings > AI Keys to add one.');
 
-    // 10. Determine model
-    const modelId = boardAgent?.model_preference || 'claude-sonnet-4-5-20250929';
+    // 10. Determine model (skill override > board-agent preference > global default)
+    const modelId = skill.model_override || boardAgent?.model_preference || 'claude-sonnet-4-5-20250929';
     const maxIterations = boardAgent?.max_iterations || MAX_AGENT_ITERATIONS;
 
     // 11. Agentic loop (multi-turn if tools available, single-turn otherwise)
@@ -608,7 +608,8 @@ export async function executeStandaloneAgent(
     const client = await createAnthropicClient(supabase);
     if (!client) throw new Error('Anthropic API key not configured. Go to Settings > AI Keys to add one.');
 
-    const modelId = 'claude-sonnet-4-5-20250929';
+    // Determine model (skill override > global default)
+    const modelId = skill.model_override || 'claude-sonnet-4-5-20250929';
     const maxIterations = params.maxIterations || MAX_AGENT_ITERATIONS;
 
     // 7. Handle resume from confirmation
