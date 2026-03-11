@@ -209,12 +209,12 @@ export function getAgencyRoleLabel(role: AgencyRole): string {
 
 /** Default board-role access map (used client-side when we can't query the DB table) */
 const DEFAULT_BOARD_ROLE_ACCESS: Record<string, AgencyRole[]> = {
-  dev: ['agency_owner', 'dev'],
+  dev: ['agency_owner', 'dev', 'account_manager'],
   training: ['agency_owner', 'dev', 'designer', 'account_manager', 'executive_assistant', 'video_editor'],
   account_manager: ['agency_owner', 'account_manager', 'executive_assistant'],
-  graphic_designer: ['agency_owner', 'designer'],
-  executive_assistant: ['agency_owner', 'executive_assistant'],
-  video_editor: ['agency_owner', 'video_editor'],
+  graphic_designer: ['agency_owner', 'designer', 'account_manager'],
+  executive_assistant: ['agency_owner', 'executive_assistant', 'account_manager'],
+  video_editor: ['agency_owner', 'video_editor', 'account_manager'],
   client_strategy_map: ['agency_owner', 'account_manager', 'executive_assistant'],
   copy: ['agency_owner', 'designer', 'account_manager'],
   client_board: ['agency_owner', 'account_manager', 'executive_assistant'],
