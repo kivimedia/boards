@@ -1,7 +1,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createClient } from '@supabase/supabase-js';
 import { redirect, notFound } from 'next/navigation';
-import { slugify, isUUID, isShortId, toShortId } from '@/lib/slugify';
+import { slugify, isUUID, isShortId } from '@/lib/slugify';
 
 interface Props {
   params: { id: string; slug?: string[] };
@@ -33,15 +33,18 @@ export default async function CardDeepLinkPage({ params }: Props) {
   // ── Short ID: /c/[8hexchars] ─────────────────────────────────────────────
   if (isShortId(segments[0])) {
     const shortId = segments[0].toLowerCase();
-    // UUIDs are stored with hyphens; prefix-match on the hex digits
+    // UUID range query: short ID "3969b4de" -> range [3969b4de-0000-..., 3969b4df-0000-...)
+    const lo = `${shortId}-0000-0000-0000-000000000000`;
+    const hiInt = parseInt(shortId, 16) + 1;
+    const hi = `${hiInt.toString(16).padStart(8, '0')}-0000-0000-0000-000000000000`;
     const { data: cards } = await db
       .from('cards')
       .select('id')
-      .ilike('id', `${shortId.slice(0, 8)}%`)
+      .gte('id', lo)
+      .lt('id', hi)
       .limit(5);
 
-    // Find the card whose UUID starts with shortId (after stripping hyphens)
-    const matched = (cards ?? []).find((c: any) => toShortId(c.id) === shortId);
+    const matched = (cards ?? [])[0];
     if (!matched) notFound();
 
     const cardId = matched.id;
