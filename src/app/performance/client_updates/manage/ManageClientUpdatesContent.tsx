@@ -54,10 +54,13 @@ function toDraft(row: Record<string, unknown>): ClientUpdateDraft {
 }
 
 function draftToPayload(draft: ClientUpdateDraft) {
+  const normalizedDate = draft.meeting_date || null;
   return {
     account_manager_name: draft.account_manager_name.trim(),
     client_name: draft.client_name.trim() || null,
-    meeting_date: draft.meeting_date || null,
+    // Keep both keys for compatibility across mixed schemas during migration.
+    meeting_date: normalizedDate,
+    date_sent: normalizedDate,
     on_time: draft.on_time === '' ? null : draft.on_time === 'true',
     method: draft.method.trim() || null,
     notes: draft.notes.trim() || null,
@@ -198,7 +201,9 @@ export default function ManageClientUpdatesContent({
       }
 
       const ignoredColumns = Array.isArray(json?.data?.ignored_columns)
-        ? (json.data.ignored_columns as string[]).filter((col) => col !== 'meeting_date')
+        ? (json.data.ignored_columns as string[]).filter(
+            (col) => col !== 'meeting_date' && col !== 'date_sent'
+          )
         : [];
       setStatusText(
         ignoredColumns.length > 0
@@ -251,7 +256,9 @@ export default function ManageClientUpdatesContent({
       setSelectedAm(keepAm);
       setNewDraft(emptyDraft(keepAm));
       const ignoredColumns = Array.isArray(json?.data?.ignored_columns)
-        ? (json.data.ignored_columns as string[]).filter((col) => col !== 'meeting_date')
+        ? (json.data.ignored_columns as string[]).filter(
+            (col) => col !== 'meeting_date' && col !== 'date_sent'
+          )
         : [];
       setStatusText(
         ignoredColumns.length > 0
@@ -689,6 +696,9 @@ export default function ManageClientUpdatesContent({
                               type="date"
                               value={draft.meeting_date}
                               onChange={(e) => rowId && updateDraft(rowId, 'meeting_date', e.target.value)}
+                              onBlur={() => {
+                                if (rowId) void saveRow(rowId);
+                              }}
                               className={INPUT_CLASS}
                             />
                           ) : (
