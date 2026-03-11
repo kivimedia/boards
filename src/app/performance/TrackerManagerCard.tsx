@@ -19,6 +19,18 @@ const MANAGE_PAGE_TRACKERS = new Set([
   'holiday_tracking',
 ]);
 
+const AUTO_SAVE_MANAGE_TRACKERS = new Set([
+  'client_updates',
+  'fathom_videos',
+  'sanity_checks',
+  'pics_monitoring',
+  'pingdom_tests',
+  'google_ads_reports',
+  'flagged_tickets',
+  'ticket_updates',
+  'holiday_tracking',
+]);
+
 const HIDDEN_COLUMNS = new Set([
   'id',
   'created_at',
@@ -66,9 +78,11 @@ export default function TrackerManagerCard({ tracker, canEdit }: TrackerManagerC
   const [editJson, setEditJson] = useState('');
   const [savingJsonEdit, setSavingJsonEdit] = useState(false);
 
-  const manageRowsHref = MANAGE_PAGE_TRACKERS.has(tracker.tracker_type)
-    ? `/performance/${tracker.tracker_type}/manage`
-    : null;
+  const manageRowsHref = AUTO_SAVE_MANAGE_TRACKERS.has(tracker.tracker_type)
+    ? `/performance/${tracker.tracker_type}`
+    : MANAGE_PAGE_TRACKERS.has(tracker.tracker_type)
+      ? `/performance/${tracker.tracker_type}/manage`
+      : null;
 
   const freshnessColors = {
     fresh: 'bg-green-500',
