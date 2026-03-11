@@ -80,13 +80,17 @@ export async function hasFeatureAccess(
   if (isAdminOrOwner(profile)) return true;
 
   const userRole = (profile.user_role || profile.role || 'member') as string;
+  const agencyRole = (profile.agency_role ?? '') as string;
 
-  // 3. Check grants (role-based or user-specific)
+  // 3. Check grants (role-based or user-specific, including agency_role)
+  const roleFilters = [`granted_role.eq.${userRole}`, `granted_user_id.eq.${userId}`];
+  if (agencyRole) roleFilters.push(`granted_role.eq.${agencyRole}`);
+
   const { data: grants } = await supabase
     .from('feature_permissions')
     .select('id')
     .eq('feature_key', featureKey)
-    .or(`granted_role.eq.${userRole},granted_user_id.eq.${userId}`)
+    .or(roleFilters.join(','))
     .limit(1);
 
   return (grants?.length ?? 0) > 0;
@@ -128,12 +132,16 @@ export async function getFeatureAccessMap(
   }
 
   const userRole = (profile.user_role || profile.role || 'member') as string;
+  const agencyRole = (profile.agency_role ?? '') as string;
 
-  // 3. Single query for all grants relevant to this user
+  // 3. Single query for all grants relevant to this user (user_role + agency_role)
+  const roleFilters = [`granted_role.eq.${userRole}`, `granted_user_id.eq.${userId}`];
+  if (agencyRole) roleFilters.push(`granted_role.eq.${agencyRole}`);
+
   const { data: grants } = await supabase
     .from('feature_permissions')
     .select('feature_key')
-    .or(`granted_role.eq.${userRole},granted_user_id.eq.${userId}`);
+    .or(roleFilters.join(','));
 
   if (grants) {
     for (const g of grants) {
