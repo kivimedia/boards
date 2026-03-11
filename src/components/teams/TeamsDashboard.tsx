@@ -385,21 +385,13 @@ export default function TeamsDashboard() {
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-sm font-bold text-navy dark:text-white font-heading">{t.name}</h3>
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setEditingTemplate(t)}
-                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold text-electric hover:bg-electric/10 transition-colors font-heading"
-                    title="Configure models for each agent"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m8.66-15-5.2 3m-6.92 4-5.2 3M22.66 18l-5.2-3m-6.92-4-5.2-3"/></svg>
-                    Models
-                  </button>
                   <span className="text-xs text-navy/40 dark:text-slate-500 font-body">
                     {t.phases.length} phases
                   </span>
                 </div>
               </div>
               <p className="text-xs text-navy/50 dark:text-slate-400 font-body mb-3 line-clamp-2">{t.description}</p>
-              <div className="flex items-center gap-1 flex-wrap">
+              <div className="flex items-center gap-1 flex-wrap mb-3">
                 {t.phases.map((phase, i) => (
                   <div key={i} className="flex items-center gap-1">
                     <div
@@ -418,6 +410,18 @@ export default function TeamsDashboard() {
                   </div>
                 ))}
               </div>
+
+              {/* Edit Models Button */}
+              <button
+                onClick={() => setEditingTemplate(t)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 border-dashed border-electric/30 hover:border-electric hover:bg-electric/5 dark:hover:bg-electric/10 text-electric font-heading font-semibold text-xs transition-all"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 20h9"/>
+                  <path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.855z"/>
+                </svg>
+                Edit Models
+              </button>
             </div>
           ))}
         </div>
