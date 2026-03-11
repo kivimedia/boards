@@ -39,9 +39,15 @@ interface TrackerStoragePayload {
 }
 
 const TRACKER_STORAGE_NAMESPACES: Partial<Record<PKTrackerType, string>> = {
+  client_updates: 'tracker:client_updates',
   fathom_videos: 'tracker:fathom_videos',
+  sanity_checks: 'tracker:sanity_checks',
+  pics_monitoring: 'tracker:pics_monitoring',
+  ticket_updates: 'tracker:ticket_updates',
+  flagged_tickets: 'tracker:flagged_tickets',
   google_ads_reports: 'tracker:google_ads_reports',
   pingdom_tests: 'tracker:pingdom_tests',
+  holiday_tracking: 'tracker:holiday_tracking',
 };
 
 const TRACKER_COLUMNS: Record<
