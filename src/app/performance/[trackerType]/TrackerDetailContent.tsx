@@ -38,19 +38,6 @@ interface TrackerStoragePayload {
   };
 }
 
-interface AMTabMeta {
-  id: string;
-  name: string;
-  storageSlug: string;
-}
-
-interface TrackerTabsMetaPayload {
-  version: 1;
-  tabs: AMTabMeta[];
-  activeTabId: string;
-  lastUpdatedAt: string;
-}
-
 const TRACKER_STORAGE_NAMESPACES: Partial<Record<PKTrackerType, string>> = {
   client_updates: 'tracker:client_updates',
   fathom_videos: 'tracker:fathom_videos',
@@ -190,16 +177,6 @@ const TRACKER_COLUMNS: Record<
 };
 
 const NON_DISPLAY_KEYS = new Set(['id', 'created_at', 'updated_at']);
-const DEFAULT_AM_TAB_NAME = 'General';
-const DEFAULT_ACCOUNT_MANAGERS = [
-  'Angel Dickson',
-  'Deverlyn Magno',
-  'Ela Dejadena',
-  'Hilda Yaneza',
-  'Kathlyn Casañas',
-  'Rizalyn Magno',
-  'Sarah Joy Escano',
-];
 
 function toDisplayLabel(key: string): string {
   return key
@@ -241,272 +218,13 @@ function buildEmptyRow(columns: EditableColumn[], id: string): EditableRow {
   return { id, values };
 }
 
-function buildSeedRowsForTab(
-  columns: EditableColumn[],
-  rowId: string,
-  tabName: string
-): EditableRow[] {
-  const row = buildEmptyRow(columns, rowId);
-  const hasAMColumn = columns.some((column) => column.key === 'account_manager_name');
-  if (hasAMColumn && tabName !== DEFAULT_AM_TAB_NAME) {
-    row.values.account_manager_name = tabName;
-  }
-  return [row];
-}
-
-function normalizeRowsForColumns(rows: EditableRow[], columns: EditableColumn[]): EditableRow[] {
-  return rows.map((row, index) => {
-    const values: Record<string, string> = {};
-    const rowValues =
-      row && typeof row.values === 'object' && row.values
-        ? (row.values as Record<string, unknown>)
-        : {};
-
-    for (const column of columns) {
-      const value = rowValues[column.key];
-      values[column.key] = value === null || value === undefined ? '' : String(value);
-    }
-
-    return {
-      id: String(row?.id || `row_${index + 1}`),
-      values,
-    };
-  });
-}
-
-function normalizeAmSlug(value: string): string {
-  const normalized = value
-    .trim()
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '');
-
-  return normalized
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .replace(/_+/g, '_');
-}
-
-function normalizeAmName(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, ' ');
-}
-
-function makeUniqueSlug(baseName: string, usedSlugs: Set<string>): string {
-  const base = normalizeAmSlug(baseName) || 'am_tab';
-  if (!usedSlugs.has(base)) {
-    usedSlugs.add(base);
-    return base;
-  }
-
-  let suffix = 2;
-  let candidate = `${base}_${suffix}`;
-  while (usedSlugs.has(candidate)) {
-    suffix += 1;
-    candidate = `${base}_${suffix}`;
-  }
-  usedSlugs.add(candidate);
-  return candidate;
-}
-
-function createTabsFromNames(names: string[]): AMTabMeta[] {
-  const usedSlugs = new Set<string>();
-  const usedNames = new Set<string>();
-  const nextTabs: AMTabMeta[] = [];
-  const now = Date.now();
-  let index = 0;
-
-  for (const rawName of names) {
-    const name = rawName.trim();
-    if (!name) continue;
-
-    const normalizedName = normalizeAmName(name);
-    if (usedNames.has(normalizedName)) continue;
-    usedNames.add(normalizedName);
-
-    const storageSlug = makeUniqueSlug(name, usedSlugs);
-    nextTabs.push({
-      id: `am_tab_${now}_${index}_${storageSlug}`,
-      name,
-      storageSlug,
-    });
-    index += 1;
-  }
-
-  if (nextTabs.length > 0) return nextTabs;
-
-  const fallbackName = DEFAULT_ACCOUNT_MANAGERS[0] || DEFAULT_AM_TAB_NAME;
-  const fallbackSlug = makeUniqueSlug(fallbackName, usedSlugs);
-  return [
-    {
-      id: `am_tab_${now}_fallback_${fallbackSlug}`,
-      name: fallbackName,
-      storageSlug: fallbackSlug,
-    },
-  ];
-}
-
-function appendMissingDefaultAmTabs(tabs: AMTabMeta[]): AMTabMeta[] {
-  const nextTabs = [...tabs];
-  const usedNames = new Set(nextTabs.map((tab) => normalizeAmName(tab.name)));
-  const usedSlugs = new Set(nextTabs.map((tab) => tab.storageSlug));
-  const now = Date.now();
-  let index = 0;
-
-  for (const defaultName of DEFAULT_ACCOUNT_MANAGERS) {
-    const normalizedName = normalizeAmName(defaultName);
-    if (usedNames.has(normalizedName)) continue;
-
-    const storageSlug = makeUniqueSlug(defaultName, usedSlugs);
-    nextTabs.push({
-      id: `am_tab_${now}_default_${index}_${storageSlug}`,
-      name: defaultName,
-      storageSlug,
-    });
-    usedNames.add(normalizedName);
-    index += 1;
-  }
-
-  return nextTabs.length > 0 ? nextTabs : createTabsFromNames(DEFAULT_ACCOUNT_MANAGERS);
-}
-
-function getAmTabsMetaKey(namespace: string): string {
-  return `${namespace}:am_tabs`;
-}
-
-function getAmStorageKey(namespace: string, amSlug: string): string {
-  return `${namespace}:am:${amSlug}`;
-}
-
-function splitRowsByAccountManager(rows: EditableRow[]): Map<string, EditableRow[]> {
-  const grouped = new Map<string, EditableRow[]>();
-  let hasAnyAmName = false;
-
-  for (const row of rows) {
-    const amName = (row.values.account_manager_name || '').trim();
-    if (amName) hasAnyAmName = true;
-    const groupName = amName || DEFAULT_AM_TAB_NAME;
-    const current = grouped.get(groupName) || [];
-    current.push(row);
-    grouped.set(groupName, current);
-  }
-
-  if (!hasAnyAmName) {
-    return new Map([[DEFAULT_AM_TAB_NAME, rows]]);
-  }
-
-  return grouped;
-}
-
-function parseTrackerPayload(raw: string | null): TrackerStoragePayload | null {
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as Partial<TrackerStoragePayload>;
-    const source = parsed.sync?.source;
-    const safeSource: 'local' | 'api_seed' | 'empty_seed' =
-      source === 'local' || source === 'api_seed' || source === 'empty_seed'
-        ? source
-        : 'local';
-
-    if (
-      parsed &&
-      Array.isArray(parsed.columns) &&
-      Array.isArray(parsed.rows) &&
-      parsed.settings &&
-      typeof parsed.settings.columnCounter === 'number' &&
-      typeof parsed.settings.rowCounter === 'number'
-    ) {
-      return {
-        version: 1,
-        trackerType: String(parsed.trackerType || ''),
-        columns: parsed.columns as EditableColumn[],
-        rows: parsed.rows as EditableRow[],
-        settings: {
-          columnCounter: parsed.settings.columnCounter,
-          rowCounter: parsed.settings.rowCounter,
-        },
-        sync: {
-          lastLoadedAt: String(parsed.sync?.lastLoadedAt || ''),
-          lastSavedAt: String(parsed.sync?.lastSavedAt || ''),
-          source: safeSource,
-        },
-      };
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
-function parseTabsMetaPayload(raw: string | null): TrackerTabsMetaPayload | null {
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as Partial<TrackerTabsMetaPayload>;
-    if (parsed && Array.isArray(parsed.tabs)) {
-      return {
-        version: 1,
-        tabs: parsed.tabs as AMTabMeta[],
-        activeTabId: String(parsed.activeTabId || ''),
-        lastUpdatedAt: String(parsed.lastUpdatedAt || ''),
-      };
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
-function sanitizeTabs(tabs: AMTabMeta[]): AMTabMeta[] {
-  const usedIds = new Set<string>();
-  const usedSlugs = new Set<string>();
-  const now = Date.now();
-  const normalized: AMTabMeta[] = [];
-
-  tabs.forEach((tab, index) => {
-    const name =
-      typeof tab?.name === 'string' && tab.name.trim()
-        ? tab.name.trim()
-        : `AM ${index + 1}`;
-    let id =
-      typeof tab?.id === 'string' && tab.id.trim()
-        ? tab.id.trim()
-        : `am_tab_${now}_${index}`;
-    while (usedIds.has(id)) {
-      id = `${id}_${index + 1}`;
-    }
-    usedIds.add(id);
-
-    const slugInput =
-      typeof tab?.storageSlug === 'string' && tab.storageSlug.trim()
-        ? tab.storageSlug
-        : name;
-    const storageSlug = makeUniqueSlug(slugInput, usedSlugs);
-
-    normalized.push({ id, name, storageSlug });
-  });
-
-  if (normalized.length === 0) {
-    return createTabsFromNames(DEFAULT_ACCOUNT_MANAGERS);
-  }
-
-  return normalized;
-}
-
 export default function TrackerDetailContent({
   trackerType,
   label,
 }: TrackerDetailContentProps) {
-  const trackerNamespace =
-    TRACKER_STORAGE_NAMESPACES[trackerType] || `tracker:${trackerType}`;
-  const tabsMetaKey = getAmTabsMetaKey(trackerNamespace);
-  const legacySingleStorageKey = trackerNamespace;
+  const storageKey = TRACKER_STORAGE_NAMESPACES[trackerType] || `tracker:${trackerType}`;
   const frequency = PK_TRACKER_FREQUENCIES[trackerType] || '';
 
-  const [tabs, setTabs] = useState<AMTabMeta[]>([]);
-  const [activeTabId, setActiveTabId] = useState('');
-  const [loadedTabId, setLoadedTabId] = useState('');
   const [columns, setColumns] = useState<EditableColumn[]>([]);
   const [rows, setRows] = useState<EditableRow[]>([]);
   const [columnCounter, setColumnCounter] = useState(1);
@@ -520,40 +238,8 @@ export default function TrackerDetailContent({
   );
   const [hydrated, setHydrated] = useState(false);
 
-  const activeTab = useMemo(
-    () => tabs.find((tab) => tab.id === activeTabId) || null,
-    [tabs, activeTabId]
-  );
-  const activeStorageKey = activeTab
-    ? getAmStorageKey(trackerNamespace, activeTab.storageSlug)
-    : '';
-
-  const getDefaultColumns = useCallback((): EditableColumn[] => {
-    if (TRACKER_COLUMNS[trackerType]) {
-      return normalizeColumnsForTracker(
-        trackerType,
-        toEditableColumns(TRACKER_COLUMNS[trackerType])
-      );
-    }
-    return [{ key: 'notes', label: 'Notes', type: 'text' }];
-  }, [trackerType]);
-
-  const persistTabsMeta = useCallback(
-    (nextTabs: AMTabMeta[], nextActiveTabId: string) => {
-      const payload: TrackerTabsMetaPayload = {
-        version: 1,
-        tabs: nextTabs,
-        activeTabId: nextActiveTabId,
-        lastUpdatedAt: new Date().toISOString(),
-      };
-      window.localStorage.setItem(tabsMetaKey, JSON.stringify(payload));
-    },
-    [tabsMetaKey]
-  );
-
-  const persistTabState = useCallback(
+  const persistState = useCallback(
     (
-      storageKey: string,
       nextColumns: EditableColumn[],
       nextRows: EditableRow[],
       nextColumnCounter: number,
@@ -580,201 +266,62 @@ export default function TrackerDetailContent({
       window.localStorage.setItem(storageKey, JSON.stringify(payload));
       setLastSavedAt(now);
     },
-    [trackerType]
-  );
-
-  const loadTabFromStorage = useCallback(
-    (tab: AMTabMeta) => {
-      setLoading(true);
-      setHydrated(false);
-      setLoadedTabId('');
-      setErrorText(null);
-
-      try {
-        const storageKey = getAmStorageKey(trackerNamespace, tab.storageSlug);
-        const parsed = parseTrackerPayload(window.localStorage.getItem(storageKey));
-
-        if (parsed) {
-          const normalizedColumns = normalizeColumnsForTracker(
-            trackerType,
-            parsed.columns
-          );
-          const normalizedRows = normalizeRowsForColumns(parsed.rows, normalizedColumns);
-
-          setColumns(normalizedColumns);
-          setRows(normalizedRows);
-          setColumnCounter(
-            Math.max(
-              1,
-              parsed.settings.columnCounter ||
-                normalizedColumns.filter((column) => column.key.startsWith('column_'))
-                  .length +
-                  1
-            )
-          );
-          setRowCounter(Math.max(1, parsed.settings.rowCounter || normalizedRows.length + 1));
-          setLastLoadedAt(parsed.sync.lastLoadedAt || new Date().toISOString());
-          setLastSavedAt(parsed.sync.lastSavedAt || '');
-          setSyncSource(parsed.sync.source || 'local');
-          setHydrated(true);
-          setLoadedTabId(tab.id);
-          setLoading(false);
-          return;
-        }
-
-        const seedColumns = getDefaultColumns();
-        const seedRows = buildSeedRowsForTab(
-          seedColumns,
-          `${trackerType}_${tab.storageSlug}_row_1`,
-          tab.name
-        );
-        const seedLoadedAt = new Date().toISOString();
-        const nextColumnCounter = Math.max(
-          1,
-          seedColumns.filter((column) => column.key.startsWith('column_')).length + 1
-        );
-        const nextRowCounter = 2;
-
-        setColumns(seedColumns);
-        setRows(seedRows);
-        setColumnCounter(nextColumnCounter);
-        setRowCounter(nextRowCounter);
-        setLastLoadedAt(seedLoadedAt);
-        setLastSavedAt('');
-        setSyncSource('empty_seed');
-        setHydrated(true);
-        setLoadedTabId(tab.id);
-
-        persistTabState(
-          storageKey,
-          seedColumns,
-          seedRows,
-          nextColumnCounter,
-          nextRowCounter,
-          'empty_seed',
-          seedLoadedAt
-        );
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Failed to load Account Manager tab.';
-        setErrorText(message);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [getDefaultColumns, persistTabState, trackerNamespace, trackerType]
+    [storageKey, trackerType]
   );
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setHydrated(false);
-    setLoadedTabId('');
     setErrorText(null);
-    setTabs([]);
-    setActiveTabId('');
 
-    const init = async () => {
+    const load = async () => {
       try {
-        const storedMeta = parseTabsMetaPayload(
-          window.localStorage.getItem(tabsMetaKey)
-        );
-
-        if (storedMeta && storedMeta.tabs.length > 0) {
-          const normalizedTabs = appendMissingDefaultAmTabs(
-            sanitizeTabs(storedMeta.tabs)
-          );
-          const validActiveId = normalizedTabs.some(
-            (tab) => tab.id === storedMeta.activeTabId
-          )
-            ? storedMeta.activeTabId
-            : normalizedTabs[0].id;
-
-          persistTabsMeta(normalizedTabs, validActiveId);
-
-          if (cancelled) return;
-          setTabs(normalizedTabs);
-          setActiveTabId(validActiveId);
-          setLoading(false);
-          return;
-        }
-
-        const legacyPayload = parseTrackerPayload(
-          window.localStorage.getItem(legacySingleStorageKey)
-        );
-
-        if (legacyPayload) {
-          const normalizedColumns = normalizeColumnsForTracker(
-            trackerType,
-            legacyPayload.columns
-          );
-          const normalizedRows = normalizeRowsForColumns(
-            legacyPayload.rows,
-            normalizedColumns
-          );
-          const groupedRows = splitRowsByAccountManager(normalizedRows);
-          const seededTabs = createTabsFromNames([
-            ...DEFAULT_ACCOUNT_MANAGERS,
-            ...Array.from(groupedRows.keys()),
-          ]);
-
-          for (const tab of seededTabs) {
-            const groupRows = groupedRows.get(tab.name) || [];
-            const rowsForTab =
-              groupRows.length > 0
-                ? groupRows
-                : buildSeedRowsForTab(
-                    normalizedColumns,
-                    `${trackerType}_${tab.storageSlug}_row_1`,
-                    tab.name
-                  );
-            const nextColumnCounter = Math.max(
-              1,
-              legacyPayload.settings.columnCounter ||
-                normalizedColumns.filter((column) => column.key.startsWith('column_'))
-                  .length +
-                  1
+        const raw = window.localStorage.getItem(storageKey);
+        if (raw) {
+          const parsed = JSON.parse(raw) as Partial<TrackerStoragePayload>;
+          if (
+            parsed &&
+            Array.isArray(parsed.columns) &&
+            Array.isArray(parsed.rows) &&
+            parsed.settings
+          ) {
+            if (cancelled) return;
+            setColumns(
+              normalizeColumnsForTracker(
+                trackerType,
+                parsed.columns as EditableColumn[]
+              )
             );
-            const nextRowCounter = Math.max(
-              1,
-              legacyPayload.settings.rowCounter || rowsForTab.length + 1
-            );
-
-            persistTabState(
-              getAmStorageKey(trackerNamespace, tab.storageSlug),
-              normalizedColumns,
-              rowsForTab,
-              nextColumnCounter,
-              nextRowCounter,
-              'local',
-              legacyPayload.sync.lastLoadedAt || new Date().toISOString()
-            );
+            setRows(parsed.rows as EditableRow[]);
+            setColumnCounter(parsed.settings.columnCounter || 1);
+            setRowCounter(parsed.settings.rowCounter || 1);
+            setLastLoadedAt(parsed.sync?.lastLoadedAt || new Date().toISOString());
+            setLastSavedAt(parsed.sync?.lastSavedAt || '');
+            setSyncSource('local');
+            setHydrated(true);
+            setLoading(false);
+            return;
           }
-
-          const firstTabId = seededTabs[0]?.id || '';
-          persistTabsMeta(seededTabs, firstTabId);
-          window.localStorage.removeItem(legacySingleStorageKey);
-
-          if (cancelled) return;
-          setTabs(seededTabs);
-          setActiveTabId(firstTabId);
-          setLoading(false);
-          return;
         }
 
         const res = await fetch(
-          `/api/performance/tracker?type=${trackerType}&limit=500&offset=0`
+          `/api/performance/tracker?type=${trackerType}&limit=200&offset=0`
         );
         const json = await res.json().catch(() => ({}));
         if (cancelled) return;
 
+        const now = new Date().toISOString();
         const source: 'api_seed' | 'empty_seed' = res.ok ? 'api_seed' : 'empty_seed';
         const payload = json.data || json;
         const apiRows: Record<string, unknown>[] = Array.isArray(payload?.rows)
           ? payload.rows
           : [];
 
-        let initialColumns = getDefaultColumns();
+        let initialColumns = TRACKER_COLUMNS[trackerType]
+          ? toEditableColumns(TRACKER_COLUMNS[trackerType])
+          : [];
+
         if (initialColumns.length === 0 && apiRows.length > 0) {
           const keys = Object.keys(apiRows[0]).filter((key) => !NON_DISPLAY_KEYS.has(key));
           initialColumns = keys.map((key) => ({
@@ -783,11 +330,14 @@ export default function TrackerDetailContent({
             type: 'text',
           }));
         }
+        if (initialColumns.length === 0) {
+          initialColumns = [{ key: 'notes', label: 'Notes', type: 'text' }];
+        }
         initialColumns = normalizeColumnsForTracker(trackerType, initialColumns);
 
-        const editableRows =
+        const initialRows: EditableRow[] =
           apiRows.length > 0
-            ? apiRows.map((apiRow, index) => {
+            ? apiRows.map((apiRow, idx) => {
                 const nextValues: Record<string, string> = {};
                 for (const column of initialColumns) {
                   const value = apiRow[column.key];
@@ -795,61 +345,34 @@ export default function TrackerDetailContent({
                     value === null || value === undefined ? '' : String(value);
                 }
                 return {
-                  id: String(apiRow.id || `${trackerType}_row_${index + 1}`),
+                  id: String(apiRow.id || `${trackerType}_row_${idx + 1}`),
                   values: nextValues,
                 };
               })
-            : [];
+            : [buildEmptyRow(initialColumns, `${trackerType}_row_1`)];
 
-        const groupedRows = splitRowsByAccountManager(
-          editableRows.length > 0
-            ? editableRows
-            : buildSeedRowsForTab(
-                initialColumns,
-                `${trackerType}_general_row_1`,
-                DEFAULT_AM_TAB_NAME
-              )
+        const nextColumnCounter = Math.max(
+          1,
+          initialColumns.filter((column) => column.key.startsWith('column_')).length + 1
         );
+        const nextRowCounter = Math.max(1, initialRows.length + 1);
 
-        const seededTabs = createTabsFromNames([
-          ...DEFAULT_ACCOUNT_MANAGERS,
-          ...Array.from(groupedRows.keys()),
-        ]);
-
-        const loadedAt = new Date().toISOString();
-        for (const tab of seededTabs) {
-          const grouped = groupedRows.get(tab.name) || [];
-          const rowsForTab =
-            grouped.length > 0
-              ? grouped
-              : buildSeedRowsForTab(
-                  initialColumns,
-                  `${trackerType}_${tab.storageSlug}_row_1`,
-                  tab.name
-                );
-          const nextColumnCounter = Math.max(
-            1,
-            initialColumns.filter((column) => column.key.startsWith('column_')).length + 1
-          );
-          const nextRowCounter = Math.max(1, rowsForTab.length + 1);
-
-          persistTabState(
-            getAmStorageKey(trackerNamespace, tab.storageSlug),
-            initialColumns,
-            rowsForTab,
-            nextColumnCounter,
-            nextRowCounter,
-            source,
-            loadedAt
-          );
-        }
-
-        const firstTabId = seededTabs[0]?.id || '';
-        persistTabsMeta(seededTabs, firstTabId);
-
-        if (cancelled) return;
-        setTabs(seededTabs);
-        setActiveTabId(firstTabId);
+        setColumns(initialColumns);
+        setRows(initialRows);
+        setColumnCounter(nextColumnCounter);
+        setRowCounter(nextRowCounter);
+        setLastLoadedAt(now);
+        setLastSavedAt('');
+        setSyncSource(source);
+        setHydrated(true);
+        persistState(
+          initialColumns,
+          initialRows,
+          nextColumnCounter,
+          nextRowCounter,
+          source,
+          now
+        );
       } catch (err) {
         if (cancelled) return;
         const message =
@@ -860,57 +383,16 @@ export default function TrackerDetailContent({
       }
     };
 
-    init();
+    load();
     return () => {
       cancelled = true;
     };
-  }, [
-    getDefaultColumns,
-    legacySingleStorageKey,
-    persistTabState,
-    persistTabsMeta,
-    tabsMetaKey,
-    trackerNamespace,
-    trackerType,
-  ]);
+  }, [persistState, storageKey, trackerType]);
 
   useEffect(() => {
-    if (!activeTab) return;
-    loadTabFromStorage(activeTab);
-  }, [activeTab, loadTabFromStorage]);
-
-  const persistCurrentTabNow = useCallback(() => {
-    if (!activeTab || !hydrated || loadedTabId !== activeTab.id) return;
-    persistTabState(
-      getAmStorageKey(trackerNamespace, activeTab.storageSlug),
-      columns,
-      rows,
-      columnCounter,
-      rowCounter,
-      syncSource,
-      lastLoadedAt || new Date().toISOString()
-    );
-  }, [
-    activeTab,
-    hydrated,
-    loadedTabId,
-    persistTabState,
-    trackerNamespace,
-    columns,
-    rows,
-    columnCounter,
-    rowCounter,
-    syncSource,
-    lastLoadedAt,
-  ]);
-
-  useEffect(() => {
-    if (!activeTab || !activeStorageKey || !hydrated) return;
-    if (loadedTabId !== activeTab.id) return;
-
+    if (!hydrated) return;
     const timeout = window.setTimeout(() => {
-      persistTabState(
-        activeStorageKey,
+      persistState(
         columns,
         rows,
         columnCounter,
@@ -921,219 +403,14 @@ export default function TrackerDetailContent({
     }, 300);
     return () => window.clearTimeout(timeout);
   }, [
-    activeTab,
-    activeStorageKey,
     columns,
     rows,
     columnCounter,
     rowCounter,
     hydrated,
-    loadedTabId,
-    persistTabState,
+    persistState,
     syncSource,
     lastLoadedAt,
-  ]);
-
-  const activateTab = useCallback(
-    (tabId: string) => {
-      if (tabId === activeTabId) return;
-      if (!tabs.some((tab) => tab.id === tabId)) return;
-      persistCurrentTabNow();
-      setActiveTabId(tabId);
-      persistTabsMeta(tabs, tabId);
-    },
-    [activeTabId, persistCurrentTabNow, persistTabsMeta, tabs]
-  );
-
-  const addTab = useCallback(() => {
-    const input = window.prompt('Account Manager tab name', '');
-    if (input === null) return;
-
-    const name = input.trim() || `AM ${tabs.length + 1}`;
-    const usedSlugs = new Set(tabs.map((tab) => tab.storageSlug));
-    const storageSlug = makeUniqueSlug(name, usedSlugs);
-    const tabId = `am_tab_${Date.now()}_${storageSlug}`;
-    const nextTab: AMTabMeta = { id: tabId, name, storageSlug };
-
-    persistCurrentTabNow();
-
-    const nextTabs = [...tabs, nextTab];
-    const seedColumns = columns.length > 0 ? columns : getDefaultColumns();
-    const seedRows = buildSeedRowsForTab(
-      seedColumns,
-      `${trackerType}_${storageSlug}_row_1`,
-      name
-    );
-    const now = new Date().toISOString();
-    const nextColumnCounter = Math.max(
-      1,
-      seedColumns.filter((column) => column.key.startsWith('column_')).length + 1
-    );
-
-    persistTabState(
-      getAmStorageKey(trackerNamespace, storageSlug),
-      seedColumns,
-      seedRows,
-      nextColumnCounter,
-      2,
-      'local',
-      now
-    );
-    persistTabsMeta(nextTabs, tabId);
-
-    setTabs(nextTabs);
-    setActiveTabId(tabId);
-  }, [
-    columns,
-    getDefaultColumns,
-    persistCurrentTabNow,
-    persistTabState,
-    persistTabsMeta,
-    tabs,
-    trackerNamespace,
-    trackerType,
-  ]);
-
-  const renameActiveTab = useCallback(() => {
-    if (!activeTab) return;
-
-    const input = window.prompt('Rename Account Manager tab', activeTab.name);
-    if (input === null) return;
-
-    const name = input.trim();
-    if (!name) return;
-
-    persistCurrentTabNow();
-
-    const usedSlugs = new Set(
-      tabs.filter((tab) => tab.id !== activeTab.id).map((tab) => tab.storageSlug)
-    );
-    const nextStorageSlug = makeUniqueSlug(name, usedSlugs);
-    const currentStorageKey = getAmStorageKey(trackerNamespace, activeTab.storageSlug);
-    const nextStorageKey = getAmStorageKey(trackerNamespace, nextStorageSlug);
-
-    if (nextStorageKey !== currentStorageKey) {
-      const currentPayload = parseTrackerPayload(
-        window.localStorage.getItem(currentStorageKey)
-      );
-      const now = new Date().toISOString();
-
-      if (currentPayload) {
-        const migratedPayload: TrackerStoragePayload = {
-          ...currentPayload,
-          sync: {
-            ...currentPayload.sync,
-            lastLoadedAt: currentPayload.sync.lastLoadedAt || lastLoadedAt || now,
-            lastSavedAt: now,
-            source: currentPayload.sync.source || 'local',
-          },
-        };
-        window.localStorage.setItem(nextStorageKey, JSON.stringify(migratedPayload));
-      } else {
-        persistTabState(
-          nextStorageKey,
-          columns,
-          rows,
-          columnCounter,
-          rowCounter,
-          syncSource,
-          lastLoadedAt || now
-        );
-      }
-
-      window.localStorage.removeItem(currentStorageKey);
-      setLastSavedAt(now);
-    }
-
-    const nextTabs = tabs.map((tab) =>
-      tab.id === activeTab.id
-        ? { ...tab, name, storageSlug: nextStorageSlug }
-        : tab
-    );
-
-    persistTabsMeta(nextTabs, activeTab.id);
-    setTabs(nextTabs);
-  }, [
-    activeTab,
-    columns,
-    columnCounter,
-    lastLoadedAt,
-    persistCurrentTabNow,
-    persistTabState,
-    persistTabsMeta,
-    rowCounter,
-    rows,
-    syncSource,
-    tabs,
-    trackerNamespace,
-  ]);
-
-  const removeActiveTab = useCallback(() => {
-    if (!activeTab) return;
-
-    const shouldRemove = window.confirm(
-      `Remove tab "${activeTab.name}" and all of its saved data?`
-    );
-    if (!shouldRemove) return;
-
-    persistCurrentTabNow();
-
-    const currentIndex = tabs.findIndex((tab) => tab.id === activeTab.id);
-    let nextTabs = tabs.filter((tab) => tab.id !== activeTab.id);
-
-    window.localStorage.removeItem(
-      getAmStorageKey(trackerNamespace, activeTab.storageSlug)
-    );
-
-    if (nextTabs.length === 0) {
-      const fallbackName = DEFAULT_ACCOUNT_MANAGERS[0] || DEFAULT_AM_TAB_NAME;
-      const storageSlug = makeUniqueSlug(fallbackName, new Set());
-      const fallbackTab: AMTabMeta = {
-        id: `am_tab_${Date.now()}_${storageSlug}`,
-        name: fallbackName,
-        storageSlug,
-      };
-      const seedColumns = getDefaultColumns();
-      const seedRows = buildSeedRowsForTab(
-        seedColumns,
-        `${trackerType}_${storageSlug}_row_1`,
-        fallbackName
-      );
-      const now = new Date().toISOString();
-      const nextColumnCounter = Math.max(
-        1,
-        seedColumns.filter((column) => column.key.startsWith('column_')).length + 1
-      );
-
-      persistTabState(
-        getAmStorageKey(trackerNamespace, storageSlug),
-        seedColumns,
-        seedRows,
-        nextColumnCounter,
-        2,
-        'empty_seed',
-        now
-      );
-
-      nextTabs = [fallbackTab];
-    }
-
-    const nextActiveTab =
-      nextTabs[Math.max(0, currentIndex - 1)] || nextTabs[0] || null;
-    const nextActiveTabId = nextActiveTab?.id || '';
-
-    persistTabsMeta(nextTabs, nextActiveTabId);
-    setTabs(nextTabs);
-    setActiveTabId(nextActiveTabId);
-  }, [
-    activeTab,
-    getDefaultColumns,
-    persistCurrentTabNow,
-    persistTabState,
-    persistTabsMeta,
-    tabs,
-    trackerNamespace,
-    trackerType,
   ]);
 
   const addColumn = useCallback(() => {
@@ -1178,16 +455,10 @@ export default function TrackerDetailContent({
   }, []);
 
   const addRow = useCallback(() => {
-    const rowId = `${trackerType}_${activeTab?.storageSlug || 'tab'}_row_${rowCounter}`;
-    const nextRow = buildEmptyRow(columns, rowId);
-    const hasAMColumn = columns.some((column) => column.key === 'account_manager_name');
-    if (hasAMColumn && activeTab && activeTab.name !== DEFAULT_AM_TAB_NAME) {
-      nextRow.values.account_manager_name = activeTab.name;
-    }
-
-    setRows((current) => [...current, nextRow]);
+    const rowId = `${trackerType}_row_${rowCounter}`;
+    setRows((current) => [...current, buildEmptyRow(columns, rowId)]);
     setRowCounter((current) => current + 1);
-  }, [activeTab, columns, rowCounter, trackerType]);
+  }, [columns, rowCounter, trackerType]);
 
   const removeRow = useCallback((rowId: string) => {
     setRows((current) => current.filter((row) => row.id !== rowId));
@@ -1234,88 +505,37 @@ export default function TrackerDetailContent({
           </div>
         </div>
 
-        <div className="bg-white dark:bg-white/5 rounded-xl border border-cream-dark/60 dark:border-white/10 p-3 space-y-3">
-          <div
-            role="tablist"
-            aria-label="Account Manager tabs"
-            className="flex flex-wrap items-center gap-2"
-          >
-            {tabs.map((tab) => {
-              const isActive = tab.id === activeTabId;
-              return (
-                <button
-                  key={tab.id}
-                  role="tab"
-                  aria-selected={isActive}
-                  onClick={() => activateTab(tab.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    isActive
-                      ? 'bg-electric text-white'
-                      : 'border border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5'
-                  }`}
-                >
-                  {tab.name}
-                </button>
-              );
-            })}
-            {tabs.length === 0 && (
-              <span className="text-xs text-navy/50 dark:text-white/40">
-                No Account Manager tabs yet.
-              </span>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={addTab}
-              aria-label="Add Account Manager tab"
-              title="Add Account Manager"
-              className="h-8 w-8 rounded-lg text-base font-semibold border border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
-            >
-              +
-            </button>
-            <button
-              onClick={renameActiveTab}
-              disabled={!activeTab}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium border border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Rename Tab
-            </button>
-            <button
-              onClick={removeActiveTab}
-              disabled={!activeTab}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium border border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Remove Tab
-            </button>
-            <span className="text-xs text-navy/50 dark:text-white/40">
-              Tab Key: <code>{activeStorageKey || 'No tab selected'}</code>
-            </span>
-          </div>
-        </div>
-
         <div className="flex flex-wrap items-center gap-2 bg-white dark:bg-white/5 rounded-xl border border-cream-dark/60 dark:border-white/10 p-3">
           <button
             onClick={addRow}
-            disabled={!activeTab}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-electric text-white hover:bg-electric/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-electric text-white hover:bg-electric/90 transition-colors"
           >
             Add Row
           </button>
           <button
             onClick={addColumn}
-            disabled={!activeTab}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium border border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 rounded-lg text-xs font-medium border border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
           >
             Add Column
           </button>
           <button
-            onClick={persistCurrentTabNow}
-            disabled={!activeTab || !hydrated || loadedTabId !== activeTab.id}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium border border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={() =>
+              persistState(
+                columns,
+                rows,
+                columnCounter,
+                rowCounter,
+                syncSource,
+                lastLoadedAt || new Date().toISOString()
+              )
+            }
+            className="px-3 py-1.5 rounded-lg text-xs font-medium border border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
           >
             Save Now
           </button>
+          <span className="text-xs text-navy/50 dark:text-white/40">
+            Key: <code>{storageKey}</code>
+          </span>
           <span className="text-xs text-navy/40 dark:text-white/30">{syncText}</span>
           {lastLoadedAt && (
             <span className="text-xs text-navy/40 dark:text-white/30">
@@ -1323,6 +543,7 @@ export default function TrackerDetailContent({
             </span>
           )}
         </div>
+
         {errorText && (
           <div className="px-3 py-2 rounded-lg text-xs border border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
             {errorText}
