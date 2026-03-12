@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
 import { BOARD_TYPE_CONFIG } from '@/lib/constants';
 import CreateBoardModal from '@/components/board/CreateBoardModal';
 import Button from '@/components/ui/Button';
@@ -25,6 +26,7 @@ export default function CrossBoardDashboard() {
   const [boardSummaries, setBoardSummaries] = useState<BoardSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const supabase = createClient();
 
   // Listen for global event from CreateMenu (top-bar "New Board" shortcut)
   useEffect(() => {
@@ -36,14 +38,94 @@ export default function CrossBoardDashboard() {
   useEffect(() => {
     const fetchDashboardData = async () => {
       setLoading(true);
+
       try {
-        const res = await fetch('/api/dashboard-summary');
-        if (!res.ok) throw new Error('Failed to fetch dashboard data');
-        const { data } = await res.json();
-        setBoardSummaries(data ?? []);
+        // Fetch all boards
+        const { data: boards } = await supabase
+          .from('boards')
+          .select('*')
+          .order('created_at', { ascending: true });
+
+        if (!boards || boards.length === 0) {
+          setBoardSummaries([]);
+          setLoading(false);
+          return;
+        }
+
+        const boardIds = boards.map((b) => b.id);
+
+        // Batch: fetch ALL lists for all boards at once
+        const { data: allLists } = await supabase
+          .from('lists')
+          .select('id, name, position, board_id')
+          .in('board_id', boardIds)
+          .order('position', { ascending: true });
+
+        const listsByBoard = new Map<string, typeof allLists>();
+        for (const list of allLists || []) {
+          if (!listsByBoard.has(list.board_id)) {
+            listsByBoard.set(list.board_id, []);
+          }
+          listsByBoard.get(list.board_id)!.push(list);
+        }
+
+        const allListIds = (allLists || []).map((l) => l.id);
+
+        // Batch: count cards per list using a single query with grouping
+        // card_placements doesn't support group-by via REST, so fetch all placements with list_id
+        // For performance: just get list_id column (minimal data)
+        let placementCounts = new Map<string, number>();
+        if (allListIds.length > 0) {
+          // Fetch in chunks of 200 list IDs to avoid URL length limits
+          const chunkSize = 200;
+          for (let i = 0; i < allListIds.length; i += chunkSize) {
+            const chunk = allListIds.slice(i, i + chunkSize);
+            const { data: placements } = await supabase
+              .from('card_placements')
+              .select('list_id')
+              .in('list_id', chunk);
+
+            for (const p of placements || []) {
+              placementCounts.set(p.list_id, (placementCounts.get(p.list_id) || 0) + 1);
+            }
+          }
+        }
+
+        // Batch: count recently moved cards per board (last 24h)
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        let recentMovedByBoard = new Map<string, number>();
+        const { data: recentActivity } = await supabase
+          .from('activity_log')
+          .select('board_id')
+          .eq('event_type', 'card_moved')
+          .gte('created_at', oneDayAgo)
+          .in('board_id', boardIds);
+
+        for (const a of recentActivity || []) {
+          recentMovedByBoard.set(a.board_id, (recentMovedByBoard.get(a.board_id) || 0) + 1);
+        }
+
+        // Build summaries
+        const summaries: BoardSummary[] = boards.map((board) => {
+          const lists = listsByBoard.get(board.id) || [];
+          const listSummaries: ListSummary[] = lists.map((l) => ({
+            id: l.id,
+            name: l.name,
+            cardCount: placementCounts.get(l.id) || 0,
+          }));
+          const totalCards = listSummaries.reduce((sum, l) => sum + l.cardCount, 0);
+
+          return {
+            board,
+            totalCards,
+            lists: listSummaries,
+            recentlyMoved: recentMovedByBoard.get(board.id) || 0,
+          };
+        });
+
+        setBoardSummaries(summaries);
       } catch (err) {
-        console.error('Dashboard fetch failed:', err);
-        setBoardSummaries([]);
+        console.error('Dashboard fetch error:', err);
       } finally {
         setLoading(false);
       }
@@ -64,6 +146,16 @@ export default function CrossBoardDashboard() {
     );
   }
 
+    id: s.board.id,
+    name: s.board.name,
+    type: s.board.type,
+    color: BOARD_TYPE_CONFIG[s.board.type as BoardType]?.color || '#6366f1',
+    activeCount: s.lists
+      .filter((l) => !['backlog', 'done', 'completed', 'delivered', 'deployed', 'published', 'closed', 'approved', 'archived']
+        .some((p) => l.name.toLowerCase().includes(p)))
+      .reduce((sum, l) => sum + l.cardCount, 0),
+  }));
+
   return (
     <div className="flex-1 overflow-y-auto bg-cream p-4 sm:p-6">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -75,6 +167,8 @@ export default function CrossBoardDashboard() {
             + New Board
           </Button>
         </div>
+
+        {/* Pipeline View - pass pre-computed active counts */}
 
         {/* Board Summary Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
