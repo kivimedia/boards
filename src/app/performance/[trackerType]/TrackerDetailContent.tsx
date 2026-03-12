@@ -1234,16 +1234,7 @@ export default function TrackerDetailContent({
           </div>
         </div>
 
-        <div className="bg-white dark:bg-white/5 rounded-2xl border border-cream-dark/60 dark:border-white/10 p-4 space-y-3">
-          <div>
-            <h2 className="text-2xl font-semibold text-navy dark:text-white">
-              Account Managers
-            </h2>
-            <p className="mt-1 text-base text-navy/55 dark:text-white/50">
-              Select an account manager to manage {label} rows.
-            </p>
-          </div>
-
+        <div className="bg-white dark:bg-white/5 rounded-xl border border-cream-dark/60 dark:border-white/10 p-3 space-y-3">
           <div
             role="tablist"
             aria-label="Account Manager tabs"
@@ -1257,27 +1248,32 @@ export default function TrackerDetailContent({
                   role="tab"
                   aria-selected={isActive}
                   onClick={() => activateTab(tab.id)}
-                  className={`min-w-[260px] px-4 py-2 rounded-xl text-2xl font-medium border transition-colors ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                     isActive
-                      ? 'bg-electric border-electric text-white'
-                      : 'bg-white dark:bg-white/5 border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5'
+                      ? 'bg-electric text-white'
+                      : 'border border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5'
                   }`}
                 >
                   {tab.name}
                 </button>
               );
             })}
+            {tabs.length === 0 && (
+              <span className="text-xs text-navy/50 dark:text-white/40">
+                No Account Manager tabs yet.
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={addTab}
               aria-label="Add Account Manager tab"
               title="Add Account Manager"
-              className="h-12 w-12 rounded-md text-3xl leading-none font-semibold border-4 border-navy/30 dark:border-white/35 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
+              className="h-8 w-8 rounded-lg text-base font-semibold border border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
             >
               +
             </button>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={renameActiveTab}
               disabled={!activeTab}
