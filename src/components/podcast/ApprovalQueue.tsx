@@ -11,6 +11,9 @@ import OutreachEmailPanel from './OutreachEmailPanel';
 const STATUS_COLORS: Record<PGACandidateStatus, string> = {
   scouted: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
   approved: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
+  researched: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300',
+  qualified: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300',
+  outreach_draft: 'bg-slate-100 text-slate-800 dark:bg-slate-900/40 dark:text-slate-300',
   outreach_active: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300',
   replied: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
   scheduled: 'bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300',
@@ -25,7 +28,7 @@ const CONFIDENCE_COLORS: Record<PGAConfidence, string> = {
 };
 
 const STATUS_OPTIONS: PGACandidateStatus[] = [
-  'scouted', 'approved', 'outreach_active', 'replied', 'scheduled', 'interviewed', 'rejected',
+  'scouted', 'approved', 'researched', 'qualified', 'outreach_draft', 'outreach_active', 'replied', 'scheduled', 'interviewed', 'rejected',
 ];
 
 /** Try to extract a location hint from one_liner or source */
@@ -442,11 +445,10 @@ export default function ApprovalQueue() {
             return (
               <div
                 key={candidate.id}
-                className={`bg-white dark:bg-slate-800 rounded-xl border overflow-hidden transition-all ${
-                  isSelected
+                className={`bg-white dark:bg-slate-800 rounded-xl border overflow-hidden transition-all ${isSelected
                     ? 'border-electric/40 ring-1 ring-electric/20'
                     : 'border-navy/5 dark:border-slate-700'
-                } shadow-sm`}
+                  } shadow-sm`}
               >
                 {/* Card header */}
                 <div
@@ -461,7 +463,7 @@ export default function ApprovalQueue() {
                         .then((json) => {
                           setDossierExistsMap((prev) => ({ ...prev, [candidate.id]: !!json.data?.dossier }));
                         })
-                        .catch(() => {});
+                        .catch(() => { });
                     }
                   }}
                 >

@@ -146,16 +146,6 @@ export default function CrossBoardDashboard() {
     );
   }
 
-    id: s.board.id,
-    name: s.board.name,
-    type: s.board.type,
-    color: BOARD_TYPE_CONFIG[s.board.type as BoardType]?.color || '#6366f1',
-    activeCount: s.lists
-      .filter((l) => !['backlog', 'done', 'completed', 'delivered', 'deployed', 'published', 'closed', 'approved', 'archived']
-        .some((p) => l.name.toLowerCase().includes(p)))
-      .reduce((sum, l) => sum + l.cardCount, 0),
-  }));
-
   return (
     <div className="flex-1 overflow-y-auto bg-cream p-4 sm:p-6">
       <div className="max-w-6xl mx-auto space-y-6">

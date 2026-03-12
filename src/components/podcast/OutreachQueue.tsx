@@ -9,6 +9,9 @@ import OutreachEmailPanel from './OutreachEmailPanel';
 
 const STATUS_COLORS: Record<string, string> = {
   approved: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
+  researched: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300',
+  qualified: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300',
+  outreach_draft: 'bg-slate-100 text-slate-800 dark:bg-slate-900/40 dark:text-slate-300',
   outreach_active: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300',
   replied: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
   scheduled: 'bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300',
@@ -16,7 +19,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const OUTREACH_STATUSES: PGACandidateStatus[] = [
-  'approved', 'outreach_active', 'replied', 'scheduled', 'interviewed',
+  'approved', 'researched', 'qualified', 'outreach_draft', 'outreach_active', 'replied', 'scheduled', 'interviewed',
 ];
 
 const PLATFORM_ICONS: Record<string, string> = {
@@ -80,7 +83,7 @@ export default function OutreachQueue() {
   };
 
   const getNextStatus = (current: PGACandidateStatus): PGACandidateStatus | null => {
-    const flow: PGACandidateStatus[] = ['approved', 'outreach_active', 'replied', 'scheduled', 'interviewed'];
+    const flow: PGACandidateStatus[] = ['approved', 'researched', 'qualified', 'outreach_draft', 'outreach_active', 'replied', 'scheduled', 'interviewed'];
     const idx = flow.indexOf(current);
     return idx >= 0 && idx < flow.length - 1 ? flow[idx + 1] : null;
   };
@@ -224,7 +227,7 @@ export default function OutreachQueue() {
                         .then((json) => {
                           setDossierExistsMap((prev) => ({ ...prev, [candidate.id]: !!json.data?.dossier }));
                         })
-                        .catch(() => {});
+                        .catch(() => { });
                     }
                   }}
                 >

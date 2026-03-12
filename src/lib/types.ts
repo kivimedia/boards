@@ -629,7 +629,7 @@ export interface MigrationEntityMap {
 // Podcast Guest Acquisition (PGA)
 // ============================================================================
 
-export type PGACandidateStatus = 'scouted' | 'approved' | 'outreach_active' | 'replied' | 'scheduled' | 'interviewed' | 'rejected';
+export type PGACandidateStatus = 'scouted' | 'approved' | 'researched' | 'qualified' | 'outreach_draft' | 'outreach_active' | 'replied' | 'scheduled' | 'interviewed' | 'rejected';
 export type PGAConfidence = 'high' | 'medium' | 'low';
 export type PGAAgentType = 'scout' | 'outreach';
 export type PGARunStatus = 'running' | 'completed' | 'failed' | 'awaiting_input';
@@ -800,7 +800,7 @@ export interface EnrichedProfile {
   email_source: 'hunter' | 'snov' | 'none';
   email_confidence: number;
   email_verified: boolean;
-  enriched?: { website?: string; [key: string]: unknown };
+  enriched?: { website?: string;[key: string]: unknown };
 }
 
 /** Step 3 output: Full candidate profile after AI deep research */
