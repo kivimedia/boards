@@ -1219,6 +1219,27 @@ export default function TrackerDetailContent({
 
           <div className="flex flex-wrap items-center gap-2">
             <button
+              onClick={addRow}
+              disabled={!activeTab}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-electric text-white hover:bg-electric/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Add Row
+            </button>
+            <button
+              onClick={addColumn}
+              disabled={!activeTab}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium border border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Add Column
+            </button>
+            <button
+              onClick={persistCurrentTabNow}
+              disabled={!activeTab || !hydrated || loadedTabId !== activeTab.id}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium border border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Save Now
+            </button>
+            <button
               onClick={renameActiveTab}
               disabled={!activeTab}
               className="px-3 py-1.5 rounded-lg text-xs font-medium border border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1235,37 +1256,13 @@ export default function TrackerDetailContent({
             <span className="text-xs text-navy/50 dark:text-white/40">
               Tab Key: <code>{activeStorageKey || 'No tab selected'}</code>
             </span>
+            <span className="text-xs text-navy/40 dark:text-white/30">{syncText}</span>
+            {lastLoadedAt && (
+              <span className="text-xs text-navy/40 dark:text-white/30">
+                Loaded {new Date(lastLoadedAt).toLocaleString()} ({syncSource})
+              </span>
+            )}
           </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 bg-white dark:bg-white/5 rounded-xl border border-cream-dark/60 dark:border-white/10 p-3">
-          <button
-            onClick={addRow}
-            disabled={!activeTab}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-electric text-white hover:bg-electric/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Add Row
-          </button>
-          <button
-            onClick={addColumn}
-            disabled={!activeTab}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium border border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Add Column
-          </button>
-          <button
-            onClick={persistCurrentTabNow}
-            disabled={!activeTab || !hydrated || loadedTabId !== activeTab.id}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium border border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Save Now
-          </button>
-          <span className="text-xs text-navy/40 dark:text-white/30">{syncText}</span>
-          {lastLoadedAt && (
-            <span className="text-xs text-navy/40 dark:text-white/30">
-              Loaded {new Date(lastLoadedAt).toLocaleString()} ({syncSource})
-            </span>
-          )}
         </div>
         {errorText && (
           <div className="px-3 py-2 rounded-lg text-xs border border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
