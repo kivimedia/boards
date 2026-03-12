@@ -122,22 +122,29 @@ export async function POST(request: NextRequest, { params }: Params) {
     // Create in-app notifications for mentioned users
     const authorName = profileRes.data?.display_name || 'Someone';
 
-    // Look up board_id so the notification can deep-link directly to the card
-    supabase
-      .from('card_placements')
-      .select('list_id, lists(board_id)')
-      .eq('card_id', params.id)
-      .eq('is_mirror', false)
-      .limit(1)
-      .single()
-      .then(({ data: placement }) => {
+    // Look up board_id and card title so the notification can deep-link directly
+    Promise.all([
+      supabase
+        .from('card_placements')
+        .select('list_id, lists(board_id)')
+        .eq('card_id', params.id)
+        .eq('is_mirror', false)
+        .limit(1)
+        .single(),
+      supabase
+        .from('cards')
+        .select('title')
+        .eq('id', params.id)
+        .single(),
+    ]).then(([{ data: placement }, { data: card }]) => {
         const boardId = (placement?.lists as any)?.board_id ?? null;
+        const cardTitle = card?.title || 'a card';
         const notifRows = mentionedUserIds
           .filter((uid: string) => uid !== userId)
           .map((uid: string) => ({
             user_id: uid,
             type: 'card_mentioned' as const,
-            title: `${authorName} mentioned you in a comment`,
+            title: `You were mentioned by ${authorName} in "${cardTitle}"`,
             body: insertRes.data.content?.slice(0, 120) || '',
             card_id: params.id,
             board_id: boardId,
