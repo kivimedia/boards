@@ -81,5 +81,30 @@ export async function POST(
 
   if (updateErr) return errorResponse(updateErr.message, 500);
 
+  // If approved, trigger the worker to continue to the next phase
+  if (decision === 'approve') {
+    const PHASE_ORDER = [
+      'planning', 'plan_review', 'writing', 'image_sourcing', 'qc', 'humanizing', 'scoring',
+      'gate1', 'publishing', 'visual_qa', 'gate2',
+    ];
+    const resumePhase = gate === 1 ? 'publishing' : 'indexing';
+    const resumePhaseIndex = PHASE_ORDER.indexOf(resumePhase);
+
+    // Create VPS job to resume pipeline (non-blocking)
+    fetch('http://localhost:6174/api/vps/jobs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'seo_pipeline',
+        data: {
+          pipeline_run_id: id,
+          resume_from_phase: resumePhaseIndex,
+        },
+      }),
+    }).catch((err) => {
+      console.error('[approve] Failed to trigger VPS worker:', err);
+    });
+  }
+
   return successResponse(updated);
 }
