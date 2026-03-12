@@ -3,8 +3,8 @@ import { getAuthContext, successResponse, errorResponse, parseBody } from '@/lib
 
 /**
  * POST /api/outreach/leads/bulk-enrich
- * Mark selected leads for enrichment by setting enrichment_status to 'pending'.
- * The job queue worker picks up pending leads and runs enrichment.
+ * Mark selected leads for enrichment by setting pipeline_stage to 'ENRICHING'.
+ * The job queue worker picks up these leads and runs enrichment.
  */
 export async function POST(request: NextRequest) {
   const auth = await getAuthContext();
@@ -27,7 +27,10 @@ export async function POST(request: NextRequest) {
 
   const { data, error } = await supabase
     .from('li_leads')
-    .update({ enrichment_status: 'pending' })
+    .update({ 
+      pipeline_stage: 'ENRICHING',
+      updated_at: new Date().toISOString(),
+    })
     .eq('user_id', userId)
     .in('id', lead_ids)
     .is('deleted_at', null)
