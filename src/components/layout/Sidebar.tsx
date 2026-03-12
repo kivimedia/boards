@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -36,17 +36,24 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
   const toggleStar = useCallback(async (e: React.MouseEvent, boardId: string, currentStarred: boolean) => {
     e.preventDefault();
     e.stopPropagation();
+    lastStarToggleRef.current = Date.now();
+    // Optimistic update
     setBoards(prev => prev.map(b => b.id === boardId ? { ...b, is_starred: !currentStarred } : b));
-    await supabase.from('boards').update({ is_starred: !currentStarred }).eq('id', boardId);
-  }, [supabase]);
+    // Write to DB via API
+    await fetch(`/api/boards/${boardId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_starred: !currentStarred }),
+    });
+  }, []);
+
+  const lastStarToggleRef = useRef<number>(0);
 
   useEffect(() => {
     let cancelled = false;
 
     const fetchBoards = async () => {
       try {
-        // Use API endpoint instead of direct Supabase client - more reliable
-        // because cookies are sent automatically (no auth state timing issues)
         const res = await fetch('/api/boards');
         if (res.ok) {
           const json = await res.json();
@@ -57,19 +64,17 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
       }
     };
 
-    // Always fetch boards on mount (covers both SSR hydration and client navigation)
+    // Always fetch boards on mount
     fetchBoards();
+    if (user) fetchBoards();
 
-    // Also re-fetch when user state changes (handles late auth)
-    if (user) {
-      fetchBoards();
-    }
-
-    // Listen for realtime board changes
+    // Listen for realtime board changes — but suppress within 2s of a star toggle
     const channel = supabase
       .channel('boards-sidebar')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'boards' }, () => {
-        if (!cancelled) fetchBoards();
+        if (!cancelled && Date.now() - lastStarToggleRef.current > 2000) {
+          fetchBoards();
+        }
       })
       .subscribe();
 
