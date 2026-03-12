@@ -9,25 +9,23 @@ interface TrackerManagerCardProps {
   canEdit: boolean;
 }
 
-const MANAGE_PAGE_TRACKERS = new Set([
+const FULL_PAGE_MANAGE_TRACKERS = new Set([
   'client_updates',
   'fathom_videos',
-  'sanity_checks',
-  'pics_monitoring',
-  'pingdom_tests',
-  'google_ads_reports',
-  'holiday_tracking',
-]);
-
-const AUTO_SAVE_MANAGE_TRACKERS = new Set([
-  'client_updates',
-  'fathom_videos',
-  'sanity_checks',
-  'pics_monitoring',
-  'pingdom_tests',
-  'google_ads_reports',
-  'flagged_tickets',
   'ticket_updates',
+  'daily_goals',
+  'sanity_checks',
+  'sanity_tests',
+  'pics_monitoring',
+  'weekly_tickets',
+  'pingdom_tests',
+  'google_ads_reports',
+  'monthly_summaries',
+  'update_schedule',
+  'website_status',
+  'google_analytics_status',
+  'other_activities',
+  'flagged_tickets',
   'holiday_tracking',
 ]);
 
@@ -78,11 +76,9 @@ export default function TrackerManagerCard({ tracker, canEdit }: TrackerManagerC
   const [editJson, setEditJson] = useState('');
   const [savingJsonEdit, setSavingJsonEdit] = useState(false);
 
-  const manageRowsHref = AUTO_SAVE_MANAGE_TRACKERS.has(tracker.tracker_type)
+  const manageRowsHref = FULL_PAGE_MANAGE_TRACKERS.has(tracker.tracker_type)
     ? `/performance/${tracker.tracker_type}`
-    : MANAGE_PAGE_TRACKERS.has(tracker.tracker_type)
-      ? `/performance/${tracker.tracker_type}/manage`
-      : null;
+    : null;
 
   const freshnessColors = {
     fresh: 'bg-green-500',

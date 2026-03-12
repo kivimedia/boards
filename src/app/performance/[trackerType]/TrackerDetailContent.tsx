@@ -191,6 +191,15 @@ const TRACKER_COLUMNS: Record<
 
 const NON_DISPLAY_KEYS = new Set(['id', 'created_at', 'updated_at']);
 const DEFAULT_AM_TAB_NAME = 'General';
+const DEFAULT_ACCOUNT_MANAGERS = [
+  'Angel Dickson',
+  'Deverlyn Magno',
+  'Ela Dejadena',
+  'Hilda Yaneza',
+  'Kathlyn Casañas',
+  'Rizalyn Magno',
+  'Sarah Joy Escano',
+];
 
 function toDisplayLabel(key: string): string {
   return key
@@ -266,12 +275,23 @@ function normalizeRowsForColumns(rows: EditableRow[], columns: EditableColumn[])
 }
 
 function normalizeAmSlug(value: string): string {
-  return value
+  const normalized = value
     .trim()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  return normalized
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '')
     .replace(/_+/g, '_');
+}
+
+function normalizeAmName(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
 }
 
 function makeUniqueSlug(baseName: string, usedSlugs: Set<string>): string {
@@ -289,6 +309,67 @@ function makeUniqueSlug(baseName: string, usedSlugs: Set<string>): string {
   }
   usedSlugs.add(candidate);
   return candidate;
+}
+
+function createTabsFromNames(names: string[]): AMTabMeta[] {
+  const usedSlugs = new Set<string>();
+  const usedNames = new Set<string>();
+  const nextTabs: AMTabMeta[] = [];
+  const now = Date.now();
+  let index = 0;
+
+  for (const rawName of names) {
+    const name = rawName.trim();
+    if (!name) continue;
+
+    const normalizedName = normalizeAmName(name);
+    if (usedNames.has(normalizedName)) continue;
+    usedNames.add(normalizedName);
+
+    const storageSlug = makeUniqueSlug(name, usedSlugs);
+    nextTabs.push({
+      id: `am_tab_${now}_${index}_${storageSlug}`,
+      name,
+      storageSlug,
+    });
+    index += 1;
+  }
+
+  if (nextTabs.length > 0) return nextTabs;
+
+  const fallbackName = DEFAULT_ACCOUNT_MANAGERS[0] || DEFAULT_AM_TAB_NAME;
+  const fallbackSlug = makeUniqueSlug(fallbackName, usedSlugs);
+  return [
+    {
+      id: `am_tab_${now}_fallback_${fallbackSlug}`,
+      name: fallbackName,
+      storageSlug: fallbackSlug,
+    },
+  ];
+}
+
+function appendMissingDefaultAmTabs(tabs: AMTabMeta[]): AMTabMeta[] {
+  const nextTabs = [...tabs];
+  const usedNames = new Set(nextTabs.map((tab) => normalizeAmName(tab.name)));
+  const usedSlugs = new Set(nextTabs.map((tab) => tab.storageSlug));
+  const now = Date.now();
+  let index = 0;
+
+  for (const defaultName of DEFAULT_ACCOUNT_MANAGERS) {
+    const normalizedName = normalizeAmName(defaultName);
+    if (usedNames.has(normalizedName)) continue;
+
+    const storageSlug = makeUniqueSlug(defaultName, usedSlugs);
+    nextTabs.push({
+      id: `am_tab_${now}_default_${index}_${storageSlug}`,
+      name: defaultName,
+      storageSlug,
+    });
+    usedNames.add(normalizedName);
+    index += 1;
+  }
+
+  return nextTabs.length > 0 ? nextTabs : createTabsFromNames(DEFAULT_ACCOUNT_MANAGERS);
 }
 
 function getAmTabsMetaKey(namespace: string): string {
@@ -407,12 +488,7 @@ function sanitizeTabs(tabs: AMTabMeta[]): AMTabMeta[] {
   });
 
   if (normalized.length === 0) {
-    const storageSlug = makeUniqueSlug(DEFAULT_AM_TAB_NAME, usedSlugs);
-    normalized.push({
-      id: `am_tab_${now}_default`,
-      name: DEFAULT_AM_TAB_NAME,
-      storageSlug,
-    });
+    return createTabsFromNames(DEFAULT_ACCOUNT_MANAGERS);
   }
 
   return normalized;
@@ -605,7 +681,9 @@ export default function TrackerDetailContent({
         );
 
         if (storedMeta && storedMeta.tabs.length > 0) {
-          const normalizedTabs = sanitizeTabs(storedMeta.tabs);
+          const normalizedTabs = appendMissingDefaultAmTabs(
+            sanitizeTabs(storedMeta.tabs)
+          );
           const validActiveId = normalizedTabs.some(
             (tab) => tab.id === storedMeta.activeTabId
           )
@@ -635,20 +713,10 @@ export default function TrackerDetailContent({
             normalizedColumns
           );
           const groupedRows = splitRowsByAccountManager(normalizedRows);
-          const usedSlugs = new Set<string>();
-          const seededTabs: AMTabMeta[] = [];
-          const now = Date.now();
-          let index = 0;
-
-          for (const groupName of groupedRows.keys()) {
-            const storageSlug = makeUniqueSlug(groupName, usedSlugs);
-            seededTabs.push({
-              id: `am_tab_${now}_${index}_${storageSlug}`,
-              name: groupName,
-              storageSlug,
-            });
-            index += 1;
-          }
+          const seededTabs = createTabsFromNames([
+            ...DEFAULT_ACCOUNT_MANAGERS,
+            ...Array.from(groupedRows.keys()),
+          ]);
 
           for (const tab of seededTabs) {
             const groupRows = groupedRows.get(tab.name) || [];
@@ -743,19 +811,10 @@ export default function TrackerDetailContent({
               )
         );
 
-        const usedSlugs = new Set<string>();
-        const seededTabs: AMTabMeta[] = [];
-        const now = Date.now();
-        let index = 0;
-        for (const groupName of groupedRows.keys()) {
-          const storageSlug = makeUniqueSlug(groupName, usedSlugs);
-          seededTabs.push({
-            id: `am_tab_${now}_${index}_${storageSlug}`,
-            name: groupName,
-            storageSlug,
-          });
-          index += 1;
-        }
+        const seededTabs = createTabsFromNames([
+          ...DEFAULT_ACCOUNT_MANAGERS,
+          ...Array.from(groupedRows.keys()),
+        ]);
 
         const loadedAt = new Date().toISOString();
         for (const tab of seededTabs) {
@@ -1027,17 +1086,18 @@ export default function TrackerDetailContent({
     );
 
     if (nextTabs.length === 0) {
-      const storageSlug = makeUniqueSlug(DEFAULT_AM_TAB_NAME, new Set());
+      const fallbackName = DEFAULT_ACCOUNT_MANAGERS[0] || DEFAULT_AM_TAB_NAME;
+      const storageSlug = makeUniqueSlug(fallbackName, new Set());
       const fallbackTab: AMTabMeta = {
         id: `am_tab_${Date.now()}_${storageSlug}`,
-        name: DEFAULT_AM_TAB_NAME,
+        name: fallbackName,
         storageSlug,
       };
       const seedColumns = getDefaultColumns();
       const seedRows = buildSeedRowsForTab(
         seedColumns,
         `${trackerType}_${storageSlug}_row_1`,
-        DEFAULT_AM_TAB_NAME
+        fallbackName
       );
       const now = new Date().toISOString();
       const nextColumnCounter = Math.max(
