@@ -1208,9 +1208,11 @@ export default function TrackerDetailContent({
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={addTab}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium border border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
+              aria-label="Add Account Manager tab"
+              title="Add Account Manager"
+              className="h-8 w-8 rounded-lg text-base font-semibold border border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
             >
-              Add AM Tab
+              +
             </button>
             <button
               onClick={renameActiveTab}
