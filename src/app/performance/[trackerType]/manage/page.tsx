@@ -8,17 +8,6 @@ import {
 import TrackerRowsManagerContent from '@/app/performance/manage/TrackerRowsManagerContent';
 import { redirect, notFound } from 'next/navigation';
 
-const AUTO_SAVE_MANAGE_REDIRECT_TRACKERS = new Set([
-  'fathom_videos',
-  'sanity_checks',
-  'pics_monitoring',
-  'pingdom_tests',
-  'google_ads_reports',
-  'flagged_tickets',
-  'ticket_updates',
-  'holiday_tracking',
-]);
-
 interface ManageTrackerPageProps {
   params: {
     trackerType: string;
@@ -27,10 +16,6 @@ interface ManageTrackerPageProps {
 
 export default async function ManageTrackerPage({ params }: ManageTrackerPageProps) {
   const trackerType = params.trackerType;
-
-  if (AUTO_SAVE_MANAGE_REDIRECT_TRACKERS.has(trackerType)) {
-    redirect(`/performance/${trackerType}`);
-  }
 
   if (!isTrackerManageEnabled(trackerType)) {
     notFound();

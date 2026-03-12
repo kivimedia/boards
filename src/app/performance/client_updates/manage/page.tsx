@@ -1,5 +1,43 @@
+import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import SidebarWithBoards from '@/components/layout/SidebarWithBoards';
+import Header from '@/components/layout/Header';
+import ManageClientUpdatesContent from './ManageClientUpdatesContent';
 
 export default async function ManageClientUpdatesPage() {
-  redirect('/performance/client_updates');
+  const supabase = createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect('/login');
+  }
+
+  const canManage = true;
+
+  const { data: managerRows } = await supabase
+    .from('pk_client_updates')
+    .select('account_manager_name')
+    .order('account_manager_name', { ascending: true })
+    .limit(5000);
+
+  const initialAmNames = Array.from(
+    new Set(
+      (managerRows || [])
+        .map((row: { account_manager_name: string | null }) => (row.account_manager_name || '').trim())
+        .filter(Boolean)
+    )
+  );
+
+  return (
+    <div className="flex h-screen overflow-hidden">
+      <SidebarWithBoards />
+      <main className="flex-1 flex flex-col overflow-hidden">
+        <Header title="Manage Client Updates" backHref="/performance" />
+        <ManageClientUpdatesContent
+          initialAmNames={initialAmNames}
+          canManage={canManage}
+        />
+      </main>
+    </div>
+  );
 }
