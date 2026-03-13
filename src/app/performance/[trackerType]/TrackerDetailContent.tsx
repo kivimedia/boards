@@ -944,7 +944,6 @@ export default function TrackerDetailContent({
   }, [canManageRows]);
 
   const addRow = useCallback(async () => {
-    if (!canManageRows) return;
     const newRow = buildEmptyRow(columns, `new_${Date.now()}`);
     if (isAMTabbedTracker && selectedAM) {
       newRow.values[FATHOM_AM_KEY] = selectedAM;
@@ -1003,7 +1002,7 @@ export default function TrackerDetailContent({
       const message = err instanceof Error ? err.message : 'Failed to add row';
       setErrorText(message);
     }
-  }, [canManageRows, columns, isAMTabbedTracker, loadRowsFromDatabase, selectedAM, trackerType]);
+  }, [columns, isAMTabbedTracker, loadRowsFromDatabase, selectedAM, trackerType]);
 
   const openAddAMInput = useCallback(() => {
     setShowAddAMInput(true);
@@ -1130,12 +1129,11 @@ export default function TrackerDetailContent({
   }, [lastSavedAt]);
 
   const handleSaveNow = useCallback(async () => {
-    if (!canManageRows) return;
     await flushAllPendingRowPatches();
     await loadRowsFromDatabase({ source: 'mutation' });
     setShowSavedToast(true);
     setSavedToastTick((current) => current + 1);
-  }, [canManageRows, flushAllPendingRowPatches, loadRowsFromDatabase]);
+  }, [flushAllPendingRowPatches, loadRowsFromDatabase]);
 
   return (
     <div className="flex-1 overflow-auto p-6">
@@ -1235,22 +1233,18 @@ export default function TrackerDetailContent({
         )}
 
         <div className="flex flex-wrap items-center gap-2 bg-white dark:bg-white/5 rounded-xl border border-cream-dark/60 dark:border-white/10 p-3">
-          {canManageRows && (
-            <button
-              onClick={addRow}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-electric text-white hover:bg-electric/90 transition-colors"
-            >
-              Add Row
-            </button>
-          )}
-          {canManageRows && (
-            <button
-              onClick={handleSaveNow}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium border border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
-            >
-              Save Now
-            </button>
-          )}
+          <button
+            onClick={addRow}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-electric text-white hover:bg-electric/90 transition-colors"
+          >
+            Add Row
+          </button>
+          <button
+            onClick={handleSaveNow}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium border border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
+          >
+            Save Now
+          </button>
           {canManageRows && (
             <button
               onClick={toggleTrackerVisibility}
