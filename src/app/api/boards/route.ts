@@ -17,20 +17,33 @@ export async function GET() {
     .eq('id', userId)
     .single();
 
-  const { data, error } = await supabase
-    .from('boards')
-    .select('*')
-    .order('created_at', { ascending: true });
+  const agencyRole = profile?.agency_role ?? null;
+
+  let data;
+  let error;
+
+  if (agencyRole) {
+    // Agency staff: fetch all boards and filter by role permissions
+    const result = await supabase
+      .from('boards')
+      .select('*')
+      .order('created_at', { ascending: true });
+    data = result.data?.filter((board: any) => canAccessBoardByRole(agencyRole, board.type)) ?? [];
+    error = result.error;
+  } else {
+    // Clients (null role): only show boards they're explicitly members of
+    const result = await supabase
+      .from('boards')
+      .select('*, board_members!inner(user_id)')
+      .eq('board_members.user_id', userId)
+      .order('created_at', { ascending: true });
+    data = result.data ?? [];
+    error = result.error;
+  }
 
   if (error) return errorResponse(error.message, 500);
 
-  // Filter boards by agency role
-  const agencyRole = profile?.agency_role ?? null;
-  const filtered = agencyRole
-    ? data?.filter((board: any) => canAccessBoardByRole(agencyRole, board.type)) ?? []
-    : data ?? [];
-
-  return successResponse(filtered);
+  return successResponse(data);
 }
 
 interface CreateBoardBody {
