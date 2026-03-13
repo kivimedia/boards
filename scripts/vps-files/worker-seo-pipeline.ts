@@ -4,6 +4,7 @@ import { getAnthropicClient } from '../lib/anthropic.js';
 import { markJobRunning, markJobPaused, markJobComplete, markJobFailed, updateJobProgress } from '../lib/job-reporter.js';
 import { runPhase, PHASE_ORDER, getTeamConfig } from '../shared/seo-pipeline.js';
 import { PHASE_SYSTEM_PROMPTS, PHASE_MODELS } from '../shared/seo-prompts.js';
+import { canonicalizeSeoArticle, type SeoArticleComplianceReport } from '../shared/seo-article-utils.js';
 import type { SeoPipelineRun, SeoTeamConfig } from '../shared/types.js';
 
 // ============================================================================
@@ -96,6 +97,50 @@ interface BuildMessageOpts {
   sitemapUrls?: string[];
 }
 
+function listComplianceIssues(compliance: SeoArticleComplianceReport): string[] {
+  return compliance.checks.filter(check => !check.passed).flatMap(check => check.issues);
+}
+
+function buildHumanizerRepairMessage(
+  run: SeoPipelineRun,
+  currentContent: string,
+  compliance: SeoArticleComplianceReport,
+  attempt: number
+): string {
+  const issueLines = listComplianceIssues(compliance);
+  return [
+    `Repair this humanized draft. This is compliance attempt ${attempt + 1} of 3.`,
+    '',
+    `Topic: "${run.topic}"`,
+    '',
+    'Current draft:',
+    currentContent,
+    '',
+    'Fix every issue below without changing the article topic or SEO intent:',
+    ...issueLines.map(issue => `- ${issue}`),
+    '',
+    'Requirements:',
+    '- Return only the corrected markdown article.',
+    '- Keep exactly one H1 overall.',
+    '- Make every H3 a full standalone line, not a fragment.',
+    '- Do not use em dashes or en dashes anywhere.',
+    '- Avoid runs of many tiny paragraphs. Use bullets for list-like items, otherwise merge short paragraphs naturally.',
+  ].join('\n');
+}
+
+function sanitizeHtmlBody(content: string, title: string): string {
+  return content
+    .replace(/<h1\b[^>]*>([\s\S]*?)<\/h1>/gi, (_match, inner) => {
+      const innerText = String(inner).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      if (!innerText) return '';
+      return innerText.toLowerCase() === title.trim().toLowerCase()
+        ? ''
+        : `<h2>${inner}</h2>`;
+    })
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function buildUserMessage(phase: string, run: SeoPipelineRun, opts?: BuildMessageOpts): string {
   switch (phase) {
     case 'planning': {
@@ -151,6 +196,8 @@ function buildUserMessage(phase: string, run: SeoPipelineRun, opts?: BuildMessag
         '',
         'Follow all writing rules, brand voice guidelines, and SEO requirements from your instructions.',
         'IMPORTANT: Never use em dashes (—) or en dashes (–) anywhere in the output. Use commas, periods, or rewrite the sentence instead.',
+        'Use exactly one H1 for the article title. H3 headings must be full descriptive lines, not short fragments.',
+        'Avoid lazy formatting with long runs of very short paragraphs. Use bullets for compact list items and normal paragraphs for developed ideas.',
         'Mark protected zones around keyword placements, internal links, and factual claims.',
         '',
         'IMAGE PLACEHOLDERS: Where a visual would enhance the post, insert [IMAGE: brief description of needed image].',
@@ -196,7 +243,8 @@ function buildUserMessage(phase: string, run: SeoPipelineRun, opts?: BuildMessag
         '',
         'Follow your 5-pass humanization checklist. Respect all Protected Zones (<!-- PROTECTED --> tags).',
         'IMPORTANT: Never use em dashes (—) or en dashes (–) anywhere in the output. Replace any existing ones with commas, periods, or rewrite the sentence.',
-        'Return the humanized post with your change log as specified in your instructions.',
+        'Keep exactly one H1 overall, make every H3 a full descriptive line, and avoid runs of many tiny paragraphs.',
+        'Return only the humanized post in markdown. Do not append a change log section.',
       ].join('\n');
     }
 
@@ -212,6 +260,8 @@ function buildUserMessage(phase: string, run: SeoPipelineRun, opts?: BuildMessag
         content,
         '',
         'Score using your 4-dimension rubric (100 points total).',
+        'Be explicit about reader value: is this genuinely worth reading, learning from, and acting on?',
+        'Include numeric subscores for reader_value, practical_usefulness, information_gain, search_potential, and brand_alignment when possible.',
         'Return your assessment in the YAML format specified in your instructions.',
       ].join('\n');
     }
@@ -227,6 +277,7 @@ function buildUserMessage(phase: string, run: SeoPipelineRun, opts?: BuildMessag
         'Post content:',
         content,
         '',
+        'WordPress will render the post title as the only H1. Do not include any <h1> or markdown H1 in the article body.',
         'Format the content for WordPress with:',
         '1. SEO-optimized title tag (60 chars max)',
         '2. Meta description (155 chars max)',
@@ -339,13 +390,15 @@ interface WpPublishResult {
   post_id?: number;
   edit_url?: string;
   preview_url?: string;
+  slug?: string;
   error?: string;
 }
 
 async function publishToWordPress(
   teamConfig: SeoTeamConfig,
   aiOutput: string,
-  topic: string
+  topic: string,
+  sourceContent: string
 ): Promise<WpPublishResult> {
   const apiEndpoint = teamConfig.config?.wp_api_endpoint;
   const apiToken = teamConfig.config?.wp_api_token;
@@ -356,7 +409,8 @@ async function publishToWordPress(
   }
 
   // Parse the AI publishing output to extract title, content, meta description
-  let title = topic;
+  const canonicalSource = canonicalizeSeoArticle(sourceContent, topic);
+  let title = canonicalSource.title || topic;
   let content = aiOutput;
   let metaDescription = '';
   let slug = '';
@@ -367,6 +421,13 @@ async function publishToWordPress(
 
   const metaMatch = aiOutput.match(/(?:meta\s*description)\s*[:=]\s*["']?(.+?)["']?\s*$/im);
   if (metaMatch) metaDescription = metaMatch[1].trim();
+
+  const slugMatch = aiOutput.match(/^slug:\s*["']?([^"'\n]+)["']?\s*$/im);
+  if (slugMatch) slug = slugMatch[1].trim();
+
+  const markdownTitleMatch = aiOutput.match(/^#\s+(.+?)\s*$/m);
+  if (!titleMatch && markdownTitleMatch) title = markdownTitleMatch[1].trim();
+  if (!title.trim()) title = canonicalSource.title || topic;
 
   // Extract HTML content block (between ```html ... ``` or after "Article:" / "Content:")
   const htmlBlockMatch = aiOutput.match(/```html\s*\n([\s\S]*?)\n```/);
@@ -380,8 +441,16 @@ async function publishToWordPress(
     }
   }
 
+  if (!htmlBlockMatch && !/<[a-z][\s\S]*>/i.test(content)) {
+    content = canonicalSource.body;
+  }
+
+  content = sanitizeHtmlBody(content, title);
+
   // Generate slug from title
-  slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  if (!slug) {
+    slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  }
 
   const url = `${apiEndpoint}?token=${encodeURIComponent(apiToken)}`;
 
@@ -562,16 +631,66 @@ export async function processSeoJob(job: Job<SeoJobData>): Promise<{ paused_at?:
         messageOpts.previousPlan = runForPrompt.phase_results?.planning ? String(runForPrompt.phase_results.planning) : undefined;
       }
 
-      const result = await runPhase(supabase, pipeline_run_id, phase, {
-        systemPrompt,
-        userMessage: buildUserMessage(phase, runForPrompt, messageOpts),
-        model: PHASE_MODELS[phase],
-        agentName: `seo_${phase}`,
-        anthropicClient: anthropic,
-      });
+      let result: Awaited<ReturnType<typeof runPhase>> | null = null;
+      let humanizerAttempts = 0;
 
-      totalCost += result.agentResult.costUsd;
-      totalTokens += result.agentResult.inputTokens + result.agentResult.outputTokens;
+      if (phase === 'humanizing') {
+        let humanizerMessage = buildUserMessage(phase, runForPrompt, messageOpts);
+
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          humanizerAttempts = attempt + 1;
+          result = await runPhase(supabase, pipeline_run_id, phase, {
+            systemPrompt,
+            userMessage: humanizerMessage,
+            model: PHASE_MODELS[phase],
+            agentName: attempt === 0 ? 'seo_humanizing' : 'seo_humanizing_repair',
+            anthropicClient: anthropic,
+          });
+
+          totalCost += result.agentResult.costUsd;
+          totalTokens += result.agentResult.inputTokens + result.agentResult.outputTokens;
+
+          const article = canonicalizeSeoArticle(result.agentResult.text, runForPrompt.topic || '');
+          if (article.compliance.passed || attempt === 2) {
+            await supabase
+              .from('seo_pipeline_runs')
+              .update({
+                humanized_content: article.contentMarkdown,
+                artifacts: {
+                  ...(((runForPrompt.artifacts || {}) as Record<string, unknown>)),
+                  humanizing: {
+                    canonical_title: article.title,
+                    canonical_body: article.body,
+                    content_word_count: article.contentWordCount,
+                    compliance_checks: article.compliance.checks,
+                    compliance: article.compliance,
+                    humanizer_attempts: humanizerAttempts,
+                  },
+                },
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', pipeline_run_id);
+            break;
+          }
+
+          humanizerMessage = buildHumanizerRepairMessage(runForPrompt, article.contentMarkdown, article.compliance, attempt + 1);
+        }
+      } else {
+        result = await runPhase(supabase, pipeline_run_id, phase, {
+          systemPrompt,
+          userMessage: buildUserMessage(phase, runForPrompt, messageOpts),
+          model: PHASE_MODELS[phase],
+          agentName: `seo_${phase}`,
+          anthropicClient: anthropic,
+        });
+
+        totalCost += result.agentResult.costUsd;
+        totalTokens += result.agentResult.inputTokens + result.agentResult.outputTokens;
+      }
+
+      if (!result) {
+        throw new Error(`Phase ${phase} did not produce a result`);
+      }
 
       // After publishing AI phase, actually publish to WordPress as draft
       if (phase === 'publishing' && teamConfig) {
@@ -582,7 +701,8 @@ export async function processSeoJob(job: Job<SeoJobData>): Promise<{ paused_at?:
         const wpResult = await publishToWordPress(
           teamConfig,
           result.agentResult.text,
-          runForPrompt.topic
+          runForPrompt.topic,
+          String(runForPrompt.phase_results?.humanizing || runForPrompt.phase_results?.writing || '')
         );
 
         if (wpResult.success) {

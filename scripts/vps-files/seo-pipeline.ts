@@ -1,6 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import Anthropic from '@anthropic-ai/sdk';
 import { calculateCost } from './cost-tracker.js';
+import { canonicalizeSeoArticle } from './seo-article-utils.js';
 import type {
   SeoPipelineRun,
   SeoPipelineStatus,
@@ -15,6 +16,39 @@ import type {
 const DEFAULT_MODEL = 'claude-sonnet-4-20250514';
 const DEFAULT_MAX_TOKENS = 8192;
 const PREVIEW_LENGTH = 500;
+
+function extractNumericScore(text: string, keys: string[]): number | null {
+  for (const key of keys) {
+    const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`["']?(?:${escapedKey})["']?\\s*[:=]\\s*(\\d+(?:\\.\\d+)?)`, 'i');
+    const match = text.match(regex);
+    if (match) return parseFloat(match[1]);
+  }
+  return null;
+}
+
+function extractValueDimensions(text: string): Record<string, number> {
+  const entries: Array<[string, string[]]> = [
+    ['reader_value', ['reader_value', 'reader value']],
+    ['practical_usefulness', ['practical_usefulness', 'practical usefulness']],
+    ['information_gain', ['information_gain', 'information gain']],
+    ['search_potential', ['search_potential', 'search potential']],
+    ['brand_alignment', ['brand_alignment', 'brand alignment']],
+  ];
+
+  return entries.reduce<Record<string, number>>((acc, [targetKey, aliases]) => {
+    const value = extractNumericScore(text, aliases);
+    if (value != null) acc[targetKey] = value;
+    return acc;
+  }, {});
+}
+
+function getStoredPhaseOutput(phase: string, agentOutput: string, run: Record<string, unknown>): string {
+  if (phase === 'writing' || phase === 'humanizing') {
+    return canonicalizeSeoArticle(agentOutput, String(run.topic || '')).contentMarkdown;
+  }
+  return agentOutput;
+}
 
 const PHASE_TO_STATUS: Record<string, SeoPipelineStatus> = {
   planning: 'planning',
@@ -213,8 +247,9 @@ export async function runPhase(
     phaseConfig.model, phaseConfig.anthropicClient
   );
 
-  const artifacts = buildPhaseArtifacts(phase, result.text, run);
-  const updatedPhaseResults = { ...(run.phase_results || {}), [phase]: result.text };
+  const storedOutput = getStoredPhaseOutput(phase, result.text, run);
+  const artifacts = buildPhaseArtifacts(phase, storedOutput, run);
+  const updatedPhaseResults = { ...(run.phase_results || {}), [phase]: storedOutput };
   const updatedArtifacts = { ...(run.artifacts || {}), [phase]: artifacts };
 
   const nextPhase = PHASE_ORDER[phaseIndex + 1];
@@ -222,7 +257,7 @@ export async function runPhase(
     ? (PHASE_TO_STATUS[nextPhase] || 'planning')
     : 'published';
 
-  const fieldUpdates = getPhaseFieldUpdates(phase, result.text, artifacts);
+  const fieldUpdates = getPhaseFieldUpdates(phase, storedOutput, artifacts);
 
   await supabase
     .from('seo_pipeline_runs')
@@ -359,15 +394,39 @@ async function appendRunError(supabase: SupabaseClient, runId: string, phase: st
 function buildPhaseArtifacts(phase: string, agentOutput: string, run: Record<string, unknown>): Record<string, unknown> {
   switch (phase) {
     case 'planning': return { outline: agentOutput, topic: run.topic, silo: run.silo };
-    case 'writing': return { draft: agentOutput, word_count: agentOutput.split(/\s+/).length };
+    case 'writing': {
+      const writingArticle = canonicalizeSeoArticle(agentOutput, String(run.topic || ''));
+      return {
+        draft: writingArticle.contentMarkdown,
+        canonical_title: writingArticle.title,
+        canonical_body: writingArticle.body,
+        content_word_count: writingArticle.contentWordCount,
+        compliance_checks: writingArticle.compliance.checks,
+        compliance: writingArticle.compliance,
+      };
+    }
     case 'qc': {
       const m = agentOutput.match(/"(?:score|qc_score)":\s*(\d+(?:\.\d+)?)/);
       return { qc_report: agentOutput, qc_score: m ? parseFloat(m[1]) : null };
     }
-    case 'humanizing': return { humanized_content: agentOutput, word_count: agentOutput.split(/\s+/).length };
+    case 'humanizing': {
+      const humanizedArticle = canonicalizeSeoArticle(agentOutput, String(run.topic || ''));
+      return {
+        humanized_content: humanizedArticle.contentMarkdown,
+        canonical_title: humanizedArticle.title,
+        canonical_body: humanizedArticle.body,
+        content_word_count: humanizedArticle.contentWordCount,
+        compliance_checks: humanizedArticle.compliance.checks,
+        compliance: humanizedArticle.compliance,
+      };
+    }
     case 'scoring': {
-      const m = agentOutput.match(/"(?:score|value_score)":\s*(\d+(?:\.\d+)?)/);
-      return { value_report: agentOutput, value_score: m ? parseFloat(m[1]) : null };
+      const valueScore = extractNumericScore(agentOutput, ['score', 'value_score', 'value score']);
+      return {
+        value_report: agentOutput,
+        value_score: valueScore,
+        value_dimensions: extractValueDimensions(agentOutput),
+      };
     }
     case 'publishing': return { publish_result: agentOutput };
     case 'visual_qa': {

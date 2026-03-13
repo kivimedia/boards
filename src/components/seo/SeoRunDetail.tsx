@@ -5,6 +5,7 @@ import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { MarkdownToolbarUI } from '@/components/card/MarkdownToolbar';
+import { canonicalizeSeoArticle, isFullLineHeading } from '@/lib/seo/article-utils';
 import type { SeoPipelineRun, SeoAgentCall, SeoPhaseFeedback, SeoReviewAttachment } from '@/lib/types';
 import SeoChat from './SeoChat';
 
@@ -194,25 +195,6 @@ function parsePlan(text: string): ParsedPlan {
   }
 
   return plan;
-}
-
-// ---------------------------------------------------------------------------
-// Clean draft content — strip HTML comments, SEO directives, and code artifacts
-// ---------------------------------------------------------------------------
-function cleanDraftContent(text: string): string {
-  if (!text) return '';
-  return text
-    // Remove markdown code fences (```markdown, ```html, ``` etc.)
-    .replace(/^```[\w]*\n?/gm, '')
-    // Remove HTML comments (<!-- ... -->) including multiline
-    .replace(/<!--[\s\S]*?-->/g, '')
-    // Remove {/* ... */} JSX-style comments
-    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
-    // Remove frontmatter lines (slug:, meta_description:, etc.)
-    .replace(/^(?:slug|meta_description|meta_title|canonical_url|featured_image|category|tags|author|date|status):\s*.*$/gm, '')
-    // Remove lines that are only whitespace after stripping
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
 }
 
 const SUGGESTION_REGEX = /(\[IMAGE:\s*[^\]]+\])/gi;
@@ -771,6 +753,19 @@ export default function SeoRunDetail({ runId }: Props) {
   const calendarName = siblingOverview?.calendar?.name || null;
   const scheduledDate = siblingOverview?.current_scheduled_date || null;
   const hasSiblingOverview = isAwaitingPlanReview && monthlyOverviewItems.length > 0;
+  const articleSource = String(run.humanized_content || run.final_content || '');
+  const derivedArticle = canonicalizeSeoArticle(articleSource, run.topic || '');
+  const articleArtifacts = ((run.artifacts?.humanizing || run.artifacts?.writing || {}) as Record<string, unknown>);
+  const canonicalTitle = String(articleArtifacts.canonical_title || derivedArticle.title || run.topic || 'Draft Preview');
+  const canonicalBody = String(articleArtifacts.canonical_body || derivedArticle.body || '');
+  const contentWordCount = Number(articleArtifacts.content_word_count || derivedArticle.contentWordCount || 0);
+  const complianceChecks = Array.isArray(articleArtifacts.compliance_checks)
+    ? articleArtifacts.compliance_checks as Array<{ key: string; label: string; passed: boolean; details: string }>
+    : derivedArticle.compliance.checks;
+  const failedComplianceChecks = complianceChecks.filter(check => !check.passed);
+  const humanizerAttempts = articleArtifacts.humanizer_attempts != null ? Number(articleArtifacts.humanizer_attempts) : null;
+  const shortPlanH3s = (parsedPlan.outline || []).flatMap(section => (section.h3s || []).filter(h3 => !isFullLineHeading(h3)));
+  const valueDimensions = ((run.artifacts?.scoring as Record<string, unknown> | undefined)?.value_dimensions || {}) as Record<string, number>;
 
   // Custom link renderer: convert relative URLs to the actual site and open in new tab
   const siteUrl = (run.team_config?.site_url || '').replace(/\/$/, '');
@@ -1119,6 +1114,11 @@ export default function SeoRunDetail({ runId }: Props) {
                 <div className="border-t border-cream-dark dark:border-slate-700">
                   <div className="px-5 py-3 bg-cream/50 dark:bg-dark-surface/50">
                     <p className="text-xs font-semibold text-navy/50 dark:text-slate-400 uppercase tracking-wide font-heading">Article Outline</p>
+                    {shortPlanH3s.length > 0 && (
+                      <p className="mt-2 text-xs text-amber-700 dark:text-amber-300 font-body">
+                        Compliance warning: {shortPlanH3s.length} H3 item(s) are too short and need to be expanded into full descriptive lines.
+                      </p>
+                    )}
                   </div>
                   <table className="w-full text-sm border-collapse">
                     <thead>
@@ -1136,7 +1136,7 @@ export default function SeoRunDetail({ runId }: Props) {
                           <td className="px-5 py-3 text-sm text-navy/70 dark:text-slate-300 font-body align-top">
                             {section.h3s && section.h3s.length > 0
                               ? section.h3s.map((h3, j) => (
-                                  <div key={j} className="py-0.5">{h3}</div>
+                                  <div key={j} className={`py-0.5 ${isFullLineHeading(h3) ? '' : 'text-amber-700 dark:text-amber-300 font-semibold'}`}>{h3}</div>
                                 ))
                               : <span className="text-navy/30 dark:text-slate-500">—</span>
                             }
@@ -1308,16 +1308,22 @@ export default function SeoRunDetail({ runId }: Props) {
                   {run.humanized_content ? 'Humanized Draft' : 'Raw Draft'}
                 </span>
                 <span className="text-xs text-navy/40 dark:text-slate-500 font-body">
-                  {cleanDraftContent(run.humanized_content || run.final_content || '').split(/\s+/).filter(Boolean).length.toLocaleString()} words
+                  {contentWordCount.toLocaleString()} words
                 </span>
+                {humanizerAttempts != null && humanizerAttempts > 0 && (
+                  <span className="text-xs text-navy/40 dark:text-slate-500 font-body">
+                    Humanizer attempts: {humanizerAttempts}
+                  </span>
+                )}
               </div>
             </div>
           </div>
           {/* Full article content */}
           <div className="px-6 md:px-10 py-8">
             <article className="prose dark:prose-invert max-w-none font-body prose-headings:font-heading prose-headings:text-navy dark:prose-headings:text-white prose-p:leading-relaxed prose-p:text-navy/80 dark:prose-p:text-slate-300 prose-h1:text-[20px] prose-h2:text-[16px] prose-h3:text-[14px] prose-h4:text-[12px] prose-p:text-[11px] prose-li:text-[11px] prose-td:text-[11px] prose-th:text-[11px]">
+              <h1>{canonicalTitle}</h1>
               <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                {cleanDraftContent(run.humanized_content || run.final_content || '')}
+                {canonicalBody}
               </ReactMarkdown>
             </article>
           </div>
@@ -1657,6 +1663,36 @@ export default function SeoRunDetail({ runId }: Props) {
         </div>
       )}
 
+      {(failedComplianceChecks.length > 0 || Object.keys(valueDimensions).length > 0) && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {failedComplianceChecks.length > 0 && (
+            <div className="bg-amber-50 dark:bg-amber-900/10 rounded-xl p-4 border border-amber-200 dark:border-amber-800">
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-200 font-heading">Compliance Checks</p>
+              <div className="mt-2 space-y-2">
+                {failedComplianceChecks.map(check => (
+                  <div key={check.key} className="text-xs text-amber-800 dark:text-amber-200 font-body">
+                    <span className="font-semibold">{check.label}:</span> {check.details}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {Object.keys(valueDimensions).length > 0 && (
+            <div className="bg-cyan-50 dark:bg-cyan-900/10 rounded-xl p-4 border border-cyan-200 dark:border-cyan-800">
+              <p className="text-sm font-semibold text-cyan-800 dark:text-cyan-200 font-heading">Value Breakdown</p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {Object.entries(valueDimensions).map(([key, value]) => (
+                  <div key={key} className="rounded-lg bg-white/70 dark:bg-slate-900/20 px-3 py-2">
+                    <p className="text-[11px] uppercase tracking-wide text-cyan-700/70 dark:text-cyan-300/70 font-heading">{key.replace(/_/g, ' ')}</p>
+                    <p className="text-lg font-bold text-cyan-800 dark:text-cyan-200 font-heading">{value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ------------------------------------------------------------------ */}
       {/* Content Preview (compact, for non-approval states) */}
       {/* ------------------------------------------------------------------ */}
@@ -1664,8 +1700,9 @@ export default function SeoRunDetail({ runId }: Props) {
         <div className="bg-white dark:bg-dark-card rounded-xl p-5 border border-cream-dark dark:border-slate-700">
           <h2 className="text-sm font-semibold text-navy/60 dark:text-slate-300 mb-3 font-heading">Content Preview</h2>
           <div className="prose dark:prose-invert max-w-none font-body bg-cream dark:bg-dark-surface p-4 rounded-lg overflow-auto max-h-96 prose-h1:text-[20px] prose-h2:text-[16px] prose-h3:text-[14px] prose-h4:text-[12px] prose-p:text-[11px] prose-li:text-[11px] prose-td:text-[11px] prose-th:text-[11px]">
+            <h1>{canonicalTitle}</h1>
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-              {cleanDraftContent(run.humanized_content || run.final_content || '')}
+              {canonicalBody}
             </ReactMarkdown>
           </div>
         </div>
