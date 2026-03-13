@@ -179,8 +179,12 @@ const AM_TABBED_TRACKERS = new Set<PKTrackerType>([
   'client_updates',
   'sanity_checks',
 ]);
+const DATE_SORT_TRACKERS: Partial<Record<PKTrackerType, string>> = {
+  fathom_videos: 'meeting_date',
+  client_updates: 'meeting_date',
+  sanity_checks: 'check_date',
+};
 const FATHOM_AM_KEY = 'account_manager_name';
-const FATHOM_MEETING_DATE_KEY = 'meeting_date';
 const DATA_COLUMN_WIDTH = 220;
 const ACTION_COLUMN_WIDTH = 96;
 const FATHOM_REQUIRED_COLUMNS: EditableColumn[] = [
@@ -218,6 +222,22 @@ function toDateTimestamp(value: string): number | null {
   const timestamp = Date.parse(trimmed);
   if (Number.isNaN(timestamp)) return null;
   return timestamp;
+}
+
+function getRowSortDateValue(row: EditableRow, trackerType: PKTrackerType): string {
+  const primaryKey = DATE_SORT_TRACKERS[trackerType];
+  if (!primaryKey) return '';
+
+  if (trackerType === 'client_updates') {
+    // Keep sort anchored on Meeting Date while handling legacy rows with date_sent only.
+    return String(
+      row.values.meeting_date ||
+      row.values.date_sent ||
+      ''
+    );
+  }
+
+  return String(row.values[primaryKey] || '');
 }
 
 function toDisplayLabel(key: string): string {
@@ -372,18 +392,18 @@ export default function TrackerDetailContent({
           (row) => String(row.values[FATHOM_AM_KEY] || '').trim() === selectedAM
         );
 
-    if (!isFathomTracker) return filteredRows;
+    const sortDateKey = DATE_SORT_TRACKERS[trackerType];
+    if (!sortDateKey) return filteredRows;
 
     return [...filteredRows].sort((a, b) => {
-      const aDate = toDateTimestamp(String(a.values[FATHOM_MEETING_DATE_KEY] || ''));
-      const bDate = toDateTimestamp(String(b.values[FATHOM_MEETING_DATE_KEY] || ''));
-
+      const aDate = toDateTimestamp(getRowSortDateValue(a, trackerType));
+      const bDate = toDateTimestamp(getRowSortDateValue(b, trackerType));
       if (aDate === null && bDate === null) return 0;
       if (aDate === null) return 1;
       if (bDate === null) return -1;
       return bDate - aDate;
     });
-  }, [isAMTabbedTracker, isFathomTracker, rows, selectedAM]);
+  }, [isAMTabbedTracker, rows, selectedAM, trackerType]);
 
   const syncHorizontalMetrics = useCallback(() => {
     const bodyScroller = bodyScrollerRef.current;
