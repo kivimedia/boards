@@ -52,9 +52,10 @@ const TRACKER_COLUMNS: Record<
     { key: 'account_manager_name', label: 'AM' },
     { key: 'client_name', label: 'Client' },
     { key: 'meeting_date', label: 'Meeting Date', type: 'date' },
-    { key: 'watched', label: 'Watched', type: 'boolean' },
+    { key: 'date_watched', label: 'Date Watched', type: 'date' },
     { key: 'action_items_sent', label: 'Action Items', type: 'boolean' },
-    { key: 'fathom_video_link', label: 'Link', type: 'link' },
+    { key: 'fathom_video_link', label: 'Fathom Link', type: 'link' },
+    { key: 'notes', label: 'Notes' },
   ],
   client_updates: [
     { key: 'account_manager_name', label: 'AM' },
@@ -171,6 +172,17 @@ const TRACKER_COLUMNS: Record<
 };
 
 const NON_DISPLAY_KEYS = new Set(['id', 'created_at', 'updated_at']);
+const FATHOM_AM_KEY = 'account_manager_name';
+const FATHOM_REQUIRED_COLUMNS: EditableColumn[] = [
+  { key: 'account_manager_name', label: 'AM', type: 'text' },
+  { key: 'client_name', label: 'Client', type: 'text' },
+  { key: 'meeting_date', label: 'Meeting Date', type: 'date' },
+  { key: 'date_watched', label: 'Date Watched', type: 'date' },
+  { key: 'action_items_sent', label: 'Action Items', type: 'boolean' },
+  { key: 'fathom_video_link', label: 'Fathom Link', type: 'link' },
+  { key: 'notes', label: 'Notes', type: 'text' },
+];
+const FATHOM_LEGACY_COLUMNS = new Set(['watched', 'attachments']);
 
 function toDisplayLabel(key: string): string {
   return key
@@ -194,16 +206,37 @@ function normalizeColumnsForTracker(
   trackerType: PKTrackerType,
   columns: EditableColumn[]
 ): EditableColumn[] {
-  if (trackerType !== 'client_updates') return columns;
-  return columns.map((column) => {
-    if (
-      column.key === 'meeting_date' &&
-      (column.label === 'Meeting Date' || column.label === 'Date of Meeting')
-    ) {
-      return { ...column, label: 'Date Sent' };
-    }
-    return column;
-  });
+  if (trackerType === 'client_updates') {
+    return columns.map((column) => {
+      if (
+        column.key === 'meeting_date' &&
+        (column.label === 'Meeting Date' || column.label === 'Date of Meeting')
+      ) {
+        return { ...column, label: 'Date Sent' };
+      }
+      return column;
+    });
+  }
+
+  if (trackerType === 'fathom_videos') {
+    const byKey = new Map(columns.map((column) => [column.key, column]));
+    const normalized = FATHOM_REQUIRED_COLUMNS.map((requiredColumn) => {
+      const existing = byKey.get(requiredColumn.key);
+      return {
+        key: requiredColumn.key,
+        label: requiredColumn.label,
+        type: existing?.type || requiredColumn.type,
+      };
+    });
+    const extraColumns = columns.filter(
+      (column) =>
+        !FATHOM_REQUIRED_COLUMNS.some((required) => required.key === column.key) &&
+        !FATHOM_LEGACY_COLUMNS.has(column.key)
+    );
+    return [...normalized, ...extraColumns];
+  }
+
+  return columns;
 }
 
 function buildEmptyRow(columns: EditableColumn[], id: string): EditableRow {
@@ -231,6 +264,35 @@ export default function TrackerDetailContent({
     'empty_seed'
   );
   const [hydrated, setHydrated] = useState(false);
+  const [selectedAM, setSelectedAM] = useState('');
+
+  const isFathomTracker = trackerType === 'fathom_videos';
+
+  const amTabs = useMemo(() => {
+    if (!isFathomTracker) return [] as string[];
+    const names = rows
+      .map((row) => String(row.values[FATHOM_AM_KEY] || '').trim())
+      .filter(Boolean);
+    return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
+  }, [isFathomTracker, rows]);
+
+  useEffect(() => {
+    if (!isFathomTracker) return;
+    if (amTabs.length === 0) {
+      if (selectedAM) setSelectedAM('');
+      return;
+    }
+    if (!selectedAM || !amTabs.includes(selectedAM)) {
+      setSelectedAM(amTabs[0]);
+    }
+  }, [amTabs, isFathomTracker, selectedAM]);
+
+  const visibleRows = useMemo(() => {
+    if (!isFathomTracker || !selectedAM) return rows;
+    return rows.filter(
+      (row) => String(row.values[FATHOM_AM_KEY] || '').trim() === selectedAM
+    );
+  }, [isFathomTracker, rows, selectedAM]);
 
   const persistState = useCallback(
     (
@@ -450,9 +512,13 @@ export default function TrackerDetailContent({
 
   const addRow = useCallback(() => {
     const rowId = `${trackerType}_row_${rowCounter}`;
-    setRows((current) => [...current, buildEmptyRow(columns, rowId)]);
+    const newRow = buildEmptyRow(columns, rowId);
+    if (isFathomTracker && selectedAM) {
+      newRow.values[FATHOM_AM_KEY] = selectedAM;
+    }
+    setRows((current) => [...current, newRow]);
     setRowCounter((current) => current + 1);
-  }, [columns, rowCounter, trackerType]);
+  }, [columns, isFathomTracker, rowCounter, selectedAM, trackerType]);
 
   const removeRow = useCallback((rowId: string) => {
     setRows((current) => current.filter((row) => row.id !== rowId));
@@ -494,10 +560,40 @@ export default function TrackerDetailContent({
               </span>
             )}
             <span className="text-xs text-navy/50 dark:text-white/40">
-              {rows.length.toLocaleString()} rows
+              {isFathomTracker && selectedAM
+                ? `${visibleRows.length.toLocaleString()} rows in ${selectedAM} (${rows.length.toLocaleString()} total)`
+                : `${rows.length.toLocaleString()} rows`}
             </span>
           </div>
         </div>
+
+        {isFathomTracker && (
+          <div className="bg-white dark:bg-white/5 rounded-xl border border-cream-dark/60 dark:border-white/10 p-3 space-y-2">
+            <p className="text-xs text-navy/50 dark:text-white/40">
+              Account Managers
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {amTabs.map((amName) => (
+                <button
+                  key={amName}
+                  onClick={() => setSelectedAM(amName)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                    selectedAM === amName
+                      ? 'bg-electric text-white border-electric'
+                      : 'bg-white dark:bg-white/5 border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/10'
+                  }`}
+                >
+                  {amName}
+                </button>
+              ))}
+              {amTabs.length === 0 && (
+                <span className="text-xs text-navy/40 dark:text-white/30">
+                  No AM names found yet.
+                </span>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-wrap items-center gap-2 bg-white dark:bg-white/5 rounded-xl border border-cream-dark/60 dark:border-white/10 p-3">
           <button
@@ -585,7 +681,7 @@ export default function TrackerDetailContent({
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row) => (
+                  {visibleRows.map((row) => (
                     <tr
                       key={row.id}
                       className="border-b border-cream-dark/30 dark:border-white/5 last:border-0 hover:bg-cream-dark/10 dark:hover:bg-white/5 transition-colors"
@@ -611,13 +707,15 @@ export default function TrackerDetailContent({
                       </td>
                     </tr>
                   ))}
-                  {rows.length === 0 && (
+                  {visibleRows.length === 0 && (
                     <tr>
                       <td
                         colSpan={columns.length + 1}
                         className="py-8 px-3 text-center text-sm text-navy/50 dark:text-white/40"
                       >
-                        No rows yet.
+                        {isFathomTracker && selectedAM
+                          ? `No rows for ${selectedAM}.`
+                          : 'No rows yet.'}
                       </td>
                     </tr>
                   )}
