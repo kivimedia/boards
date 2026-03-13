@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { PK_TRACKER_FREQUENCIES, PKTrackerType } from '@/lib/types';
+import { createClient } from '@/lib/supabase/client';
 
 interface TrackerDetailContentProps {
   trackerType: PKTrackerType;
@@ -22,27 +23,26 @@ interface EditableRow {
   values: Record<string, string>;
 }
 
-interface TrackerStoragePayload {
-  version: 1;
-  trackerType: string;
-  columns: EditableColumn[];
-  rows: EditableRow[];
-  settings: {
-    columnCounter: number;
-    rowCounter: number;
-    manualAMTabs?: string[];
-  };
-  sync: {
-    lastLoadedAt: string;
-    lastSavedAt: string;
-    source: 'local' | 'api_seed' | 'empty_seed';
-  };
-}
+type SyncSource = 'api' | 'realtime' | 'mutation' | 'empty';
 
-const TRACKER_STORAGE_NAMESPACES: Partial<Record<PKTrackerType, string>> = {
-  fathom_videos: 'tracker:fathom_videos',
-  google_ads_reports: 'tracker:google_ads_reports',
-  pingdom_tests: 'tracker:pingdom_tests',
+const TRACKER_TABLES: Partial<Record<PKTrackerType, string>> = {
+  fathom_videos: 'pk_fathom_videos',
+  client_updates: 'pk_client_updates',
+  ticket_updates: 'pk_ticket_updates',
+  daily_goals: 'pk_daily_goals',
+  sanity_checks: 'pk_sanity_checks',
+  sanity_tests: 'pk_sanity_tests',
+  pics_monitoring: 'pk_pics_monitoring',
+  flagged_tickets: 'pk_flagged_tickets',
+  weekly_tickets: 'pk_weekly_tickets',
+  pingdom_tests: 'pk_pingdom_tests',
+  google_ads_reports: 'pk_google_ads_reports',
+  monthly_summaries: 'pk_monthly_summaries',
+  update_schedule: 'pk_update_schedule',
+  holiday_tracking: 'pk_holiday_tracking',
+  website_status: 'pk_website_status',
+  google_analytics_status: 'pk_google_analytics_status',
+  other_activities: 'pk_other_activities',
 };
 
 const TRACKER_COLUMNS: Record<
@@ -324,25 +324,114 @@ function buildEmptyRow(columns: EditableColumn[], id: string): EditableRow {
   return { id, values };
 }
 
+function toApiCellValue(type: ColumnType, value: string): string | boolean | null {
+  if (type === 'boolean') {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return null;
+  }
+  if (type === 'date') {
+    const trimmed = value.trim();
+    return trimmed || null;
+  }
+  return value === '' ? null : value;
+}
+
+function mergeColumnsWithApiRows(
+  trackerType: PKTrackerType,
+  currentColumns: EditableColumn[],
+  apiRows: Record<string, unknown>[]
+): EditableColumn[] {
+  let nextColumns = currentColumns;
+  if (nextColumns.length === 0) {
+    nextColumns = TRACKER_COLUMNS[trackerType]
+      ? toEditableColumns(TRACKER_COLUMNS[trackerType])
+      : [];
+  }
+
+  if (nextColumns.length === 0 && apiRows.length > 0) {
+    const keys = Object.keys(apiRows[0]).filter((key) => !NON_DISPLAY_KEYS.has(key));
+    nextColumns = keys.map((key) => ({
+      key,
+      label: toDisplayLabel(key),
+      type: 'text',
+    }));
+  }
+
+  if (nextColumns.length === 0) {
+    nextColumns = [{ key: 'notes', label: 'Notes', type: 'text' }];
+  }
+
+  const knownKeys = new Set(nextColumns.map((column) => column.key));
+  const discoveredColumns: EditableColumn[] = [];
+
+  for (const row of apiRows) {
+    for (const key of Object.keys(row)) {
+      if (NON_DISPLAY_KEYS.has(key) || knownKeys.has(key)) continue;
+      discoveredColumns.push({
+        key,
+        label: toDisplayLabel(key),
+        type: 'text',
+      });
+      knownKeys.add(key);
+    }
+  }
+
+  return normalizeColumnsForTracker(trackerType, [...nextColumns, ...discoveredColumns]);
+}
+
+function mapApiRowsToEditableRows(
+  trackerType: PKTrackerType,
+  columns: EditableColumn[],
+  apiRows: Record<string, unknown>[]
+): EditableRow[] {
+  return apiRows.map((apiRow, idx) => {
+    const values: Record<string, string> = {};
+
+    for (const column of columns) {
+      let value = apiRow[column.key];
+
+      if (trackerType === 'client_updates') {
+        if (
+          (value === null || value === undefined || value === '') &&
+          column.key === 'meeting_date'
+        ) {
+          value = apiRow.meeting_date ?? apiRow.date_sent;
+        }
+        if (
+          (value === null || value === undefined || value === '') &&
+          column.key === 'date_sent'
+        ) {
+          value = apiRow.date_sent ?? apiRow.meeting_date;
+        }
+      }
+
+      values[column.key] = value === null || value === undefined ? '' : String(value);
+    }
+
+    return {
+      id: String(apiRow.id || `${trackerType}_row_${idx + 1}`),
+      values,
+    };
+  });
+}
+
 export default function TrackerDetailContent({
   trackerType,
   label,
 }: TrackerDetailContentProps) {
-  const storageKey = TRACKER_STORAGE_NAMESPACES[trackerType] || `tracker:${trackerType}`;
   const frequency = PK_TRACKER_FREQUENCIES[trackerType] || '';
+  const trackerTable = TRACKER_TABLES[trackerType];
+  const supabase = useMemo(() => createClient(), []);
 
   const [columns, setColumns] = useState<EditableColumn[]>([]);
   const [rows, setRows] = useState<EditableRow[]>([]);
   const [columnCounter, setColumnCounter] = useState(1);
-  const [rowCounter, setRowCounter] = useState(1);
   const [loading, setLoading] = useState(true);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [lastLoadedAt, setLastLoadedAt] = useState<string>('');
   const [lastSavedAt, setLastSavedAt] = useState<string>('');
-  const [syncSource, setSyncSource] = useState<'local' | 'api_seed' | 'empty_seed'>(
-    'empty_seed'
-  );
-  const [hydrated, setHydrated] = useState(false);
+  const [syncSource, setSyncSource] = useState<SyncSource>('empty');
   const [selectedAM, setSelectedAM] = useState('');
   const [showColumnActionsMenu, setShowColumnActionsMenu] = useState(false);
   const [showRemoveColumnMenu, setShowRemoveColumnMenu] = useState(false);
@@ -360,6 +449,11 @@ export default function TrackerDetailContent({
   const bodyScrollerRef = useRef<HTMLDivElement | null>(null);
   const midScrollbarRef = useRef<HTMLDivElement | null>(null);
   const midScrollbarSpacerRef = useRef<HTMLDivElement | null>(null);
+  const rowsRef = useRef<EditableRow[]>([]);
+  const columnsRef = useRef<EditableColumn[]>([]);
+  const pendingRowPatchesRef = useRef<Record<string, Record<string, string>>>({});
+  const pendingRowPatchTimersRef = useRef<Record<string, number>>({});
+  const realtimeRefreshTimerRef = useRef<number | null>(null);
 
   const isAMTabbedTracker = AM_TABBED_TRACKERS.has(trackerType);
 
@@ -414,6 +508,14 @@ export default function TrackerDetailContent({
     return preparedRows;
   }, [isAMTabbedTracker, rows, selectedAM, trackerType, newlyAddedRowId]);
 
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
+
+  useEffect(() => {
+    columnsRef.current = columns;
+  }, [columns]);
+
   const syncHorizontalMetrics = useCallback(() => {
     const bodyScroller = bodyScrollerRef.current;
     const headerScroller = headerScrollerRef.current;
@@ -434,216 +536,209 @@ export default function TrackerDetailContent({
     }
   }, []);
 
-  const persistState = useCallback(
-    (
-      nextColumns: EditableColumn[],
-      nextRows: EditableRow[],
-      nextColumnCounter: number,
-      nextRowCounter: number,
-      source: 'local' | 'api_seed' | 'empty_seed',
-      loadedAt: string,
-      nextManualAMTabs: string[]
-    ) => {
-      const now = new Date().toISOString();
-      const payload: TrackerStoragePayload = {
-        version: 1,
-        trackerType,
-        columns: nextColumns,
-        rows: nextRows,
-        settings: {
-          columnCounter: nextColumnCounter,
-          rowCounter: nextRowCounter,
-          manualAMTabs: nextManualAMTabs,
-        },
-        sync: {
-          lastLoadedAt: loadedAt,
-          lastSavedAt: now,
-          source,
-        },
-      };
-      window.localStorage.setItem(storageKey, JSON.stringify(payload));
-      setLastSavedAt(now);
+  const clearPendingRowPatch = useCallback((rowId: string) => {
+    const timer = pendingRowPatchTimersRef.current[rowId];
+    if (timer) {
+      window.clearTimeout(timer);
+      delete pendingRowPatchTimersRef.current[rowId];
+    }
+    delete pendingRowPatchesRef.current[rowId];
+  }, []);
+
+  const flushRowPatch = useCallback(
+    async (rowId: string) => {
+      const pendingPatch = pendingRowPatchesRef.current[rowId];
+      if (!pendingPatch || Object.keys(pendingPatch).length === 0) return;
+
+      clearPendingRowPatch(rowId);
+
+      const patch: Record<string, unknown> = {};
+      for (const key of Object.keys(pendingPatch)) {
+        const columnType =
+          columnsRef.current.find((column) => column.key === key)?.type || 'text';
+        patch[key] = toApiCellValue(columnType, pendingPatch[key] || '');
+      }
+
+      if (Object.keys(patch).length === 0) return;
+
+      try {
+        const res = await fetch('/api/performance/tracker', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: trackerType,
+            id: rowId,
+            patch,
+          }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(json.error || 'Failed to save row');
+        }
+        setLastSavedAt(new Date().toISOString());
+        setSyncSource('mutation');
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Failed to save row';
+        setErrorText(msg);
+      }
     },
-    [storageKey, trackerType]
+    [clearPendingRowPatch, trackerType]
   );
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setHydrated(false);
-    setErrorText(null);
+  const queueRowPatch = useCallback(
+    (rowId: string, values: Record<string, string>) => {
+      pendingRowPatchesRef.current[rowId] = {
+        ...(pendingRowPatchesRef.current[rowId] || {}),
+        ...values,
+      };
 
-    const load = async () => {
+      const existingTimer = pendingRowPatchTimersRef.current[rowId];
+      if (existingTimer) {
+        window.clearTimeout(existingTimer);
+      }
+
+      pendingRowPatchTimersRef.current[rowId] = window.setTimeout(() => {
+        void flushRowPatch(rowId);
+      }, 350);
+    },
+    [flushRowPatch]
+  );
+
+  const flushAllPendingRowPatches = useCallback(async () => {
+    const rowIds = Object.keys(pendingRowPatchesRef.current);
+    if (rowIds.length === 0) return;
+    await Promise.all(rowIds.map((rowId) => flushRowPatch(rowId)));
+  }, [flushRowPatch]);
+
+  const loadRowsFromDatabase = useCallback(
+    async ({
+      showLoading = false,
+      source = 'api' as SyncSource,
+    }: { showLoading?: boolean; source?: SyncSource } = {}) => {
+      if (showLoading) setLoading(true);
+
       try {
-        const raw = window.localStorage.getItem(storageKey);
-        if (raw) {
-          const parsed = JSON.parse(raw) as Partial<TrackerStoragePayload>;
-          if (
-            parsed &&
-            Array.isArray(parsed.columns) &&
-            Array.isArray(parsed.rows) &&
-            parsed.settings
-          ) {
-            if (cancelled) return;
-            setColumns(
-              normalizeColumnsForTracker(
-                trackerType,
-                parsed.columns as EditableColumn[]
-              )
-            );
-            setRows(parsed.rows as EditableRow[]);
-            const parsedManualTabs = Array.isArray(parsed.settings.manualAMTabs)
-              ? parsed.settings.manualAMTabs
-                  .map((item) => String(item || '').trim())
-                  .filter(Boolean)
-              : [];
-            setManualAMTabs(parsedManualTabs);
-            setColumnCounter(parsed.settings.columnCounter || 1);
-            setRowCounter(parsed.settings.rowCounter || 1);
-            setLastLoadedAt(parsed.sync?.lastLoadedAt || new Date().toISOString());
-            setLastSavedAt(parsed.sync?.lastSavedAt || '');
-            setSyncSource('local');
-            setHydrated(true);
-            setLoading(false);
-            return;
-          }
+        setErrorText(null);
+        const params = new URLSearchParams({
+          type: trackerType,
+          limit: '2000',
+          offset: '0',
+        });
+        const res = await fetch(`/api/performance/tracker?${params.toString()}`, {
+          cache: 'no-store',
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(json.error || 'Failed to load tracker rows');
         }
 
-        const res = await fetch(
-          `/api/performance/tracker?type=${trackerType}&limit=200&offset=0`
-        );
-        const json = await res.json().catch(() => ({}));
-        if (cancelled) return;
-
-        const now = new Date().toISOString();
-        const source: 'api_seed' | 'empty_seed' = res.ok ? 'api_seed' : 'empty_seed';
         const payload = json.data || json;
         const apiRows: Record<string, unknown>[] = Array.isArray(payload?.rows)
           ? payload.rows
           : [];
 
-        let initialColumns = TRACKER_COLUMNS[trackerType]
-          ? toEditableColumns(TRACKER_COLUMNS[trackerType])
-          : [];
-
-        if (initialColumns.length === 0 && apiRows.length > 0) {
-          const keys = Object.keys(apiRows[0]).filter((key) => !NON_DISPLAY_KEYS.has(key));
-          initialColumns = keys.map((key) => ({
-            key,
-            label: toDisplayLabel(key),
-            type: 'text',
-          }));
-        }
-        if (initialColumns.length === 0) {
-          initialColumns = [{ key: 'notes', label: 'Notes', type: 'text' }];
-        }
-        initialColumns = normalizeColumnsForTracker(trackerType, initialColumns);
-
-        const initialRows: EditableRow[] =
-          apiRows.length > 0
-            ? apiRows.map((apiRow, idx) => {
-                const nextValues: Record<string, string> = {};
-                for (const column of initialColumns) {
-                  let value = apiRow[column.key];
-                  if (trackerType === 'client_updates') {
-                    if (
-                      (value === null || value === undefined || value === '') &&
-                      column.key === 'meeting_date'
-                    ) {
-                      value = apiRow.meeting_date ?? apiRow.date_sent;
-                    }
-                    if (
-                      (value === null || value === undefined || value === '') &&
-                      column.key === 'date_sent'
-                    ) {
-                      value = apiRow.date_sent ?? apiRow.meeting_date;
-                    }
-                  }
-                  if (trackerType === 'sanity_checks') {
-                    if (
-                      (value === null || value === undefined || value === '') &&
-                      column.key === 'website_link'
-                    ) {
-                      value = apiRow.website_link;
-                    }
-                  }
-                  nextValues[column.key] =
-                    value === null || value === undefined ? '' : String(value);
-                }
-                return {
-                  id: String(apiRow.id || `${trackerType}_row_${idx + 1}`),
-                  values: nextValues,
-                };
-              })
-            : [buildEmptyRow(initialColumns, `${trackerType}_row_1`)];
-
-        const nextColumnCounter = Math.max(
-          1,
-          initialColumns.filter((column) => column.key.startsWith('column_')).length + 1
+        const nextColumns = mergeColumnsWithApiRows(
+          trackerType,
+          columnsRef.current,
+          apiRows
         );
-        const nextRowCounter = Math.max(1, initialRows.length + 1);
+        const nextRows = mapApiRowsToEditableRows(trackerType, nextColumns, apiRows);
 
-        setColumns(initialColumns);
-        setRows(initialRows);
-        setManualAMTabs([]);
+        setColumns(nextColumns);
+        setRows(nextRows);
         setRowUndoValues({});
         setOpenRowActionsRowId(null);
-        setColumnCounter(nextColumnCounter);
-        setRowCounter(nextRowCounter);
-        setLastLoadedAt(now);
-        setLastSavedAt('');
-        setSyncSource(source);
-        setHydrated(true);
-        persistState(
-          initialColumns,
-          initialRows,
-          nextColumnCounter,
-          nextRowCounter,
-          source,
-          now,
-          []
+        setColumnCounter((current) =>
+          Math.max(
+            current,
+            nextColumns.filter((column) => column.key.startsWith('column_')).length + 1
+          )
         );
+
+        const now = new Date().toISOString();
+        setLastLoadedAt(now);
+        setSyncSource(apiRows.length > 0 ? source : 'empty');
       } catch (err) {
-        if (cancelled) return;
         const message =
-          err instanceof Error ? err.message : 'Failed to initialize tracker storage.';
+          err instanceof Error ? err.message : 'Failed to load tracker rows.';
         setErrorText(message);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (showLoading) setLoading(false);
       }
-    };
+    },
+    [trackerType]
+  );
 
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [persistState, storageKey, trackerType]);
+  const scheduleRealtimeRefresh = useCallback(() => {
+    if (realtimeRefreshTimerRef.current) {
+      window.clearTimeout(realtimeRefreshTimerRef.current);
+    }
+    realtimeRefreshTimerRef.current = window.setTimeout(() => {
+      void loadRowsFromDatabase({ source: 'realtime' });
+      realtimeRefreshTimerRef.current = null;
+    }, 150);
+  }, [loadRowsFromDatabase]);
 
   useEffect(() => {
-    if (!hydrated) return;
-    const timeout = window.setTimeout(() => {
-      persistState(
-        columns,
-        rows,
-        columnCounter,
-        rowCounter,
-        syncSource,
-        lastLoadedAt || new Date().toISOString(),
-        manualAMTabs
-      );
-    }, 300);
-    return () => window.clearTimeout(timeout);
-  }, [
-    columns,
-    rows,
-    manualAMTabs,
-    columnCounter,
-    rowCounter,
-    hydrated,
-    persistState,
-    syncSource,
-    lastLoadedAt,
-  ]);
+    Object.values(pendingRowPatchTimersRef.current).forEach((timer) => {
+      window.clearTimeout(timer);
+    });
+    pendingRowPatchTimersRef.current = {};
+    pendingRowPatchesRef.current = {};
+    if (realtimeRefreshTimerRef.current) {
+      window.clearTimeout(realtimeRefreshTimerRef.current);
+      realtimeRefreshTimerRef.current = null;
+    }
+    rowsRef.current = [];
+    columnsRef.current = [];
+
+    setColumns([]);
+    setRows([]);
+    setColumnCounter(1);
+    setManualAMTabs([]);
+    setSelectedAM('');
+    setRowUndoValues({});
+    setOpenRowActionsRowId(null);
+    setNewlyAddedRowId(null);
+    setLastSavedAt('');
+    setLastLoadedAt('');
+    setSyncSource('empty');
+    setLoading(true);
+  }, [trackerType]);
+
+  useEffect(() => {
+    void loadRowsFromDatabase({ showLoading: true, source: 'api' });
+  }, [loadRowsFromDatabase]);
+
+  useEffect(() => {
+    if (!trackerTable) return;
+
+    const channel = supabase
+      .channel(`tracker-${trackerType}-${Math.random().toString(36).slice(2, 8)}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: trackerTable },
+        () => {
+          scheduleRealtimeRefresh();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [scheduleRealtimeRefresh, supabase, trackerTable, trackerType]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(pendingRowPatchTimersRef.current).forEach((timer) => {
+        window.clearTimeout(timer);
+      });
+      if (realtimeRefreshTimerRef.current) {
+        window.clearTimeout(realtimeRefreshTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     syncHorizontalMetrics();
@@ -767,16 +862,66 @@ export default function TrackerDetailContent({
     );
   }, []);
 
-  const addRow = useCallback(() => {
-    const rowId = `${trackerType}_row_${rowCounter}`;
-    const newRow = buildEmptyRow(columns, rowId);
+  const addRow = useCallback(async () => {
+    const newRow = buildEmptyRow(columns, `new_${Date.now()}`);
     if (isAMTabbedTracker && selectedAM) {
       newRow.values[FATHOM_AM_KEY] = selectedAM;
     }
-    setRows((current) => [newRow, ...current]);
-    setNewlyAddedRowId(rowId);
-    setRowCounter((current) => current + 1);
-  }, [columns, isAMTabbedTracker, rowCounter, selectedAM, trackerType]);
+    if (isAMTabbedTracker && !String(newRow.values[FATHOM_AM_KEY] || '').trim()) {
+      setErrorText('Select or add an AM before adding a row.');
+      return;
+    }
+
+    const rowPayload: Record<string, unknown> = {};
+    for (const column of columns) {
+      rowPayload[column.key] = toApiCellValue(
+        column.type,
+        newRow.values[column.key] || ''
+      );
+    }
+
+    try {
+      setErrorText(null);
+      const res = await fetch('/api/performance/tracker', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: trackerType,
+          row: rowPayload,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json.error || 'Failed to add row');
+      }
+
+      const payload = json.data || json;
+      const createdRow =
+        payload?.row && typeof payload.row === 'object'
+          ? (payload.row as Record<string, unknown>)
+          : null;
+
+      if (createdRow) {
+        const [mappedRow] = mapApiRowsToEditableRows(
+          trackerType,
+          columnsRef.current,
+          [createdRow]
+        );
+        if (mappedRow) {
+          setRows((current) => [mappedRow, ...current]);
+          setNewlyAddedRowId(mappedRow.id);
+        }
+      } else {
+        await loadRowsFromDatabase({ source: 'mutation' });
+      }
+
+      setLastSavedAt(new Date().toISOString());
+      setSyncSource('mutation');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to add row';
+      setErrorText(message);
+    }
+  }, [columns, isAMTabbedTracker, loadRowsFromDatabase, selectedAM, trackerType]);
 
   const openAddAMInput = useCallback(() => {
     setShowAddAMInput(true);
@@ -812,21 +957,46 @@ export default function TrackerDetailContent({
     setAMInputError(null);
   }, [amTabs, newAMName]);
 
-  const removeRow = useCallback((rowId: string) => {
-    setRows((current) => current.filter((row) => row.id !== rowId));
-    setRowUndoValues((current) => {
-      if (!Object.prototype.hasOwnProperty.call(current, rowId)) return current;
-      const next = { ...current };
-      delete next[rowId];
-      return next;
-    });
-    setNewlyAddedRowId((current) => (current === rowId ? null : current));
-    setOpenRowActionsRowId((current) => (current === rowId ? null : current));
-  }, []);
+  const removeRow = useCallback(
+    async (rowId: string) => {
+      try {
+        setErrorText(null);
+        clearPendingRowPatch(rowId);
+        const res = await fetch('/api/performance/tracker', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: trackerType,
+            id: rowId,
+          }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(json.error || 'Failed to delete row');
+        }
+
+        setRows((current) => current.filter((row) => row.id !== rowId));
+        setRowUndoValues((current) => {
+          if (!Object.prototype.hasOwnProperty.call(current, rowId)) return current;
+          const next = { ...current };
+          delete next[rowId];
+          return next;
+        });
+        setNewlyAddedRowId((current) => (current === rowId ? null : current));
+        setOpenRowActionsRowId((current) => (current === rowId ? null : current));
+        setLastSavedAt(new Date().toISOString());
+        setSyncSource('mutation');
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to delete row';
+        setErrorText(message);
+      }
+    },
+    [clearPendingRowPatch, trackerType]
+  );
 
   const updateCell = useCallback(
     (rowId: string, columnKey: string, value: string) => {
-      const targetRow = rows.find((row) => row.id === rowId);
+      const targetRow = rowsRef.current.find((row) => row.id === rowId);
       if (targetRow) {
         setRowUndoValues((current) => ({
           ...current,
@@ -841,8 +1011,9 @@ export default function TrackerDetailContent({
             : row
         )
       );
+      queueRowPatch(rowId, { [columnKey]: value });
     },
-    [rows]
+    [queueRowPatch]
   );
 
   const undoRowChanges = useCallback(
@@ -864,38 +1035,23 @@ export default function TrackerDetailContent({
         delete next[rowId];
         return next;
       });
+      queueRowPatch(rowId, snapshot);
       setOpenRowActionsRowId(null);
     },
-    [rowUndoValues]
+    [queueRowPatch, rowUndoValues]
   );
 
   const syncText = useMemo(() => {
-    if (!lastSavedAt) return 'Not saved yet';
-    return `Last saved ${new Date(lastSavedAt).toLocaleString()}`;
+    if (!lastSavedAt) return 'Live sync active';
+    return `Last synced ${new Date(lastSavedAt).toLocaleString()}`;
   }, [lastSavedAt]);
 
-  const handleSaveNow = useCallback(() => {
-    persistState(
-      columns,
-      rows,
-      columnCounter,
-      rowCounter,
-      syncSource,
-      lastLoadedAt || new Date().toISOString(),
-      manualAMTabs
-    );
+  const handleSaveNow = useCallback(async () => {
+    await flushAllPendingRowPatches();
+    await loadRowsFromDatabase({ source: 'mutation' });
     setShowSavedToast(true);
     setSavedToastTick((current) => current + 1);
-  }, [
-    columnCounter,
-    columns,
-    lastLoadedAt,
-    manualAMTabs,
-    persistState,
-    rowCounter,
-    rows,
-    syncSource,
-  ]);
+  }, [flushAllPendingRowPatches, loadRowsFromDatabase]);
 
   return (
     <div className="flex-1 overflow-auto p-6">
@@ -1008,7 +1164,7 @@ export default function TrackerDetailContent({
             Save Now
           </button>
           <span className="text-xs text-navy/50 dark:text-white/40">
-            Key: <code>{storageKey}</code>
+            Tracker: <code>{trackerType}</code>
           </span>
           <span className="text-xs text-navy/40 dark:text-white/30">{syncText}</span>
           {lastLoadedAt && (
