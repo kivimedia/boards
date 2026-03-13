@@ -45,7 +45,6 @@ const TRACKER_TABLES: Partial<Record<PKTrackerType, string>> = {
   google_analytics_status: 'pk_google_analytics_status',
   other_activities: 'pk_other_activities',
 };
-const TRACKER_HIDDEN_STORAGE_KEY = 'kmboards.performance.trackers.hidden.v1';
 
 const TRACKER_COLUMNS: Record<
   string,
@@ -326,29 +325,9 @@ function buildEmptyRow(columns: EditableColumn[], id: string): EditableRow {
   return { id, values };
 }
 
-function readStoredHiddenTrackerTypes(): string[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = window.localStorage.getItem(TRACKER_HIDDEN_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((item): item is string => typeof item === 'string');
-  } catch {
-    return [];
-  }
-}
-
-function writeStoredHiddenTrackerTypes(hiddenTypes: string[]) {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(
-      TRACKER_HIDDEN_STORAGE_KEY,
-      JSON.stringify(hiddenTypes)
-    );
-  } catch {
-    // Ignore storage errors (private mode/quota restrictions).
-  }
+function toTrackerTypeList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === 'string');
 }
 
 function toApiCellValue(type: ColumnType, value: string): string | boolean | null {
@@ -708,26 +687,74 @@ export default function TrackerDetailContent({
     }, 150);
   }, [loadRowsFromDatabase]);
 
-  useEffect(() => {
+  const loadTrackerVisibility = useCallback(async () => {
     if (!canManageRows) {
       setIsTrackerVisible(true);
       return;
     }
-    const hiddenTypes = readStoredHiddenTrackerTypes();
-    setIsTrackerVisible(!hiddenTypes.includes(trackerType));
+
+    try {
+      const params = new URLSearchParams({ type: trackerType });
+      const res = await fetch(
+        `/api/performance/tracker-visibility?${params.toString()}`,
+        { cache: 'no-store' }
+      );
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setIsTrackerVisible(true);
+        return;
+      }
+
+      const hiddenFromFlag = json?.data?.hidden;
+      if (typeof hiddenFromFlag === 'boolean') {
+        setIsTrackerVisible(!hiddenFromFlag);
+        return;
+      }
+
+      const hiddenTrackerTypes = toTrackerTypeList(
+        json?.data?.hidden_tracker_types
+      );
+      setIsTrackerVisible(!hiddenTrackerTypes.includes(trackerType));
+    } catch {
+      setIsTrackerVisible(true);
+    }
   }, [canManageRows, trackerType]);
 
-  const toggleTrackerVisibility = useCallback(() => {
-    if (!canManageRows) return;
-    const hiddenTypes = readStoredHiddenTrackerTypes();
-    const nextHiddenTypes = isTrackerVisible
-      ? Array.from(new Set([...hiddenTypes, trackerType]))
-      : hiddenTypes.filter((type) => type !== trackerType);
+  useEffect(() => {
+    void loadTrackerVisibility();
+  }, [loadTrackerVisibility]);
 
-    writeStoredHiddenTrackerTypes(nextHiddenTypes);
-    setIsTrackerVisible(!isTrackerVisible);
-    setShowSavedToast(true);
-    setSavedToastTick((current) => current + 1);
+  const toggleTrackerVisibility = useCallback(async () => {
+    if (!canManageRows) return;
+
+    setErrorText(null);
+    const nextHiddenState = isTrackerVisible;
+    try {
+      const res = await fetch('/api/performance/tracker-visibility', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: trackerType,
+          hidden: nextHiddenState,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErrorText(json?.error || 'Failed to update tracker visibility.');
+        return;
+      }
+
+      const hiddenFromResponse = json?.data?.hidden;
+      if (typeof hiddenFromResponse === 'boolean') {
+        setIsTrackerVisible(!hiddenFromResponse);
+      } else {
+        setIsTrackerVisible(!nextHiddenState);
+      }
+      setShowSavedToast(true);
+      setSavedToastTick((current) => current + 1);
+    } catch {
+      setErrorText('Failed to update tracker visibility.');
+    }
   }, [canManageRows, isTrackerVisible, trackerType]);
 
   useEffect(() => {

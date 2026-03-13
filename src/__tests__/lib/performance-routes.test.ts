@@ -31,6 +31,14 @@ describe('Performance API Routes', () => {
     });
   });
 
+  describe('/api/performance/tracker-visibility', () => {
+    it('exports GET and PATCH', async () => {
+      const mod = await import('@/app/api/performance/tracker-visibility/route');
+      expect(typeof mod.GET).toBe('function');
+      expect(typeof mod.PATCH).toBe('function');
+    });
+  });
+
   describe('/api/cron/performance-sync', () => {
     it('exports GET as a function', async () => {
       const mod = await import('@/app/api/cron/performance-sync/route');

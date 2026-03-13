@@ -26,7 +26,6 @@ interface PerformanceHubContentProps {
 }
 
 const TRACKER_ORDER_STORAGE_KEY = 'kmboards.performance.trackers.order.v1';
-const TRACKER_HIDDEN_STORAGE_KEY = 'kmboards.performance.trackers.hidden.v1';
 
 function readStoredTrackerOrder(): string[] {
   if (typeof window === 'undefined') return [];
@@ -50,26 +49,9 @@ function writeStoredTrackerOrder(order: string[]) {
   }
 }
 
-function readStoredHiddenTrackerTypes(): string[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = window.localStorage.getItem(TRACKER_HIDDEN_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((item): item is string => typeof item === 'string');
-  } catch {
-    return [];
-  }
-}
-
-function writeStoredHiddenTrackerTypes(hiddenTypes: string[]) {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(TRACKER_HIDDEN_STORAGE_KEY, JSON.stringify(hiddenTypes));
-  } catch {
-    // Ignore storage errors (private mode/quota restrictions).
-  }
+function toTrackerTypeList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === 'string');
 }
 
 function applyTrackerOrder(trackers: PKTrackerSummary[], preferredOrder: string[]): PKTrackerSummary[] {
@@ -129,13 +111,13 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
           writeStoredTrackerOrder(next.map((tracker) => tracker.tracker_type));
           return next;
         });
-        setHiddenTrackerTypes((current) => {
-          const preferredHidden = current.length > 0 ? current : readStoredHiddenTrackerTypes();
-          const availableTypes = new Set<string>(filteredTrackers.map((tracker) => tracker.tracker_type));
-          const next = preferredHidden.filter((type) => availableTypes.has(type));
-          writeStoredHiddenTrackerTypes(next);
-          return next;
-        });
+        const availableTypes = new Set<string>(
+          filteredTrackers.map((tracker) => tracker.tracker_type)
+        );
+        const hiddenTypes = toTrackerTypeList(json.hidden_tracker_types).filter((type) =>
+          availableTypes.has(type)
+        );
+        setHiddenTrackerTypes(hiddenTypes);
       }
     } finally {
       setLoading(false);
@@ -242,24 +224,64 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
     writeStoredTrackerOrder(next.map((tracker) => tracker.tracker_type));
   }, [data]);
 
+  const setTrackerVisibility = useCallback(
+    async (trackerType: string, hidden: boolean): Promise<boolean> => {
+      if (!canManageRows) return false;
+
+      try {
+        const res = await fetch('/api/performance/tracker-visibility', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: trackerType, hidden }),
+        });
+
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) return false;
+
+        const hasHiddenTrackerTypesPayload = Array.isArray(
+          json?.data?.hidden_tracker_types
+        );
+
+        if (hasHiddenTrackerTypesPayload) {
+          const nextHiddenTypes = toTrackerTypeList(
+            json?.data?.hidden_tracker_types
+          );
+          setHiddenTrackerTypes(nextHiddenTypes);
+        } else {
+          setHiddenTrackerTypes((current) => (
+            hidden
+              ? Array.from(new Set([...current, trackerType]))
+              : current.filter((type) => type !== trackerType)
+          ));
+        }
+
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [canManageRows]
+  );
+
   const removeTrackerFromAllTrackers = useCallback((trackerType: string) => {
     if (!canManageRows) return;
-    setHiddenTrackerTypes((current) => {
-      if (current.includes(trackerType)) return current;
-      const next = [...current, trackerType];
-      writeStoredHiddenTrackerTypes(next);
-      return next;
-    });
-    setDraggingTrackerType(null);
-    setDragOverTrackerType(null);
-  }, [canManageRows]);
 
-  const restoreRemovedTrackers = useCallback(() => {
+    void (async () => {
+      const updated = await setTrackerVisibility(trackerType, true);
+      if (!updated) return;
+      setDraggingTrackerType(null);
+      setDragOverTrackerType(null);
+    })();
+  }, [canManageRows, setTrackerVisibility]);
+
+  const restoreRemovedTrackers = useCallback(async () => {
     if (!canManageRows) return;
-    setHiddenTrackerTypes([]);
-    writeStoredHiddenTrackerTypes([]);
+
+    for (const trackerType of hiddenTrackerTypes) {
+      await setTrackerVisibility(trackerType, false);
+    }
     setRemoveMode(false);
-  }, [canManageRows]);
+  }, [canManageRows, hiddenTrackerTypes, setTrackerVisibility]);
 
   useEffect(() => {
     if (activeTab !== 'trackers') {
@@ -318,9 +340,11 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
   ];
 
   const trackers = orderedTrackers.length > 0 ? orderedTrackers : data.trackers;
-  const visibleTrackers = trackers.filter(
-    (tracker) => !hiddenTrackerTypes.includes(tracker.tracker_type)
-  );
+  const visibleTrackers = canManageRows
+    ? trackers
+    : trackers.filter(
+      (tracker) => !hiddenTrackerTypes.includes(tracker.tracker_type)
+    );
 
   // Stats for overview cards
   const totalTrackers = trackers.length;
@@ -564,11 +588,11 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
             <div className="flex items-center justify-between gap-3">
               <p className="text-xs text-navy/50 dark:text-white/40">
                 {removeMode
-                  ? 'Remove mode is on. Click Remove on tracker cards to hide them from All Trackers.'
+                  ? 'Visibility mode is on. Hide or show trackers for regular users. Admins and devi@dailycookie.co still see all trackers.'
                   : reorderMode
                   ? 'Reorder mode is on. Drag tracker cards or use Move Up/Down. Order is saved in this browser.'
                   : canManageRows
-                  ? 'Click ... for All Trackers actions (rearrange, remove, reset).'
+                  ? 'Click ... for All Trackers actions (rearrange, visibility, reset).'
                   : 'Click ... for All Trackers actions (rearrange, reset).'}
               </p>
               <div className="relative">
@@ -602,7 +626,7 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
                         }}
                         className="w-full text-left text-[11px] px-2 py-1 rounded text-navy dark:text-white hover:bg-cream-dark/30 dark:hover:bg-white/10"
                       >
-                        {removeMode ? 'Done Removing' : 'Remove'}
+                        {removeMode ? 'Done Visibility' : 'Visibility'}
                       </button>
                     )}
                     <button
@@ -619,7 +643,7 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
                       <button
                         type="button"
                         onClick={() => {
-                          restoreRemovedTrackers();
+                          void restoreRemovedTrackers();
                           setShowTrackerOrderMenu(false);
                         }}
                         className="w-full text-left text-[11px] px-2 py-1 rounded text-navy dark:text-white hover:bg-cream-dark/30 dark:hover:bg-white/10"
@@ -633,10 +657,12 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
             </div>
             {visibleTrackers.length === 0 ? (
               <div className="rounded-xl border border-cream-dark/60 dark:border-white/10 bg-white dark:bg-white/5 p-4 text-sm text-navy/60 dark:text-white/60">
-                All trackers are currently removed from this view.
+                {canManageRows
+                  ? 'All trackers are currently hidden for regular users.'
+                  : 'No trackers are currently visible.'}
                 {canManageRows && (
                   <button
-                    onClick={restoreRemovedTrackers}
+                    onClick={() => { void restoreRemovedTrackers(); }}
                     className="ml-2 text-electric hover:text-electric/80 font-medium"
                   >
                     Restore Removed
@@ -645,85 +671,99 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {visibleTrackers.map((tracker, index) => (
-                <div
-                  key={tracker.tracker_type}
-                  draggable={reorderMode}
-                  onDragStart={(event) => {
-                    if (!reorderMode || removeMode) return;
-                    setDraggingTrackerType(tracker.tracker_type);
-                    event.dataTransfer.effectAllowed = 'move';
-                    event.dataTransfer.setData('text/plain', tracker.tracker_type);
-                  }}
-                  onDragOver={(event) => {
-                    if (!reorderMode || removeMode) return;
-                    event.preventDefault();
-                    if (draggingTrackerType && draggingTrackerType !== tracker.tracker_type) {
-                      setDragOverTrackerType(tracker.tracker_type);
-                    }
-                  }}
-                  onDrop={(event) => {
-                    if (!reorderMode || removeMode) return;
-                    event.preventDefault();
-                    const sourceType = event.dataTransfer.getData('text/plain') || draggingTrackerType;
-                    if (sourceType) {
-                      moveTracker(sourceType, tracker.tracker_type);
-                    }
-                    setDraggingTrackerType(null);
-                    setDragOverTrackerType(null);
-                  }}
-                  onDragEnd={() => {
-                    setDraggingTrackerType(null);
-                    setDragOverTrackerType(null);
-                  }}
-                  className={`rounded-xl transition-all ${
-                    reorderMode && !removeMode && dragOverTrackerType === tracker.tracker_type
-                      ? 'ring-2 ring-electric/40 ring-offset-2 ring-offset-transparent'
-                      : ''
-                  }`}
-                >
-                  <TrackerManagerCard
-                    tracker={tracker}
-                    canEdit={canManageRows}
-                  />
-                  {reorderMode && !removeMode && (
-                    <div className="mt-2 px-1 flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => nudgeTracker(tracker.tracker_type, 'up')}
-                        disabled={index === 0}
-                        className={`text-xs px-2 py-1 rounded border transition-colors ${
-                          index === 0
-                            ? 'cursor-not-allowed border-cream-dark/40 dark:border-white/10 text-navy/30 dark:text-white/25'
-                            : 'border-cream-dark/70 dark:border-white/20 text-navy/70 dark:text-white/70 hover:bg-cream-dark/30 dark:hover:bg-white/10'
-                        }`}
-                      >
-                        Move Up
-                      </button>
-                      <button
-                        onClick={() => nudgeTracker(tracker.tracker_type, 'down')}
-                        disabled={index === visibleTrackers.length - 1}
-                        className={`text-xs px-2 py-1 rounded border transition-colors ${
-                          index === visibleTrackers.length - 1
-                            ? 'cursor-not-allowed border-cream-dark/40 dark:border-white/10 text-navy/30 dark:text-white/25'
-                            : 'border-cream-dark/70 dark:border-white/20 text-navy/70 dark:text-white/70 hover:bg-cream-dark/30 dark:hover:bg-white/10'
-                        }`}
-                      >
-                        Move Down
-                      </button>
+                {visibleTrackers.map((tracker, index) => {
+                  const hiddenForRegularUsers = hiddenTrackerTypes.includes(tracker.tracker_type);
+
+                  return (
+                    <div
+                      key={tracker.tracker_type}
+                      draggable={reorderMode}
+                      onDragStart={(event) => {
+                        if (!reorderMode || removeMode) return;
+                        setDraggingTrackerType(tracker.tracker_type);
+                        event.dataTransfer.effectAllowed = 'move';
+                        event.dataTransfer.setData('text/plain', tracker.tracker_type);
+                      }}
+                      onDragOver={(event) => {
+                        if (!reorderMode || removeMode) return;
+                        event.preventDefault();
+                        if (draggingTrackerType && draggingTrackerType !== tracker.tracker_type) {
+                          setDragOverTrackerType(tracker.tracker_type);
+                        }
+                      }}
+                      onDrop={(event) => {
+                        if (!reorderMode || removeMode) return;
+                        event.preventDefault();
+                        const sourceType = event.dataTransfer.getData('text/plain') || draggingTrackerType;
+                        if (sourceType) {
+                          moveTracker(sourceType, tracker.tracker_type);
+                        }
+                        setDraggingTrackerType(null);
+                        setDragOverTrackerType(null);
+                      }}
+                      onDragEnd={() => {
+                        setDraggingTrackerType(null);
+                        setDragOverTrackerType(null);
+                      }}
+                      className={`rounded-xl transition-all ${
+                        reorderMode && !removeMode && dragOverTrackerType === tracker.tracker_type
+                          ? 'ring-2 ring-electric/40 ring-offset-2 ring-offset-transparent'
+                          : ''
+                      }`}
+                    >
+                      <TrackerManagerCard
+                        tracker={tracker}
+                        canEdit={canManageRows}
+                      />
+                      {canManageRows && removeMode && (
+                        <div className="mt-2 px-1 flex items-center justify-end">
+                          <button
+                            onClick={() => {
+                              if (hiddenForRegularUsers) {
+                                void setTrackerVisibility(tracker.tracker_type, false);
+                                return;
+                              }
+                              removeTrackerFromAllTrackers(tracker.tracker_type);
+                            }}
+                            className={`text-xs px-2 py-1 rounded text-white ${
+                              hiddenForRegularUsers
+                                ? 'bg-emerald-600 hover:bg-emerald-700'
+                                : 'bg-red-600 hover:bg-red-700'
+                            }`}
+                          >
+                            {hiddenForRegularUsers ? 'Show for Regular Users' : 'Hide for Regular Users'}
+                          </button>
+                        </div>
+                      )}
+                      {reorderMode && !removeMode && (
+                        <div className="mt-2 px-1 flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => nudgeTracker(tracker.tracker_type, 'up')}
+                            disabled={index === 0}
+                            className={`text-xs px-2 py-1 rounded border transition-colors ${
+                              index === 0
+                                ? 'cursor-not-allowed border-cream-dark/40 dark:border-white/10 text-navy/30 dark:text-white/25'
+                                : 'border-cream-dark/70 dark:border-white/20 text-navy/70 dark:text-white/70 hover:bg-cream-dark/30 dark:hover:bg-white/10'
+                            }`}
+                          >
+                            Move Up
+                          </button>
+                          <button
+                            onClick={() => nudgeTracker(tracker.tracker_type, 'down')}
+                            disabled={index === visibleTrackers.length - 1}
+                            className={`text-xs px-2 py-1 rounded border transition-colors ${
+                              index === visibleTrackers.length - 1
+                                ? 'cursor-not-allowed border-cream-dark/40 dark:border-white/10 text-navy/30 dark:text-white/25'
+                                : 'border-cream-dark/70 dark:border-white/20 text-navy/70 dark:text-white/70 hover:bg-cream-dark/30 dark:hover:bg-white/10'
+                            }`}
+                          >
+                            Move Down
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )}
-                  {canManageRows && removeMode && (
-                    <div className="mt-2 px-1 flex items-center justify-end">
-                      <button
-                        onClick={() => removeTrackerFromAllTrackers(tracker.tracker_type)}
-                        className="text-xs px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  )}
-                </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

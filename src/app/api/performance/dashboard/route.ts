@@ -4,6 +4,11 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { PKTrackerType, PK_TRACKER_LABELS, PK_TRACKER_FREQUENCIES, PKTrackerSummary } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
+const TRACKER_HIDDEN_CONFIG_KEY = 'hidden_in_all_trackers';
+
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
 
 /**
  * GET /api/performance/dashboard
@@ -28,7 +33,15 @@ export async function GET() {
 
   // Deduplicate configs by tracker_type (keep most recently synced, sum row counts)
   const configsByType = new Map<string, { config: any; totalRows: number }>();
+  const hiddenTrackerTypes = new Set<string>();
   for (const c of (configs || []).filter((c: any) => c.tracker_type !== 'masterlist' && c.tracker_type !== 'sanity_tests')) {
+    if (
+      isJsonObject(c.config) &&
+      c.config[TRACKER_HIDDEN_CONFIG_KEY] === true
+    ) {
+      hiddenTrackerTypes.add(c.tracker_type);
+    }
+
     const existing = configsByType.get(c.tracker_type);
     if (!existing) {
       configsByType.set(c.tracker_type, { config: c, totalRows: c.row_count || 0 });
@@ -95,6 +108,7 @@ export async function GET() {
     last_sync_run: lastRun,
     am_scorecard: amScorecard,
     flagged_tickets_count: flaggedCount || 0,
+    hidden_tracker_types: Array.from(hiddenTrackerTypes).sort((a, b) => a.localeCompare(b)),
   });
 }
 
