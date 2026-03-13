@@ -1,6 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import type { MyTask } from '@/lib/my-tasks';
+import { slugify } from '@/lib/slugify';
 
 const PRIORITY_COLORS: Record<string, string> = {
   urgent: '#ef4444',
@@ -21,7 +23,24 @@ const PRIORITY_LABELS: Record<string, string> = {
 function formatDueDate(dueDate: string | null): string | null {
   if (!dueDate) return null;
   const d = new Date(dueDate);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function relativeTime(dateStr: string | null): string | null {
+  if (!dateStr) return null;
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diff = now - then;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 4) return `${weeks}w ago`;
+  return formatDueDate(dateStr);
 }
 
 interface TaskCardProps {
@@ -30,16 +49,27 @@ interface TaskCardProps {
 
 export default function TaskCard({ task }: TaskCardProps) {
   const borderColor = PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.none;
+  const href = `/board/${slugify(task.boardName)}?card=${task.cardId}`;
+  const hasChecklist = task.checklistTotal > 0;
+  const checklistPercent = hasChecklist ? Math.round((task.checklistDone / task.checklistTotal) * 100) : 0;
 
   return (
-    <div
-      className="bg-white dark:bg-navy-light rounded-xl p-4 shadow-card border-l-4 transition-all duration-200 hover:shadow-md"
+    <Link
+      href={href}
+      className="block bg-white dark:bg-navy-light rounded-xl p-4 shadow-card border-l-4 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 group"
       style={{ borderLeftColor: borderColor }}
     >
-      {/* Title */}
-      <h3 className="text-sm font-semibold text-navy dark:text-white mb-2 leading-snug">
-        {task.title}
-      </h3>
+      {/* Top row: Title + updated time */}
+      <div className="flex items-start justify-between gap-3 mb-2">
+        <h3 className="text-sm font-semibold text-navy dark:text-white leading-snug group-hover:text-electric transition-colors">
+          {task.title}
+        </h3>
+        {task.updatedAt && (
+          <span className="text-[10px] text-navy/30 dark:text-white/30 whitespace-nowrap shrink-0 mt-0.5">
+            {relativeTime(task.updatedAt)}
+          </span>
+        )}
+      </div>
 
       {/* Board & List chips */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -51,7 +81,7 @@ export default function TaskCard({ task }: TaskCardProps) {
         </span>
       </div>
 
-      {/* Priority + Due date row */}
+      {/* Priority + Due date + meta icons row */}
       <div className="flex items-center gap-3 flex-wrap">
         {/* Priority badge */}
         {task.priority && task.priority !== 'none' && (
@@ -80,6 +110,44 @@ export default function TaskCard({ task }: TaskCardProps) {
             {task.isOverdue ? 'Overdue: ' : ''}{formatDueDate(task.dueDate)}
           </span>
         )}
+
+        {/* Spacer to push meta icons right */}
+        <div className="flex-1" />
+
+        {/* Meta icons: checklist, comments, attachments */}
+        <div className="flex items-center gap-3">
+          {/* Checklist progress */}
+          {hasChecklist && (
+            <span className={`inline-flex items-center gap-1 text-[11px] font-medium ${
+              checklistPercent === 100 ? 'text-success' : 'text-navy/40 dark:text-white/40'
+            }`}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+              </svg>
+              {task.checklistDone}/{task.checklistTotal}
+            </span>
+          )}
+
+          {/* Comments */}
+          {task.commentCount > 0 && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-navy/40 dark:text-white/40">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              {task.commentCount}
+            </span>
+          )}
+
+          {/* Attachments */}
+          {task.attachmentCount > 0 && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-navy/40 dark:text-white/40">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+              </svg>
+              {task.attachmentCount}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Labels */}
@@ -95,6 +163,6 @@ export default function TaskCard({ task }: TaskCardProps) {
           ))}
         </div>
       )}
-    </div>
+    </Link>
   );
 }
