@@ -59,5 +59,16 @@ export function useAuth() {
     window.location.href = '/login';
   };
 
-  return { user, profile, loading, signOut };
+  const refreshProfile = async () => {
+    const currentUser = user;
+    if (!currentUser) return;
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', currentUser.id)
+      .single();
+    if (data) setProfile(data);
+  };
+
+  return { user, profile, loading, signOut, refreshProfile };
 }

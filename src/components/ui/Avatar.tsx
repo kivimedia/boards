@@ -1,7 +1,7 @@
 interface AvatarProps {
   name: string;
   src?: string | null;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
   /** Show online status dot: true = green, false = gray, undefined = hidden */
   online?: boolean;
@@ -13,12 +13,14 @@ const sizeStyles = {
   sm: 'w-6 h-6 text-[10px]',
   md: 'w-8 h-8 text-xs',
   lg: 'w-10 h-10 text-sm',
+  xl: 'w-12 h-12 text-base',
 };
 
 const dotSizeStyles = {
   sm: 'w-2 h-2 -bottom-0 -right-0',
   md: 'w-2.5 h-2.5 -bottom-0.5 -right-0.5',
   lg: 'w-3 h-3 -bottom-0.5 -right-0.5',
+  xl: 'w-3.5 h-3.5 -bottom-0.5 -right-0.5',
 };
 
 function getInitials(name: string): string {
