@@ -355,12 +355,12 @@ export default function TrackerDetailContent({
   const [showMidScrollbar, setShowMidScrollbar] = useState(false);
   const [showSavedToast, setShowSavedToast] = useState(false);
   const [savedToastTick, setSavedToastTick] = useState(0);
+  const [newlyAddedRowId, setNewlyAddedRowId] = useState<string | null>(null);
   const headerScrollerRef = useRef<HTMLDivElement | null>(null);
   const bodyScrollerRef = useRef<HTMLDivElement | null>(null);
   const midScrollbarRef = useRef<HTMLDivElement | null>(null);
   const midScrollbarSpacerRef = useRef<HTMLDivElement | null>(null);
 
-  const isFathomTracker = trackerType === 'fathom_videos';
   const isAMTabbedTracker = AM_TABBED_TRACKERS.has(trackerType);
 
   const amTabs = useMemo(() => {
@@ -393,17 +393,26 @@ export default function TrackerDetailContent({
         );
 
     const sortDateKey = DATE_SORT_TRACKERS[trackerType];
-    if (!sortDateKey) return filteredRows;
+    const preparedRows = sortDateKey
+      ? [...filteredRows].sort((a, b) => {
+          const aDate = toDateTimestamp(getRowSortDateValue(a, trackerType));
+          const bDate = toDateTimestamp(getRowSortDateValue(b, trackerType));
+          if (aDate === null && bDate === null) return 0;
+          if (aDate === null) return 1;
+          if (bDate === null) return -1;
+          return bDate - aDate;
+        })
+      : [...filteredRows];
 
-    return [...filteredRows].sort((a, b) => {
-      const aDate = toDateTimestamp(getRowSortDateValue(a, trackerType));
-      const bDate = toDateTimestamp(getRowSortDateValue(b, trackerType));
-      if (aDate === null && bDate === null) return 0;
-      if (aDate === null) return 1;
-      if (bDate === null) return -1;
-      return bDate - aDate;
-    });
-  }, [isAMTabbedTracker, rows, selectedAM, trackerType]);
+    if (!newlyAddedRowId) return preparedRows;
+
+    const addedRowIndex = preparedRows.findIndex((row) => row.id === newlyAddedRowId);
+    if (addedRowIndex <= 0) return preparedRows;
+
+    const [addedRow] = preparedRows.splice(addedRowIndex, 1);
+    preparedRows.unshift(addedRow);
+    return preparedRows;
+  }, [isAMTabbedTracker, rows, selectedAM, trackerType, newlyAddedRowId]);
 
   const syncHorizontalMetrics = useCallback(() => {
     const bodyScroller = bodyScrollerRef.current;
@@ -764,7 +773,8 @@ export default function TrackerDetailContent({
     if (isAMTabbedTracker && selectedAM) {
       newRow.values[FATHOM_AM_KEY] = selectedAM;
     }
-    setRows((current) => [...current, newRow]);
+    setRows((current) => [newRow, ...current]);
+    setNewlyAddedRowId(rowId);
     setRowCounter((current) => current + 1);
   }, [columns, isAMTabbedTracker, rowCounter, selectedAM, trackerType]);
 
@@ -810,6 +820,7 @@ export default function TrackerDetailContent({
       delete next[rowId];
       return next;
     });
+    setNewlyAddedRowId((current) => (current === rowId ? null : current));
     setOpenRowActionsRowId((current) => (current === rowId ? null : current));
   }, []);
 
