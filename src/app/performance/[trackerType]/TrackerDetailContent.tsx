@@ -265,8 +265,10 @@ export default function TrackerDetailContent({
   );
   const [hydrated, setHydrated] = useState(false);
   const [selectedAM, setSelectedAM] = useState('');
-  const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const [showColumnActionsMenu, setShowColumnActionsMenu] = useState(false);
   const [showRemoveColumnMenu, setShowRemoveColumnMenu] = useState(false);
+  const [openRowActionsRowId, setOpenRowActionsRowId] = useState<string | null>(null);
+  const [rowUndoValues, setRowUndoValues] = useState<Record<string, Record<string, string>>>({});
 
   const isFathomTracker = trackerType === 'fathom_videos';
 
@@ -417,6 +419,8 @@ export default function TrackerDetailContent({
 
         setColumns(initialColumns);
         setRows(initialRows);
+        setRowUndoValues({});
+        setOpenRowActionsRowId(null);
         setColumnCounter(nextColumnCounter);
         setRowCounter(nextRowCounter);
         setLastLoadedAt(now);
@@ -500,6 +504,8 @@ export default function TrackerDetailContent({
       });
       setColumns(safeColumns);
       setRows(nextRows);
+      setShowRemoveColumnMenu(false);
+      setShowColumnActionsMenu(false);
     },
     [columns, rows]
   );
@@ -524,17 +530,59 @@ export default function TrackerDetailContent({
 
   const removeRow = useCallback((rowId: string) => {
     setRows((current) => current.filter((row) => row.id !== rowId));
+    setRowUndoValues((current) => {
+      if (!Object.prototype.hasOwnProperty.call(current, rowId)) return current;
+      const next = { ...current };
+      delete next[rowId];
+      return next;
+    });
+    setOpenRowActionsRowId((current) => (current === rowId ? null : current));
   }, []);
 
-  const updateCell = useCallback((rowId: string, columnKey: string, value: string) => {
-    setRows((current) =>
-      current.map((row) =>
-        row.id === rowId
-          ? { ...row, values: { ...row.values, [columnKey]: value } }
-          : row
-      )
-    );
-  }, []);
+  const updateCell = useCallback(
+    (rowId: string, columnKey: string, value: string) => {
+      const targetRow = rows.find((row) => row.id === rowId);
+      if (targetRow) {
+        setRowUndoValues((current) => ({
+          ...current,
+          [rowId]: { ...targetRow.values },
+        }));
+      }
+
+      setRows((current) =>
+        current.map((row) =>
+          row.id === rowId
+            ? { ...row, values: { ...row.values, [columnKey]: value } }
+            : row
+        )
+      );
+    },
+    [rows]
+  );
+
+  const undoRowChanges = useCallback(
+    (rowId: string) => {
+      const snapshot = rowUndoValues[rowId];
+      if (!snapshot) {
+        setOpenRowActionsRowId(null);
+        return;
+      }
+      setRows((current) =>
+        current.map((row) =>
+          row.id === rowId
+            ? { ...row, values: { ...snapshot } }
+            : row
+        )
+      );
+      setRowUndoValues((current) => {
+        const next = { ...current };
+        delete next[rowId];
+        return next;
+      });
+      setOpenRowActionsRowId(null);
+    },
+    [rowUndoValues]
+  );
 
   const syncText = useMemo(() => {
     if (!lastSavedAt) return 'Not saved yet';
@@ -598,75 +646,12 @@ export default function TrackerDetailContent({
         )}
 
         <div className="flex flex-wrap items-center gap-2 bg-white dark:bg-white/5 rounded-xl border border-cream-dark/60 dark:border-white/10 p-3">
-          <div className="relative">
-            <button
-              onClick={() => {
-                setShowActionsMenu((current) => {
-                  const next = !current;
-                  if (next) setShowRemoveColumnMenu(false);
-                  return next;
-                });
-              }}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium border border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
-              aria-label="Open actions menu"
-            >
-              ...
-            </button>
-            {showActionsMenu && (
-              <div className="absolute left-0 mt-2 min-w-[180px] rounded-lg border border-cream-dark/70 dark:border-white/20 bg-white dark:bg-navy-light shadow-lg z-20 p-1">
-                {!showRemoveColumnMenu ? (
-                  <>
-                    <button
-                      onClick={() => {
-                        addRow();
-                        setShowActionsMenu(false);
-                      }}
-                      className="w-full text-left px-3 py-1.5 rounded text-xs text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/10"
-                    >
-                      Add Row
-                    </button>
-                    <button
-                      onClick={() => {
-                        addColumn();
-                        setShowActionsMenu(false);
-                      }}
-                      className="w-full text-left px-3 py-1.5 rounded text-xs text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/10"
-                    >
-                      Add Column
-                    </button>
-                    <button
-                      onClick={() => setShowRemoveColumnMenu(true)}
-                      className="w-full text-left px-3 py-1.5 rounded text-xs text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/10"
-                    >
-                      Remove Column
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => setShowRemoveColumnMenu(false)}
-                      className="w-full text-left px-3 py-1.5 rounded text-xs text-navy/60 dark:text-white/60 hover:bg-cream-dark/20 dark:hover:bg-white/10"
-                    >
-                      Back
-                    </button>
-                    {columns.map((column) => (
-                      <button
-                        key={`remove-${column.key}`}
-                        onClick={() => {
-                          removeColumn(column.key);
-                          setShowRemoveColumnMenu(false);
-                          setShowActionsMenu(false);
-                        }}
-                        className="w-full text-left px-3 py-1.5 rounded text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
-                      >
-                        {column.label}
-                      </button>
-                    ))}
-                  </>
-                )}
-              </div>
-            )}
-          </div>
+          <button
+            onClick={addRow}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-electric text-white hover:bg-electric/90 transition-colors"
+          >
+            Add Row
+          </button>
           <button
             onClick={() =>
               persistState(
@@ -723,10 +708,64 @@ export default function TrackerDetailContent({
                         />
                       </th>
                     ))}
-                    <th className="text-left py-2 px-3 min-w-[90px]">
-                      <span className="text-xs font-medium text-navy/60 dark:text-white/50">
-                        Row
-                      </span>
+                    <th className="text-right py-2 px-3 min-w-[90px]">
+                      <div className="relative inline-flex">
+                        <button
+                          onClick={() => {
+                            setOpenRowActionsRowId(null);
+                            setShowColumnActionsMenu((current) => {
+                              const next = !current;
+                              if (!next) setShowRemoveColumnMenu(false);
+                              return next;
+                            });
+                          }}
+                          className="px-2 py-1 rounded text-[11px] border border-cream-dark dark:border-white/10 text-navy/70 dark:text-white/70 hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
+                          aria-label="Open column actions"
+                        >
+                          ...
+                        </button>
+                        {showColumnActionsMenu && (
+                          <div className="absolute right-0 top-full mt-1 min-w-[170px] rounded-lg border border-cream-dark/70 dark:border-white/20 bg-white dark:bg-navy-light shadow-lg z-20 p-1">
+                            {!showRemoveColumnMenu ? (
+                              <>
+                                <button
+                                  onClick={() => {
+                                    addColumn();
+                                    setShowColumnActionsMenu(false);
+                                  }}
+                                  className="w-full text-left px-3 py-1.5 rounded text-xs text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/10"
+                                >
+                                  Add Column
+                                </button>
+                                <button
+                                  onClick={() => setShowRemoveColumnMenu(true)}
+                                  className="w-full text-left px-3 py-1.5 rounded text-xs text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/10"
+                                >
+                                  Remove Column
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => setShowRemoveColumnMenu(false)}
+                                  className="w-full text-left px-3 py-1.5 rounded text-xs text-navy/60 dark:text-white/60 hover:bg-cream-dark/20 dark:hover:bg-white/10"
+                                >
+                                  Back
+                                </button>
+                                {columns.map((column) => (
+                                  <button
+                                    key={`remove-${column.key}`}
+                                    onClick={() => removeColumn(column.key)}
+                                    className="w-full text-left px-3 py-1.5 rounded text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
+                                  >
+                                    {column.label}
+                                  </button>
+                                ))}
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </th>
                   </tr>
                 </thead>
@@ -747,13 +786,40 @@ export default function TrackerDetailContent({
                           />
                         </td>
                       ))}
-                      <td className="py-2 px-3">
-                        <button
-                          onClick={() => removeRow(row.id)}
-                          className="px-2 py-1 rounded text-[11px] border border-cream-dark dark:border-white/10 text-navy/70 dark:text-white/70 hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
-                        >
-                          Delete
-                        </button>
+                      <td className="py-2 px-3 text-right">
+                        <div className="relative inline-flex">
+                          <button
+                            onClick={() =>
+                              {
+                                setShowColumnActionsMenu(false);
+                                setShowRemoveColumnMenu(false);
+                                setOpenRowActionsRowId((current) =>
+                                  current === row.id ? null : row.id
+                                );
+                              }
+                            }
+                            className="px-2 py-1 rounded text-[11px] border border-cream-dark dark:border-white/10 text-navy/70 dark:text-white/70 hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
+                            aria-label={`Open row actions for ${row.id}`}
+                          >
+                            ...
+                          </button>
+                          {openRowActionsRowId === row.id && (
+                            <div className="absolute right-0 top-full mt-1 min-w-[120px] rounded-lg border border-cream-dark/70 dark:border-white/20 bg-white dark:bg-navy-light shadow-lg z-20 p-1">
+                              <button
+                                onClick={() => removeRow(row.id)}
+                                className="w-full text-left px-3 py-1.5 rounded text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
+                              >
+                                Delete Row
+                              </button>
+                              <button
+                                onClick={() => undoRowChanges(row.id)}
+                                className="w-full text-left px-3 py-1.5 rounded text-xs text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/10"
+                              >
+                                Undo
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
