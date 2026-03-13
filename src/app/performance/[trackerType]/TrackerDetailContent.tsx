@@ -265,6 +265,8 @@ export default function TrackerDetailContent({
   );
   const [hydrated, setHydrated] = useState(false);
   const [selectedAM, setSelectedAM] = useState('');
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const [showRemoveColumnMenu, setShowRemoveColumnMenu] = useState(false);
 
   const isFathomTracker = trackerType === 'fathom_videos';
 
@@ -596,18 +598,75 @@ export default function TrackerDetailContent({
         )}
 
         <div className="flex flex-wrap items-center gap-2 bg-white dark:bg-white/5 rounded-xl border border-cream-dark/60 dark:border-white/10 p-3">
-          <button
-            onClick={addRow}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-electric text-white hover:bg-electric/90 transition-colors"
-          >
-            Add Row
-          </button>
-          <button
-            onClick={addColumn}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium border border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
-          >
-            Add Column
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => {
+                setShowActionsMenu((current) => {
+                  const next = !current;
+                  if (next) setShowRemoveColumnMenu(false);
+                  return next;
+                });
+              }}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium border border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
+              aria-label="Open actions menu"
+            >
+              ...
+            </button>
+            {showActionsMenu && (
+              <div className="absolute left-0 mt-2 min-w-[180px] rounded-lg border border-cream-dark/70 dark:border-white/20 bg-white dark:bg-navy-light shadow-lg z-20 p-1">
+                {!showRemoveColumnMenu ? (
+                  <>
+                    <button
+                      onClick={() => {
+                        addRow();
+                        setShowActionsMenu(false);
+                      }}
+                      className="w-full text-left px-3 py-1.5 rounded text-xs text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/10"
+                    >
+                      Add Row
+                    </button>
+                    <button
+                      onClick={() => {
+                        addColumn();
+                        setShowActionsMenu(false);
+                      }}
+                      className="w-full text-left px-3 py-1.5 rounded text-xs text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/10"
+                    >
+                      Add Column
+                    </button>
+                    <button
+                      onClick={() => setShowRemoveColumnMenu(true)}
+                      className="w-full text-left px-3 py-1.5 rounded text-xs text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/10"
+                    >
+                      Remove Column
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => setShowRemoveColumnMenu(false)}
+                      className="w-full text-left px-3 py-1.5 rounded text-xs text-navy/60 dark:text-white/60 hover:bg-cream-dark/20 dark:hover:bg-white/10"
+                    >
+                      Back
+                    </button>
+                    {columns.map((column) => (
+                      <button
+                        key={`remove-${column.key}`}
+                        onClick={() => {
+                          removeColumn(column.key);
+                          setShowRemoveColumnMenu(false);
+                          setShowActionsMenu(false);
+                        }}
+                        className="w-full text-left px-3 py-1.5 rounded text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
+                      >
+                        {column.label}
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
           <button
             onClick={() =>
               persistState(
@@ -657,20 +716,11 @@ export default function TrackerDetailContent({
                   <tr className="border-b border-cream-dark/60 dark:border-white/10 bg-cream-dark/20 dark:bg-white/5">
                     {columns.map((column) => (
                       <th key={column.key} className="text-left py-2 px-3 min-w-[180px]">
-                        <div className="flex items-center gap-2">
-                          <input
-                            value={column.label}
-                            onChange={(event) => renameColumn(column.key, event.target.value)}
-                            className="w-full px-2 py-1 rounded border border-cream-dark dark:border-white/10 bg-white dark:bg-white/5 text-xs text-navy dark:text-white"
-                          />
-                          <button
-                            onClick={() => removeColumn(column.key)}
-                            className="px-2 py-1 rounded text-[11px] border border-cream-dark dark:border-white/10 text-navy/70 dark:text-white/70 hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
-                            title={`Remove ${column.label}`}
-                          >
-                            Remove
-                          </button>
-                        </div>
+                        <input
+                          value={column.label}
+                          onChange={(event) => renameColumn(column.key, event.target.value)}
+                          className="w-full px-2 py-1 rounded border border-cream-dark dark:border-white/10 bg-white dark:bg-white/5 text-xs text-navy dark:text-white"
+                        />
                       </th>
                     ))}
                     <th className="text-left py-2 px-3 min-w-[90px]">
