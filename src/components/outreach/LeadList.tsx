@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { LI_PIPELINE_STAGES, type LIPipelineStage, type LIQualificationStatus } from '@/lib/types';
 import LeadScoreGauge from './LeadScoreGauge';
@@ -25,12 +26,13 @@ interface LeadListProps {
 }
 
 export default function LeadList({ initialStage, batchId }: LeadListProps) {
+  const searchParams = useSearchParams();
   const [leads, setLeads] = useState<LeadRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [stage, setStage] = useState<string>(initialStage || '');
-  const [qualification, setQualification] = useState('');
+  const [stage, setStage] = useState<string>(initialStage || searchParams.get('stage') || '');
+  const [qualification, setQualification] = useState(searchParams.get('status') || '');
   const [sortField, setSortField] = useState('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
