@@ -112,7 +112,7 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
 
   const fetchDashboard = useCallback(async () => {
     try {
-      const res = await fetch('/api/performance/dashboard');
+      const res = await fetch('/api/performance/dashboard', { cache: 'no-store' });
       if (res.ok) {
         const json = await res.json();
         // Hide sanity_tests - main tracker is sanity_checks
@@ -143,6 +143,14 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
 
   useEffect(() => {
     fetchDashboard();
+  }, [fetchDashboard]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      fetchDashboard();
+    }, 15000);
+
+    return () => window.clearInterval(intervalId);
   }, [fetchDashboard]);
 
   const triggerBumpReminder = async () => {

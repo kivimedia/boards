@@ -99,17 +99,18 @@ export async function GET() {
 }
 
 async function buildAMScorecard(supabase: SupabaseClient) {
-  const { data: fathomData } = await supabase
-    .from('pk_fathom_videos')
-    .select('account_manager_name, watched');
-
-  const { data: updatesData } = await supabase
-    .from('pk_client_updates')
-    .select('account_manager_name, on_time');
-
-  const { data: sanityData } = await supabase
-    .from('pk_sanity_checks')
-    .select('account_manager_name, sanity_check_done');
+  const [{ data: fathomData }, { data: updatesData }, { data: sanityData }] =
+    await Promise.all([
+      supabase
+        .from('pk_fathom_videos')
+        .select('account_manager_name, date_watched, watched'),
+      supabase
+        .from('pk_client_updates')
+        .select('account_manager_name, on_time'),
+      supabase
+        .from('pk_sanity_checks')
+        .select('account_manager_name, sanity_check_done'),
+    ]);
 
   // Aggregate by AM
   const amMap = new Map<string, {
@@ -129,31 +130,61 @@ async function buildAMScorecard(supabase: SupabaseClient) {
     return amMap.get(name)!;
   };
 
+  const normalizeAMName = (value: unknown): string => String(value || '').trim();
+  const hasDateValue = (value: unknown): boolean => {
+    if (value === null || value === undefined) return false;
+    return String(value).trim().length > 0;
+  };
+  const parseBoolean = (value: unknown): boolean | null => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') {
+      if (value === 1) return true;
+      if (value === 0) return false;
+      return null;
+    }
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (!normalized) return null;
+      if (['true', 'yes', 'y', '1'].includes(normalized)) return true;
+      if (['false', 'no', 'n', '0'].includes(normalized)) return false;
+    }
+    return null;
+  };
+
   for (const row of fathomData || []) {
-    const am = getOrCreate(row.account_manager_name);
+    const amName = normalizeAMName(row.account_manager_name);
+    if (!amName) continue;
+    const am = getOrCreate(amName);
     am.fathom_total++;
-    if (row.watched) am.fathom_watched++;
+    const watched = hasDateValue(row.date_watched) || parseBoolean(row.watched) === true;
+    if (watched) am.fathom_watched++;
   }
 
   for (const row of updatesData || []) {
-    const am = getOrCreate(row.account_manager_name);
+    const amName = normalizeAMName(row.account_manager_name);
+    if (!amName) continue;
+    const am = getOrCreate(amName);
     am.updates_total++;
-    if (row.on_time) am.updates_on_time++;
+    if (parseBoolean(row.on_time) === true) am.updates_on_time++;
   }
 
   for (const row of sanityData || []) {
-    const am = getOrCreate(row.account_manager_name);
+    const amName = normalizeAMName(row.account_manager_name);
+    if (!amName) continue;
+    const am = getOrCreate(amName);
     am.sanity_total++;
-    if (row.sanity_check_done) am.sanity_done++;
+    if (parseBoolean(row.sanity_check_done) === true) am.sanity_done++;
   }
 
-  return Array.from(amMap.entries()).map(([name, data]) => ({
-    account_manager_name: name,
-    fathom_videos_watched: data.fathom_watched,
-    fathom_videos_total: data.fathom_total,
-    client_updates_on_time: data.updates_on_time,
-    client_updates_total: data.updates_total,
-    sanity_checks_done: data.sanity_done,
-    sanity_checks_total: data.sanity_total,
-  }));
+  return Array.from(amMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([name, data]) => ({
+      account_manager_name: name,
+      fathom_videos_watched: data.fathom_watched,
+      fathom_videos_total: data.fathom_total,
+      client_updates_on_time: data.updates_on_time,
+      client_updates_total: data.updates_total,
+      sanity_checks_done: data.sanity_done,
+      sanity_checks_total: data.sanity_total,
+    }));
 }
