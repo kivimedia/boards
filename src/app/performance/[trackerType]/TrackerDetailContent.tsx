@@ -30,6 +30,7 @@ interface TrackerStoragePayload {
   settings: {
     columnCounter: number;
     rowCounter: number;
+    manualAMTabs?: string[];
   };
   sync: {
     lastLoadedAt: string;
@@ -173,6 +174,9 @@ const TRACKER_COLUMNS: Record<
 
 const NON_DISPLAY_KEYS = new Set(['id', 'created_at', 'updated_at']);
 const FATHOM_AM_KEY = 'account_manager_name';
+const FATHOM_MEETING_DATE_KEY = 'meeting_date';
+const DATA_COLUMN_WIDTH = 220;
+const ACTION_COLUMN_WIDTH = 96;
 const FATHOM_REQUIRED_COLUMNS: EditableColumn[] = [
   { key: 'account_manager_name', label: 'AM', type: 'text' },
   { key: 'client_name', label: 'Client', type: 'text' },
@@ -183,6 +187,14 @@ const FATHOM_REQUIRED_COLUMNS: EditableColumn[] = [
   { key: 'notes', label: 'Notes', type: 'text' },
 ];
 const FATHOM_LEGACY_COLUMNS = new Set(['watched', 'attachments']);
+
+function toDateTimestamp(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const timestamp = Date.parse(trimmed);
+  if (Number.isNaN(timestamp)) return null;
+  return timestamp;
+}
 
 function toDisplayLabel(key: string): string {
   return key
@@ -269,6 +281,10 @@ export default function TrackerDetailContent({
   const [showRemoveColumnMenu, setShowRemoveColumnMenu] = useState(false);
   const [openRowActionsRowId, setOpenRowActionsRowId] = useState<string | null>(null);
   const [rowUndoValues, setRowUndoValues] = useState<Record<string, Record<string, string>>>({});
+  const [manualAMTabs, setManualAMTabs] = useState<string[]>([]);
+  const [showAddAMInput, setShowAddAMInput] = useState(false);
+  const [newAMName, setNewAMName] = useState('');
+  const [amInputError, setAMInputError] = useState<string | null>(null);
   const [showMidScrollbar, setShowMidScrollbar] = useState(false);
   const [showSavedToast, setShowSavedToast] = useState(false);
   const [savedToastTick, setSavedToastTick] = useState(0);
@@ -281,11 +297,13 @@ export default function TrackerDetailContent({
 
   const amTabs = useMemo(() => {
     if (!isFathomTracker) return [] as string[];
-    const names = rows
+    const namesFromRows = rows
       .map((row) => String(row.values[FATHOM_AM_KEY] || '').trim())
       .filter(Boolean);
-    return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
-  }, [isFathomTracker, rows]);
+    return Array.from(new Set([...manualAMTabs, ...namesFromRows]))
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b));
+  }, [isFathomTracker, manualAMTabs, rows]);
 
   useEffect(() => {
     if (!isFathomTracker) return;
@@ -299,10 +317,23 @@ export default function TrackerDetailContent({
   }, [amTabs, isFathomTracker, selectedAM]);
 
   const visibleRows = useMemo(() => {
-    if (!isFathomTracker || !selectedAM) return rows;
-    return rows.filter(
-      (row) => String(row.values[FATHOM_AM_KEY] || '').trim() === selectedAM
-    );
+    const filteredRows = !isFathomTracker || !selectedAM
+      ? rows
+      : rows.filter(
+          (row) => String(row.values[FATHOM_AM_KEY] || '').trim() === selectedAM
+        );
+
+    if (!isFathomTracker) return filteredRows;
+
+    return [...filteredRows].sort((a, b) => {
+      const aDate = toDateTimestamp(String(a.values[FATHOM_MEETING_DATE_KEY] || ''));
+      const bDate = toDateTimestamp(String(b.values[FATHOM_MEETING_DATE_KEY] || ''));
+
+      if (aDate === null && bDate === null) return 0;
+      if (aDate === null) return 1;
+      if (bDate === null) return -1;
+      return bDate - aDate;
+    });
   }, [isFathomTracker, rows, selectedAM]);
 
   const syncHorizontalMetrics = useCallback(() => {
@@ -332,7 +363,8 @@ export default function TrackerDetailContent({
       nextColumnCounter: number,
       nextRowCounter: number,
       source: 'local' | 'api_seed' | 'empty_seed',
-      loadedAt: string
+      loadedAt: string,
+      nextManualAMTabs: string[]
     ) => {
       const now = new Date().toISOString();
       const payload: TrackerStoragePayload = {
@@ -343,6 +375,7 @@ export default function TrackerDetailContent({
         settings: {
           columnCounter: nextColumnCounter,
           rowCounter: nextRowCounter,
+          manualAMTabs: nextManualAMTabs,
         },
         sync: {
           lastLoadedAt: loadedAt,
@@ -381,6 +414,12 @@ export default function TrackerDetailContent({
               )
             );
             setRows(parsed.rows as EditableRow[]);
+            const parsedManualTabs = Array.isArray(parsed.settings.manualAMTabs)
+              ? parsed.settings.manualAMTabs
+                  .map((item) => String(item || '').trim())
+                  .filter(Boolean)
+              : [];
+            setManualAMTabs(parsedManualTabs);
             setColumnCounter(parsed.settings.columnCounter || 1);
             setRowCounter(parsed.settings.rowCounter || 1);
             setLastLoadedAt(parsed.sync?.lastLoadedAt || new Date().toISOString());
@@ -446,6 +485,7 @@ export default function TrackerDetailContent({
 
         setColumns(initialColumns);
         setRows(initialRows);
+        setManualAMTabs([]);
         setRowUndoValues({});
         setOpenRowActionsRowId(null);
         setColumnCounter(nextColumnCounter);
@@ -460,7 +500,8 @@ export default function TrackerDetailContent({
           nextColumnCounter,
           nextRowCounter,
           source,
-          now
+          now,
+          []
         );
       } catch (err) {
         if (cancelled) return;
@@ -487,13 +528,15 @@ export default function TrackerDetailContent({
         columnCounter,
         rowCounter,
         syncSource,
-        lastLoadedAt || new Date().toISOString()
+        lastLoadedAt || new Date().toISOString(),
+        manualAMTabs
       );
     }, 300);
     return () => window.clearTimeout(timeout);
   }, [
     columns,
     rows,
+    manualAMTabs,
     columnCounter,
     rowCounter,
     hydrated,
@@ -634,6 +677,40 @@ export default function TrackerDetailContent({
     setRowCounter((current) => current + 1);
   }, [columns, isFathomTracker, rowCounter, selectedAM, trackerType]);
 
+  const openAddAMInput = useCallback(() => {
+    setShowAddAMInput(true);
+    setNewAMName('');
+    setAMInputError(null);
+  }, []);
+
+  const closeAddAMInput = useCallback(() => {
+    setShowAddAMInput(false);
+    setNewAMName('');
+    setAMInputError(null);
+  }, []);
+
+  const addAMTab = useCallback(() => {
+    const trimmed = newAMName.trim();
+    if (!trimmed) {
+      setAMInputError('AM name is required.');
+      return;
+    }
+
+    const existing = amTabs.find(
+      (name) => name.toLowerCase() === trimmed.toLowerCase()
+    );
+    const nextAM = existing || trimmed;
+
+    if (!existing) {
+      setManualAMTabs((current) => [...current, trimmed]);
+    }
+
+    setSelectedAM(nextAM);
+    setShowAddAMInput(false);
+    setNewAMName('');
+    setAMInputError(null);
+  }, [amTabs, newAMName]);
+
   const removeRow = useCallback((rowId: string) => {
     setRows((current) => current.filter((row) => row.id !== rowId));
     setRowUndoValues((current) => {
@@ -702,7 +779,8 @@ export default function TrackerDetailContent({
       columnCounter,
       rowCounter,
       syncSource,
-      lastLoadedAt || new Date().toISOString()
+      lastLoadedAt || new Date().toISOString(),
+      manualAMTabs
     );
     setShowSavedToast(true);
     setSavedToastTick((current) => current + 1);
@@ -710,6 +788,7 @@ export default function TrackerDetailContent({
     columnCounter,
     columns,
     lastLoadedAt,
+    manualAMTabs,
     persistState,
     rowCounter,
     rows,
@@ -749,7 +828,7 @@ export default function TrackerDetailContent({
             <p className="text-xs text-navy/50 dark:text-white/40">
               Account Managers
             </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {amTabs.map((amName) => (
                 <button
                   key={amName}
@@ -763,12 +842,51 @@ export default function TrackerDetailContent({
                   {amName}
                 </button>
               ))}
-              {amTabs.length === 0 && (
+              <button
+                onClick={openAddAMInput}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium border border-dashed border-electric/60 text-electric hover:bg-electric/5 transition-colors"
+                aria-label="Add Account Manager tab"
+              >
+                +
+              </button>
+              {showAddAMInput && (
+                <div className="flex items-center gap-2 p-2 rounded-lg border border-cream-dark/70 dark:border-white/20 bg-white dark:bg-white/5">
+                  <input
+                    value={newAMName}
+                    onChange={(event) => {
+                      setNewAMName(event.target.value);
+                      if (amInputError) setAMInputError(null);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') addAMTab();
+                      if (event.key === 'Escape') closeAddAMInput();
+                    }}
+                    placeholder="New AM name"
+                    className="px-2 py-1 rounded border border-cream-dark dark:border-white/10 bg-white dark:bg-white/5 text-xs text-navy dark:text-white"
+                  />
+                  <button
+                    onClick={addAMTab}
+                    className="px-2 py-1 rounded text-[11px] bg-electric text-white hover:bg-electric/90"
+                  >
+                    Add
+                  </button>
+                  <button
+                    onClick={closeAddAMInput}
+                    className="px-2 py-1 rounded text-[11px] border border-cream-dark dark:border-white/10 text-navy/70 dark:text-white/70 hover:bg-cream-dark/20 dark:hover:bg-white/10"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+              {amTabs.length === 0 && !showAddAMInput && (
                 <span className="text-xs text-navy/40 dark:text-white/30">
                   No AM names found yet.
                 </span>
               )}
             </div>
+            {amInputError && (
+              <p className="text-xs text-red-600 dark:text-red-400">{amInputError}</p>
+            )}
           </div>
         )}
 
@@ -818,11 +936,17 @@ export default function TrackerDetailContent({
                 ref={headerScrollerRef}
                 className="overflow-x-auto overflow-y-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               >
-                <table className="w-max min-w-full text-sm">
+                <table className="w-max min-w-full text-sm table-fixed">
+                  <colgroup>
+                    {columns.map((column) => (
+                      <col key={`header-col-${column.key}`} style={{ width: DATA_COLUMN_WIDTH }} />
+                    ))}
+                    <col style={{ width: ACTION_COLUMN_WIDTH }} />
+                  </colgroup>
                   <thead>
                     <tr className="border-b border-cream-dark/60 dark:border-white/10 bg-cream-dark/20 dark:bg-white/5">
                       {columns.map((column) => (
-                        <th key={column.key} className="text-left py-2 px-3 min-w-[180px]">
+                        <th key={column.key} className="text-left py-2 px-3">
                           <input
                             value={column.label}
                             onChange={(event) => renameColumn(column.key, event.target.value)}
@@ -830,7 +954,7 @@ export default function TrackerDetailContent({
                           />
                         </th>
                       ))}
-                      <th className="text-right py-2 px-3 min-w-[90px]">
+                      <th className="text-right py-2 px-3">
                         <div className="relative inline-flex">
                           <button
                             onClick={() => {
@@ -908,7 +1032,13 @@ export default function TrackerDetailContent({
                 ref={bodyScrollerRef}
                 className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               >
-                <table className="w-max min-w-full text-sm">
+                <table className="w-max min-w-full text-sm table-fixed">
+                  <colgroup>
+                    {columns.map((column) => (
+                      <col key={`body-col-${column.key}`} style={{ width: DATA_COLUMN_WIDTH }} />
+                    ))}
+                    <col style={{ width: ACTION_COLUMN_WIDTH }} />
+                  </colgroup>
                   <tbody>
                     {visibleRows.map((row) => (
                       <tr
@@ -916,7 +1046,7 @@ export default function TrackerDetailContent({
                         className="border-b border-cream-dark/30 dark:border-white/5 last:border-0 hover:bg-cream-dark/10 dark:hover:bg-white/5 transition-colors"
                       >
                         {columns.map((column) => (
-                          <td key={`${row.id}_${column.key}`} className="py-2 px-3 min-w-[180px]">
+                          <td key={`${row.id}_${column.key}`} className="py-2 px-3">
                             <EditableCell
                               type={column.type}
                               value={row.values[column.key] || ''}
@@ -926,7 +1056,7 @@ export default function TrackerDetailContent({
                             />
                           </td>
                         ))}
-                        <td className="py-2 px-3 text-right min-w-[90px]">
+                        <td className="py-2 px-3 text-right">
                           <div className="relative inline-flex">
                             <button
                               onClick={() => {
