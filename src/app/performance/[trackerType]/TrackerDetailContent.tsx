@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { PK_TRACKER_FREQUENCIES, PKTrackerType } from '@/lib/types';
 
@@ -269,6 +269,13 @@ export default function TrackerDetailContent({
   const [showRemoveColumnMenu, setShowRemoveColumnMenu] = useState(false);
   const [openRowActionsRowId, setOpenRowActionsRowId] = useState<string | null>(null);
   const [rowUndoValues, setRowUndoValues] = useState<Record<string, Record<string, string>>>({});
+  const [showMidScrollbar, setShowMidScrollbar] = useState(false);
+  const [showSavedToast, setShowSavedToast] = useState(false);
+  const [savedToastTick, setSavedToastTick] = useState(0);
+  const headerScrollerRef = useRef<HTMLDivElement | null>(null);
+  const bodyScrollerRef = useRef<HTMLDivElement | null>(null);
+  const midScrollbarRef = useRef<HTMLDivElement | null>(null);
+  const midScrollbarSpacerRef = useRef<HTMLDivElement | null>(null);
 
   const isFathomTracker = trackerType === 'fathom_videos';
 
@@ -297,6 +304,26 @@ export default function TrackerDetailContent({
       (row) => String(row.values[FATHOM_AM_KEY] || '').trim() === selectedAM
     );
   }, [isFathomTracker, rows, selectedAM]);
+
+  const syncHorizontalMetrics = useCallback(() => {
+    const bodyScroller = bodyScrollerRef.current;
+    const headerScroller = headerScrollerRef.current;
+    const midScrollbar = midScrollbarRef.current;
+    const midSpacer = midScrollbarSpacerRef.current;
+    if (!bodyScroller) return;
+
+    const hasOverflow = bodyScroller.scrollWidth > bodyScroller.clientWidth + 2;
+    setShowMidScrollbar(hasOverflow);
+    if (midSpacer) {
+      midSpacer.style.width = `${bodyScroller.scrollWidth}px`;
+    }
+    if (headerScroller) {
+      headerScroller.scrollLeft = bodyScroller.scrollLeft;
+    }
+    if (midScrollbar) {
+      midScrollbar.scrollLeft = hasOverflow ? bodyScroller.scrollLeft : 0;
+    }
+  }, []);
 
   const persistState = useCallback(
     (
@@ -475,6 +502,85 @@ export default function TrackerDetailContent({
     lastLoadedAt,
   ]);
 
+  useEffect(() => {
+    syncHorizontalMetrics();
+  }, [syncHorizontalMetrics, columns.length, visibleRows.length, loading, showMidScrollbar]);
+
+  useEffect(() => {
+    const onResize = () => syncHorizontalMetrics();
+    window.addEventListener('resize', onResize);
+
+    const bodyScroller = bodyScrollerRef.current;
+    let observer: ResizeObserver | null = null;
+
+    if (typeof ResizeObserver !== 'undefined' && bodyScroller) {
+      observer = new ResizeObserver(() => syncHorizontalMetrics());
+      observer.observe(bodyScroller);
+      if (bodyScroller.firstElementChild instanceof HTMLElement) {
+        observer.observe(bodyScroller.firstElementChild);
+      }
+    }
+
+    return () => {
+      window.removeEventListener('resize', onResize);
+      observer?.disconnect();
+    };
+  }, [syncHorizontalMetrics]);
+
+  useEffect(() => {
+    const headerScroller = headerScrollerRef.current;
+    const bodyScroller = bodyScrollerRef.current;
+    const midScrollbar = midScrollbarRef.current;
+
+    if (!headerScroller || !bodyScroller) return;
+
+    let syncingFrom: 'header' | 'body' | 'mid' | null = null;
+
+    const onHeaderScroll = () => {
+      if (syncingFrom && syncingFrom !== 'header') return;
+      syncingFrom = 'header';
+      bodyScroller.scrollLeft = headerScroller.scrollLeft;
+      if (midScrollbar) midScrollbar.scrollLeft = headerScroller.scrollLeft;
+      syncingFrom = null;
+    };
+
+    const onBodyScroll = () => {
+      if (syncingFrom && syncingFrom !== 'body') return;
+      syncingFrom = 'body';
+      headerScroller.scrollLeft = bodyScroller.scrollLeft;
+      if (midScrollbar) midScrollbar.scrollLeft = bodyScroller.scrollLeft;
+      syncingFrom = null;
+    };
+
+    const onMidScroll = () => {
+      if (!midScrollbar) return;
+      if (syncingFrom && syncingFrom !== 'mid') return;
+      syncingFrom = 'mid';
+      bodyScroller.scrollLeft = midScrollbar.scrollLeft;
+      headerScroller.scrollLeft = midScrollbar.scrollLeft;
+      syncingFrom = null;
+    };
+
+    headerScroller.addEventListener('scroll', onHeaderScroll);
+    bodyScroller.addEventListener('scroll', onBodyScroll);
+    midScrollbar?.addEventListener('scroll', onMidScroll);
+
+    headerScroller.scrollLeft = bodyScroller.scrollLeft;
+    if (midScrollbar) midScrollbar.scrollLeft = bodyScroller.scrollLeft;
+
+    return () => {
+      headerScroller.removeEventListener('scroll', onHeaderScroll);
+      bodyScroller.removeEventListener('scroll', onBodyScroll);
+      midScrollbar?.removeEventListener('scroll', onMidScroll);
+    };
+  }, [showMidScrollbar, columns.length, visibleRows.length, loading]);
+
+  useEffect(() => {
+    if (!showSavedToast) return;
+    const timeout = window.setTimeout(() => setShowSavedToast(false), 2200);
+    return () => window.clearTimeout(timeout);
+  }, [showSavedToast, savedToastTick]);
+
   const addColumn = useCallback(() => {
     const key = `column_${columnCounter}`;
     const nextColumns = [...columns, { key, label: `Column ${columnCounter}`, type: 'text' as const }];
@@ -589,6 +695,27 @@ export default function TrackerDetailContent({
     return `Last saved ${new Date(lastSavedAt).toLocaleString()}`;
   }, [lastSavedAt]);
 
+  const handleSaveNow = useCallback(() => {
+    persistState(
+      columns,
+      rows,
+      columnCounter,
+      rowCounter,
+      syncSource,
+      lastLoadedAt || new Date().toISOString()
+    );
+    setShowSavedToast(true);
+    setSavedToastTick((current) => current + 1);
+  }, [
+    columnCounter,
+    columns,
+    lastLoadedAt,
+    persistState,
+    rowCounter,
+    rows,
+    syncSource,
+  ]);
+
   return (
     <div className="flex-1 overflow-auto p-6">
       <div className="max-w-7xl mx-auto space-y-4">
@@ -653,16 +780,7 @@ export default function TrackerDetailContent({
             Add Row
           </button>
           <button
-            onClick={() =>
-              persistState(
-                columns,
-                rows,
-                columnCounter,
-                rowCounter,
-                syncSource,
-                lastLoadedAt || new Date().toISOString()
-              )
-            }
+            onClick={handleSaveNow}
             className="px-3 py-1.5 rounded-lg text-xs font-medium border border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
           >
             Save Now
@@ -695,151 +813,178 @@ export default function TrackerDetailContent({
               ))}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-cream-dark/60 dark:border-white/10 bg-cream-dark/20 dark:bg-white/5">
-                    {columns.map((column) => (
-                      <th key={column.key} className="text-left py-2 px-3 min-w-[180px]">
-                        <input
-                          value={column.label}
-                          onChange={(event) => renameColumn(column.key, event.target.value)}
-                          className="w-full px-2 py-1 rounded border border-cream-dark dark:border-white/10 bg-white dark:bg-white/5 text-xs text-navy dark:text-white"
-                        />
-                      </th>
-                    ))}
-                    <th className="text-right py-2 px-3 min-w-[90px]">
-                      <div className="relative inline-flex">
-                        <button
-                          onClick={() => {
-                            setOpenRowActionsRowId(null);
-                            setShowColumnActionsMenu((current) => {
-                              const next = !current;
-                              if (!next) setShowRemoveColumnMenu(false);
-                              return next;
-                            });
-                          }}
-                          className="px-2 py-1 rounded text-[11px] border border-cream-dark dark:border-white/10 text-navy/70 dark:text-white/70 hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
-                          aria-label="Open column actions"
-                        >
-                          ...
-                        </button>
-                        {showColumnActionsMenu && (
-                          <div className="absolute right-0 top-full mt-1 min-w-[170px] rounded-lg border border-cream-dark/70 dark:border-white/20 bg-white dark:bg-navy-light shadow-lg z-20 p-1">
-                            {!showRemoveColumnMenu ? (
-                              <>
-                                <button
-                                  onClick={() => {
-                                    addColumn();
-                                    setShowColumnActionsMenu(false);
-                                  }}
-                                  className="w-full text-left px-3 py-1.5 rounded text-xs text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/10"
-                                >
-                                  Add Column
-                                </button>
-                                <button
-                                  onClick={() => setShowRemoveColumnMenu(true)}
-                                  className="w-full text-left px-3 py-1.5 rounded text-xs text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/10"
-                                >
-                                  Remove Column
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  onClick={() => setShowRemoveColumnMenu(false)}
-                                  className="w-full text-left px-3 py-1.5 rounded text-xs text-navy/60 dark:text-white/60 hover:bg-cream-dark/20 dark:hover:bg-white/10"
-                                >
-                                  Back
-                                </button>
-                                {columns.map((column) => (
-                                  <button
-                                    key={`remove-${column.key}`}
-                                    onClick={() => removeColumn(column.key)}
-                                    className="w-full text-left px-3 py-1.5 rounded text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
-                                  >
-                                    {column.label}
-                                  </button>
-                                ))}
-                              </>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleRows.map((row) => (
-                    <tr
-                      key={row.id}
-                      className="border-b border-cream-dark/30 dark:border-white/5 last:border-0 hover:bg-cream-dark/10 dark:hover:bg-white/5 transition-colors"
-                    >
+            <>
+              <div
+                ref={headerScrollerRef}
+                className="overflow-x-auto overflow-y-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
+                <table className="w-max min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-cream-dark/60 dark:border-white/10 bg-cream-dark/20 dark:bg-white/5">
                       {columns.map((column) => (
-                        <td key={`${row.id}_${column.key}`} className="py-2 px-3">
-                          <EditableCell
-                            type={column.type}
-                            value={row.values[column.key] || ''}
-                            onChange={(nextValue) =>
-                              updateCell(row.id, column.key, nextValue)
-                            }
+                        <th key={column.key} className="text-left py-2 px-3 min-w-[180px]">
+                          <input
+                            value={column.label}
+                            onChange={(event) => renameColumn(column.key, event.target.value)}
+                            className="w-full px-2 py-1 rounded border border-cream-dark dark:border-white/10 bg-white dark:bg-white/5 text-xs text-navy dark:text-white"
                           />
-                        </td>
+                        </th>
                       ))}
-                      <td className="py-2 px-3 text-right">
+                      <th className="text-right py-2 px-3 min-w-[90px]">
                         <div className="relative inline-flex">
                           <button
-                            onClick={() =>
-                              {
+                            onClick={() => {
+                              setOpenRowActionsRowId(null);
+                              setShowColumnActionsMenu((current) => {
+                                const next = !current;
+                                if (!next) setShowRemoveColumnMenu(false);
+                                return next;
+                              });
+                            }}
+                            className="px-2 py-1 rounded text-[11px] border border-cream-dark dark:border-white/10 text-navy/70 dark:text-white/70 hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
+                            aria-label="Open column actions"
+                          >
+                            ...
+                          </button>
+                          {showColumnActionsMenu && (
+                            <div className="absolute right-0 top-full mt-1 min-w-[170px] rounded-lg border border-cream-dark/70 dark:border-white/20 bg-white dark:bg-navy-light shadow-lg z-20 p-1">
+                              {!showRemoveColumnMenu ? (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      addColumn();
+                                      setShowColumnActionsMenu(false);
+                                    }}
+                                    className="w-full text-left px-3 py-1.5 rounded text-xs text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/10"
+                                  >
+                                    Add Column
+                                  </button>
+                                  <button
+                                    onClick={() => setShowRemoveColumnMenu(true)}
+                                    className="w-full text-left px-3 py-1.5 rounded text-xs text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/10"
+                                  >
+                                    Remove Column
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => setShowRemoveColumnMenu(false)}
+                                    className="w-full text-left px-3 py-1.5 rounded text-xs text-navy/60 dark:text-white/60 hover:bg-cream-dark/20 dark:hover:bg-white/10"
+                                  >
+                                    Back
+                                  </button>
+                                  {columns.map((column) => (
+                                    <button
+                                      key={`remove-${column.key}`}
+                                      onClick={() => removeColumn(column.key)}
+                                      className="w-full text-left px-3 py-1.5 rounded text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
+                                    >
+                                      {column.label}
+                                    </button>
+                                  ))}
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </th>
+                    </tr>
+                  </thead>
+                </table>
+              </div>
+
+              {showMidScrollbar && (
+                <div
+                  ref={midScrollbarRef}
+                  className="overflow-x-auto border-b border-cream-dark/50 dark:border-white/10"
+                  aria-label="Horizontal scroll"
+                >
+                  <div ref={midScrollbarSpacerRef} className="h-4 min-w-full" />
+                </div>
+              )}
+
+              <div
+                ref={bodyScrollerRef}
+                className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
+                <table className="w-max min-w-full text-sm">
+                  <tbody>
+                    {visibleRows.map((row) => (
+                      <tr
+                        key={row.id}
+                        className="border-b border-cream-dark/30 dark:border-white/5 last:border-0 hover:bg-cream-dark/10 dark:hover:bg-white/5 transition-colors"
+                      >
+                        {columns.map((column) => (
+                          <td key={`${row.id}_${column.key}`} className="py-2 px-3 min-w-[180px]">
+                            <EditableCell
+                              type={column.type}
+                              value={row.values[column.key] || ''}
+                              onChange={(nextValue) =>
+                                updateCell(row.id, column.key, nextValue)
+                              }
+                            />
+                          </td>
+                        ))}
+                        <td className="py-2 px-3 text-right min-w-[90px]">
+                          <div className="relative inline-flex">
+                            <button
+                              onClick={() => {
                                 setShowColumnActionsMenu(false);
                                 setShowRemoveColumnMenu(false);
                                 setOpenRowActionsRowId((current) =>
                                   current === row.id ? null : row.id
                                 );
-                              }
-                            }
-                            className="px-2 py-1 rounded text-[11px] border border-cream-dark dark:border-white/10 text-navy/70 dark:text-white/70 hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
-                            aria-label={`Open row actions for ${row.id}`}
-                          >
-                            ...
-                          </button>
-                          {openRowActionsRowId === row.id && (
-                            <div className="absolute right-0 top-full mt-1 min-w-[120px] rounded-lg border border-cream-dark/70 dark:border-white/20 bg-white dark:bg-navy-light shadow-lg z-20 p-1">
-                              <button
-                                onClick={() => removeRow(row.id)}
-                                className="w-full text-left px-3 py-1.5 rounded text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
-                              >
-                                Delete Row
-                              </button>
-                              <button
-                                onClick={() => undoRowChanges(row.id)}
-                                className="w-full text-left px-3 py-1.5 rounded text-xs text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/10"
-                              >
-                                Undo
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {visibleRows.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={columns.length + 1}
-                        className="py-8 px-3 text-center text-sm text-navy/50 dark:text-white/40"
-                      >
-                        {isFathomTracker && selectedAM
-                          ? `No rows for ${selectedAM}.`
-                          : 'No rows yet.'}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
+                              }}
+                              className="px-2 py-1 rounded text-[11px] border border-cream-dark dark:border-white/10 text-navy/70 dark:text-white/70 hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
+                              aria-label={`Open row actions for ${row.id}`}
+                            >
+                              ...
+                            </button>
+                            {openRowActionsRowId === row.id && (
+                              <div className="absolute right-0 top-full mt-1 min-w-[120px] rounded-lg border border-cream-dark/70 dark:border-white/20 bg-white dark:bg-navy-light shadow-lg z-20 p-1">
+                                <button
+                                  onClick={() => removeRow(row.id)}
+                                  className="w-full text-left px-3 py-1.5 rounded text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
+                                >
+                                  Delete Row
+                                </button>
+                                <button
+                                  onClick={() => undoRowChanges(row.id)}
+                                  className="w-full text-left px-3 py-1.5 rounded text-xs text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/10"
+                                >
+                                  Undo
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {visibleRows.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={columns.length + 1}
+                          className="py-8 px-3 text-center text-sm text-navy/50 dark:text-white/40"
+                        >
+                          {isFathomTracker && selectedAM
+                            ? `No rows for ${selectedAM}.`
+                            : 'No rows yet.'}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              </>
+            )}
         </div>
+
+        {showSavedToast && (
+          <div className="fixed bottom-6 right-6 z-50 px-3 py-2 rounded-lg border border-green-200 dark:border-green-500/25 bg-green-50 dark:bg-green-500/15 text-xs font-medium text-green-700 dark:text-green-300 shadow-lg">
+            Saved!
+          </div>
+        )}
       </div>
     </div>
   );
