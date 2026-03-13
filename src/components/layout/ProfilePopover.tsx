@@ -65,7 +65,8 @@ export default function ProfilePopover({ profile, user, signOut, collapsed }: Pr
   const avatarUrl = profile?.avatar_url || null;
   const email = user?.email || '';
   const roleName = profile?.user_role || profile?.role || 'member';
-  const hasProfile = !!profile && !!user;
+  // Only show email separately if it differs from displayName
+  const showEmail = email && email !== displayName;
 
   return (
     <>
@@ -108,39 +109,35 @@ export default function ProfilePopover({ profile, user, signOut, collapsed }: Pr
                   <p className="text-sm font-semibold text-navy dark:text-slate-100 truncate">
                     {displayName}
                   </p>
-                  {email && (
+                  {showEmail && (
                     <p className="text-xs text-navy/50 dark:text-slate-400 truncate mt-0.5">
                       {email}
                     </p>
                   )}
-                  {hasProfile && (
-                    <span className="inline-block mt-1.5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-full bg-electric/10 text-electric dark:bg-electric/20">
-                      {roleName}
-                    </span>
-                  )}
+                  <span className="inline-block mt-1.5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-full bg-electric/10 text-electric dark:bg-electric/20">
+                    {roleName}
+                  </span>
                 </div>
               </div>
             </div>
 
             {/* Menu Items */}
             <div className="py-1.5">
-              {hasProfile && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    router.push('/settings/account');
-                    close();
-                  }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-navy dark:text-slate-100 hover:bg-cream-dark dark:hover:bg-slate-700 transition-colors"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-navy/50 dark:text-slate-400">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-                  </svg>
-                  My Profile
-                </button>
-              )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  router.push('/settings/account');
+                  close();
+                }}
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-navy dark:text-slate-100 hover:bg-cream-dark dark:hover:bg-slate-700 transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-navy/50 dark:text-slate-400">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                </svg>
+                My Profile
+              </button>
 
-              {hasProfile && <div className="my-1 mx-3 h-px bg-cream-dark dark:bg-slate-700" />}
+              <div className="my-1 mx-3 h-px bg-cream-dark dark:bg-slate-700" />
 
               <button
                 onClick={(e) => {
