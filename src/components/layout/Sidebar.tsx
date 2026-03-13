@@ -134,7 +134,7 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5">
+      <nav className="flex-1 overflow-y-auto scrollbar-thin px-2 py-2 space-y-0.5">
         <Link
           href="/"
           className={`
