@@ -1042,7 +1042,6 @@ export default function TrackerDetailContent({
 
   const removeRow = useCallback(
     async (rowId: string) => {
-      if (!canManageRows) return;
       try {
         setErrorText(null);
         clearPendingRowPatch(rowId);
@@ -1075,12 +1074,11 @@ export default function TrackerDetailContent({
         setErrorText(message);
       }
     },
-    [canManageRows, clearPendingRowPatch, trackerType]
+    [clearPendingRowPatch, trackerType]
   );
 
   const updateCell = useCallback(
     (rowId: string, columnKey: string, value: string) => {
-      if (!canManageRows) return;
       const targetRow = rowsRef.current.find((row) => row.id === rowId);
       if (targetRow) {
         setRowUndoValues((current) => ({
@@ -1098,12 +1096,11 @@ export default function TrackerDetailContent({
       );
       queueRowPatch(rowId, { [columnKey]: value });
     },
-    [canManageRows, queueRowPatch]
+    [queueRowPatch]
   );
 
   const undoRowChanges = useCallback(
     (rowId: string) => {
-      if (!canManageRows) return;
       const snapshot = rowUndoValues[rowId];
       if (!snapshot) {
         setOpenRowActionsRowId(null);
@@ -1124,7 +1121,7 @@ export default function TrackerDetailContent({
       queueRowPatch(rowId, snapshot);
       setOpenRowActionsRowId(null);
     },
-    [canManageRows, queueRowPatch, rowUndoValues]
+    [queueRowPatch, rowUndoValues]
   );
 
   const syncText = useMemo(() => {
@@ -1270,11 +1267,6 @@ export default function TrackerDetailContent({
             Tracker: <code>{trackerType}</code>
           </span>
           <span className="text-xs text-navy/40 dark:text-white/30">{syncText}</span>
-          {!canManageRows && (
-            <span className="text-xs text-navy/40 dark:text-white/30">
-              Read-only view
-            </span>
-          )}
           {lastLoadedAt && (
             <span className="text-xs text-navy/40 dark:text-white/30">
               Loaded {new Date(lastLoadedAt).toLocaleString()} ({syncSource})
@@ -1428,7 +1420,6 @@ export default function TrackerDetailContent({
                             <EditableCell
                               type={column.type}
                               value={row.values[column.key] || ''}
-                              readOnly={!canManageRows}
                               onChange={(nextValue) =>
                                 updateCell(row.id, column.key, nextValue)
                               }
@@ -1436,39 +1427,37 @@ export default function TrackerDetailContent({
                           </td>
                         ))}
                         <td className="py-2 px-3 text-right">
-                          {canManageRows && (
-                            <div className="relative inline-flex">
-                              <button
-                                onClick={() => {
-                                  setShowColumnActionsMenu(false);
-                                  setShowRemoveColumnMenu(false);
-                                  setOpenRowActionsRowId((current) =>
-                                    current === row.id ? null : row.id
-                                  );
-                                }}
-                                className="px-2 py-1 rounded text-[11px] border border-cream-dark dark:border-white/10 text-navy/70 dark:text-white/70 hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
-                                aria-label={`Open row actions for ${row.id}`}
-                              >
-                                ...
-                              </button>
-                              {openRowActionsRowId === row.id && (
-                                <div className="absolute right-0 top-full mt-1 min-w-[120px] rounded-lg border border-cream-dark/70 dark:border-white/20 bg-white dark:bg-navy-light shadow-lg z-20 p-1">
-                                  <button
-                                    onClick={() => removeRow(row.id)}
-                                    className="w-full text-left px-3 py-1.5 rounded text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
-                                  >
-                                    Delete Row
-                                  </button>
-                                  <button
-                                    onClick={() => undoRowChanges(row.id)}
-                                    className="w-full text-left px-3 py-1.5 rounded text-xs text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/10"
-                                  >
-                                    Undo
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          )}
+                          <div className="relative inline-flex">
+                            <button
+                              onClick={() => {
+                                setShowColumnActionsMenu(false);
+                                setShowRemoveColumnMenu(false);
+                                setOpenRowActionsRowId((current) =>
+                                  current === row.id ? null : row.id
+                                );
+                              }}
+                              className="px-2 py-1 rounded text-[11px] border border-cream-dark dark:border-white/10 text-navy/70 dark:text-white/70 hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
+                              aria-label={`Open row actions for ${row.id}`}
+                            >
+                              ...
+                            </button>
+                            {openRowActionsRowId === row.id && (
+                              <div className="absolute right-0 top-full mt-1 min-w-[120px] rounded-lg border border-cream-dark/70 dark:border-white/20 bg-white dark:bg-navy-light shadow-lg z-20 p-1">
+                                <button
+                                  onClick={() => removeRow(row.id)}
+                                  className="w-full text-left px-3 py-1.5 rounded text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
+                                >
+                                  Delete Row
+                                </button>
+                                <button
+                                  onClick={() => undoRowChanges(row.id)}
+                                  className="w-full text-left px-3 py-1.5 rounded text-xs text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/10"
+                                >
+                                  Undo
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
