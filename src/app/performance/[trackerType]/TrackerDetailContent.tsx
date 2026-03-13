@@ -317,11 +317,11 @@ export default function TrackerDetailContent({
     const namesFromRows = rows
       .map((row) => String(row.values[FATHOM_AM_KEY] || '').trim())
       .filter(Boolean);
-    const manualNames = isFathomTracker ? manualAMTabs : [];
+    const manualNames = manualAMTabs;
     return Array.from(new Set([...manualNames, ...namesFromRows]))
       .filter(Boolean)
       .sort((a, b) => a.localeCompare(b));
-  }, [isAMTabbedTracker, isFathomTracker, manualAMTabs, rows]);
+  }, [isAMTabbedTracker, manualAMTabs, rows]);
 
   useEffect(() => {
     if (!isAMTabbedTracker) return;
@@ -874,7 +874,7 @@ export default function TrackerDetailContent({
                   {amName}
                 </button>
               ))}
-              {isFathomTracker && (
+              {isAMTabbedTracker && (
                 <button
                   onClick={openAddAMInput}
                   className="px-3 py-1.5 rounded-lg text-xs font-medium border border-dashed border-electric/60 text-electric hover:bg-electric/5 transition-colors"
@@ -883,7 +883,7 @@ export default function TrackerDetailContent({
                   +
                 </button>
               )}
-              {isFathomTracker && showAddAMInput && (
+              {isAMTabbedTracker && showAddAMInput && (
                 <div className="flex items-center gap-2 p-2 rounded-lg border border-cream-dark/70 dark:border-white/20 bg-white dark:bg-white/5">
                   <input
                     value={newAMName}
@@ -912,13 +912,13 @@ export default function TrackerDetailContent({
                   </button>
                 </div>
               )}
-              {amTabs.length === 0 && !(isFathomTracker && showAddAMInput) && (
+              {amTabs.length === 0 && !(isAMTabbedTracker && showAddAMInput) && (
                 <span className="text-xs text-navy/40 dark:text-white/30">
                   No AM names found yet.
                 </span>
               )}
             </div>
-            {isFathomTracker && amInputError && (
+            {isAMTabbedTracker && amInputError && (
               <p className="text-xs text-red-600 dark:text-red-400">{amInputError}</p>
             )}
           </div>
