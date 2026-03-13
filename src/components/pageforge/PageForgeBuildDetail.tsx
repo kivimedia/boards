@@ -612,6 +612,60 @@ export default function PageForgeBuildDetail({ buildId }: PageForgeBuildDetailPr
         </div>
       </div>
 
+      {/* Quick Links Bar - Page URL + Figma Desktop/Mobile */}
+      <div className="flex items-center gap-4 flex-wrap text-xs bg-slate-50 dark:bg-slate-800/60 rounded-lg px-4 py-2.5 border border-navy/5 dark:border-slate-700">
+        {/* Built Page Link */}
+        {(build.wp_draft_url || build.wp_live_url) ? (
+          <a
+            href={build.wp_live_url || build.wp_draft_url || '#'}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 font-semibold text-electric hover:text-electric-bright transition-colors"
+          >
+            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+            {build.wp_live_url ? 'Live Page' : 'Draft Page'}
+          </a>
+        ) : (
+          <span className="flex items-center gap-1.5 text-navy/30 dark:text-slate-600">
+            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+            Page not deployed yet
+          </span>
+        )}
+
+        <span className="text-navy/10 dark:text-slate-700">|</span>
+
+        {/* Figma Desktop */}
+        {build.figma_file_key ? (
+          <a
+            href={`https://www.figma.com/design/${build.figma_file_key}${build.figma_node_ids?.[0] ? `?node-id=${encodeURIComponent(build.figma_node_ids[0])}` : ''}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-navy/60 dark:text-slate-400 hover:text-electric transition-colors"
+          >
+            <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M5 5.5A3.5 3.5 0 018.5 2H12v7H8.5A3.5 3.5 0 015 5.5zM12 2h3.5a3.5 3.5 0 110 7H12V2zm0 12.5a3.5 3.5 0 11-7 0 3.5 3.5 0 017 0zm1-3a3.5 3.5 0 100-7 3.5 3.5 0 000 7zM5 12a3.5 3.5 0 003.5 3.5H12V9H8.5A3.5 3.5 0 005 12z" /></svg>
+            Figma Desktop
+          </a>
+        ) : (
+          <span className="text-navy/30 dark:text-slate-600">No Figma linked</span>
+        )}
+
+        {/* Figma Mobile */}
+        {build.figma_file_key && build.figma_node_ids && build.figma_node_ids.length > 1 && (
+          <>
+            <span className="text-navy/10 dark:text-slate-700">|</span>
+            <a
+              href={`https://www.figma.com/design/${build.figma_file_key}?node-id=${encodeURIComponent(build.figma_node_ids[1])}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-navy/60 dark:text-slate-400 hover:text-electric transition-colors"
+            >
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+              Figma Mobile
+            </a>
+          </>
+        )}
+      </div>
+
       {/* Error banner */}
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-4 py-3">
