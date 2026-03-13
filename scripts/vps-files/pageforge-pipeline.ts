@@ -11,8 +11,9 @@ export const PAGEFORGE_PHASE_ORDER: string[] = [
   // Pre-build
   'preflight',                    // 0: Validate WP + both Figma files
   'auto_name',                    // 1: AI layer naming suggestions
+  'design_prep',                  // 2: Font validation, layout extraction, mobile rules, tiered renaming
   // Figma analysis
-  'figma_analysis',               // 2: Extract design data from Desktop Figma
+  'figma_analysis',               // 3: Extract design data from Desktop Figma
   'section_classification',       // 3: AI classifies sections
   // Element mapping gate (skippable)
   'element_mapping_gate',         // 4: AI proposes Divi5 module per section, user reviews
@@ -55,6 +56,7 @@ export const GATE_PHASES = new Set<string>([
 export const PHASE_TO_ACTIVITY: Record<string, string> = {
   preflight: 'pageforge_orchestrator',
   auto_name: 'pageforge_orchestrator',
+  design_prep: 'pageforge_orchestrator',
   figma_analysis: 'pageforge_builder',
   section_classification: 'pageforge_builder',
   element_mapping_gate: 'pageforge_builder',

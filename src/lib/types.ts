@@ -3517,6 +3517,7 @@ export type PageForgeBuildStatus =
   | 'pending'
   | 'preflight'
   | 'auto_name'
+  | 'design_prep'
   | 'figma_analysis'
   | 'section_classification'
   | 'element_mapping_gate'

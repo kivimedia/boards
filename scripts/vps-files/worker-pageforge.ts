@@ -14,8 +14,8 @@ import {
 import {
   createFigmaClient, figmaGetFile, figmaGetFileNodes, figmaGetImages,
   figmaDownloadImage, figmaExtractSections, figmaExtractColors,
-  figmaExtractTypography, figmaTestConnection,
-  type FigmaNode, type FigmaSection, type FigmaDesignTokens,
+  figmaExtractTypography, figmaExtractTextContent, figmaTestConnection,
+  type FigmaNode, type FigmaSection, type FigmaDesignTokens, type FigmaTextContent,
 } from '../lib/figma-client.js';
 import type { PageForgeSiteProfile, PageForgeBuild } from '../shared/types.js';
 import { decryptFromHex } from '../lib/encryption.js';
@@ -153,6 +153,18 @@ export async function processPageForgeJob(job: Job<PageForgeJobData>): Promise<v
 
     // Gate phases - pause and wait for human decision
     if (GATE_PHASES.has(phase)) {
+      // draft_review_gate: auto-approve (images aren't loaded yet, human review is pointless here)
+      if (phase === 'draft_review_gate') {
+        await supabase.from('pageforge_builds').update({
+          draft_gate_decision: 'approve',
+          updated_at: new Date().toISOString(),
+        }).eq('id', build_id);
+        console.log(`[pageforge] Draft review gate auto-approved (pre-image review skipped)`);
+        await postBuildMessage(supabase, build_id,
+          'Draft review gate auto-approved (images not yet loaded, review happens at developer gate).', phase);
+        continue; // skip gate, proceed to next phase
+      }
+
       // element_mapping_gate: run AI proposals first, then conditionally pause
       if (phase === 'element_mapping_gate') {
         const { data: currentBuild } = await supabase
@@ -681,7 +693,190 @@ async function executePhase(
     }
 
     // -----------------------------------------------------------------------
-    // PHASE 1: FIGMA ANALYSIS - Extract design data from Figma
+    // PHASE 2: DESIGN PREP - Font validation, layout extraction, mobile rules, tiered renaming
+    // -----------------------------------------------------------------------
+    case 'design_prep': {
+      const designPrepResults: Record<string, any> = {};
+      const preflightData = artifacts.preflight || {};
+      const figmaWarnings: string[] = preflightData.figma_warnings || [];
+      const fontData = preflightData.figma_fonts || {};
+      const namingData = preflightData.figma_naming || {};
+      const autoNameMap = artifacts.auto_name_map || {};
+
+      // --- Sub-task 1: Font Validation ---
+      const nonStandardFonts: string[] = fontData.nonStandard || [];
+      const allUsedFonts: string[] = fontData.used || [];
+      if (nonStandardFonts.length > 0) {
+        console.log(`[pageforge] Design prep: Validating ${nonStandardFonts.length} fonts against Google Fonts...`);
+        const fontMap = await validateFonts(nonStandardFonts, allUsedFonts);
+        designPrepResults.font_map = fontMap;
+
+        const available = fontMap.validated.filter(f => f.status === 'google_fonts').map(f => f.fontFamily);
+        const substituted = fontMap.validated.filter(f => f.status === 'unavailable').map(f => `${f.fontFamily} -> ${f.substitute}`);
+        const summary = [];
+        if (available.length > 0) summary.push(`${available.join(', ')} confirmed on Google Fonts`);
+        if (substituted.length > 0) summary.push(`Substituted: ${substituted.join(', ')}`);
+
+        await postBuildMessage(supabase, buildId,
+          `Font validation: ${summary.join('. ')}`,
+          'design_prep');
+      } else {
+        designPrepResults.font_map = { validated: [], substitutions: {}, googleFontsToLoad: allUsedFonts.filter((f: string) => !SYSTEM_FONTS.has(f)) };
+        console.log('[pageforge] Design prep: No non-standard fonts to validate');
+      }
+
+      // --- Sub-task 2+3: Layout Extraction + Mobile Rules ---
+      // Need Figma node data for layout analysis
+      const needsLayout = figmaWarnings.some((w: string) => w.includes('Low auto-layout'));
+      const needsMobile = figmaWarnings.some((w: string) => w.includes('No mobile frame'));
+
+      if (needsLayout || needsMobile) {
+        console.log(`[pageforge] Design prep: Fetching Figma nodes for layout analysis...`);
+        try {
+          const figmaClient = createFigmaClient(siteProfile.figma_personal_token!);
+
+          // Fetch the desktop frame nodes
+          const desktopNodeIds = (build.figma_node_ids || []).filter((id: string) => id);
+          let pageNode: FigmaNode | null = null;
+
+          if (desktopNodeIds.length > 0) {
+            // Use the first node ID as the main desktop frame
+            const nodes = await figmaGetFileNodes(figmaClient, build.figma_file_key, [desktopNodeIds[0]]);
+            const nodeData = nodes[desktopNodeIds[0]];
+            if (nodeData?.document) pageNode = nodeData.document;
+          }
+
+          if (!pageNode) {
+            // Fallback: fetch full file
+            const file = await figmaGetFile(figmaClient, build.figma_file_key);
+            pageNode = file.document?.children?.[0] || file.document;
+          }
+
+          // Extract sections from the page node
+          const sections = figmaExtractSections(pageNode);
+          console.log(`[pageforge] Design prep: Found ${sections.length} sections for layout analysis`);
+
+          // Extract text content for mobile rules
+          const textContent = figmaExtractTextContent(sections);
+
+          // Sub-task 2: Layout structure
+          if (needsLayout && sections.length > 0) {
+            const layoutMap = extractLayoutMap(sections);
+            designPrepResults.layout_map = layoutMap;
+
+            const layoutSummary = layoutMap.sections.map((s: SectionLayout) =>
+              `${s.sectionName}: ${s.layout.columns}-col, ${s.layout.gap}px gap (${s.layout.source})`
+            ).join('; ');
+            await postBuildMessage(supabase, buildId,
+              `Layout extraction: ${layoutMap.sections.length} sections analyzed. ${layoutSummary}`,
+              'design_prep');
+          }
+
+          // Sub-task 3: Mobile responsive rules
+          if (needsMobile) {
+            const layoutMap = designPrepResults.layout_map || extractLayoutMap(sections);
+            const mobileRules = generateMobileRules(layoutMap, textContent);
+            designPrepResults.mobile_rules = mobileRules;
+
+            await postBuildMessage(supabase, buildId,
+              `Mobile rules generated for ${mobileRules.sections.length} sections (no mobile Figma frame detected - using desktop-derived breakpoints)`,
+              'design_prep');
+          }
+        } catch (layoutErr) {
+          console.error('[pageforge] Design prep layout extraction error:', layoutErr);
+          await postBuildMessage(supabase, buildId,
+            `Layout extraction failed: ${layoutErr instanceof Error ? layoutErr.message : String(layoutErr)}. Continuing without layout data.`,
+            'design_prep');
+        }
+      }
+
+      // --- Sub-task 4: Tiered Re-naming ---
+      const unresolvedIssues = (namingData.issues || []).filter((i: any) => !i.resolved);
+      if (unresolvedIssues.length > 0) {
+        console.log(`[pageforge] Design prep: Tiered renaming for ${unresolvedIssues.length} unresolved naming issues...`);
+
+        // Tier A: depth 1 (top-level frames) - most important
+        const tierA = unresolvedIssues.filter((i: any) => i.depth === 1);
+        // Tier B: depth 2 (section children)
+        const tierB = unresolvedIssues.filter((i: any) => i.depth === 2);
+        // Tier C: depth 3+ (deeply nested)
+        const tierC = unresolvedIssues.filter((i: any) => i.depth >= 3);
+
+        const enhancedMap: Record<string, string> = { ...autoNameMap };
+
+        // Tier A+B: Try Gemini Flash for important nodes
+        const tierAB = [...tierA, ...tierB];
+        if (tierAB.length > 0) {
+          try {
+            const googleApiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+            if (googleApiKey) {
+              const { runAutoName } = await import('../lib/auto-name-core.js');
+
+              // Run focused auto-name with just the important unresolved issues
+              const focusedResult = await runAutoName({
+                figmaFileKey: build.figma_file_key,
+                figmaPersonalToken: siteProfile.figma_personal_token!,
+                figmaNodeIds: build.figma_node_ids,
+                namingIssues: tierAB,
+                googleApiKey,
+              });
+
+              if (focusedResult?.renames?.length > 0) {
+                for (const r of focusedResult.renames) {
+                  enhancedMap[r.nodeId] = r.suggestedName;
+                }
+                console.log(`[pageforge] Tier A+B: Gemini resolved ${focusedResult.renames.length}/${tierAB.length} issues`);
+              }
+            }
+          } catch (geminiErr) {
+            console.error('[pageforge] Tier A+B Gemini rename error:', geminiErr);
+          }
+        }
+
+        // Tier C: Deterministic renaming (no AI)
+        if (tierC.length > 0) {
+          const tierCIssues: NamingIssue[] = tierC.map((i: any) => ({
+            nodeId: i.nodeId,
+            name: i.nodeName,
+            type: i.nodeType || 'FRAME',
+            pattern: i.issue?.includes('Group') ? 'generic_group'
+              : i.issue?.includes('Frame') ? 'generic_frame'
+              : i.issue?.includes('Rectangle') ? 'generic_shape'
+              : i.issue?.includes('Vector') ? 'generic_vector'
+              : i.issue?.includes('image') ? 'generic_image'
+              : i.issue?.includes('Untitled') ? 'untitled'
+              : i.issue?.includes('Numeric') ? 'numeric_only'
+              : 'generic_frame',
+            depth: i.depth,
+            parentName: undefined,
+          }));
+
+          const deterministicNames = runDeterministicRenaming(tierCIssues);
+          for (const [nodeId, name] of Object.entries(deterministicNames)) {
+            if (!enhancedMap[nodeId]) enhancedMap[nodeId] = name;
+          }
+          console.log(`[pageforge] Tier C: Deterministic renaming resolved ${Object.keys(deterministicNames).length} issues`);
+        }
+
+        designPrepResults.enhanced_name_map = enhancedMap;
+
+        const totalResolved = Object.keys(enhancedMap).length;
+        const totalIssues = namingData.issues?.length || unresolvedIssues.length;
+        await postBuildMessage(supabase, buildId,
+          `Tiered renaming: ${totalResolved}/${totalIssues} naming issues now resolved (Tier A: ${tierA.length}, B: ${tierB.length}, C: ${tierC.length})`,
+          'design_prep');
+      } else {
+        designPrepResults.enhanced_name_map = autoNameMap;
+        console.log('[pageforge] Design prep: No unresolved naming issues');
+      }
+
+      await updateBuildArtifacts(supabase, buildId, 'design_prep', designPrepResults);
+      console.log(`[pageforge] Design prep complete: fonts=${!!designPrepResults.font_map}, layout=${!!designPrepResults.layout_map}, mobile=${!!designPrepResults.mobile_rules}, names=${Object.keys(designPrepResults.enhanced_name_map || {}).length}`);
+      break;
+    }
+
+    // -----------------------------------------------------------------------
+    // PHASE 3: FIGMA ANALYSIS - Extract design data from Figma
     // -----------------------------------------------------------------------
     case 'figma_analysis': {
       const figmaClient = createFigmaClient(siteProfile.figma_personal_token!);
@@ -701,8 +896,8 @@ async function executePhase(
       const colors = figmaExtractColors(pageNode);
       const fonts = figmaExtractTypography(pageNode);
 
-      // Apply auto_name overlay: use AI-generated names instead of generic Figma names
-      const nameMap = (artifacts.auto_name_map || {}) as Record<string, string>;
+      // Apply name overlay: prefer enhanced_name_map from design_prep, fall back to auto_name_map
+      const nameMap = (artifacts.design_prep?.enhanced_name_map || artifacts.auto_name_map || {}) as Record<string, string>;
       const sections = rawSections.map(s => ({
         ...s,
         name: nameMap[s.id] || s.name,
@@ -736,6 +931,10 @@ async function executePhase(
       }
       findImages(pageNode);
 
+      // Extract text content from all sections (zero extra API calls)
+      const textContent = figmaExtractTextContent(sections);
+      console.log(`[pageforge] Extracted ${textContent.length} text nodes from Figma`);
+
       // AI design summary
       const designResult = await callPageForgeAgent(supabase, buildId, 'pageforge_analyzer', 'figma_analysis',
         getSystemPrompt('pageforge_builder'),
@@ -748,8 +947,12 @@ async function executePhase(
 
       const result = {
         pageName: figmaPageName,
-        sections: sections.map((s: any) => ({ id: s.id, name: s.name, type: s.type, bounds: s.bounds, childCount: s.children.length })),
-        colors, fonts, imageNodeIds, imageNodeDetails, designSummary: designResult.text,
+        sections: sections.map((s: any) => ({
+          id: s.id, name: s.name, type: s.type, bounds: s.bounds,
+          childCount: s.children.length,
+          columnCount: detectColumnCount(s.node),
+        })),
+        colors, fonts, imageNodeIds, imageNodeDetails, textContent, designSummary: designResult.text,
       };
       await updateBuildArtifacts(supabase, buildId, 'figma_analysis', result);
 
@@ -771,9 +974,21 @@ async function executePhase(
       const figmaData = artifacts.figma_analysis;
       if (!figmaData?.sections) throw new Error('Missing figma_analysis artifacts');
 
+      // Build section descriptions enriched with text content from Figma
+      const textContent: FigmaTextContent[] = figmaData.textContent || [];
+      const sectionDescriptions = figmaData.sections.map((s: any, i: number) => {
+        const sectionTexts = textContent
+          .filter((t: FigmaTextContent) => t.sectionName === s.name)
+          .sort((a: FigmaTextContent, b: FigmaTextContent) => a.y - b.y)
+          .slice(0, 8)
+          .map((t: FigmaTextContent) => `  - [${t.role}] "${t.text.slice(0, 80)}" (${t.fontSize}px/${t.fontWeight})`)
+          .join('\n');
+        return `${i + 1}. "${s.name}" - ${s.bounds.width}x${s.bounds.height}px, ${s.childCount} children${sectionTexts ? '\n' + sectionTexts : ''}`;
+      }).join('\n');
+
       const result = await callPageForgeAgent(supabase, buildId, 'pageforge_classifier', 'section_classification',
         getSystemPrompt('pageforge_builder'),
-        `Classify each section by type and complexity tier.\n\nSections:\n${figmaData.sections.map((s: any, i: number) => `${i + 1}. "${s.name}" - ${s.bounds.width}x${s.bounds.height}px, ${s.childCount} children`).join('\n')}\n\nRespond with JSON array: [{"sectionId":"...","sectionName":"...","type":"hero|features|cta|testimonials|pricing|stats|gallery|contact|footer|navigation|content|faq|team|logos|video","tier":1-4,"description":"..."}]\n\nTier: 1=Simple, 2=Standard, 3=Complex, 4=Advanced`,
+        `Classify each section by type and complexity tier.\n\nSections:\n${sectionDescriptions}\n\nRespond with JSON array: [{"sectionId":"...","sectionName":"...","type":"hero|features|cta|testimonials|pricing|stats|gallery|contact|footer|navigation|content|faq|team|logos|video","tier":1-4,"description":"..."}]\n\nTier: 1=Simple, 2=Standard, 3=Complex, 4=Advanced`,
         anthropic
       );
 
@@ -828,20 +1043,46 @@ async function executePhase(
         }
       }
 
-      // Build detailed section descriptions with dimensions
+      // Build detailed section descriptions with dimensions and TEXT CONTENT from Figma
+      const allTextContent: FigmaTextContent[] = figmaData.textContent || [];
+
+      // Build section details for the prompt (layout info only - text goes in separate section)
       const sectionDetails = classifications.map((c: any, i: number) => {
         const section = figmaData.sections.find((s: any) => s.id === c.sectionId);
         const bounds = section?.bounds || {};
-        return `${i + 1}. "${c.sectionName}" (${c.type}, Tier ${c.tier}) - ${bounds.width || '?'}x${bounds.height || '?'}px, ${section?.childCount || 0} child elements${c.description ? ` - ${c.description}` : ''}`;
+        const colCount = section?.columnCount || 1;
+        const colLabel = colCount > 1 ? `, ${colCount}-column layout` : '';
+        return `${i + 1}. "${c.sectionName}" (${c.type}, Tier ${c.tier}) - ${bounds.width || '?'}x${bounds.height || '?'}px, ${section?.childCount || 0} child elements${colLabel}${c.description ? ` - ${c.description}` : ''}`;
       }).join('\n');
 
-      // Identify primary and secondary colors from the design
+      // Build MANDATORY text content section - text as a prominent top-level block
+      const mandatoryTextContent = classifications.map((c: any) => {
+        const sectionTexts = allTextContent
+          .filter((t: FigmaTextContent) => t.sectionName === c.sectionName)
+          .sort((a: FigmaTextContent, b: FigmaTextContent) => a.y - b.y)
+          .slice(0, 12);
+        if (sectionTexts.length === 0) return '';
+        const lines = sectionTexts.map((t: FigmaTextContent) => {
+          const tag = t.role === 'heading' ? (t.fontSize >= 36 ? 'H1' : 'H2') : t.role === 'button' ? 'Button' : 'Body';
+          return `- ${tag}: "${t.text.slice(0, 150)}" (${t.fontSize}px/${t.fontWeight})`;
+        });
+        return `### Section: "${c.sectionName}"\n${lines.join('\n')}`;
+      }).filter(Boolean).join('\n\n');
+
+      // Build MANDATORY section order
+      const mandatorySectionOrder = classifications.map((c: any, i: number) =>
+        `${i + 1}. ${c.sectionName}`
+      ).join('\n');
+
+      // Identify primary and secondary colors from the design (luminance-based)
       const colorList: string[] = figmaData.colors.map((c: any) => c.hex as string);
       const uniqueColors: string[] = [...new Set(colorList)];
-      const primaryDark = uniqueColors.find(c => c.match(/^#[0-3]/)) || '#001738';
-      const primaryAccent = uniqueColors.find(c => c.match(/^#[c-f][0-9a-f][0-3]/i)) || '#cc2336';
-      const primaryFont = figmaData.fonts[0]?.family || 'Poppins';
-      const secondaryFont = figmaData.fonts.find((f: any) => f.family !== primaryFont)?.family || primaryFont;
+      const primaryDark = findPrimaryDark(uniqueColors);
+      const primaryAccent = findAccentColor(uniqueColors);
+      const fontSubstitutions = (artifacts.design_prep?.font_map?.substitutions || {}) as Record<string, string>;
+      const resolveFontName = (name: string) => fontSubstitutions[name] || name;
+      const primaryFont = resolveFontName(figmaData.fonts[0]?.family || 'Poppins');
+      const secondaryFont = resolveFontName(figmaData.fonts.find((f: any) => f.family !== figmaData.fonts[0]?.family)?.family || primaryFont);
 
       // Build image placeholder list for the AI prompt
       const imageDetails: typeof figmaData.imageNodeDetails = figmaData.imageNodeDetails || [];
@@ -874,15 +1115,58 @@ IMAGE RULES:
 
 ${figmaImageContext}
 
+## MANDATORY TEXT CONTENT - USE THESE EXACT STRINGS
+
+The following text was extracted directly from the Figma design file. You MUST use these
+EXACT strings in your output. Do NOT paraphrase, rewrite, or make up alternative text.
+Using different text than what appears below is a CRITICAL FAILURE.
+
+${mandatoryTextContent}
+
+## MANDATORY SECTION ORDER
+
+Output sections in THIS EXACT ORDER. Do not reorder, skip, or merge sections:
+${mandatorySectionOrder}
+
 ${DIVI5_INSTRUCTIONS}
 
 ## Design System
 Primary font: "${primaryFont}", sans-serif (ALL text uses this font)
 Secondary font: "${secondaryFont}", sans-serif
-Dark color: ${primaryDark}
-Accent color: ${primaryAccent}
-All colors: ${uniqueColors.slice(0, 12).join(', ')}
+
+COLOR PALETTE (use ONLY these colors):
+- Primary dark: ${primaryDark} (use for hero bg, footer bg, dark sections)
+- Accent: ${primaryAccent} (use for buttons, highlights, CTAs)
+- Text on dark: #ffffff
+- Text on light: #333333
+- All Figma colors: ${uniqueColors.slice(0, 12).join(', ')}
+- Do NOT invent colors not in this list
+
 Font scale: ${figmaData.fonts.slice(0, 8).map((f: any) => `${f.size}px/${f.weight}`).join(', ')}
+${(() => {
+  const layoutMap = artifacts.design_prep?.layout_map;
+  if (!layoutMap?.sections?.length) return '';
+  return `
+## LAYOUT STRUCTURE (extracted from Figma - follow precisely)
+${layoutMap.sections.map((s: any) =>
+  `- "${s.sectionName}": ${s.layout.columns}-column ${s.layout.direction} layout, ${s.layout.gap}px gap, padding ${s.layout.padding.top}/${s.layout.padding.right}/${s.layout.padding.bottom}/${s.layout.padding.left}px, alignment: ${s.layout.alignment}, child sizing: ${s.layout.childSizing} (${s.layout.source})`
+).join('\n')}
+
+IMPORTANT: Use these exact column counts and gaps. Do NOT guess layouts.`;
+})()}
+${(() => {
+  const mobileRules = artifacts.design_prep?.mobile_rules;
+  if (!mobileRules?.sections?.length) return '';
+  return `
+## RESPONSIVE BREAKPOINTS (apply to every section)
+Tablet: max-width ${mobileRules.breakpoints.tablet}px | Phone: max-width ${mobileRules.breakpoints.phone}px
+
+${mobileRules.sections.map((s: any) =>
+  `- "${s.sectionName}": Desktop ${s.desktop.columns}-col -> Tablet ${s.tablet.columns}-col -> Phone ${s.phone.columns}-col | Font: ${s.desktop.fontSize} -> ${s.tablet.fontSize} -> ${s.phone.fontSize}`
+).join('\n')}
+
+Include _tablet and _phone attribute variants in every Divi 5 module for responsive behavior.`;
+})()}
 
 ## Sections to Build (${classifications.length} total - EVERY ONE is required)
 ${sectionDetails}
@@ -890,18 +1174,19 @@ ${imageRules}
 
 ## QUALITY RULES
 1. Output exactly ${classifications.length} sections, matching the Figma design section count precisely.
-2. Section backgrounds must EXACTLY match the Figma colors: ${uniqueColors.slice(0, 6).join(', ')}
-3. Dark sections (${primaryDark} or similar) MUST have light text colors (#ffffff, #e0e0e0) in font settings
-4. Card/feature grids: use columns + cards, NOT individual sections per card
-5. Stats/numbers: use columns (3-5) + cards where title="24+" and text="Years Experience"
-6. Hero: large h1 (48-60px), subtitle, CTA button. background.color MUST be a dark rgba overlay like "rgba(0,23,56,0.75)" for text readability over the image - NEVER leave hero background.color as white or empty when there is a background.image.
-7. Footer: dark background, use a single "code" element for multi-column HTML footer layout
-8. ALL content from the Figma design - NO placeholder/lorem ipsum text. Copy exact text visible in the design.
-9. Match column counts exactly from Figma (3 cards in design = columns:3)
+2. Section backgrounds must EXACTLY match the Figma colors listed above.
+3. Dark sections (${primaryDark} or similar) MUST have light text colors (#ffffff, #e0e0e0) in font settings.
+4. Card/feature grids: use columns + cards, NOT individual sections per card.
+5. Stats/numbers: use columns (3-5) + cards where title="24+" and text="Years Experience".
+6. Hero: large h1 (48-60px), subtitle, CTA button. background.color MUST be a dark rgba overlay for text readability over the image.
+7. Footer: dark background, use a single "code" element for multi-column HTML footer layout.
+8. ALL content from the MANDATORY TEXT CONTENT section above. NO placeholder/lorem ipsum text.
+9. Match column counts exactly from Figma (3 cards in design = columns:3).
 10. Each concept appears EXACTLY ONCE. Never duplicate sections.
 11. Font sizes MUST use the actual design system: ${figmaData.fonts.slice(0, 5).map((f: any) => `${f.size}px`).join(', ')}
 12. EVERY heading and text element MUST have explicit font.color set (dark text on light bg, light text on dark bg).
-13. Hero sections with background images: ALL text elements MUST have font.color="#ffffff" (white) so text is visible over the dark overlay.
+13. Hero sections with background images: ALL text elements MUST have font.color="#ffffff".
+14. Tabs/interactive sections: use a "code" element with custom HTML for tabbed interfaces (tab buttons + content panels with inline JS for switching).
 
 RESPOND WITH JSON ONLY (no markdown fences): {"sections":[...]}`;
 
@@ -949,13 +1234,48 @@ RESPOND WITH JSON ONLY (no markdown fences): {"sections":[...]}`;
           throw new Error('AI returned no valid Divi 5 sections - JSON parsing failed. Raw response length: ' + rawText.length);
         }
 
-        // Post-process: ensure hero sections have background images from Figma
-        // The AI sometimes omits background.image even when instructed, causing hero to render as solid color
+        // B4: Validate and enforce section ordering to match classifications
+        {
+          const expectedOrder = classifications.map((c: any) => c.sectionName.toLowerCase());
+          const reordered: typeof divi5Sections = [];
+          const used = new Set<number>();
+          for (const expectedName of expectedOrder) {
+            const matchIdx = divi5Sections.findIndex((s, idx) =>
+              !used.has(idx) && (
+                s.name?.toLowerCase().includes(expectedName) ||
+                expectedName.includes(s.name?.toLowerCase() || '')
+              )
+            );
+            if (matchIdx >= 0) {
+              reordered.push(divi5Sections[matchIdx]);
+              used.add(matchIdx);
+            }
+          }
+          // Append any unmatched sections at the end
+          for (let idx = 0; idx < divi5Sections.length; idx++) {
+            if (!used.has(idx)) reordered.push(divi5Sections[idx]);
+          }
+          if (reordered.length > 0) {
+            const wasReordered = divi5Sections.some((s, i) => s !== reordered[i]);
+            if (wasReordered) {
+              console.log(`[pageforge] Post-process: reordered sections to match Figma layout`);
+            }
+            divi5Sections = reordered;
+          }
+        }
+
+        // Post-process ALL sections: background images, text validation, missing elements
         const imageDetails: { id: string; name: string; sectionName: string; width: number; height: number }[] = figmaData.imageNodeDetails || [];
         for (let si = 0; si < divi5Sections.length; si++) {
           const section = divi5Sections[si];
           const classification = classifications[si];
           if (!classification) continue;
+
+          const sectionName = classification.sectionName;
+          const sectionTexts = allTextContent
+            .filter((t: FigmaTextContent) => t.sectionName === sectionName)
+            .sort((a: FigmaTextContent, b: FigmaTextContent) => a.y - b.y);
+          const isDarkBg = section.background?.color && relativeLuminance(section.background.color.replace(/rgba?\([^)]+\)/, '#000')) < 0.3;
 
           // Check if this section should have a background image
           const isHeroLike = classification.type === 'hero' ||
@@ -963,32 +1283,112 @@ RESPOND WITH JSON ONLY (no markdown fences): {"sections":[...]}`;
             (si === 0 && section.background?.color);
 
           if (isHeroLike && !section.background?.image) {
-            // Find the largest image from this Figma section
             const sectionImages = imageDetails.filter(img =>
-              img.sectionName === classification.sectionName ||
-              img.sectionName?.toLowerCase().includes('hero')
+              img.sectionName === sectionName || img.sectionName?.toLowerCase().includes('hero')
             );
-            // Pick the largest image (likely the background)
             const bgImage = sectionImages.sort((a, b) => (b.width * b.height) - (a.width * a.height))[0];
             if (bgImage) {
               if (!section.background) section.background = {};
               section.background.image = `FIGMA_IMG:${bgImage.id}`;
-              // Ensure dark overlay color if no color set
               if (!section.background.color) {
                 section.background.color = 'rgba(0,23,56,0.75)';
               }
-              console.log(`[pageforge] Post-process: injected background.image FIGMA_IMG:${bgImage.id} into hero section "${section.name}" (AI omitted it)`);
+              console.log(`[pageforge] Post-process: injected background.image into "${section.name}"`);
             }
           }
 
-          // Also ensure any section with a background image placeholder has proper color overlay
+          // Ensure overlay color on sections with background images
           if (section.background?.image?.startsWith('FIGMA_IMG') && !section.background.color) {
             section.background.color = 'rgba(0,23,56,0.75)';
-            console.log(`[pageforge] Post-process: added overlay color to section "${section.name}" with background image`);
+          }
+
+          // B5: Validate and fix text content for ALL sections (not just hero)
+          if (sectionTexts.length > 0) {
+            const elements = section.elements || [];
+
+            // Check/fix heading text against Figma
+            const figmaHeadings = sectionTexts.filter((t: FigmaTextContent) => t.role === 'heading');
+            for (const el of elements) {
+              if (el.type === 'heading' && el.text && figmaHeadings.length > 0) {
+                const bestMatch = figmaHeadings
+                  .map((fh: FigmaTextContent) => ({ text: fh.text, score: fuzzyTextMatch(el.text, fh.text) }))
+                  .sort((a: any, b: any) => b.score - a.score)[0];
+                if (bestMatch && bestMatch.score < 0.4) {
+                  // Text is hallucinated - replace with best Figma match
+                  const correctHeading = figmaHeadings.find((fh: FigmaTextContent) =>
+                    !elements.some((other: any) => other !== el && other.type === 'heading' && fuzzyTextMatch(other.text || '', fh.text) > 0.6)
+                  );
+                  if (correctHeading) {
+                    console.log(`[pageforge] Post-process: replaced hallucinated heading "${el.text.slice(0, 40)}" with Figma text "${correctHeading.text.slice(0, 40)}" in "${sectionName}"`);
+                    el.text = correctHeading.text;
+                  }
+                }
+              }
+            }
+
+            // Check/fix card titles against Figma text
+            if (section.cards && section.cards.length > 0) {
+              const figmaCardTexts = sectionTexts.filter((t: FigmaTextContent) =>
+                t.role === 'body' || t.role === 'heading'
+              );
+              for (let ci = 0; ci < section.cards.length; ci++) {
+                const card = section.cards[ci];
+                if (card.title) {
+                  const anyMatch = sectionTexts.some((t: FigmaTextContent) => fuzzyTextMatch(card.title, t.text) > 0.4);
+                  if (!anyMatch && figmaCardTexts[ci]) {
+                    console.log(`[pageforge] Post-process: replaced card title "${card.title.slice(0, 30)}" with Figma text in "${sectionName}"`);
+                    card.title = figmaCardTexts[ci].text;
+                  }
+                }
+              }
+            }
+
+            // Inject missing heading if not present (expanded from hero-only)
+            const hasHeading = elements.some((el: any) => el.type === 'heading');
+            const figmaHeading = figmaHeadings[0];
+            if (!hasHeading && figmaHeading) {
+              elements.unshift({
+                type: 'heading',
+                text: figmaHeading.text,
+                level: figmaHeading.fontSize >= 36 ? 'h1' : 'h2',
+                font: {
+                  family: primaryFont,
+                  size: `${figmaHeading.fontSize}px`,
+                  weight: String(figmaHeading.fontWeight),
+                  color: isDarkBg ? '#ffffff' : '#333333',
+                },
+              });
+              section.elements = elements;
+              console.log(`[pageforge] Post-process: injected missing heading in "${sectionName}"`);
+            }
+
+            // Inject missing button (expanded from hero-only)
+            const figmaButton = sectionTexts.find((t: FigmaTextContent) => t.role === 'button');
+            const hasButton = elements.some((el: any) => el.type === 'button');
+            if (!hasButton && figmaButton && (isHeroLike || classification.type === 'cta')) {
+              elements.push({
+                type: 'button',
+                text: figmaButton.text,
+                url: '#contact',
+                font: { size: `${figmaButton.fontSize}px`, weight: String(figmaButton.fontWeight), color: '#ffffff' },
+                style: { bgColor: primaryAccent, borderRadius: '8px', padding: '14px 32px' },
+              });
+              section.elements = elements;
+              console.log(`[pageforge] Post-process: injected missing button "${figmaButton.text}" in "${sectionName}"`);
+            }
           }
         }
 
-        const divi5Markup = buildDivi5Markup(divi5Sections, primaryFont, primaryAccent);
+        let divi5Markup = buildDivi5Markup(divi5Sections, primaryFont, primaryAccent);
+
+        // Apply font substitutions from design_prep (e.g. "Figma Hand" -> "Caveat")
+        const fontSubs = (artifacts.design_prep?.font_map?.substitutions || {}) as Record<string, string>;
+        for (const [original, substitute] of Object.entries(fontSubs)) {
+          if (original && substitute) {
+            divi5Markup = divi5Markup.replace(new RegExp(original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), substitute);
+          }
+        }
+
         const diviSectionCount = (divi5Markup.match(/<!-- wp:divi\/section/g) || []).length;
         console.log(`[pageforge] Generated Divi 5 markup: ${divi5Markup.length} chars, ${diviSectionCount} native sections from ${divi5Sections.length} JSON sections`);
 
@@ -1555,18 +1955,30 @@ RESPOND WITH JSON: {"markup":"the COMPLETE page markup","sections":[{"name":"sec
       const desktopShot = await captureScreenshotAtBreakpoint(deployData.draftUrl, 1440);
       const wpScreenshots: Record<string, string | null> = { desktop: desktopShot, tablet: null, mobile: null };
 
-      // Export Figma desktop screenshot (JPG, scale 0.5 to stay under 5MB API limit)
+      // Export Figma desktop screenshot (JPG, scale 1.0 for better detail, fallback to 0.75 if too large)
       let figmaScreenshots: Record<string, string | null> = { desktop: null };
       if (siteProfile.figma_personal_token && build.figma_node_ids?.length > 0) {
         try {
           const figmaClient = createFigmaClient(siteProfile.figma_personal_token);
-          const imageResponse = await figmaGetImages(figmaClient, build.figma_file_key, [build.figma_node_ids[0]], { format: 'jpg', scale: 0.5 });
+          let vqaScale = 1;
+          const imageResponse = await figmaGetImages(figmaClient, build.figma_file_key, [build.figma_node_ids[0]], { format: 'jpg', scale: vqaScale });
           const firstUrl = Object.values(imageResponse.images).find(Boolean);
           if (firstUrl) {
             const buffer = await figmaDownloadImage(firstUrl);
-            console.log(`[pageforge] Figma desktop VQA screenshot raw: ${Math.round(buffer.length / 1024)}KB`);
-            figmaScreenshots.desktop = await resizeIfNeeded(buffer.toString('base64'));
-            console.log(`[pageforge] Figma desktop VQA screenshot ready`);
+            console.log(`[pageforge] Figma desktop VQA screenshot raw: ${Math.round(buffer.length / 1024)}KB (scale ${vqaScale})`);
+            let resized = await resizeIfNeeded(buffer.toString('base64'));
+            // If still too large after resize, retry at lower scale
+            if (Buffer.from(resized, 'base64').length > 4_500_000 && vqaScale > 0.75) {
+              console.log(`[pageforge] VQA image too large at scale ${vqaScale}, retrying at 0.75`);
+              const fallbackResp = await figmaGetImages(figmaClient, build.figma_file_key, [build.figma_node_ids[0]], { format: 'jpg', scale: 0.75 });
+              const fallbackUrl = Object.values(fallbackResp.images).find(Boolean);
+              if (fallbackUrl) {
+                const fallbackBuf = await figmaDownloadImage(fallbackUrl);
+                resized = await resizeIfNeeded(fallbackBuf.toString('base64'));
+              }
+            }
+            figmaScreenshots.desktop = resized;
+            console.log(`[pageforge] Figma desktop VQA screenshot ready: ${Math.round(Buffer.from(resized, 'base64').length / 1024)}KB`);
           }
         } catch (err) {
           console.warn('[pageforge] Failed to export Figma desktop VQA screenshot:', err);
@@ -1609,25 +2021,53 @@ ${sectionContext}
 Image 1: Figma design (reference - the original design)
 Image 2: WordPress page (actual output - what was built)
 
-IMPORTANT: The images may have slightly different heights/proportions. Focus on whether the SAME SECTIONS and CONTENT exist in both, not on exact pixel alignment. The Figma design and WP page will naturally have different spacing.
+BE STRICT. A page with wrong text, missing sections, or wrong colors cannot score above 60%.
 
-Evaluate these aspects:
-1. SECTION PRESENCE: Are all major sections from Figma present in WP? (hero, services, gallery, testimonials, contact, footer)
-2. VISUAL STYLE: Do sections have correct background colors (dark navy, white, cream)? Are fonts styled (not system defaults)?
-3. CARD/GRID LAYOUTS: Are multi-column layouts (3-column cards, grids) properly implemented?
-4. IMAGES: Are real images showing in the right places? Or are there gray boxes/broken images?
-5. COLOR SCHEME: Does the WP page use the same color palette as the Figma design?
-6. TYPOGRAPHY: Are headings styled with correct hierarchy (H1 > H2 > H3)?
-7. BUTTONS/CTAs: Are buttons styled and visible?
-8. FOOTER: Is a proper multi-column footer present?
+Score EACH category 0-100, then calculate the weighted average:
 
-Scoring guide:
-- 0-30: Unstyled HTML, missing sections, broken layout
-- 30-50: Basic structure but wrong colors/fonts, missing backgrounds
-- 50-70: Good structure, some styling issues, a few missing elements
-- 70-85: All sections present, well-styled, minor spacing/color differences
-- 85-95: Excellent recreation, professional quality, very close to design
-- 95-100: Near pixel-perfect match
+1. TEXT ACCURACY (20%): Does the page show the EXACT same text as the Figma design?
+   - Compare headlines word-for-word. Wrong headline text = 0 for this category.
+   - Placeholder/lorem ipsum text = 0.
+   - Made-up text that doesn't appear in Figma = 0.
+
+2. SECTION COMPLETENESS (15%): Are ALL sections from Figma present in WP?
+   - Each missing section = -15 points.
+   - Extra sections not in Figma = -5 points.
+
+3. SECTION ORDER (10%): Do sections appear top-to-bottom in the same order as Figma?
+   - Wrong order = max 30 for this category.
+
+4. LAYOUT STRUCTURE (15%): Column counts, grid layouts, card arrangements match Figma?
+   - 3-column grid showing as 2-column = max 40.
+   - Missing tab/accordion interface = max 30.
+
+5. COLOR ACCURACY (10%): Background colors, text colors match Figma palette?
+   - Wrong primary color (e.g. purple instead of navy) = max 30.
+   - Text unreadable on background = 0.
+
+6. TYPOGRAPHY (10%): Font sizes, weights, hierarchy match?
+   - System fonts instead of design fonts = max 40.
+   - Wrong heading hierarchy = -20.
+
+7. IMAGES (8%): Real images in correct positions, correct aspect ratios?
+   - Broken/missing images = 0.
+   - Wrong aspect ratio = -20.
+
+8. BUTTONS/CTAs (5%): Styled correctly, text matches Figma?
+   - Missing CTA = 0.
+
+9. FOOTER (4%): Structure matches Figma (columns, links, content)?
+   - Generic single-line footer when Figma has multi-column = max 30.
+
+10. VISUAL ARTIFACTS (3%): No random shapes, dots, lines, or rendering glitches?
+    - Any visible artifact = 0 for this category.
+
+Final = text*0.20 + sections*0.15 + order*0.10 + layout*0.15 + color*0.10 + typo*0.10 + images*0.08 + buttons*0.05 + footer*0.04 + artifacts*0.03
+
+CRITICAL SCORING RULES:
+- If ANY heading text doesn't match Figma, overall score CANNOT exceed 70%.
+- If a major section is missing entirely, overall score CANNOT exceed 60%.
+- If section order is wrong, overall score CANNOT exceed 75%.
 
 DIVI 5 CSS SELECTORS (use these in suggestedFix, NOT made-up class names):
 - Sections: .et_pb_section_0, .et_pb_section_1, etc. (0-indexed, top to bottom)
@@ -1638,7 +2078,7 @@ DIVI 5 CSS SELECTORS (use these in suggestedFix, NOT made-up class names):
 - Buttons: .et_pb_button
 
 Respond with JSON:
-{"score":N,"differences":[{"area":"element","severity":"critical|major|minor","description":"specific issue","suggestedFix":"CSS rule using Divi 5 selectors above"}]}`,
+{"score":N,"categoryScores":{"text":N,"sections":N,"order":N,"layout":N,"color":N,"typography":N,"images":N,"buttons":N,"footer":N,"artifacts":N},"differences":[{"area":"element","severity":"critical|major|minor","description":"specific issue","suggestedFix":"CSS rule using Divi 5 selectors above"}]}`,
             anthropic, {
               images: [
                 { data: figmaDesktop, mimeType: 'image/jpeg' },
@@ -1689,11 +2129,35 @@ Respond with JSON:
         }
       }
 
-      // Desktop-only scoring (mobile VQA is a separate phase)
+      // Run structural QA (text-based, no screenshots) to detect content accuracy issues
+      let structuralScore = 100;
+      let structuralPenalties: string[] = [];
+      let structuralAutoFixes: StructuralFix[] = [];
+      const markupForQA = artifacts.markup_generation?.markup || '';
+      const figmaTextForQA: FigmaTextContent[] = artifacts.figma_analysis?.textContent || [];
+      const figmaColorsForQA: string[] = (artifacts.figma_analysis?.colors || []).map((c: any) => c.hex as string);
+      if (markupForQA && figmaTextForQA.length > 0) {
+        const sqaResult = structuralQA(markupForQA, figmaTextForQA, classifications || [], figmaColorsForQA);
+        structuralScore = sqaResult.score;
+        structuralPenalties = sqaResult.penalties;
+        structuralAutoFixes = sqaResult.autoFixes;
+        if (sqaResult.penalties.length > 0) {
+          console.log(`[pageforge] Structural QA score: ${sqaResult.score}% (${sqaResult.penalties.length} issues, ${sqaResult.autoFixes.length} auto-fixes)`);
+          for (const penalty of sqaResult.penalties) {
+            console.log(`[pageforge]   - ${penalty}`);
+          }
+        }
+      }
+
+      // Desktop-only scoring - cap visual score with structural score to prevent inflation
       const desktopScore = results.desktop?.score || 0;
-      const overallScore = Math.max(0, desktopScore - layoutPenalty);
+      const adjustedDesktopScore = Math.max(0, desktopScore - layoutPenalty);
+      const overallScore = Math.min(adjustedDesktopScore, structuralScore + 10);
       if (layoutPenalty > 0) {
-        console.log(`[pageforge] Layout penalty: -${layoutPenalty}% (raw: ${desktopScore}%, adjusted: ${overallScore}%)`);
+        console.log(`[pageforge] Layout penalty: -${layoutPenalty}% (raw: ${desktopScore}%, adjusted: ${adjustedDesktopScore}%)`);
+      }
+      if (overallScore < adjustedDesktopScore) {
+        console.log(`[pageforge] Structural cap: visual=${adjustedDesktopScore}% capped to ${overallScore}% (structural=${structuralScore}%)`);
       }
       const passed = overallScore >= threshold;
 
@@ -1705,10 +2169,14 @@ Respond with JSON:
 
       const fixSuggestions = Object.values(results).flatMap(r => r.differences.filter((d: any) => d.suggestedFix).map((d: any) => d.suggestedFix));
 
-      await updateBuildArtifacts(supabase, buildId, 'vqa_comparison', { results, overallScore, passed, threshold, fixSuggestions });
+      await updateBuildArtifacts(supabase, buildId, 'vqa_comparison', {
+        results, overallScore, passed, threshold, fixSuggestions,
+        structuralScore, structuralPenalties, structuralAutoFixes,
+      });
 
+      const scoreBreakdown = structuralScore < 100 ? ` (structural=${structuralScore}%)` : '';
       await postBuildMessage(supabase, buildId,
-        `Desktop VQA: ${desktopScore}%${layoutPenalty > 0 ? ` (-${layoutPenalty}% layout penalty = ${overallScore}%)` : ''} (threshold=${threshold}%, ${passed ? 'PASSED' : 'needs fixes'})`,
+        `Desktop VQA: ${desktopScore}%${layoutPenalty > 0 ? ` (-${layoutPenalty}% layout)` : ''}${scoreBreakdown} = ${overallScore}% (threshold=${threshold}%, ${passed ? 'PASSED' : 'needs fixes'})`,
         'vqa_comparison');
 
       console.log(`[pageforge] Desktop VQA: ${desktopScore}% (adjusted: ${overallScore}%, threshold=${threshold}, passed=${passed})`);
@@ -1749,9 +2217,45 @@ Respond with JSON:
           console.log(`[pageforge] VQA fix loop: replaced ${imgReplacements} FIGMA_IMG placeholders with real WP URLs`);
         }
       }
+      // C2: Apply structural auto-fixes BEFORE CSS fix loop
+      // These fix wrong text content that CSS patches cannot address
+      const structAutoFixes: StructuralFix[] = comparisonData.structuralAutoFixes || [];
+      if (structAutoFixes.length > 0) {
+        let structFixCount = 0;
+        for (const fix of structAutoFixes) {
+          if (fix.type === 'replace_text' && currentMarkup.includes(fix.wrongText)) {
+            currentMarkup = currentMarkup.split(fix.wrongText).join(fix.correctText);
+            structFixCount++;
+            console.log(`[pageforge] Structural fix: ${fix.description}`);
+          }
+        }
+        if (structFixCount > 0) {
+          console.log(`[pageforge] Applied ${structFixCount} structural text fixes before CSS fix loop`);
+          // Re-deploy fixed markup
+          if (build.wp_page_id && siteProfile.wp_username && siteProfile.wp_app_password) {
+            const wpClient = createWpClient({ restUrl: siteProfile.wp_rest_url, username: siteProfile.wp_username, appPassword: siteProfile.wp_app_password });
+            const fixBuilder = build.page_builder || 'gutenberg';
+            await wpUpdatePage(wpClient, build.wp_page_id, { content: prepareMarkupForDeploy(currentMarkup, fixBuilder) });
+            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait for WP to process
+          }
+          // Update markup artifacts
+          await updateBuildArtifacts(supabase, buildId, 'markup_generation', { ...markupData, markup: currentMarkup });
+        }
+      }
+
       const allChanges: string[] = [];
       const failedPatches: Array<{ search: string; description: string; iteration: number }> = [];
       let lastScore = comparisonData.overallScore || 0;
+      // Re-run structural QA after text fixes to get updated structural score
+      let currentStructuralScore = comparisonData.structuralScore || 100;
+      if (structAutoFixes.length > 0) {
+        const figmaTextForLoop: FigmaTextContent[] = artifacts.figma_analysis?.textContent || [];
+        const figmaColorsForLoop: string[] = (artifacts.figma_analysis?.colors || []).map((c: any) => c.hex as string);
+        const classifications = artifacts.section_classification || [];
+        const recheck = structuralQA(currentMarkup, figmaTextForLoop, classifications, figmaColorsForLoop);
+        currentStructuralScore = recheck.score;
+        console.log(`[pageforge] Structural score after auto-fixes: ${recheck.score}% (was ${comparisonData.structuralScore || '?'}%)`);
+      }
       let stallCount = 0;
       let rollbackCount = 0;
       let previousMarkup: string | null = null;
@@ -2239,46 +2743,37 @@ Respond with JSON:
           try {
             const compareResult = await callPageForgeAgent(supabase, buildId, 'pageforge_vqa', 'vqa_fix_loop',
               getSystemPrompt('pageforge_vqa'),
-              `Re-evaluate after fix iteration ${currentIteration}. Compare the full-page Figma design against the WordPress page.
+              `Re-evaluate after fix iteration ${currentIteration}. Compare the Figma design against the WordPress page.
 
-Image 1: Figma design (reference - the original design)
+Image 1: Figma design (reference)
 Image 2: WordPress page (after fix iteration ${currentIteration})
 
-Previous score was ${lastScore}%. Check if the fixes improved the match.
-
-IMPORTANT: The images may have different heights/proportions. Focus on whether the SAME SECTIONS and CONTENT exist in both, not on exact pixel alignment.
-
-SCORING INSTRUCTIONS:
-- Score the WordPress page FRESH by comparing it directly to the Figma design using the rubric below.
-- The page was just modified with CSS and attribute fixes. Look CAREFULLY for visual changes.
-- Previous score was ${lastScore}% - this is ONLY for your reference. Do NOT simply return this number.
-- Evaluate EACH category independently against the Figma reference image.
-- If the WordPress page now matches Figma better in any category, the score MUST increase.
-- Return your honest assessment. A 2-5% improvement per iteration is normal and expected.
+Previous score was ${lastScore}%. Score FRESH - do NOT anchor to this number.
+BE STRICT. Wrong text or missing sections = low score regardless of visual polish.
 ${sectionMapContext}
 Score EACH category 0-100, then calculate weighted average:
-1. SECTIONS (25%): Are all major sections from Figma present in WP? Missing section = -10 per.
-2. BACKGROUNDS (20%): Do section backgrounds match Figma colors exactly? Overlays, gradients, images?
-3. TYPOGRAPHY (20%): Correct fonts, sizes, weights, colors on headings and body text?
-4. LAYOUT (15%): Correct column counts, card grids, alignment, full-width sections?
-5. IMAGES (10%): Real images visible, correct positions, no broken/placeholder?
-6. POLISH (10%): Buttons styled, footer present, CTAs visible, responsive-ready?
 
-Final score = sections*0.25 + backgrounds*0.20 + typography*0.20 + layout*0.15 + images*0.10 + polish*0.10
+1. TEXT ACCURACY (20%): Same headlines/body text as Figma? Wrong text = 0.
+2. SECTION COMPLETENESS (15%): All Figma sections present? Missing = -15 each.
+3. SECTION ORDER (10%): Sections in same top-to-bottom order? Wrong = max 30.
+4. LAYOUT STRUCTURE (15%): Column counts, grids, card layouts match? Wrong columns = max 40.
+5. COLOR ACCURACY (10%): Backgrounds and text colors match Figma palette? Wrong = max 30.
+6. TYPOGRAPHY (10%): Font sizes, weights, hierarchy match? System fonts = max 40.
+7. IMAGES (8%): Real images visible, correct positions? Broken = 0.
+8. BUTTONS/CTAs (5%): Present and styled correctly? Missing = 0.
+9. FOOTER (4%): Structure matches Figma? Generic = max 30.
+10. VISUAL ARTIFACTS (3%): No random shapes/dots/lines? Any artifact = 0.
 
-DIVI 5 CSS CLASS STRUCTURE (use these in suggestedFix, NOT made-up class names):
-- Sections: .et_pb_section_0, .et_pb_section_1, .et_pb_section_2, etc. (0-indexed, top to bottom)
-- Rows: .et_pb_row (or .et_pb_row_N for specific rows)
-- Columns: .et_pb_column
-- Text modules: .et_pb_text_inner (wraps text content)
-- Blurb modules: .et_pb_blurb_content (wraps blurb cards)
-- Headings: .et_pb_section_N h1, .et_pb_section_N h2, etc.
-- Buttons: .et_pb_button
-- Images: .et_pb_image_wrap img
-The page has a <style> block at the top with CSS fallback rules. Suggested fixes should target these real selectors.
+Final = text*0.20 + sections*0.15 + order*0.10 + layout*0.15 + color*0.10 + typo*0.10 + images*0.08 + buttons*0.05 + footer*0.04 + artifacts*0.03
 
-Score 0-100. Respond with JSON:
-{"score":N,"categoryScores":{"sections":N,"backgrounds":N,"typography":N,"layout":N,"images":N,"polish":N},"differences":[{"area":"...","severity":"critical|major|minor","description":"...","suggestedFix":"CSS rule using real Divi 5 selectors, e.g.: .et_pb_section_0 { background-color: #001738 !important; }"}]}`,
+HARD CAPS: Wrong heading text = max 70% overall. Missing section = max 60%. Wrong order = max 75%.
+
+DIVI 5 CSS SELECTORS for suggestedFix:
+- .et_pb_section_0, .et_pb_section_1, etc. (0-indexed)
+- .et_pb_section_N .et_pb_text_inner, .et_pb_section_N h1/h2, .et_pb_blurb_content, .et_pb_button, .et_pb_image_wrap img
+
+Respond with JSON:
+{"score":N,"categoryScores":{"text":N,"sections":N,"order":N,"layout":N,"color":N,"typography":N,"images":N,"buttons":N,"footer":N,"artifacts":N},"differences":[{"area":"...","severity":"critical|major|minor","description":"...","suggestedFix":"CSS rule"}]}`,
               anthropic, {
                 images: [
                   { data: figmaDesktop, mimeType: 'image/jpeg' },
@@ -2301,6 +2796,13 @@ Score 0-100. Respond with JSON:
           } catch (err) {
             console.warn('[pageforge] Re-comparison failed:', err);
           }
+        }
+
+        // A3: Cap VQA score with structural score to prevent inflation
+        const uncappedScore = newScore;
+        newScore = Math.min(newScore, currentStructuralScore + 10);
+        if (newScore < uncappedScore) {
+          console.log(`[pageforge] Score capped: visual=${uncappedScore}% -> ${newScore}% (structural cap=${currentStructuralScore + 10}%)`);
         }
 
         scoreHistory.push({ iteration: currentIteration, score: newScore });
@@ -3549,6 +4051,570 @@ async function resizeIfNeeded(base64: string, maxDim = 7500): Promise<string> {
   return jpg.toString('base64');
 }
 
+// ============================================================================
+// COLOR ANALYSIS HELPERS
+// ============================================================================
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const match = hex.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i);
+  if (!match) return null;
+  return { r: parseInt(match[1], 16), g: parseInt(match[2], 16), b: parseInt(match[3], 16) };
+}
+
+function relativeLuminance(hex: string): number {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return 0.5;
+  const sRGB = [rgb.r / 255, rgb.g / 255, rgb.b / 255];
+  const linear = sRGB.map(c => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+}
+
+function getSaturation(hex: string): number {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return 0;
+  const r = rgb.r / 255, g = rgb.g / 255, b = rgb.b / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  if (max === min) return 0;
+  const l = (max + min) / 2;
+  return l > 0.5 ? (max - min) / (2 - max - min) : (max - min) / (max + min);
+}
+
+function findPrimaryDark(colors: string[]): string {
+  const sorted = colors
+    .filter(c => c.startsWith('#') && c.length >= 7)
+    .map(c => ({ hex: c, lum: relativeLuminance(c) }))
+    .sort((a, b) => a.lum - b.lum);
+  return sorted.find(c => c.lum < 0.15)?.hex || '#001738';
+}
+
+function findAccentColor(colors: string[]): string {
+  const sorted = colors
+    .filter(c => c.startsWith('#') && c.length >= 7)
+    .map(c => ({ hex: c, sat: getSaturation(c), lum: relativeLuminance(c) }))
+    .filter(c => c.lum > 0.15 && c.lum < 0.85) // Not too dark, not too light
+    .sort((a, b) => b.sat - a.sat);
+  return sorted[0]?.hex || '#cc2336';
+}
+
+// ============================================================================
+// COLUMN COUNT DETECTION FROM FIGMA LAYOUT
+// ============================================================================
+
+function detectColumnCount(sectionNode: FigmaNode): number {
+  const directChildren = (sectionNode.children || [])
+    .filter(c => c.absoluteBoundingBox && c.visible !== false);
+  if (directChildren.length < 2) return 1;
+
+  // Group children by similar Y position (within 50px tolerance)
+  const yGroups: Map<number, number> = new Map();
+  for (const child of directChildren) {
+    const y = Math.round((child.absoluteBoundingBox!.y) / 50) * 50;
+    yGroups.set(y, (yGroups.get(y) || 0) + 1);
+  }
+
+  // Max children at same Y level = probable column count
+  const maxCols = Math.max(...yGroups.values());
+  return maxCols > 1 ? maxCols : 1;
+}
+
+// ============================================================================
+// STRUCTURAL QA - Text-based content validation (no screenshots)
+// ============================================================================
+
+interface StructuralFix {
+  type: 'replace_text';
+  wrongText: string;
+  correctText: string;
+  description: string;
+}
+
+function fuzzyTextMatch(a: string, b: string): number {
+  const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+  const na = normalize(a), nb = normalize(b);
+  if (na === nb) return 1;
+  if (na.includes(nb) || nb.includes(na)) return 0.8;
+  // Word overlap ratio
+  const wordsA = new Set(na.split(' '));
+  const wordsB = new Set(nb.split(' '));
+  const intersection = [...wordsA].filter(w => wordsB.has(w)).length;
+  const union = new Set([...wordsA, ...wordsB]).size;
+  return union > 0 ? intersection / union : 0;
+}
+
+function structuralQA(
+  markup: string,
+  figmaTextContent: FigmaTextContent[],
+  classifications: Array<{ sectionId: string; sectionName: string; type: string }>,
+  figmaColors: string[]
+): { score: number; penalties: string[]; autoFixes: StructuralFix[] } {
+  const penalties: string[] = [];
+  const autoFixes: StructuralFix[] = [];
+  let score = 100;
+
+  // 1. Check for missing Figma headings in markup
+  const figmaHeadings = figmaTextContent.filter(t => t.role === 'heading');
+  for (const heading of figmaHeadings) {
+    const headingLower = heading.text.toLowerCase().trim();
+    if (headingLower.length < 3) continue; // skip very short text
+    if (!markup.toLowerCase().includes(headingLower.slice(0, 30))) {
+      score -= 5;
+      penalties.push(`Missing heading: "${heading.text.slice(0, 60)}" from section "${heading.sectionName}"`);
+    }
+  }
+
+  // 2. Check for hallucinated headings (h1-h3 text not matching ANY Figma text)
+  const markupHeadings: string[] = [];
+  const headingRegex = /<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi;
+  let match;
+  while ((match = headingRegex.exec(markup)) !== null) {
+    const text = match[1].replace(/<[^>]+>/g, '').trim();
+    if (text.length > 3) markupHeadings.push(text);
+  }
+  // Also check text content in Divi 5 JSON attrs
+  const jsonTextRegex = /"value":"(<h[1-3][^"]*>([^<]+)<\/h[1-3]>)"/gi;
+  while ((match = jsonTextRegex.exec(markup)) !== null) {
+    const text = match[2]?.trim();
+    if (text && text.length > 3) markupHeadings.push(text);
+  }
+
+  for (const heading of markupHeadings) {
+    const bestMatch = figmaTextContent
+      .map(t => ({ text: t.text, score: fuzzyTextMatch(heading, t.text) }))
+      .sort((a, b) => b.score - a.score)[0];
+    if (!bestMatch || bestMatch.score < 0.4) {
+      score -= 3;
+      penalties.push(`Hallucinated heading: "${heading.slice(0, 60)}" - not found in Figma text`);
+      // Try to find the correct heading for this section
+      const correctHeading = figmaHeadings.find(h =>
+        !markupHeadings.some(mh => fuzzyTextMatch(mh, h.text) > 0.6)
+      );
+      if (correctHeading) {
+        autoFixes.push({
+          type: 'replace_text',
+          wrongText: heading,
+          correctText: correctHeading.text,
+          description: `Replace hallucinated "${heading.slice(0, 40)}" with Figma text "${correctHeading.text.slice(0, 40)}"`,
+        });
+      }
+    }
+  }
+
+  // 3. Check section count
+  const sectionCount = (markup.match(/et_pb_section/g) || []).length / 2; // open + close
+  const expectedCount = classifications.length;
+  if (sectionCount < expectedCount - 1) {
+    score -= 10 * (expectedCount - sectionCount);
+    penalties.push(`Missing sections: found ${Math.round(sectionCount)} but expected ${expectedCount}`);
+  }
+
+  // 4. Check section ordering (via admin labels in JSON attrs)
+  const adminLabels: string[] = [];
+  const labelRegex = /"adminLabel":\{"desktop":\{"value":"([^"]+)"\}\}/g;
+  while ((match = labelRegex.exec(markup)) !== null) {
+    adminLabels.push(match[1].toLowerCase());
+  }
+  if (adminLabels.length >= 2) {
+    const expectedOrder = classifications.map(c => c.sectionName.toLowerCase());
+    let orderCorrect = true;
+    let lastFoundIdx = -1;
+    for (const label of adminLabels) {
+      const expectedIdx = expectedOrder.findIndex((name, idx) =>
+        idx > lastFoundIdx && (name.includes(label) || label.includes(name))
+      );
+      if (expectedIdx >= 0) {
+        if (expectedIdx < lastFoundIdx) { orderCorrect = false; break; }
+        lastFoundIdx = expectedIdx;
+      }
+    }
+    if (!orderCorrect) {
+      score -= 8;
+      penalties.push('Section order does not match Figma layout');
+    }
+  }
+
+  // 5. Check for missing buttons/CTAs
+  const figmaButtons = figmaTextContent.filter(t => t.role === 'button');
+  for (const btn of figmaButtons) {
+    if (btn.text.length < 2) continue;
+    if (!markup.toLowerCase().includes(btn.text.toLowerCase().slice(0, 20))) {
+      score -= 3;
+      penalties.push(`Missing button: "${btn.text}" from section "${btn.sectionName}"`);
+    }
+  }
+
+  // 6. Check primary dark color usage
+  const primaryDark = findPrimaryDark(figmaColors);
+  if (primaryDark && !markup.toLowerCase().includes(primaryDark.toLowerCase())) {
+    // Check for rgba equivalent
+    const rgb = hexToRgb(primaryDark);
+    const rgbaCheck = rgb ? `${rgb.r},${rgb.g},${rgb.b}` : '';
+    if (!rgbaCheck || !markup.includes(rgbaCheck)) {
+      score -= 5;
+      penalties.push(`Primary dark color ${primaryDark} not found in markup`);
+    }
+  }
+
+  return { score: Math.max(0, score), penalties, autoFixes };
+}
+
+// ============================================================================
+// DESIGN PREP SUB-TASKS
+// ============================================================================
+
+interface FontValidation {
+  fontFamily: string;
+  status: 'google_fonts' | 'system_font' | 'unavailable';
+  substitute?: string;
+}
+
+interface FontMap {
+  validated: FontValidation[];
+  substitutions: Record<string, string>;
+  googleFontsToLoad: string[];
+}
+
+// Known Figma-internal and system fonts that need substitution
+const FONT_SUBSTITUTION_MAP: Record<string, string> = {
+  'Figma Hand': 'Caveat',
+  'SF Pro': 'Inter',
+  'SF Pro Display': 'Inter',
+  'SF Pro Text': 'Inter',
+  'SF Mono': 'JetBrains Mono',
+  'Segoe UI': 'Open Sans',
+  'Helvetica Neue': 'Inter',
+  'Apple Color Emoji': 'Noto Color Emoji',
+};
+
+const SYSTEM_FONTS = new Set([
+  'Arial', 'Helvetica', 'Times New Roman', 'Georgia', 'Verdana',
+  'Courier New', 'Trebuchet MS', 'Comic Sans MS', 'Impact',
+  'sans-serif', 'serif', 'monospace',
+]);
+
+async function validateFonts(nonStandardFonts: string[], allUsedFonts: string[]): Promise<FontMap> {
+  const validated: FontValidation[] = [];
+  const substitutions: Record<string, string> = {};
+  const googleFontsToLoad: string[] = [];
+
+  for (const font of nonStandardFonts) {
+    // Check substitution map first
+    if (FONT_SUBSTITUTION_MAP[font]) {
+      validated.push({ fontFamily: font, status: 'unavailable', substitute: FONT_SUBSTITUTION_MAP[font] });
+      substitutions[font] = FONT_SUBSTITUTION_MAP[font];
+      googleFontsToLoad.push(FONT_SUBSTITUTION_MAP[font]);
+      continue;
+    }
+
+    // Check if it's a system font
+    if (SYSTEM_FONTS.has(font)) {
+      validated.push({ fontFamily: font, status: 'system_font' });
+      continue;
+    }
+
+    // Check Google Fonts API
+    try {
+      const encodedFont = font.replace(/\s+/g, '+');
+      const res = await fetch(
+        `https://fonts.googleapis.com/css2?family=${encodedFont}:wght@400;700&display=swap`,
+        { signal: AbortSignal.timeout(5000), headers: { 'User-Agent': 'Mozilla/5.0' } }
+      );
+      if (res.ok) {
+        validated.push({ fontFamily: font, status: 'google_fonts' });
+        googleFontsToLoad.push(font);
+      } else {
+        // Not on Google Fonts - use primary design font as fallback
+        const primaryFont = allUsedFonts.find(f => !nonStandardFonts.includes(f)) || 'Inter';
+        validated.push({ fontFamily: font, status: 'unavailable', substitute: primaryFont });
+        substitutions[font] = primaryFont;
+      }
+    } catch {
+      // Network error - assume available (conservative)
+      validated.push({ fontFamily: font, status: 'google_fonts' });
+      googleFontsToLoad.push(font);
+    }
+
+    // Small delay between requests
+    await new Promise(r => setTimeout(r, 200));
+  }
+
+  // Add fonts that were already considered "standard" (common web fonts) to the load list
+  const commonGoogleFonts = allUsedFonts.filter(f =>
+    !nonStandardFonts.includes(f) && !SYSTEM_FONTS.has(f)
+  );
+  for (const f of commonGoogleFonts) {
+    if (!googleFontsToLoad.includes(f)) googleFontsToLoad.push(f);
+  }
+
+  return { validated, substitutions, googleFontsToLoad };
+}
+
+interface SectionLayout {
+  sectionId: string;
+  sectionName: string;
+  layout: {
+    direction: 'horizontal' | 'vertical';
+    columns: number;
+    gap: number;
+    padding: { top: number; right: number; bottom: number; left: number };
+    alignment: 'start' | 'center' | 'end' | 'space-between';
+    childSizing: 'equal' | 'variable';
+    source: 'auto-layout' | 'inferred';
+  };
+}
+
+interface LayoutMap {
+  sections: SectionLayout[];
+}
+
+function extractLayoutMap(sections: Array<{ id: string; name: string; node: FigmaNode }>): LayoutMap {
+  const result: SectionLayout[] = [];
+
+  for (const section of sections) {
+    const node = section.node;
+    const children = (node.children || []).filter(c => c.visible !== false && c.absoluteBoundingBox);
+
+    if (children.length === 0) {
+      result.push({
+        sectionId: section.id,
+        sectionName: section.name,
+        layout: {
+          direction: 'vertical', columns: 1, gap: 0,
+          padding: { top: 0, right: 0, bottom: 0, left: 0 },
+          alignment: 'center', childSizing: 'equal', source: 'inferred',
+        },
+      });
+      continue;
+    }
+
+    // Check if node has auto-layout
+    if (node.layoutMode) {
+      const direction = node.layoutMode === 'HORIZONTAL' ? 'horizontal' : 'vertical';
+      const columns = direction === 'horizontal' ? children.length : 1;
+      result.push({
+        sectionId: section.id,
+        sectionName: section.name,
+        layout: {
+          direction,
+          columns,
+          gap: node.itemSpacing || 0,
+          padding: {
+            top: node.paddingTop || 0,
+            right: node.paddingRight || 0,
+            bottom: node.paddingBottom || 0,
+            left: node.paddingLeft || 0,
+          },
+          alignment: 'center',
+          childSizing: 'equal',
+          source: 'auto-layout',
+        },
+      });
+      continue;
+    }
+
+    // Infer layout from absolute positions
+    const colCount = detectColumnCount(node);
+    const parentBounds = node.absoluteBoundingBox || { x: 0, y: 0, width: 1440, height: 800 };
+
+    // Compute gap: average horizontal distance between same-Y children
+    let avgGap = 0;
+    if (colCount > 1) {
+      const childBounds = children
+        .map(c => c.absoluteBoundingBox!)
+        .sort((a, b) => a.x - b.x);
+
+      // Group by Y row (50px tolerance)
+      const yGroups: Map<number, typeof childBounds> = new Map();
+      for (const b of childBounds) {
+        const yKey = Math.round(b.y / 50) * 50;
+        const group = yGroups.get(yKey) || [];
+        group.push(b);
+        yGroups.set(yKey, group);
+      }
+
+      // Find gaps in the widest row
+      const widestRow = [...yGroups.values()].sort((a, b) => b.length - a.length)[0] || [];
+      if (widestRow.length > 1) {
+        const sorted = widestRow.sort((a, b) => a.x - b.x);
+        const gaps: number[] = [];
+        for (let i = 1; i < sorted.length; i++) {
+          gaps.push(sorted[i].x - (sorted[i - 1].x + sorted[i - 1].width));
+        }
+        avgGap = gaps.length > 0 ? Math.round(gaps.reduce((a, b) => a + b, 0) / gaps.length) : 0;
+      }
+    }
+
+    // Infer alignment from children positions relative to parent
+    const firstChild = children[0]?.absoluteBoundingBox;
+    const lastChild = children[children.length - 1]?.absoluteBoundingBox;
+    let alignment: SectionLayout['layout']['alignment'] = 'center';
+    if (firstChild && lastChild && parentBounds.width > 0) {
+      const leftMargin = firstChild.x - parentBounds.x;
+      const rightMargin = (parentBounds.x + parentBounds.width) - (lastChild.x + lastChild.width);
+      if (Math.abs(leftMargin - rightMargin) < 30) alignment = 'center';
+      else if (leftMargin < rightMargin * 0.5) alignment = 'start';
+      else if (rightMargin < leftMargin * 0.5) alignment = 'end';
+    }
+
+    // Check if children have equal widths
+    const widths = children.map(c => c.absoluteBoundingBox!.width);
+    const avgWidth = widths.reduce((a, b) => a + b, 0) / widths.length;
+    const maxDeviation = Math.max(...widths.map(w => Math.abs(w - avgWidth)));
+    const childSizing = maxDeviation < avgWidth * 0.15 ? 'equal' : 'variable';
+
+    // Estimate padding from parent bounds vs content area
+    const minChildX = Math.min(...children.map(c => c.absoluteBoundingBox!.x));
+    const maxChildRight = Math.max(...children.map(c => c.absoluteBoundingBox!.x + c.absoluteBoundingBox!.width));
+    const minChildY = Math.min(...children.map(c => c.absoluteBoundingBox!.y));
+    const maxChildBottom = Math.max(...children.map(c => c.absoluteBoundingBox!.y + c.absoluteBoundingBox!.height));
+
+    result.push({
+      sectionId: section.id,
+      sectionName: section.name,
+      layout: {
+        direction: colCount > 1 ? 'horizontal' : 'vertical',
+        columns: colCount,
+        gap: Math.max(0, avgGap),
+        padding: {
+          top: Math.max(0, Math.round(minChildY - parentBounds.y)),
+          right: Math.max(0, Math.round((parentBounds.x + parentBounds.width) - maxChildRight)),
+          bottom: Math.max(0, Math.round((parentBounds.y + parentBounds.height) - maxChildBottom)),
+          left: Math.max(0, Math.round(minChildX - parentBounds.x)),
+        },
+        alignment,
+        childSizing,
+        source: 'inferred',
+      },
+    });
+  }
+
+  return { sections: result };
+}
+
+interface MobileRule {
+  sectionId: string;
+  sectionName: string;
+  desktop: { columns: number; fontSize: string; padding: string };
+  tablet: { columns: number; fontSize: string; padding: string };
+  phone: { columns: number; fontSize: string; padding: string };
+}
+
+interface MobileRules {
+  breakpoints: { tablet: number; phone: number };
+  sections: MobileRule[];
+  globalRules: string[];
+}
+
+function generateMobileRules(
+  layoutMap: LayoutMap,
+  figmaTextContent: FigmaTextContent[]
+): MobileRules {
+  const sections: MobileRule[] = [];
+
+  for (const section of layoutMap.sections) {
+    const { columns, padding } = section.layout;
+
+    // Get max font size in this section
+    const sectionTexts = figmaTextContent.filter(t =>
+      t.sectionName.toLowerCase().includes(section.sectionName.toLowerCase()) ||
+      section.sectionName.toLowerCase().includes(t.sectionName.toLowerCase())
+    );
+    const maxFontSize = sectionTexts.length > 0
+      ? Math.max(...sectionTexts.map(t => t.fontSize))
+      : 16;
+
+    const tabletCols = columns >= 4 ? Math.ceil(columns / 2) : (columns >= 3 ? 2 : columns);
+    const phoneCols = 1;
+
+    sections.push({
+      sectionId: section.sectionId,
+      sectionName: section.sectionName,
+      desktop: {
+        columns,
+        fontSize: `${maxFontSize}px`,
+        padding: `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`,
+      },
+      tablet: {
+        columns: tabletCols,
+        fontSize: `${Math.floor(maxFontSize * 0.75)}px`,
+        padding: `${Math.floor(padding.top * 0.6)}px ${Math.floor(padding.right * 0.6)}px ${Math.floor(padding.bottom * 0.6)}px ${Math.floor(padding.left * 0.6)}px`,
+      },
+      phone: {
+        columns: phoneCols,
+        fontSize: `${Math.floor(maxFontSize * 0.58)}px`,
+        padding: `${Math.floor(padding.top * 0.4)}px ${Math.floor(padding.right * 0.4)}px ${Math.floor(padding.bottom * 0.4)}px ${Math.floor(padding.left * 0.4)}px`,
+      },
+    });
+  }
+
+  return {
+    breakpoints: { tablet: 980, phone: 480 },
+    sections,
+    globalRules: [
+      'overflow-x: hidden',
+      'img { max-width: 100%; height: auto; }',
+      '.et_pb_column { width: 100% !important; } /* phone only */',
+    ],
+  };
+}
+
+interface NamingIssue {
+  nodeId: string;
+  name: string;
+  type: string;
+  pattern: string;
+  depth: number;
+  parentName?: string;
+  resolved?: boolean;
+}
+
+function runDeterministicRenaming(issues: NamingIssue[]): Record<string, string> {
+  const nameMap: Record<string, string> = {};
+  const usedNames = new Set<string>();
+
+  function uniqueName(base: string): string {
+    if (!usedNames.has(base)) { usedNames.add(base); return base; }
+    let i = 2;
+    while (usedNames.has(`${base}-${i}`)) i++;
+    const name = `${base}-${i}`;
+    usedNames.add(name);
+    return name;
+  }
+
+  for (const issue of issues) {
+    const parentPrefix = issue.parentName
+      ? issue.parentName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 20)
+      : '';
+
+    let suggestedName = '';
+    const type = issue.type.toLowerCase();
+    const pattern = issue.pattern;
+
+    if (pattern === 'generic_frame' || type === 'frame') {
+      suggestedName = parentPrefix ? `${parentPrefix}-content` : 'content-frame';
+    } else if (pattern === 'generic_group' || type === 'group') {
+      suggestedName = parentPrefix ? `${parentPrefix}-group` : 'content-group';
+    } else if (pattern === 'generic_shape' || type === 'rectangle') {
+      suggestedName = parentPrefix ? `${parentPrefix}-bg` : 'background-shape';
+    } else if (pattern === 'generic_vector' || type === 'vector') {
+      suggestedName = parentPrefix ? `${parentPrefix}-icon` : 'decorative-icon';
+    } else if (pattern === 'generic_component') {
+      suggestedName = parentPrefix ? `${parentPrefix}-component` : 'ui-component';
+    } else if (pattern === 'generic_image') {
+      suggestedName = parentPrefix ? `${parentPrefix}-image` : 'content-image';
+    } else if (pattern === 'numeric_only') {
+      suggestedName = parentPrefix ? `${parentPrefix}-element` : `element-${issue.name}`;
+    } else if (pattern === 'untitled') {
+      suggestedName = parentPrefix ? `${parentPrefix}-item` : 'untitled-element';
+    } else {
+      suggestedName = parentPrefix ? `${parentPrefix}-child` : 'nested-element';
+    }
+
+    nameMap[issue.nodeId] = uniqueName(suggestedName);
+  }
+
+  return nameMap;
+}
+
 // Categorize VQA diffs for strategic fix ordering (structure first, then polish)
 type DiffCategory = 'layout' | 'background' | 'typography' | 'spacing' | 'images' | 'other';
 function categorizeDiff(diff: { area?: string; description?: string; suggestedFix?: string }): DiffCategory {
@@ -3697,12 +4763,154 @@ const DIVI5_HEADER_SCRIPT = `<!-- wp:html -->
 </script>
 <!-- /wp:html -->`;
 
-/** Sanitize markup and prepare for deploy. For Divi 5, converts Gutenberg to native Divi 5 blocks. */
+/**
+ * Flatten Divi 5 native block markup into raw HTML.
+ * Divi 4 classic builder wraps <!-- wp:divi/* --> block comments in its own
+ * et_pb_section/row/text modules, rendering the page blank. By converting
+ * blocks to actual HTML elements with matching CSS class names, the CSS
+ * fallback from buildDivi5Markup() continues to work and the content renders
+ * correctly regardless of Divi version.
+ */
+function flattenDivi5ToHtml(markup: string): string {
+  if (!markup.includes('<!-- wp:divi/')) return markup;
+  let content = markup;
+
+  // --- Leaf module blocks (replace BEFORE structural blocks) ---
+
+  // Text modules: extract inner HTML + font styling
+  content = content.replace(/<!-- wp:divi\/text\s+([\s\S]+?)\s*-->[\s\S]*?<!-- \/wp:divi\/text -->/g, (_, jsonStr) => {
+    try {
+      const attrs = JSON.parse(jsonStr);
+      const html = attrs?.content?.innerContent?.desktop?.value || '';
+      const font = attrs?.content?.decoration?.bodyFont?.body?.font?.desktop?.value;
+      const textAlign = attrs?.module?.advanced?.textAlign?.desktop?.value;
+      const styles: string[] = [];
+      if (font?.family) styles.push(`font-family:'${font.family}',sans-serif`);
+      if (font?.size) styles.push(`font-size:${font.size}`);
+      if (font?.weight) styles.push(`font-weight:${font.weight}`);
+      if (font?.color) styles.push(`color:${font.color}`);
+      if (font?.lineHeight) styles.push(`line-height:${font.lineHeight}`);
+      if (textAlign) styles.push(`text-align:${textAlign}`);
+      const style = styles.length > 0 ? ` style="${styles.join(';')}"` : '';
+      return `<div class="et_pb_module et_pb_text"><div class="et_pb_text_inner"${style}>${html}</div></div>`;
+    } catch { return ''; }
+  });
+
+  // Image modules
+  content = content.replace(/<!-- wp:divi\/image\s+([\s\S]+?)\s*-->[\s\S]*?<!-- \/wp:divi\/image -->/g, (_, jsonStr) => {
+    try {
+      const attrs = JSON.parse(jsonStr);
+      const imgData = attrs?.image?.innerContent?.desktop?.value;
+      const src = imgData?.url || imgData?.src || '';
+      const alt = imgData?.alt || '';
+      const br = attrs?.module?.decoration?.border?.radius?.topLeft?.desktop?.value;
+      const imgStyle = `width:100%;height:auto;object-fit:cover${br ? ';border-radius:' + br : ''}`;
+      return `<div class="et_pb_module et_pb_image"><div class="et_pb_image_wrap"><img src="${src}" alt="${alt}" style="${imgStyle}"></div></div>`;
+    } catch { return ''; }
+  });
+
+  // Button modules
+  content = content.replace(/<!-- wp:divi\/button\s+([\s\S]+?)\s*-->[\s\S]*?<!-- \/wp:divi\/button -->/g, (_, jsonStr) => {
+    try {
+      const attrs = JSON.parse(jsonStr);
+      const btn = attrs?.button?.innerContent?.desktop?.value;
+      const text = btn?.text || 'Button';
+      const url = btn?.linkUrl || '#';
+      const target = btn?.linkTarget || '_self';
+      const bg = attrs?.button?.decoration?.background?.color?.desktop?.value;
+      const font = attrs?.button?.decoration?.font?.font?.desktop?.value;
+      const spacing = attrs?.button?.decoration?.spacing?.padding;
+      const br = attrs?.button?.decoration?.border?.radius?.topLeft?.desktop?.value || '8px';
+      const styles: string[] = [];
+      if (bg) styles.push(`background-color:${bg}`);
+      styles.push(`color:${font?.color || '#fff'}`);
+      styles.push(`font-size:${font?.size || '16px'}`);
+      styles.push(`font-weight:${font?.weight || '600'}`);
+      styles.push(`border-radius:${br}`);
+      styles.push('display:inline-block;text-decoration:none');
+      if (spacing) {
+        styles.push(`padding:${spacing.top?.desktop?.value || '14px'} ${spacing.right?.desktop?.value || '32px'} ${spacing.bottom?.desktop?.value || '14px'} ${spacing.left?.desktop?.value || '32px'}`);
+      }
+      const align = attrs?.module?.advanced?.alignment?.desktop?.value;
+      const wrap = align ? ` style="text-align:${align}"` : '';
+      return `<div class="et_pb_module et_pb_button_module"${wrap}><a class="et_pb_button" href="${url}" target="${target}" style="${styles.join(';')}">${text}</a></div>`;
+    } catch { return ''; }
+  });
+
+  // Blurb modules (cards)
+  content = content.replace(/<!-- wp:divi\/blurb\s+([\s\S]+?)\s*-->[\s\S]*?<!-- \/wp:divi\/blurb -->/g, (_, jsonStr) => {
+    try {
+      const attrs = JSON.parse(jsonStr);
+      const titleData = attrs?.title?.innerContent?.desktop?.value;
+      const title = titleData?.text || '';
+      const bodyHtml = attrs?.content?.innerContent?.desktop?.value || '';
+      const tf = attrs?.title?.decoration?.font?.font?.desktop?.value;
+      const bf = attrs?.content?.decoration?.bodyFont?.body?.font?.desktop?.value;
+      const img = attrs?.imageIcon?.innerContent?.desktop?.value;
+      const mod = attrs?.module?.decoration;
+      const ts: string[] = [];
+      if (tf?.color) ts.push(`color:${tf.color}`);
+      if (tf?.size) ts.push(`font-size:${tf.size}`);
+      if (tf?.weight) ts.push(`font-weight:${tf.weight}`);
+      const bs: string[] = [];
+      if (bf?.color) bs.push(`color:${bf.color}`);
+      if (bf?.size) bs.push(`font-size:${bf.size}`);
+      if (bf?.lineHeight) bs.push(`line-height:${bf.lineHeight}`);
+      const cs: string[] = [];
+      if (mod?.background?.color?.desktop?.value) cs.push(`background:${mod.background.color.desktop.value}`);
+      const cbr = mod?.border?.radius?.topLeft?.desktop?.value;
+      if (cbr) cs.push(`border-radius:${cbr}`);
+      const sh = mod?.boxShadow;
+      if (sh) cs.push(`box-shadow:${sh.horizontal?.desktop?.value||'0px'} ${sh.vertical?.desktop?.value||'4px'} ${sh.blur?.desktop?.value||'20px'} ${sh.spread?.desktop?.value||'0px'} ${sh.color?.desktop?.value||'rgba(0,0,0,0.08)'}`);
+      const pad = mod?.spacing?.padding;
+      if (pad) cs.push(`padding:${pad.top?.desktop?.value||'30px'} ${pad.right?.desktop?.value||'30px'} ${pad.bottom?.desktop?.value||'30px'} ${pad.left?.desktop?.value||'30px'}`);
+      cs.push('overflow:hidden');
+      let imgHtml = '';
+      if (img?.src) imgHtml = `<img src="${img.src}" alt="${title}" style="width:100%;height:auto;object-fit:cover;border-radius:8px 8px 0 0">`;
+      const hl = tf?.headingLevel || 'h4';
+      return `<div class="et_pb_module et_pb_blurb"><div class="et_pb_blurb_content" style="${cs.join(';')}">${imgHtml}<${hl} style="${ts.join(';')}">${title}</${hl}><div style="${bs.join(';')}">${bodyHtml}</div></div></div>`;
+    } catch { return ''; }
+  });
+
+  // Code modules (raw HTML pass-through)
+  content = content.replace(/<!-- wp:divi\/code\s+([\s\S]+?)\s*-->[\s\S]*?<!-- \/wp:divi\/code -->/g, (_, jsonStr) => {
+    try {
+      const attrs = JSON.parse(jsonStr);
+      return attrs?.content?.innerContent?.desktop?.value || '';
+    } catch { return ''; }
+  });
+
+  // Divider modules
+  content = content.replace(/<!-- wp:divi\/divider\s+[\s\S]+?\s*-->[\s\S]*?<!-- \/wp:divi\/divider -->/g,
+    '<hr style="border:none;border-top:1px solid #ddd;margin:20px 0">');
+
+  // --- Structural blocks (section > row > column) ---
+  let sectionIdx = 0;
+  content = content.replace(/<!-- wp:divi\/section\s+[\s\S]+?\s*-->/g, () =>
+    `<div class="et_pb_section et_pb_section_${sectionIdx++}">`);
+  content = content.replace(/<!-- \/wp:divi\/section\s*-->/g, '</div>');
+
+  content = content.replace(/<!-- wp:divi\/row\s+[\s\S]+?\s*-->/g, '<div class="et_pb_row">');
+  content = content.replace(/<!-- \/wp:divi\/row\s*-->/g, '</div>');
+
+  content = content.replace(/<!-- wp:divi\/column\s+[\s\S]+?\s*-->/g, '<div class="et_pb_column">');
+  content = content.replace(/<!-- \/wp:divi\/column\s*-->/g, '</div>');
+
+  // Catch-all: strip any remaining Divi 5 block comments
+  content = content.replace(/<!-- \/?wp:divi\/\w+[^>]*-->/g, '');
+
+  return content;
+}
+
+/** Sanitize markup and prepare for deploy. Flattens Divi 5 blocks to raw HTML. */
 function prepareMarkupForDeploy(markup: string, builder: string = 'gutenberg'): string {
   const sanitized = sanitizeMarkup(markup, builder === 'divi5');
   if (builder === 'divi5') {
-    // Divi 5 markup is already in native block format from markup_generation
-    return DIVI5_HEADER_SCRIPT + '\n' + sanitized;
+    // Flatten Divi 5 native blocks into raw HTML divs with matching CSS classes.
+    // This prevents Divi 4 classic builder from wrapping block comments in its
+    // own et_pb modules (which renders the page blank).
+    const flattened = flattenDivi5ToHtml(sanitized);
+    return DIVI5_HEADER_SCRIPT + '\n' + flattened;
   }
   return FULLWIDTH_SCRIPT + sanitized;
 }
