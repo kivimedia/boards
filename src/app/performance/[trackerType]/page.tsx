@@ -31,6 +31,16 @@ export default async function TrackerDetailPage({ params }: PageProps) {
     redirect('/login');
   }
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  const isAdmin = profile?.role === 'admin';
+  const isDevi = user.email?.toLowerCase() === 'devi@dailycookie.co';
+  const canManageRows = isAdmin || isDevi;
+
   const label = PK_TRACKER_LABELS[trackerType as PKTrackerType] || trackerType;
 
   return (
@@ -41,6 +51,7 @@ export default async function TrackerDetailPage({ params }: PageProps) {
         <TrackerDetailContent
           trackerType={trackerType as PKTrackerType}
           label={label}
+          canManageRows={canManageRows}
         />
       </main>
     </div>

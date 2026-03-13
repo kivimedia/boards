@@ -20,7 +20,8 @@ export default async function PerformancePage() {
     .single();
 
   const isAdmin = profile?.role === 'admin';
-  const canSync = isAdmin || user.email === 'devi@dailycookie.co';
+  const isDevi = user.email?.toLowerCase() === 'devi@dailycookie.co';
+  const canSync = isAdmin || isDevi;
 
   return (
     <div className="flex h-screen overflow-hidden">

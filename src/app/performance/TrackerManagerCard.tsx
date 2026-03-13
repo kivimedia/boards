@@ -187,20 +187,22 @@ export default function TrackerManagerCard({ tracker, canEdit }: TrackerManagerC
           >
             Full Page
           </Link>
-          {manageRowsHref ? (
-            <Link
-              href={manageRowsHref}
-              className="text-xs px-2 py-1 rounded bg-electric text-white hover:bg-electric/90"
-            >
-              Manage Rows
-            </Link>
-          ) : (
-            <button
-              onClick={toggleOpen}
-              className="text-xs px-2 py-1 rounded bg-electric text-white hover:bg-electric/90"
-            >
-              {open ? 'Hide Rows' : 'Manage Rows'}
-            </button>
+          {canEdit && (
+            manageRowsHref ? (
+              <Link
+                href={manageRowsHref}
+                className="text-xs px-2 py-1 rounded bg-electric text-white hover:bg-electric/90"
+              >
+                Manage Rows
+              </Link>
+            ) : (
+              <button
+                onClick={toggleOpen}
+                className="text-xs px-2 py-1 rounded bg-electric text-white hover:bg-electric/90"
+              >
+                {open ? 'Hide Rows' : 'Manage Rows'}
+              </button>
+            )
           )}
         </div>
       </div>

@@ -96,6 +96,7 @@ function applyTrackerOrder(trackers: PKTrackerSummary[], preferredOrder: string[
 }
 
 export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceHubContentProps) {
+  const canManageRows = !!(canSync || isAdmin);
   const [data, setData] = useState<DashboardData | null>(null);
   const [orderedTrackers, setOrderedTrackers] = useState<PKTrackerSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -242,6 +243,7 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
   }, [data]);
 
   const removeTrackerFromAllTrackers = useCallback((trackerType: string) => {
+    if (!canManageRows) return;
     setHiddenTrackerTypes((current) => {
       if (current.includes(trackerType)) return current;
       const next = [...current, trackerType];
@@ -250,13 +252,14 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
     });
     setDraggingTrackerType(null);
     setDragOverTrackerType(null);
-  }, []);
+  }, [canManageRows]);
 
   const restoreRemovedTrackers = useCallback(() => {
+    if (!canManageRows) return;
     setHiddenTrackerTypes([]);
     writeStoredHiddenTrackerTypes([]);
     setRemoveMode(false);
-  }, []);
+  }, [canManageRows]);
 
   useEffect(() => {
     if (activeTab !== 'trackers') {
@@ -267,6 +270,12 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
       setDragOverTrackerType(null);
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (!canManageRows) {
+      setRemoveMode(false);
+    }
+  }, [canManageRows]);
 
   if (loading) {
     return (
@@ -558,7 +567,9 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
                   ? 'Remove mode is on. Click Remove on tracker cards to hide them from All Trackers.'
                   : reorderMode
                   ? 'Reorder mode is on. Drag tracker cards or use Move Up/Down. Order is saved in this browser.'
-                  : 'Click ... for All Trackers actions (rearrange, remove, reset).'}
+                  : canManageRows
+                  ? 'Click ... for All Trackers actions (rearrange, remove, reset).'
+                  : 'Click ... for All Trackers actions (rearrange, reset).'}
               </p>
               <div className="relative">
                 <button
@@ -581,17 +592,19 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
                     >
                       {reorderMode ? 'Done Rearranging' : 'Rearrange Items'}
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setReorderMode(false);
-                        setRemoveMode((current) => !current);
-                        setShowTrackerOrderMenu(false);
-                      }}
-                      className="w-full text-left text-[11px] px-2 py-1 rounded text-navy dark:text-white hover:bg-cream-dark/30 dark:hover:bg-white/10"
-                    >
-                      {removeMode ? 'Done Removing' : 'Remove'}
-                    </button>
+                    {canManageRows && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReorderMode(false);
+                          setRemoveMode((current) => !current);
+                          setShowTrackerOrderMenu(false);
+                        }}
+                        className="w-full text-left text-[11px] px-2 py-1 rounded text-navy dark:text-white hover:bg-cream-dark/30 dark:hover:bg-white/10"
+                      >
+                        {removeMode ? 'Done Removing' : 'Remove'}
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => {
@@ -602,7 +615,7 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
                     >
                       Reset Order
                     </button>
-                    {hiddenTrackerTypes.length > 0 && (
+                    {canManageRows && hiddenTrackerTypes.length > 0 && (
                       <button
                         type="button"
                         onClick={() => {
@@ -621,12 +634,14 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
             {visibleTrackers.length === 0 ? (
               <div className="rounded-xl border border-cream-dark/60 dark:border-white/10 bg-white dark:bg-white/5 p-4 text-sm text-navy/60 dark:text-white/60">
                 All trackers are currently removed from this view.
-                <button
-                  onClick={restoreRemovedTrackers}
-                  className="ml-2 text-electric hover:text-electric/80 font-medium"
-                >
-                  Restore Removed
-                </button>
+                {canManageRows && (
+                  <button
+                    onClick={restoreRemovedTrackers}
+                    className="ml-2 text-electric hover:text-electric/80 font-medium"
+                  >
+                    Restore Removed
+                  </button>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -669,7 +684,7 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
                 >
                   <TrackerManagerCard
                     tracker={tracker}
-                    canEdit={!!(canSync || isAdmin)}
+                    canEdit={canManageRows}
                   />
                   {reorderMode && !removeMode && (
                     <div className="mt-2 px-1 flex items-center justify-end gap-2">
@@ -697,7 +712,7 @@ export default function PerformanceHubContent({ isAdmin, canSync }: PerformanceH
                       </button>
                     </div>
                   )}
-                  {removeMode && (
+                  {canManageRows && removeMode && (
                     <div className="mt-2 px-1 flex items-center justify-end">
                       <button
                         onClick={() => removeTrackerFromAllTrackers(tracker.tracker_type)}

@@ -35,7 +35,17 @@ export default async function ManageTrackerPage({ params }: ManageTrackerPagePro
     redirect('/login');
   }
 
-  const canManage = true;
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  const isDevi = user.email?.toLowerCase() === 'devi@dailycookie.co';
+  const canManage = profile?.role === 'admin' || isDevi;
+  if (!canManage) {
+    redirect('/performance');
+  }
 
   const { data: groupRows } = await supabase
     .from(config.tableName)

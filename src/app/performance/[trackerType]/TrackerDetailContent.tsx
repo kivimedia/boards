@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client';
 interface TrackerDetailContentProps {
   trackerType: PKTrackerType;
   label: string;
+  canManageRows: boolean;
 }
 
 type ColumnType = 'date' | 'boolean' | 'link' | 'text';
@@ -44,6 +45,7 @@ const TRACKER_TABLES: Partial<Record<PKTrackerType, string>> = {
   google_analytics_status: 'pk_google_analytics_status',
   other_activities: 'pk_other_activities',
 };
+const TRACKER_HIDDEN_STORAGE_KEY = 'kmboards.performance.trackers.hidden.v1';
 
 const TRACKER_COLUMNS: Record<
   string,
@@ -324,6 +326,31 @@ function buildEmptyRow(columns: EditableColumn[], id: string): EditableRow {
   return { id, values };
 }
 
+function readStoredHiddenTrackerTypes(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(TRACKER_HIDDEN_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is string => typeof item === 'string');
+  } catch {
+    return [];
+  }
+}
+
+function writeStoredHiddenTrackerTypes(hiddenTypes: string[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(
+      TRACKER_HIDDEN_STORAGE_KEY,
+      JSON.stringify(hiddenTypes)
+    );
+  } catch {
+    // Ignore storage errors (private mode/quota restrictions).
+  }
+}
+
 function toApiCellValue(type: ColumnType, value: string): string | boolean | null {
   if (type === 'boolean') {
     if (value === 'true') return true;
@@ -419,6 +446,7 @@ function mapApiRowsToEditableRows(
 export default function TrackerDetailContent({
   trackerType,
   label,
+  canManageRows,
 }: TrackerDetailContentProps) {
   const frequency = PK_TRACKER_FREQUENCIES[trackerType] || '';
   const trackerTable = TRACKER_TABLES[trackerType];
@@ -445,6 +473,7 @@ export default function TrackerDetailContent({
   const [showSavedToast, setShowSavedToast] = useState(false);
   const [savedToastTick, setSavedToastTick] = useState(0);
   const [newlyAddedRowId, setNewlyAddedRowId] = useState<string | null>(null);
+  const [isTrackerVisible, setIsTrackerVisible] = useState(true);
   const headerScrollerRef = useRef<HTMLDivElement | null>(null);
   const bodyScrollerRef = useRef<HTMLDivElement | null>(null);
   const midScrollbarRef = useRef<HTMLDivElement | null>(null);
@@ -680,6 +709,28 @@ export default function TrackerDetailContent({
   }, [loadRowsFromDatabase]);
 
   useEffect(() => {
+    if (!canManageRows) {
+      setIsTrackerVisible(true);
+      return;
+    }
+    const hiddenTypes = readStoredHiddenTrackerTypes();
+    setIsTrackerVisible(!hiddenTypes.includes(trackerType));
+  }, [canManageRows, trackerType]);
+
+  const toggleTrackerVisibility = useCallback(() => {
+    if (!canManageRows) return;
+    const hiddenTypes = readStoredHiddenTrackerTypes();
+    const nextHiddenTypes = isTrackerVisible
+      ? Array.from(new Set([...hiddenTypes, trackerType]))
+      : hiddenTypes.filter((type) => type !== trackerType);
+
+    writeStoredHiddenTrackerTypes(nextHiddenTypes);
+    setIsTrackerVisible(!isTrackerVisible);
+    setShowSavedToast(true);
+    setSavedToastTick((current) => current + 1);
+  }, [canManageRows, isTrackerVisible, trackerType]);
+
+  useEffect(() => {
     Object.values(pendingRowPatchTimersRef.current).forEach((timer) => {
       window.clearTimeout(timer);
     });
@@ -820,6 +871,7 @@ export default function TrackerDetailContent({
   }, [showSavedToast, savedToastTick]);
 
   const addColumn = useCallback(() => {
+    if (!canManageRows) return;
     const key = `column_${columnCounter}`;
     const nextColumns = [...columns, { key, label: `Column ${columnCounter}`, type: 'text' as const }];
     const nextRows = rows.map((row) => ({
@@ -832,10 +884,11 @@ export default function TrackerDetailContent({
     setColumns(nextColumns);
     setRows(nextRows);
     setColumnCounter((current) => current + 1);
-  }, [columnCounter, columns, rows]);
+  }, [canManageRows, columnCounter, columns, rows]);
 
   const removeColumn = useCallback(
     (columnKey: string) => {
+      if (!canManageRows) return;
       const nextColumns = columns.filter((column) => column.key !== columnKey);
       const safeColumns = nextColumns.length > 0 ? nextColumns : [{ key: 'notes', label: 'Notes', type: 'text' as const }];
       const nextRows = rows.map((row) => {
@@ -851,18 +904,20 @@ export default function TrackerDetailContent({
       setShowRemoveColumnMenu(false);
       setShowColumnActionsMenu(false);
     },
-    [columns, rows]
+    [canManageRows, columns, rows]
   );
 
   const renameColumn = useCallback((columnKey: string, nextLabel: string) => {
+    if (!canManageRows) return;
     setColumns((current) =>
       current.map((column) =>
         column.key === columnKey ? { ...column, label: nextLabel } : column
       )
     );
-  }, []);
+  }, [canManageRows]);
 
   const addRow = useCallback(async () => {
+    if (!canManageRows) return;
     const newRow = buildEmptyRow(columns, `new_${Date.now()}`);
     if (isAMTabbedTracker && selectedAM) {
       newRow.values[FATHOM_AM_KEY] = selectedAM;
@@ -921,7 +976,7 @@ export default function TrackerDetailContent({
       const message = err instanceof Error ? err.message : 'Failed to add row';
       setErrorText(message);
     }
-  }, [columns, isAMTabbedTracker, loadRowsFromDatabase, selectedAM, trackerType]);
+  }, [canManageRows, columns, isAMTabbedTracker, loadRowsFromDatabase, selectedAM, trackerType]);
 
   const openAddAMInput = useCallback(() => {
     setShowAddAMInput(true);
@@ -936,6 +991,7 @@ export default function TrackerDetailContent({
   }, []);
 
   const addAMTab = useCallback(() => {
+    if (!canManageRows) return;
     const trimmed = newAMName.trim();
     if (!trimmed) {
       setAMInputError('AM name is required.');
@@ -955,10 +1011,11 @@ export default function TrackerDetailContent({
     setShowAddAMInput(false);
     setNewAMName('');
     setAMInputError(null);
-  }, [amTabs, newAMName]);
+  }, [amTabs, canManageRows, newAMName]);
 
   const removeRow = useCallback(
     async (rowId: string) => {
+      if (!canManageRows) return;
       try {
         setErrorText(null);
         clearPendingRowPatch(rowId);
@@ -991,11 +1048,12 @@ export default function TrackerDetailContent({
         setErrorText(message);
       }
     },
-    [clearPendingRowPatch, trackerType]
+    [canManageRows, clearPendingRowPatch, trackerType]
   );
 
   const updateCell = useCallback(
     (rowId: string, columnKey: string, value: string) => {
+      if (!canManageRows) return;
       const targetRow = rowsRef.current.find((row) => row.id === rowId);
       if (targetRow) {
         setRowUndoValues((current) => ({
@@ -1013,11 +1071,12 @@ export default function TrackerDetailContent({
       );
       queueRowPatch(rowId, { [columnKey]: value });
     },
-    [queueRowPatch]
+    [canManageRows, queueRowPatch]
   );
 
   const undoRowChanges = useCallback(
     (rowId: string) => {
+      if (!canManageRows) return;
       const snapshot = rowUndoValues[rowId];
       if (!snapshot) {
         setOpenRowActionsRowId(null);
@@ -1038,7 +1097,7 @@ export default function TrackerDetailContent({
       queueRowPatch(rowId, snapshot);
       setOpenRowActionsRowId(null);
     },
-    [queueRowPatch, rowUndoValues]
+    [canManageRows, queueRowPatch, rowUndoValues]
   );
 
   const syncText = useMemo(() => {
@@ -1047,11 +1106,12 @@ export default function TrackerDetailContent({
   }, [lastSavedAt]);
 
   const handleSaveNow = useCallback(async () => {
+    if (!canManageRows) return;
     await flushAllPendingRowPatches();
     await loadRowsFromDatabase({ source: 'mutation' });
     setShowSavedToast(true);
     setSavedToastTick((current) => current + 1);
-  }, [flushAllPendingRowPatches, loadRowsFromDatabase]);
+  }, [canManageRows, flushAllPendingRowPatches, loadRowsFromDatabase]);
 
   return (
     <div className="flex-1 overflow-auto p-6">
@@ -1100,7 +1160,7 @@ export default function TrackerDetailContent({
                   {amName}
                 </button>
               ))}
-              {isAMTabbedTracker && (
+              {isAMTabbedTracker && canManageRows && (
                 <button
                   onClick={openAddAMInput}
                   className="px-3 py-1.5 rounded-lg text-xs font-medium border border-dashed border-electric/60 text-electric hover:bg-electric/5 transition-colors"
@@ -1109,7 +1169,7 @@ export default function TrackerDetailContent({
                   +
                 </button>
               )}
-              {isAMTabbedTracker && showAddAMInput && (
+              {isAMTabbedTracker && canManageRows && showAddAMInput && (
                 <div className="flex items-center gap-2 p-2 rounded-lg border border-cream-dark/70 dark:border-white/20 bg-white dark:bg-white/5">
                   <input
                     value={newAMName}
@@ -1138,35 +1198,56 @@ export default function TrackerDetailContent({
                   </button>
                 </div>
               )}
-              {amTabs.length === 0 && !(isAMTabbedTracker && showAddAMInput) && (
+              {amTabs.length === 0 && !(isAMTabbedTracker && canManageRows && showAddAMInput) && (
                 <span className="text-xs text-navy/40 dark:text-white/30">
                   No AM names found yet.
                 </span>
               )}
             </div>
-            {isAMTabbedTracker && amInputError && (
+            {isAMTabbedTracker && canManageRows && amInputError && (
               <p className="text-xs text-red-600 dark:text-red-400">{amInputError}</p>
             )}
           </div>
         )}
 
         <div className="flex flex-wrap items-center gap-2 bg-white dark:bg-white/5 rounded-xl border border-cream-dark/60 dark:border-white/10 p-3">
-          <button
-            onClick={addRow}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-electric text-white hover:bg-electric/90 transition-colors"
-          >
-            Add Row
-          </button>
-          <button
-            onClick={handleSaveNow}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium border border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
-          >
-            Save Now
-          </button>
+          {canManageRows && (
+            <button
+              onClick={addRow}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-electric text-white hover:bg-electric/90 transition-colors"
+            >
+              Add Row
+            </button>
+          )}
+          {canManageRows && (
+            <button
+              onClick={handleSaveNow}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium border border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
+            >
+              Save Now
+            </button>
+          )}
+          {canManageRows && (
+            <button
+              onClick={toggleTrackerVisibility}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                isTrackerVisible
+                  ? 'border-cream-dark dark:border-white/10 text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/5'
+                  : 'border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 dark:border-amber-500/30 dark:text-amber-300 dark:bg-amber-500/10 dark:hover:bg-amber-500/20'
+              }`}
+            >
+              {isTrackerVisible ? 'Hide In All Trackers' : 'Show In All Trackers'}
+            </button>
+          )}
           <span className="text-xs text-navy/50 dark:text-white/40">
             Tracker: <code>{trackerType}</code>
           </span>
           <span className="text-xs text-navy/40 dark:text-white/30">{syncText}</span>
+          {!canManageRows && (
+            <span className="text-xs text-navy/40 dark:text-white/30">
+              Read-only view
+            </span>
+          )}
           {lastLoadedAt && (
             <span className="text-xs text-navy/40 dark:text-white/30">
               Loaded {new Date(lastLoadedAt).toLocaleString()} ({syncSource})
@@ -1207,71 +1288,81 @@ export default function TrackerDetailContent({
                     <tr className="border-b border-cream-dark/60 dark:border-white/10 bg-cream-dark/20 dark:bg-white/5">
                       {columns.map((column) => (
                         <th key={column.key} className="text-left py-2 px-3">
-                          <input
-                            value={column.label}
-                            onChange={(event) => renameColumn(column.key, event.target.value)}
-                            className="w-full px-2 py-1 rounded border border-cream-dark dark:border-white/10 bg-white dark:bg-white/5 text-xs text-navy dark:text-white"
-                          />
+                          {canManageRows ? (
+                            <input
+                              value={column.label}
+                              onChange={(event) => renameColumn(column.key, event.target.value)}
+                              className="w-full px-2 py-1 rounded border border-cream-dark dark:border-white/10 bg-white dark:bg-white/5 text-xs text-navy dark:text-white"
+                            />
+                          ) : (
+                            <span className="text-xs font-medium text-navy/70 dark:text-white/70">
+                              {column.label}
+                            </span>
+                          )}
                         </th>
                       ))}
                       <th className="text-right py-2 px-3">
-                        <div className="relative inline-flex">
-                          <button
-                            onClick={() => {
-                              setOpenRowActionsRowId(null);
-                              setShowColumnActionsMenu((current) => {
-                                const next = !current;
-                                if (!next) setShowRemoveColumnMenu(false);
-                                return next;
-                              });
-                            }}
-                            className="px-2 py-1 rounded text-[11px] border border-cream-dark dark:border-white/10 text-navy/70 dark:text-white/70 hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
-                            aria-label="Open column actions"
-                          >
-                            ...
-                          </button>
-                          {showColumnActionsMenu && (
-                            <div className="absolute right-0 top-full mt-1 min-w-[170px] rounded-lg border border-cream-dark/70 dark:border-white/20 bg-white dark:bg-navy-light shadow-lg z-20 p-1">
-                              {!showRemoveColumnMenu ? (
-                                <>
-                                  <button
-                                    onClick={() => {
-                                      addColumn();
-                                      setShowColumnActionsMenu(false);
-                                    }}
-                                    className="w-full text-left px-3 py-1.5 rounded text-xs text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/10"
-                                  >
-                                    Add Column
-                                  </button>
-                                  <button
-                                    onClick={() => setShowRemoveColumnMenu(true)}
-                                    className="w-full text-left px-3 py-1.5 rounded text-xs text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/10"
-                                  >
-                                    Remove Column
-                                  </button>
-                                </>
-                              ) : (
-                                <>
-                                  <button
-                                    onClick={() => setShowRemoveColumnMenu(false)}
-                                    className="w-full text-left px-3 py-1.5 rounded text-xs text-navy/60 dark:text-white/60 hover:bg-cream-dark/20 dark:hover:bg-white/10"
-                                  >
-                                    Back
-                                  </button>
-                                  {columns.map((column) => (
+                        {canManageRows ? (
+                          <div className="relative inline-flex">
+                            <button
+                              onClick={() => {
+                                setOpenRowActionsRowId(null);
+                                setShowColumnActionsMenu((current) => {
+                                  const next = !current;
+                                  if (!next) setShowRemoveColumnMenu(false);
+                                  return next;
+                                });
+                              }}
+                              className="px-2 py-1 rounded text-[11px] border border-cream-dark dark:border-white/10 text-navy/70 dark:text-white/70 hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
+                              aria-label="Open column actions"
+                            >
+                              ...
+                            </button>
+                            {showColumnActionsMenu && (
+                              <div className="absolute right-0 top-full mt-1 min-w-[170px] rounded-lg border border-cream-dark/70 dark:border-white/20 bg-white dark:bg-navy-light shadow-lg z-20 p-1">
+                                {!showRemoveColumnMenu ? (
+                                  <>
                                     <button
-                                      key={`remove-${column.key}`}
-                                      onClick={() => removeColumn(column.key)}
-                                      className="w-full text-left px-3 py-1.5 rounded text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
+                                      onClick={() => {
+                                        addColumn();
+                                        setShowColumnActionsMenu(false);
+                                      }}
+                                      className="w-full text-left px-3 py-1.5 rounded text-xs text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/10"
                                     >
-                                      {column.label}
+                                      Add Column
                                     </button>
-                                  ))}
-                                </>
-                              )}
-                            </div>
-                          )}
-                        </div>
+                                    <button
+                                      onClick={() => setShowRemoveColumnMenu(true)}
+                                      className="w-full text-left px-3 py-1.5 rounded text-xs text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/10"
+                                    >
+                                      Remove Column
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <button
+                                      onClick={() => setShowRemoveColumnMenu(false)}
+                                      className="w-full text-left px-3 py-1.5 rounded text-xs text-navy/60 dark:text-white/60 hover:bg-cream-dark/20 dark:hover:bg-white/10"
+                                    >
+                                      Back
+                                    </button>
+                                    {columns.map((column) => (
+                                      <button
+                                        key={`remove-${column.key}`}
+                                        onClick={() => removeColumn(column.key)}
+                                        className="w-full text-left px-3 py-1.5 rounded text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
+                                      >
+                                        {column.label}
+                                      </button>
+                                    ))}
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-navy/50 dark:text-white/40">Rows</span>
+                        )}
                       </th>
                     </tr>
                   </thead>
@@ -1310,6 +1401,7 @@ export default function TrackerDetailContent({
                             <EditableCell
                               type={column.type}
                               value={row.values[column.key] || ''}
+                              readOnly={!canManageRows}
                               onChange={(nextValue) =>
                                 updateCell(row.id, column.key, nextValue)
                               }
@@ -1317,37 +1409,39 @@ export default function TrackerDetailContent({
                           </td>
                         ))}
                         <td className="py-2 px-3 text-right">
-                          <div className="relative inline-flex">
-                            <button
-                              onClick={() => {
-                                setShowColumnActionsMenu(false);
-                                setShowRemoveColumnMenu(false);
-                                setOpenRowActionsRowId((current) =>
-                                  current === row.id ? null : row.id
-                                );
-                              }}
-                              className="px-2 py-1 rounded text-[11px] border border-cream-dark dark:border-white/10 text-navy/70 dark:text-white/70 hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
-                              aria-label={`Open row actions for ${row.id}`}
-                            >
-                              ...
-                            </button>
-                            {openRowActionsRowId === row.id && (
-                              <div className="absolute right-0 top-full mt-1 min-w-[120px] rounded-lg border border-cream-dark/70 dark:border-white/20 bg-white dark:bg-navy-light shadow-lg z-20 p-1">
-                                <button
-                                  onClick={() => removeRow(row.id)}
-                                  className="w-full text-left px-3 py-1.5 rounded text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
-                                >
-                                  Delete Row
-                                </button>
-                                <button
-                                  onClick={() => undoRowChanges(row.id)}
-                                  className="w-full text-left px-3 py-1.5 rounded text-xs text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/10"
-                                >
-                                  Undo
-                                </button>
-                              </div>
-                            )}
-                          </div>
+                          {canManageRows && (
+                            <div className="relative inline-flex">
+                              <button
+                                onClick={() => {
+                                  setShowColumnActionsMenu(false);
+                                  setShowRemoveColumnMenu(false);
+                                  setOpenRowActionsRowId((current) =>
+                                    current === row.id ? null : row.id
+                                  );
+                                }}
+                                className="px-2 py-1 rounded text-[11px] border border-cream-dark dark:border-white/10 text-navy/70 dark:text-white/70 hover:bg-cream-dark/20 dark:hover:bg-white/5 transition-colors"
+                                aria-label={`Open row actions for ${row.id}`}
+                              >
+                                ...
+                              </button>
+                              {openRowActionsRowId === row.id && (
+                                <div className="absolute right-0 top-full mt-1 min-w-[120px] rounded-lg border border-cream-dark/70 dark:border-white/20 bg-white dark:bg-navy-light shadow-lg z-20 p-1">
+                                  <button
+                                    onClick={() => removeRow(row.id)}
+                                    className="w-full text-left px-3 py-1.5 rounded text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
+                                  >
+                                    Delete Row
+                                  </button>
+                                  <button
+                                    onClick={() => undoRowChanges(row.id)}
+                                    className="w-full text-left px-3 py-1.5 rounded text-xs text-navy dark:text-white hover:bg-cream-dark/20 dark:hover:bg-white/10"
+                                  >
+                                    Undo
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -1383,12 +1477,29 @@ export default function TrackerDetailContent({
 function EditableCell({
   type,
   value,
+  readOnly,
   onChange,
 }: {
   type: ColumnType;
   value: string;
+  readOnly?: boolean;
   onChange: (value: string) => void;
 }) {
+  if (readOnly) {
+    if (type === 'boolean') {
+      return (
+        <span className="text-xs text-navy dark:text-white/80">
+          {value === 'true' ? 'Yes' : value === 'false' ? 'No' : '-'}
+        </span>
+      );
+    }
+    return (
+      <span className="text-xs text-navy dark:text-white/80">
+        {value || '-'}
+      </span>
+    );
+  }
+
   if (type === 'boolean') {
     return (
       <select
