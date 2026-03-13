@@ -61,7 +61,8 @@ const TRACKER_COLUMNS: Record<
   client_updates: [
     { key: 'account_manager_name', label: 'AM' },
     { key: 'client_name', label: 'Client' },
-    { key: 'meeting_date', label: 'Date Sent', type: 'date' },
+    { key: 'meeting_date', label: 'Meeting Date', type: 'date' },
+    { key: 'date_sent', label: 'Date Sent', type: 'date' },
     { key: 'on_time', label: 'On Time', type: 'boolean' },
     { key: 'method', label: 'Method' },
     { key: 'notes', label: 'Notes' },
@@ -173,6 +174,7 @@ const TRACKER_COLUMNS: Record<
 };
 
 const NON_DISPLAY_KEYS = new Set(['id', 'created_at', 'updated_at']);
+const AM_TABBED_TRACKERS = new Set<PKTrackerType>(['fathom_videos', 'client_updates']);
 const FATHOM_AM_KEY = 'account_manager_name';
 const FATHOM_MEETING_DATE_KEY = 'meeting_date';
 const DATA_COLUMN_WIDTH = 220;
@@ -187,6 +189,15 @@ const FATHOM_REQUIRED_COLUMNS: EditableColumn[] = [
   { key: 'notes', label: 'Notes', type: 'text' },
 ];
 const FATHOM_LEGACY_COLUMNS = new Set(['watched', 'attachments']);
+const CLIENT_UPDATES_REQUIRED_COLUMNS: EditableColumn[] = [
+  { key: 'account_manager_name', label: 'AM', type: 'text' },
+  { key: 'client_name', label: 'Client', type: 'text' },
+  { key: 'meeting_date', label: 'Meeting Date', type: 'date' },
+  { key: 'date_sent', label: 'Date Sent', type: 'date' },
+  { key: 'on_time', label: 'On Time', type: 'boolean' },
+  { key: 'method', label: 'Method', type: 'text' },
+  { key: 'notes', label: 'Notes', type: 'text' },
+];
 
 function toDateTimestamp(value: string): number | null {
   const trimmed = value.trim();
@@ -219,15 +230,20 @@ function normalizeColumnsForTracker(
   columns: EditableColumn[]
 ): EditableColumn[] {
   if (trackerType === 'client_updates') {
-    return columns.map((column) => {
-      if (
-        column.key === 'meeting_date' &&
-        (column.label === 'Meeting Date' || column.label === 'Date of Meeting')
-      ) {
-        return { ...column, label: 'Date Sent' };
-      }
-      return column;
+    const byKey = new Map(columns.map((column) => [column.key, column]));
+    const normalized = CLIENT_UPDATES_REQUIRED_COLUMNS.map((requiredColumn) => {
+      const existing = byKey.get(requiredColumn.key);
+      return {
+        key: requiredColumn.key,
+        label: requiredColumn.label,
+        type: existing?.type || requiredColumn.type,
+      };
     });
+    const extraColumns = columns.filter(
+      (column) =>
+        !CLIENT_UPDATES_REQUIRED_COLUMNS.some((required) => required.key === column.key)
+    );
+    return [...normalized, ...extraColumns];
   }
 
   if (trackerType === 'fathom_videos') {
@@ -294,19 +310,21 @@ export default function TrackerDetailContent({
   const midScrollbarSpacerRef = useRef<HTMLDivElement | null>(null);
 
   const isFathomTracker = trackerType === 'fathom_videos';
+  const isAMTabbedTracker = AM_TABBED_TRACKERS.has(trackerType);
 
   const amTabs = useMemo(() => {
-    if (!isFathomTracker) return [] as string[];
+    if (!isAMTabbedTracker) return [] as string[];
     const namesFromRows = rows
       .map((row) => String(row.values[FATHOM_AM_KEY] || '').trim())
       .filter(Boolean);
-    return Array.from(new Set([...manualAMTabs, ...namesFromRows]))
+    const manualNames = isFathomTracker ? manualAMTabs : [];
+    return Array.from(new Set([...manualNames, ...namesFromRows]))
       .filter(Boolean)
       .sort((a, b) => a.localeCompare(b));
-  }, [isFathomTracker, manualAMTabs, rows]);
+  }, [isAMTabbedTracker, isFathomTracker, manualAMTabs, rows]);
 
   useEffect(() => {
-    if (!isFathomTracker) return;
+    if (!isAMTabbedTracker) return;
     if (amTabs.length === 0) {
       if (selectedAM) setSelectedAM('');
       return;
@@ -314,10 +332,10 @@ export default function TrackerDetailContent({
     if (!selectedAM || !amTabs.includes(selectedAM)) {
       setSelectedAM(amTabs[0]);
     }
-  }, [amTabs, isFathomTracker, selectedAM]);
+  }, [amTabs, isAMTabbedTracker, selectedAM]);
 
   const visibleRows = useMemo(() => {
-    const filteredRows = !isFathomTracker || !selectedAM
+    const filteredRows = !isAMTabbedTracker || !selectedAM
       ? rows
       : rows.filter(
           (row) => String(row.values[FATHOM_AM_KEY] || '').trim() === selectedAM
@@ -334,7 +352,7 @@ export default function TrackerDetailContent({
       if (bDate === null) return -1;
       return bDate - aDate;
     });
-  }, [isFathomTracker, rows, selectedAM]);
+  }, [isAMTabbedTracker, isFathomTracker, rows, selectedAM]);
 
   const syncHorizontalMetrics = useCallback(() => {
     const bodyScroller = bodyScrollerRef.current;
@@ -466,7 +484,21 @@ export default function TrackerDetailContent({
             ? apiRows.map((apiRow, idx) => {
                 const nextValues: Record<string, string> = {};
                 for (const column of initialColumns) {
-                  const value = apiRow[column.key];
+                  let value = apiRow[column.key];
+                  if (trackerType === 'client_updates') {
+                    if (
+                      (value === null || value === undefined || value === '') &&
+                      column.key === 'meeting_date'
+                    ) {
+                      value = apiRow.meeting_date ?? apiRow.date_sent;
+                    }
+                    if (
+                      (value === null || value === undefined || value === '') &&
+                      column.key === 'date_sent'
+                    ) {
+                      value = apiRow.date_sent ?? apiRow.meeting_date;
+                    }
+                  }
                   nextValues[column.key] =
                     value === null || value === undefined ? '' : String(value);
                 }
@@ -670,12 +702,12 @@ export default function TrackerDetailContent({
   const addRow = useCallback(() => {
     const rowId = `${trackerType}_row_${rowCounter}`;
     const newRow = buildEmptyRow(columns, rowId);
-    if (isFathomTracker && selectedAM) {
+    if (isAMTabbedTracker && selectedAM) {
       newRow.values[FATHOM_AM_KEY] = selectedAM;
     }
     setRows((current) => [...current, newRow]);
     setRowCounter((current) => current + 1);
-  }, [columns, isFathomTracker, rowCounter, selectedAM, trackerType]);
+  }, [columns, isAMTabbedTracker, rowCounter, selectedAM, trackerType]);
 
   const openAddAMInput = useCallback(() => {
     setShowAddAMInput(true);
@@ -816,14 +848,14 @@ export default function TrackerDetailContent({
               </span>
             )}
             <span className="text-xs text-navy/50 dark:text-white/40">
-              {isFathomTracker && selectedAM
+              {isAMTabbedTracker && selectedAM
                 ? `${visibleRows.length.toLocaleString()} rows in ${selectedAM} (${rows.length.toLocaleString()} total)`
                 : `${rows.length.toLocaleString()} rows`}
             </span>
           </div>
         </div>
 
-        {isFathomTracker && (
+        {isAMTabbedTracker && (
           <div className="bg-white dark:bg-white/5 rounded-xl border border-cream-dark/60 dark:border-white/10 p-3 space-y-2">
             <p className="text-xs text-navy/50 dark:text-white/40">
               Account Managers
@@ -842,14 +874,16 @@ export default function TrackerDetailContent({
                   {amName}
                 </button>
               ))}
-              <button
-                onClick={openAddAMInput}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium border border-dashed border-electric/60 text-electric hover:bg-electric/5 transition-colors"
-                aria-label="Add Account Manager tab"
-              >
-                +
-              </button>
-              {showAddAMInput && (
+              {isFathomTracker && (
+                <button
+                  onClick={openAddAMInput}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium border border-dashed border-electric/60 text-electric hover:bg-electric/5 transition-colors"
+                  aria-label="Add Account Manager tab"
+                >
+                  +
+                </button>
+              )}
+              {isFathomTracker && showAddAMInput && (
                 <div className="flex items-center gap-2 p-2 rounded-lg border border-cream-dark/70 dark:border-white/20 bg-white dark:bg-white/5">
                   <input
                     value={newAMName}
@@ -878,13 +912,13 @@ export default function TrackerDetailContent({
                   </button>
                 </div>
               )}
-              {amTabs.length === 0 && !showAddAMInput && (
+              {amTabs.length === 0 && !(isFathomTracker && showAddAMInput) && (
                 <span className="text-xs text-navy/40 dark:text-white/30">
                   No AM names found yet.
                 </span>
               )}
             </div>
-            {amInputError && (
+            {isFathomTracker && amInputError && (
               <p className="text-xs text-red-600 dark:text-red-400">{amInputError}</p>
             )}
           </div>
@@ -1097,7 +1131,7 @@ export default function TrackerDetailContent({
                           colSpan={columns.length + 1}
                           className="py-8 px-3 text-center text-sm text-navy/50 dark:text-white/40"
                         >
-                          {isFathomTracker && selectedAM
+                          {isAMTabbedTracker && selectedAM
                             ? `No rows for ${selectedAM}.`
                             : 'No rows yet.'}
                         </td>
