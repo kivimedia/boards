@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Button from '@/components/ui/Button';
@@ -15,13 +15,13 @@ export default function ResetPasswordForm() {
   const [success, setSuccess] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useRef(createClient()).current;
 
-  // On mount, check for error params in URL and listen for recovery token exchange
   useEffect(() => {
-    // Check URL for error_code from Supabase redirect (e.g. expired token)
+    // 1. Check URL for error params (e.g. expired token redirect from Supabase)
     const params = new URLSearchParams(window.location.search);
-    const hashParams = new URLSearchParams(window.location.hash.replace('#', '?'));
+    const hashStr = window.location.hash.substring(1); // remove #
+    const hashParams = new URLSearchParams(hashStr);
     const errorCode = params.get('error_code') || hashParams.get('error_code');
     const errorDesc = params.get('error_description') || hashParams.get('error_description');
 
@@ -33,21 +33,41 @@ export default function ResetPasswordForm() {
       return;
     }
 
+    // 2. Check if hash contains access_token (Supabase recovery redirect)
+    const accessToken = hashParams.get('access_token');
+    const refreshToken = hashParams.get('refresh_token');
+
+    if (accessToken && refreshToken) {
+      // Explicitly set the session from hash tokens
+      supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      }).then(({ error: sessionErr }) => {
+        if (sessionErr) {
+          setLinkError('This reset link is invalid or has expired. Please request a new one.');
+        } else {
+          setReady(true);
+        }
+      });
+      return;
+    }
+
+    // 3. Listen for auth state changes (fallback for other flows)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') {
         setReady(true);
       }
     });
 
-    // Also check if user already has a session (e.g. navigated here directly)
+    // 4. Check if user already has a session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) setReady(true);
     });
 
-    // Timeout after 10 seconds - if no recovery event fired, the link is likely bad
+    // 5. Timeout - if nothing worked after 8 seconds, show error
     const timeout = setTimeout(() => {
       setLinkError('Could not verify your reset link. It may have expired or already been used. Please request a new one.');
-    }, 10000);
+    }, 8000);
 
     return () => {
       subscription.unsubscribe();
