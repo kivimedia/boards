@@ -87,7 +87,7 @@ const TRACKER_COLUMNS: Record<
     { key: 'account_manager_name', label: 'AM' },
     { key: 'check_date', label: 'Date', type: 'date' },
     { key: 'client_name', label: 'Client' },
-    { key: 'business_name', label: 'Business' },
+    { key: 'website_link', label: 'Website Link', type: 'link' },
     { key: 'sanity_check_done', label: 'Done', type: 'boolean' },
     { key: 'notes', label: 'Notes' },
   ],
@@ -174,7 +174,11 @@ const TRACKER_COLUMNS: Record<
 };
 
 const NON_DISPLAY_KEYS = new Set(['id', 'created_at', 'updated_at']);
-const AM_TABBED_TRACKERS = new Set<PKTrackerType>(['fathom_videos', 'client_updates']);
+const AM_TABBED_TRACKERS = new Set<PKTrackerType>([
+  'fathom_videos',
+  'client_updates',
+  'sanity_checks',
+]);
 const FATHOM_AM_KEY = 'account_manager_name';
 const FATHOM_MEETING_DATE_KEY = 'meeting_date';
 const DATA_COLUMN_WIDTH = 220;
@@ -198,6 +202,15 @@ const CLIENT_UPDATES_REQUIRED_COLUMNS: EditableColumn[] = [
   { key: 'method', label: 'Method', type: 'text' },
   { key: 'notes', label: 'Notes', type: 'text' },
 ];
+const SANITY_CHECKS_REQUIRED_COLUMNS: EditableColumn[] = [
+  { key: 'account_manager_name', label: 'AM', type: 'text' },
+  { key: 'check_date', label: 'Date', type: 'date' },
+  { key: 'client_name', label: 'Client', type: 'text' },
+  { key: 'website_link', label: 'Website Link', type: 'link' },
+  { key: 'sanity_check_done', label: 'Done', type: 'boolean' },
+  { key: 'notes', label: 'Notes', type: 'text' },
+];
+const SANITY_CHECKS_LEGACY_COLUMNS = new Set(['business_name']);
 
 function toDateTimestamp(value: string): number | null {
   const trimmed = value.trim();
@@ -260,6 +273,24 @@ function normalizeColumnsForTracker(
       (column) =>
         !FATHOM_REQUIRED_COLUMNS.some((required) => required.key === column.key) &&
         !FATHOM_LEGACY_COLUMNS.has(column.key)
+    );
+    return [...normalized, ...extraColumns];
+  }
+
+  if (trackerType === 'sanity_checks') {
+    const byKey = new Map(columns.map((column) => [column.key, column]));
+    const normalized = SANITY_CHECKS_REQUIRED_COLUMNS.map((requiredColumn) => {
+      const existing = byKey.get(requiredColumn.key);
+      return {
+        key: requiredColumn.key,
+        label: requiredColumn.label,
+        type: existing?.type || requiredColumn.type,
+      };
+    });
+    const extraColumns = columns.filter(
+      (column) =>
+        !SANITY_CHECKS_REQUIRED_COLUMNS.some((required) => required.key === column.key) &&
+        !SANITY_CHECKS_LEGACY_COLUMNS.has(column.key)
     );
     return [...normalized, ...extraColumns];
   }
@@ -497,6 +528,14 @@ export default function TrackerDetailContent({
                       column.key === 'date_sent'
                     ) {
                       value = apiRow.date_sent ?? apiRow.meeting_date;
+                    }
+                  }
+                  if (trackerType === 'sanity_checks') {
+                    if (
+                      (value === null || value === undefined || value === '') &&
+                      column.key === 'website_link'
+                    ) {
+                      value = apiRow.website_link;
                     }
                   }
                   nextValues[column.key] =
