@@ -61,9 +61,11 @@ export default function ProfilePopover({ profile, user, signOut, collapsed }: Pr
 
   const close = () => setOpen(false);
 
-  if (!profile || !user) return null;
-
-  const roleName = profile.user_role || profile.role || 'member';
+  const displayName = profile?.display_name || user?.email || 'User';
+  const avatarUrl = profile?.avatar_url || null;
+  const email = user?.email || '';
+  const roleName = profile?.user_role || profile?.role || 'member';
+  const hasProfile = !!profile && !!user;
 
   return (
     <>
@@ -75,11 +77,11 @@ export default function ProfilePopover({ profile, user, signOut, collapsed }: Pr
         }}
       >
         <div className="flex items-center gap-3 cursor-pointer rounded-lg p-1.5 -m-1.5 hover:bg-white/10 transition-colors">
-          <Avatar name={profile.display_name} src={profile.avatar_url} size="md" />
+          <Avatar name={displayName} src={avatarUrl} size="md" />
           {!collapsed && (
             <div className="flex-1 min-w-0">
               <p className="text-sm text-white font-medium truncate">
-                {profile.display_name}
+                {displayName}
               </p>
             </div>
           )}
@@ -101,38 +103,44 @@ export default function ProfilePopover({ profile, user, signOut, collapsed }: Pr
             {/* Header - Avatar + Info */}
             <div className="p-4 border-b border-cream-dark dark:border-slate-700">
               <div className="flex items-center gap-3">
-                <Avatar name={profile.display_name} src={profile.avatar_url} size="xl" />
+                <Avatar name={displayName} src={avatarUrl} size="xl" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-navy dark:text-slate-100 truncate">
-                    {profile.display_name}
+                    {displayName}
                   </p>
-                  <p className="text-xs text-navy/50 dark:text-slate-400 truncate mt-0.5">
-                    {user.email}
-                  </p>
-                  <span className="inline-block mt-1.5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-full bg-electric/10 text-electric dark:bg-electric/20">
-                    {roleName}
-                  </span>
+                  {email && (
+                    <p className="text-xs text-navy/50 dark:text-slate-400 truncate mt-0.5">
+                      {email}
+                    </p>
+                  )}
+                  {hasProfile && (
+                    <span className="inline-block mt-1.5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-full bg-electric/10 text-electric dark:bg-electric/20">
+                      {roleName}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
 
             {/* Menu Items */}
             <div className="py-1.5">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  router.push('/settings/account');
-                  close();
-                }}
-                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-navy dark:text-slate-100 hover:bg-cream-dark dark:hover:bg-slate-700 transition-colors"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-navy/50 dark:text-slate-400">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-                </svg>
-                My Profile
-              </button>
+              {hasProfile && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push('/settings/account');
+                    close();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-navy dark:text-slate-100 hover:bg-cream-dark dark:hover:bg-slate-700 transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-navy/50 dark:text-slate-400">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                  </svg>
+                  My Profile
+                </button>
+              )}
 
-              <div className="my-1 mx-3 h-px bg-cream-dark dark:bg-slate-700" />
+              {hasProfile && <div className="my-1 mx-3 h-px bg-cream-dark dark:bg-slate-700" />}
 
               <button
                 onClick={(e) => {
