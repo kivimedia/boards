@@ -7,10 +7,10 @@ export default function ForgotPasswordPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-navy font-heading">
-            Reset Your Password
+            Get Back In
           </h1>
           <p className="text-navy/70 mt-2 font-body">
-            Enter your email and we&apos;ll send you a reset link
+            Reset your password or sign in with a magic link
           </p>
         </div>
         <div className="bg-white rounded-2xl shadow-card p-8">
