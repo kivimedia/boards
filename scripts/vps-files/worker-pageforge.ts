@@ -3097,8 +3097,42 @@ Respond with JSON:
         updated_at: new Date().toISOString(),
       }).eq('id', buildId);
 
-      await updateBuildArtifacts(supabase, buildId, 'functional_qa', { linkCheck, lighthouseScores });
       console.log(`[pageforge] QA: links=${linkCheck.passed ? 'pass' : 'fail'}, LH P=${lighthouseScores.performance} A=${lighthouseScores.accessibility}`);
+
+      // Check Divi page layout meta (REST API) - detect missing full-width setting
+      if (build.wp_page_id && siteProfile.wp_username && siteProfile.wp_app_password) {
+        try {
+          const metaRes = await fetch(
+            `${siteProfile.wp_rest_url}/pages/${build.wp_page_id}?context=edit&_fields=meta`,
+            { headers: { Authorization: 'Basic ' + Buffer.from(`${siteProfile.wp_username}:${siteProfile.wp_app_password}`).toString('base64') } }
+          );
+          if (metaRes.ok) {
+            const metaData = await metaRes.json();
+            const pageLayout = metaData?.meta?._et_pb_page_layout;
+            if (!pageLayout || pageLayout === 'et_right_sidebar') {
+              console.warn(`[pageforge] Page layout meta is "${pageLayout || 'not set'}" - Divi may show sidebar for logged-in users`);
+            }
+          }
+        } catch { /* non-blocking */ }
+      }
+
+      // Logged-in view check - detect sidebar/admin-bar artifacts
+      let loggedInCheck: { passed: boolean; diffPercent: number; issues: string[] } | null = null;
+      try {
+        loggedInCheck = await runLoggedInViewCheck(pageUrl);
+        if (!loggedInCheck.passed) {
+          console.warn(`[pageforge] Logged-in view issues: ${loggedInCheck.issues.join('; ')}`);
+          await postBuildMessage(supabase, buildId,
+            `Warning: Logged-in view check found ${loggedInCheck.issues.length} issue(s): ${loggedInCheck.issues.join('; ')}`,
+            'functional_qa');
+        } else {
+          console.log(`[pageforge] Logged-in view check passed (${loggedInCheck.diffPercent}% diff)`);
+        }
+      } catch (err) {
+        console.warn('[pageforge] Logged-in view check error:', err instanceof Error ? err.message : err);
+      }
+
+      await updateBuildArtifacts(supabase, buildId, 'functional_qa', { linkCheck, lighthouseScores, loggedInCheck });
       break;
     }
 
@@ -5938,6 +5972,96 @@ async function runLayoutValidation(pageUrl: string): Promise<{ passed: boolean; 
     console.log(`[pageforge] Layout issues:\n  ${issues.join('\n  ')}`);
   }
   return { passed, issues, avgContentWidth };
+}
+
+// Logged-in view check - detects layout differences when WP logged-in body classes are present
+// (e.g. Divi sidebar artifact caused by et_right_sidebar class)
+async function runLoggedInViewCheck(pageUrl: string): Promise<{
+  passed: boolean;
+  diffPercent: number;
+  issues: string[];
+}> {
+  const issues: string[] = [];
+  let diffPercent = 0;
+  let browser;
+  try {
+    const { PNG } = await import('pngjs');
+    const pixelmatch = (await import('pixelmatch')).default;
+
+    browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    });
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1440, height: 900 });
+    await page.goto(pageUrl, { waitUntil: 'networkidle2', timeout: 45000 });
+    await new Promise(r => setTimeout(r, 3000));
+
+    // 1. Anonymous screenshot
+    const anonBuffer = Buffer.from(await page.screenshot({ fullPage: true, type: 'png' }));
+
+    // 2. Simulate logged-in state by adding WP/Divi body classes
+    await page.evaluate(() => {
+      document.body.classList.add('logged-in', 'admin-bar');
+      if (!document.body.classList.contains('et_full_width_page')) {
+        document.body.classList.add('et_right_sidebar');
+      }
+      window.dispatchEvent(new Event('resize'));
+    });
+    await new Promise(r => setTimeout(r, 2000));
+
+    // 3. Logged-in screenshot
+    const loggedInBuffer = Buffer.from(await page.screenshot({ fullPage: true, type: 'png' }));
+
+    // 4. Compare with pixelmatch
+    const anonPng = PNG.sync.read(anonBuffer);
+    const loggedInPng = PNG.sync.read(loggedInBuffer);
+
+    const width = Math.min(anonPng.width, loggedInPng.width);
+    const height = Math.min(anonPng.height, loggedInPng.height);
+
+    if (width > 0 && height > 0) {
+      const cropPng = (png: any, w: number, h: number) => {
+        const cropped = new PNG({ width: w, height: h });
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const srcIdx = (y * png.width + x) * 4;
+            const dstIdx = (y * w + x) * 4;
+            cropped.data[dstIdx] = png.data[srcIdx];
+            cropped.data[dstIdx + 1] = png.data[srcIdx + 1];
+            cropped.data[dstIdx + 2] = png.data[srcIdx + 2];
+            cropped.data[dstIdx + 3] = png.data[srcIdx + 3];
+          }
+        }
+        return cropped;
+      };
+
+      const a = anonPng.width === width && anonPng.height === height ? anonPng : cropPng(anonPng, width, height);
+      const b = loggedInPng.width === width && loggedInPng.height === height ? loggedInPng : cropPng(loggedInPng, width, height);
+
+      const diffPixels = pixelmatch(a.data, b.data, null, width, height, { threshold: 0.1 });
+      diffPercent = Math.round((diffPixels / (width * height)) * 10000) / 100;
+
+      console.log(`[pageforge] Logged-in view check: ${diffPercent}% pixels different (${diffPixels}/${width * height})`);
+
+      if (diffPercent > 5) {
+        issues.push(`Logged-in view differs by ${diffPercent}% from anonymous view - possible sidebar/admin-bar artifact`);
+      }
+
+      const heightDiff = Math.abs(anonPng.height - loggedInPng.height);
+      if (heightDiff > 100) {
+        issues.push(`Page height changed by ${heightDiff}px when logged-in classes added - layout shift detected`);
+      }
+    }
+
+    await page.close();
+  } catch (err) {
+    console.warn('[pageforge] Logged-in view check failed:', err instanceof Error ? err.message : err);
+  } finally {
+    if (browser) await browser.close();
+  }
+
+  return { passed: issues.length === 0, diffPercent, issues };
 }
 
 async function runLinkValidation(pageUrl: string): Promise<{ passed: boolean; details: string; broken: number }> {
