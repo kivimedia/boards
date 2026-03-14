@@ -2638,7 +2638,7 @@ export interface ProductivityReportFile {
 // AGENT SKILLS SYSTEM (Migration 039)
 // ============================================================================
 
-export type AgentSkillCategory = 'content' | 'creative' | 'strategy' | 'seo' | 'meta';
+export type AgentSkillCategory = 'content' | 'creative' | 'strategy' | 'seo' | 'ads' | 'meta';
 export type AgentSkillPack = 'skills' | 'creative' | 'custom' | 'seo_team';
 export type AgentQualityTier = 'genuinely_smart' | 'solid' | 'has_potential' | 'placeholder' | 'tool_dependent';
 export type AgentTriggerType = 'manual' | 'automation_rule' | 'card_event' | 'schedule' | 'chained';

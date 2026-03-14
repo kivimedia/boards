@@ -26,6 +26,7 @@ const CATEGORY_CONFIG: Record<string, { label: string; icon: string }> = {
   creative: { label: 'Creative', icon: '🎨' },
   strategy: { label: 'Strategy', icon: '🎯' },
   seo: { label: 'SEO', icon: '🔍' },
+  ads: { label: 'Ads', icon: '💰' },
   meta: { label: 'Meta', icon: '🧠' },
 };
 
