@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Board } from '@/lib/types';
+import { Board, Client } from '@/lib/types';
 import { BOARD_TYPE_CONFIG } from '@/lib/constants';
 // canAccessBoardByRole is now handled server-side in /api/boards
 import { useAuth } from '@/hooks/useAuth';
@@ -23,7 +23,9 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
   const [boards, setBoards] = useState<Board[]>(initialBoards || []);
   const [collapsed, setCollapsed] = useState(false);
   const [showTeamBoards, setShowTeamBoards] = useState(true);
-  const [showClientBoards, setShowClientBoards] = useState(true);
+  const [showClientBoards, setShowClientBoards] = useState(false);
+  const [showClients, setShowClients] = useState(false);
+  const [clients, setClients] = useState<Pick<Client, 'id' | 'name'>[]>([]);
   const [showArchived, setShowArchived] = useState(false);
   const pathname = usePathname();
   const { profile, user, signOut } = useAuth();
@@ -69,8 +71,21 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
       }
     };
 
-    // Always fetch boards on mount
+    const fetchClients = async () => {
+      try {
+        const res = await fetch('/api/clients');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.data && !cancelled) {
+            setClients((json.data as Client[]).map(c => ({ id: c.id, name: c.name })));
+          }
+        }
+      } catch {}
+    };
+
+    // Always fetch boards + clients on mount
     fetchBoards();
+    fetchClients();
     if (user) fetchBoards();
 
     // Listen for realtime board changes — but suppress within 2s of a star toggle
@@ -372,6 +387,41 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
                   </svg>
                 </button>
               )}
+            </Link>
+          );
+        })}
+
+        {/* Clients accordion */}
+        {!collapsed && clients.length > 0 && (
+          <button
+            onClick={() => setShowClients(!showClients)}
+            className="flex items-center gap-2 px-3 py-2 mt-3 text-[10px] font-semibold text-white/30 uppercase tracking-wider hover:text-white/50 transition-colors w-full"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points={showClients ? '18 15 12 9 6 15' : '6 9 12 15 18 9'} />
+            </svg>
+            <span>Clients ({clients.length})</span>
+          </button>
+        )}
+
+        {!collapsed && showClients && clients.map((client) => {
+          const isActive = pathname === `/client/${client.id}`;
+          return (
+            <Link
+              key={client.id}
+              href={`/client/${client.id}`}
+              className={`
+                flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all duration-200
+                ${isActive
+                  ? 'bg-white/10 text-white'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+                }
+              `}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+              </svg>
+              <span className="truncate font-medium">{client.name}</span>
             </Link>
           );
         })}
