@@ -2638,6 +2638,12 @@ Respond with JSON:
           const jsonMatch = fixResult.text.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
             const parsed = JSON.parse(jsonMatch[0]);
+            // Debug: log parsed keys so we can see what the AI returned
+            const parsedKeys = Object.keys(parsed);
+            const patchCount = Array.isArray(parsed.patches) ? parsed.patches.length : 'none';
+            const editCount = Array.isArray(parsed.edits) ? parsed.edits.length : 'none';
+            const hasFixedMarkup = !!parsed.fixedMarkup;
+            console.log(`[pageforge] Fix AI response: keys=[${parsedKeys.join(',')}] patches=${patchCount} edits=${editCount} fixedMarkup=${hasFixedMarkup} responseLen=${fixResult.text.length}`);
             // Search/replace patches (PRIMARY for Divi 5, fallback for Gutenberg)
             if (parsed.patches && Array.isArray(parsed.patches) && parsed.patches.length > 0) {
               // Enforce max patches limit - AI may generate more than asked
@@ -2673,6 +2679,8 @@ Respond with JSON:
                 currentMarkup = patchedMarkup;
                 fixApplied = true;
                 console.log(`[pageforge] Applied ${appliedCount}/${parsed.patches.length} patches (${skippedCount} skipped - search string not found)`);
+              } else {
+                console.warn(`[pageforge] All ${parsed.patches.length} patches failed (none matched). First search: "${parsed.patches[0]?.search?.substring(0, 100)}"`);
               }
             }
             // Line-based editing approach (PRIMARY for Gutenberg)
@@ -2717,6 +2725,8 @@ Respond with JSON:
               allChanges.push(...(parsed.changesApplied || []));
               fixApplied = true;
             }
+          } else {
+            console.warn(`[pageforge] No JSON found in fix result (len=${fixResult.text.length}). First 200 chars: ${fixResult.text.substring(0, 200)}`);
           }
         } catch (parseErr) {
           console.warn(`[pageforge] Failed to parse fix result:`, parseErr instanceof Error ? parseErr.message : String(parseErr));
