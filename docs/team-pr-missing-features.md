@@ -1,6 +1,6 @@
 # Team PR - Remaining Features (vs PRD v3.1)
 
-**Created**: 2026-03-14 | **Last updated**: 2026-03-14 (round 3)
+**Created**: 2026-03-14 | **Last updated**: 2026-03-14 (round 4 - medium priority done)
 **PRD**: `C:\Users\raviv\Downloads\caroline-ravn-outreach-agent-v3.1.md`
 
 ---
@@ -33,17 +33,17 @@
 - [x] Seasonal calendar warning in UI ("Do not pitch Jun-Jul" for Sweden)
 - [x] Native speaker review flag for first 3 Swedish runs (auto-set + banner + completion flow)
 
-### Medium Priority
-- [ ] `dry_run` mode implementation (flag exists, pipeline logic to skip real API calls missing)
-- [ ] Exa client (`services/exa_client.py`) - optional additional research source
-- [ ] QA re-evaluation branch - one retry for flagged outlets before failing them
-- [ ] Hunter.io `email_finder` (by name+domain) in addition to `domain_search`
-- [ ] Cross-run outlet ID persistence (same outlet keeps same code across runs)
-- [ ] Settings persistence (currently returns defaults only, no DB storage)
-- [ ] Cost estimate shown before launching a run
+### Medium Priority - ALL DONE
+- [x] `dry_run` mode implementation (all 4 stages generate mock data, no API calls)
+- [x] Exa client (`services/exa_client.py`) - neural search for additional research
+- [x] QA re-evaluation branch - one retry for NEEDS_REVIEW outlets
+- [x] Hunter.io `email_finder` (by name+domain) fallback when domain_search low confidence
+- [x] Cross-run outlet ID persistence (removed run_number from codes, code-based dedup)
+- [x] Settings persistence (pr_user_settings table + upsert, migration 102)
+- [x] Cost estimate shown before launching a run (estimate endpoint + UI in start modal)
 - [x] `/team-pr/feedback` page - view feedback history and calibration reports
-- [ ] Outlet exclusion selection at gate advance UI
-- [ ] Nginx reverse proxy for PR pipeline (nice-to-have, direct IP works)
+- [x] Outlet exclusion selection at gate advance UI (GateOutletsPanel with checkboxes)
+- [x] Nginx reverse proxy for PR pipeline (port 8098 -> 8400)
 
 ### Low Priority
 - [ ] Tests (research, verification, QA, email gen)
