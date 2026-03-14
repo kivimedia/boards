@@ -2480,6 +2480,37 @@ FOCUS on the top 2-3 categories. One text fix is worth more than five spacing fi
           }
           const topDiffs = sortedDiffs.slice(0, maxDiffs);
 
+          // Score-aware max patches: fewer patches at higher scores to avoid corruption
+          let maxPatches: number;
+          if (lastScore >= 80) {
+            maxPatches = 4;
+          } else if (lastScore >= 70) {
+            maxPatches = 8;
+          } else {
+            maxPatches = currentIteration <= 4 ? 16 : 24;
+          }
+          // Post-rollback: halve patches
+          if (previousWasRollback) {
+            maxPatches = Math.max(4, Math.floor(maxPatches / 2));
+          }
+          // Never allow more than 3 patches per diff shown
+          maxPatches = Math.min(maxPatches, topDiffs.length * 3);
+          maxPatches = Math.max(maxPatches, 4); // floor at 4
+          if (lastScore >= 70 || previousWasRollback) {
+            console.log(`[pageforge] Patch limits: maxPatches=${maxPatches}, maxDiffs=${maxDiffs}, diffs=${topDiffs.length}, score=${lastScore}%${previousWasRollback ? ' (post-rollback)' : ''}`);
+          }
+
+          // High-score mode: CSS-only above 70% to protect text/structure
+          const highScoreMode = lastScore >= 70;
+          const highScoreConstraint = highScoreMode
+            ? `\nHIGH SCORE MODE (${lastScore}%): The page structure is mostly correct.
+ONLY use Strategy B (CSS additions) to fine-tune visual appearance.
+DO NOT modify JSON attributes that contain text content (heading, body, label values).
+DO NOT change "value" attributes that contain <h1>, <h2>, <h3>, <p>, or <a> tags.
+ONLY modify: colors, font sizes, spacing, backgrounds, borders, shadows via CSS rules.
+Search for "</style>" and add targeted CSS rules before it.\n`
+            : '';
+
           fixPrompt = `Fix this Divi 5 WordPress page to better match the Figma design.
 
 ${imageContext}
@@ -2530,12 +2561,12 @@ COMMON MISTAKES TO AVOID:
 
 IMPORTANT RULES:
 1. Use search/replace patches. Find an exact string in the markup and specify its replacement.
-2. Keep patches SMALL and TARGETED. Max ${previousWasRollback ? Math.max(4, Math.floor((currentIteration <= 4 ? 16 : 24) / 2)) : (currentIteration <= 4 ? 16 : 24)} patches per iteration.
+2. Keep patches SMALL and TARGETED. Max ${maxPatches} patches this iteration.
 3. Make sure the "search" string is unique and exists exactly as-is in the markup.
 4. DO NOT remove or modify EXISTING CSS rules in the <style> block. Only ADD new rules before </style>.
 5. DO NOT add new HTML elements or convert Divi 5 blocks to Gutenberg/HTML.
 6. Focus on the TOP 3-5 most impactful changes. Quality over quantity.
-
+${highScoreConstraint}
 SCORING HARD CAPS (you CANNOT exceed these scores without fixing the issue):
 - Wrong heading/body text = max 70% overall. FIX TEXT FIRST.
 - Missing section = max 60% overall.
@@ -2609,6 +2640,11 @@ Respond with JSON:
             const parsed = JSON.parse(jsonMatch[0]);
             // Search/replace patches (PRIMARY for Divi 5, fallback for Gutenberg)
             if (parsed.patches && Array.isArray(parsed.patches) && parsed.patches.length > 0) {
+              // Enforce max patches limit - AI may generate more than asked
+              if (isDivi5Fix && parsed.patches.length > maxPatches) {
+                console.log(`[pageforge] Truncating ${parsed.patches.length} patches to ${maxPatches} (limit)`);
+                parsed.patches = parsed.patches.slice(0, maxPatches);
+              }
               let patchedMarkup = currentMarkup;
               let appliedCount = 0;
               let skippedCount = 0;
