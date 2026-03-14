@@ -814,32 +814,40 @@ function TerritoriesTab({ clientId }: { clientId: string }) {
 /*  Seasonal Calendar Warning helpers                                  */
 /* ------------------------------------------------------------------ */
 
-type SeasonalPeriodKey = 'jan_feb' | 'mar_apr' | 'may' | 'jun_jul' | 'aug' | 'sep_oct' | 'nov_dec';
+const MONTH_KEYS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const MONTH_LABELS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-function getCurrentPeriodKey(): SeasonalPeriodKey {
-  const month = new Date().getMonth(); // 0-indexed
-  if (month <= 1) return 'jan_feb';
-  if (month <= 3) return 'mar_apr';
-  if (month === 4) return 'may';
-  if (month <= 6) return 'jun_jul';
-  if (month === 7) return 'aug';
-  if (month <= 9) return 'sep_oct';
-  return 'nov_dec';
-}
-
-const PERIOD_LABELS: Record<SeasonalPeriodKey, string> = {
-  jan_feb: 'Jan-Feb',
-  mar_apr: 'Mar-Apr',
-  may: 'May',
-  jun_jul: 'Jun-Jul',
-  aug: 'August',
-  sep_oct: 'Sep-Oct',
-  nov_dec: 'Nov-Dec',
+// Legacy grouped keys for backward compat
+const LEGACY_KEY_MAP: Record<number, string> = {
+  0: 'jan_feb', 1: 'jan_feb', 2: 'mar_apr', 3: 'mar_apr',
+  4: 'may', 5: 'jun_jul', 6: 'jun_jul', 7: 'aug',
+  8: 'sep_oct', 9: 'sep_oct', 10: 'nov_dec', 11: 'nov_dec',
 };
 
-function isDeadZone(strategyText: string): boolean {
-  const lower = strategyText.toLowerCase();
-  return lower.includes('do not pitch') || lower.includes('dead zone');
+function getCalendarStrategy(cal: Record<string, unknown> | undefined): { label: string; text: string } | null {
+  if (!cal) return null;
+  const month = new Date().getMonth();
+  const monthKey = MONTH_KEYS[month];
+  const legacyKey = LEGACY_KEY_MAP[month];
+
+  // Try individual month key first, then legacy grouped key
+  const entry = cal[monthKey] || cal[legacyKey];
+  if (!entry) return null;
+
+  const label = MONTH_LABELS[month];
+
+  // Handle object format { strategy: "...", events: "..." } or plain string
+  if (typeof entry === 'string') return { label, text: entry };
+  if (typeof entry === 'object' && entry !== null) {
+    const obj = entry as Record<string, string>;
+    return { label, text: obj.strategy || obj.events || '' };
+  }
+  return null;
+}
+
+function isDeadZone(text: string): boolean {
+  const lower = text.toLowerCase();
+  return lower.includes('do not pitch') || lower.includes('dead zone') || lower.includes('pitch inte');
 }
 
 /* ------------------------------------------------------------------ */
@@ -936,14 +944,13 @@ function RunsTab({ clientId }: { clientId: string }) {
       startRunMutation.mutate(territoryId);
       return;
     }
-    const periodKey = getCurrentPeriodKey();
-    const cal = territory.seasonal_calendar as Record<string, string> | undefined;
-    const strategyText = cal?.[periodKey] || '';
-    if (strategyText && isDeadZone(strategyText)) {
+    const cal = territory.seasonal_calendar as Record<string, unknown> | undefined;
+    const calEntry = getCalendarStrategy(cal);
+    if (calEntry && isDeadZone(calEntry.text)) {
       setDeadZoneWarning({
-        periodLabel: PERIOD_LABELS[periodKey],
+        periodLabel: calEntry.label,
         territoryName: territory.name,
-        strategyText,
+        strategyText: calEntry.text,
       });
     } else {
       startRunMutation.mutate(territoryId);
@@ -1012,11 +1019,11 @@ function RunsTab({ clientId }: { clientId: string }) {
                 <select
                   value={selectedTerritoryId}
                   onChange={(e) => setSelectedTerritoryId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none focus:border-purple-500/50"
+                  className="w-full px-3 py-2 rounded-lg bg-[#1e1e35] border border-gray-600 text-white text-sm outline-none focus:border-purple-500/50"
                 >
-                  <option value="">No specific territory</option>
+                  <option value="" className="bg-[#1e1e35] text-white">No specific territory</option>
                   {territories.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
+                    <option key={t.id} value={t.id} className="bg-[#1e1e35] text-white">{t.name}</option>
                   ))}
                 </select>
               </div>
