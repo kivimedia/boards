@@ -91,6 +91,9 @@ function ProfileTab({ client }: { client: PRClient }) {
   const [toneRules, setToneRules] = useState(JSON.stringify(client.tone_rules || {}, null, 2));
   const [targetMarkets, setTargetMarkets] = useState<string[]>(client.target_markets || []);
   const [exclusionList, setExclusionList] = useState<string[]>(client.exclusion_list || []);
+  const [pitchAngles, setPitchAngles] = useState<{ angle_name: string; description: string }[]>(
+    (client.pitch_angles || []).map((a) => ({ angle_name: a.angle_name || (a as Record<string, string>).name || '', description: a.description || '' }))
+  );
 
   const updateMutation = useMutation({
     mutationFn: async (body: Record<string, unknown>) => {
@@ -124,6 +127,7 @@ function ProfileTab({ client }: { client: PRClient }) {
       tone_rules: parsedTR,
       target_markets: targetMarkets,
       exclusion_list: exclusionList,
+      pitch_angles: pitchAngles.filter((a) => a.angle_name.trim()),
     });
   }
 
@@ -158,6 +162,47 @@ function ProfileTab({ client }: { client: PRClient }) {
       <div>
         <label className="block text-sm text-gray-400 mb-1">Tone Rules (JSON)</label>
         <textarea value={toneRules} onChange={(e) => setToneRules(e.target.value)} rows={4} className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm font-mono outline-none focus:border-purple-500/50 resize-none" />
+      </div>
+      {/* Pitch Angles */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-sm text-gray-400">Pitch Angles ({pitchAngles.length})</label>
+          <button
+            type="button"
+            onClick={() => setPitchAngles([...pitchAngles, { angle_name: '', description: '' }])}
+            className="text-xs text-purple-400 hover:text-purple-300 transition-colors"
+          >
+            + Add Angle
+          </button>
+        </div>
+        <div className="space-y-2">
+          {pitchAngles.map((angle, i) => (
+            <div key={i} className="flex gap-2 items-start group">
+              <div className="flex-1 space-y-1">
+                <input
+                  value={angle.angle_name}
+                  onChange={(e) => { const u = [...pitchAngles]; u[i] = { ...u[i], angle_name: e.target.value }; setPitchAngles(u); }}
+                  className="w-full px-3 py-1.5 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm font-medium outline-none focus:border-purple-500/50"
+                  placeholder="Angle name"
+                />
+                <textarea
+                  value={angle.description}
+                  onChange={(e) => { const u = [...pitchAngles]; u[i] = { ...u[i], description: e.target.value }; setPitchAngles(u); }}
+                  rows={2}
+                  className="w-full px-3 py-1.5 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-xs outline-none focus:border-purple-500/50 resize-none"
+                  placeholder="Description of this pitch angle..."
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setPitchAngles(pitchAngles.filter((_, j) => j !== i))}
+                className="mt-1.5 px-2 py-1 text-red-400 hover:text-red-300 opacity-0 group-hover:opacity-100 transition-opacity text-xs"
+              >
+                x
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
       <div>
         <label className="block text-sm text-gray-400 mb-1">Target Markets</label>
