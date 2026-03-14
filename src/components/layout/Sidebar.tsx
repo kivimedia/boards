@@ -20,7 +20,8 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ initialBoards }: SidebarProps = {}) {
-  const [boards, setBoards] = useState<Board[]>(initialBoards || []);
+  const [boards, setBoards] = useState<Board[]>([]);
+  const [boardsLoaded, setBoardsLoaded] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [showTeamBoards, setShowTeamBoards] = useState(true);
   const [showClientBoards, setShowClientBoards] = useState(false);
@@ -77,7 +78,7 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
         const res = await fetch('/api/boards');
         if (res.ok) {
           const json = await res.json();
-          if (json.data && !cancelled) setBoards(json.data as Board[]);
+          if (json.data && !cancelled) { setBoards(json.data as Board[]); setBoardsLoaded(true); }
         }
       } catch {
         // Network error - boards will stay at initialBoards or empty
@@ -302,7 +303,7 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
         </Link>
 
         {/* Team Boards accordion */}
-        {!collapsed && (
+        {!collapsed && boardsLoaded && (
           <button
             onClick={() => setShowTeamBoards(!showTeamBoards)}
             className="flex items-center gap-2 px-3 py-2 mt-4 text-[10px] font-semibold text-white/30 uppercase tracking-wider hover:text-white/50 transition-colors w-full"
@@ -314,7 +315,7 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
           </button>
         )}
 
-        {(collapsed || showTeamBoards) && boards
+        {boardsLoaded && (collapsed || showTeamBoards) && boards
           .filter((board) => !board.is_archived && !board.client_id)
           .sort((a, b) => (a.is_starred === b.is_starred ? 0 : a.is_starred ? -1 : 1))
           .map((board) => {
@@ -356,7 +357,7 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
         })}
 
         {/* Client Boards accordion */}
-        {!collapsed && (
+        {!collapsed && boardsLoaded && (
           <button
             onClick={() => setShowClientBoards(!showClientBoards)}
             className="flex items-center gap-2 px-3 py-2 mt-3 text-[10px] font-semibold text-white/30 uppercase tracking-wider hover:text-white/50 transition-colors w-full"
@@ -368,7 +369,7 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
           </button>
         )}
 
-        {(collapsed || showClientBoards) && boards
+        {boardsLoaded && (collapsed || showClientBoards) && boards
           .filter((board) => !board.is_archived && !!board.client_id)
           .sort((a, b) => (a.is_starred === b.is_starred ? 0 : a.is_starred ? -1 : 1))
           .map((board) => {
@@ -469,7 +470,7 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
         })}
 
         {/* Archived boards toggle */}
-        {!collapsed && boards.some(b => b.is_archived) && (
+        {!collapsed && boardsLoaded && boards.some(b => b.is_archived) && (
           <>
             <button
               onClick={() => setShowArchived(!showArchived)}
