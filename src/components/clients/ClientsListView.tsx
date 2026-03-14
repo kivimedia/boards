@@ -504,6 +504,25 @@ export default function ClientsListView() {
                   {client.company && (
                     <p className="text-navy/50 dark:text-slate-400 font-body text-sm mb-2">{client.company}</p>
                   )}
+                  {(client as any).next_event_time && (
+                    <div className="relative group/meeting inline-flex items-center gap-1.5 mb-2 px-2 py-1 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-[11px] font-body cursor-default"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+                      </svg>
+                      {new Date((client as any).next_event_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })},{' '}
+                      {new Date((client as any).next_event_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-navy dark:bg-slate-800 text-white text-[11px] rounded-lg whitespace-nowrap opacity-0 group-hover/meeting:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
+                        <div className="font-semibold">{(client as any).next_event_title}</div>
+                        <div className="text-white/60 mt-0.5">
+                          {new Date((client as any).next_event_time).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at{' '}
+                          {new Date((client as any).next_event_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                        </div>
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px border-4 border-transparent border-t-navy dark:border-t-slate-800" />
+                      </div>
+                    </div>
+                  )}
                   <div className="flex items-center gap-3 text-navy/40 dark:text-slate-500 text-xs font-body">
                     {client.contacts && client.contacts.length > 0 && (
                       <span className="flex items-center gap-1">
