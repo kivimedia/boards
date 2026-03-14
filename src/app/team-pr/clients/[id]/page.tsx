@@ -217,12 +217,16 @@ function TerritoryForm({
   const [countryCode, setCountryCode] = useState(initial?.country_code || '');
   const [language, setLanguage] = useState(initial?.language || 'en');
   const [signalKeywords, setSignalKeywords] = useState<string[]>(initial?.signal_keywords || []);
+  const [signalKeywordsLocal, setSignalKeywordsLocal] = useState<string[]>(
+    (initial?.market_data?.signal_keywords_local as string[] | undefined) || []
+  );
   const [pitchNorms, setPitchNorms] = useState(initial?.pitch_norms || '');
   const [seasonalCalendar, setSeasonalCalendar] = useState(JSON.stringify(initial?.seasonal_calendar || {}, null, 2));
   const [seedOutlets, setSeedOutlets] = useState<SeedOutlet[]>(initial?.seed_outlets || []);
   const [suggestions, setSuggestions] = useState<SuggestedOutlet[]>([]);
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [scanTypes, setScanTypes] = useState<string[]>([]);
 
   const mutation = useMutation({
     mutationFn: async (body: Record<string, unknown>) => {
@@ -254,6 +258,7 @@ function TerritoryForm({
       country_code: countryCode || null,
       language,
       signal_keywords: signalKeywords,
+      market_data: { signal_keywords_local: signalKeywordsLocal },
       pitch_norms: pitchNorms || null,
       seasonal_calendar: parsedCal,
       seed_outlets: seedOutlets.filter((s) => s.name.trim()),
@@ -276,9 +281,20 @@ function TerritoryForm({
           <input value={language} onChange={(e) => setLanguage(e.target.value)} className="w-full px-2 py-1.5 rounded bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none focus:border-purple-500/50" />
         </div>
       </div>
-      <div>
+      <div className="space-y-2">
         <label className="block text-xs text-gray-400 mb-1">Signal Keywords</label>
-        <TagInput value={signalKeywords} onChange={setSignalKeywords} placeholder="Keywords..." />
+        <div>
+          <span className="inline-block text-[10px] font-semibold uppercase tracking-wider text-blue-500 dark:text-blue-400 mb-1">English</span>
+          <TagInput value={signalKeywords} onChange={setSignalKeywords} placeholder="English keywords..." />
+        </div>
+        {language && language !== 'en' && (
+          <div>
+            <span className="inline-block text-[10px] font-semibold uppercase tracking-wider text-indigo-500 dark:text-indigo-400 mb-1">
+              {language === 'sv' ? 'Svenska' : language === 'he' ? 'עברית' : language === 'de' ? 'Deutsch' : language === 'fr' ? 'Français' : language === 'es' ? 'Español' : language.toUpperCase()}
+            </span>
+            <TagInput value={signalKeywordsLocal} onChange={setSignalKeywordsLocal} placeholder={`${language === 'sv' ? 'Svenska' : language.toUpperCase()} keywords...`} />
+          </div>
+        )}
       </div>
       <div>
         <label className="block text-xs text-gray-400 mb-1">Pitch Norms</label>
@@ -304,6 +320,8 @@ function TerritoryForm({
                     const res = await fetch(`/api/team-pr/territories/${initial.id}/scan`, {
                       method: 'POST',
                       credentials: 'include',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ outlet_types: scanTypes }),
                     });
                     const json = await res.json();
                     if (!res.ok) throw new Error(json.error || 'Scan failed');
@@ -333,6 +351,25 @@ function TerritoryForm({
             <button type="button" onClick={() => setSeedOutlets([...seedOutlets, { name: '', url: '', type: 'blog' }])} className="text-xs text-purple-400 hover:text-purple-300">+ Add</button>
           </div>
         </div>
+        {initial && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            <span className="text-[10px] text-gray-400 mr-1 self-center">Filter scan:</span>
+            {['newspaper', 'magazine', 'tv', 'radio', 'podcast', 'blog', 'trade_publication', 'online_media', 'youtube'].map((ot) => (
+              <button
+                key={ot}
+                type="button"
+                onClick={() => setScanTypes((prev) => prev.includes(ot) ? prev.filter((x) => x !== ot) : [...prev, ot])}
+                className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                  scanTypes.includes(ot)
+                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    : 'bg-gray-500/10 text-gray-500 dark:text-gray-400 border-gray-500/20 hover:border-indigo-500/50'
+                }`}
+              >
+                {ot.replace('_', ' ')}
+              </button>
+            ))}
+          </div>
+        )}
         {seedOutlets.map((s, i) => (
           <div key={i} className="flex flex-col sm:flex-row gap-2 mb-1">
             <input value={s.name} onChange={(e) => { const u = [...seedOutlets]; u[i] = { ...u[i], name: e.target.value }; setSeedOutlets(u); }} placeholder="Name" className="flex-1 px-2 py-1 rounded bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-xs outline-none" />
@@ -526,7 +563,7 @@ function TerritoriesTab({ clientId }: { clientId: string }) {
                   </div>
                   <p className="text-xs text-gray-400 mt-0.5">
                     {t.country_code || 'Global'}
-                    {t.signal_keywords.length > 0 && ` - ${t.signal_keywords.length} keywords`}
+                    {(t.signal_keywords.length + ((t.market_data?.signal_keywords_local as string[] | undefined) || []).length) > 0 && ` - ${t.signal_keywords.length + ((t.market_data?.signal_keywords_local as string[] | undefined) || []).length} keywords`}
                     {t.seed_outlets.length > 0 && ` - ${t.seed_outlets.length} seed outlets`}
                   </p>
                 </div>
@@ -543,7 +580,14 @@ function TerritoriesTab({ clientId }: { clientId: string }) {
               {t.signal_keywords.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-2">
                   {t.signal_keywords.map((kw) => (
-                    <span key={kw} className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-600 dark:text-blue-300 text-[10px]">{kw}</span>
+                    <span key={`en-${kw}`} className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-600 dark:text-blue-300 text-[10px]">{kw}</span>
+                  ))}
+                </div>
+              )}
+              {((t.market_data?.signal_keywords_local as string[] | undefined) || []).length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {((t.market_data.signal_keywords_local as string[]) || []).map((kw) => (
+                    <span key={`loc-${kw}`} className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 text-[10px]">{kw}</span>
                   ))}
                 </div>
               )}

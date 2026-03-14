@@ -38,7 +38,7 @@ const PR_AGENTS: PRAgentDef[] = [
       'Run configuration & overrides',
     ],
     pipeline_stages: ['PENDING', 'GATE_A', 'GATE_B', 'GATE_C', 'COMPLETED', 'FAILED', 'CANCELLED'],
-    model: 'Claude Sonnet 4',
+    model: 'Claude Sonnet 4.6',
   },
   {
     slug: 'researcher',
@@ -56,7 +56,7 @@ const PR_AGENTS: PRAgentDef[] = [
       'Market-specific filtering',
     ],
     pipeline_stages: ['RESEARCH'],
-    model: 'Claude Sonnet 4',
+    model: 'Claude Sonnet 4.6',
   },
   {
     slug: 'verifier',
@@ -74,7 +74,7 @@ const PR_AGENTS: PRAgentDef[] = [
       'LinkedIn cross-referencing',
     ],
     pipeline_stages: ['VERIFICATION'],
-    model: 'Claude Sonnet 4',
+    model: 'Claude Sonnet 4.6',
   },
   {
     slug: 'qa',
@@ -92,7 +92,7 @@ const PR_AGENTS: PRAgentDef[] = [
       'Red flag detection',
     ],
     pipeline_stages: ['QA_LOOP'],
-    model: 'Claude Sonnet 4',
+    model: 'Claude Sonnet 4.6',
   },
   {
     slug: 'email-writer',
@@ -110,7 +110,7 @@ const PR_AGENTS: PRAgentDef[] = [
       'Tone & formality matching',
     ],
     pipeline_stages: ['EMAIL_GEN'],
-    model: 'Claude Sonnet 4',
+    model: 'Claude Sonnet 4.6',
   },
 ];
 

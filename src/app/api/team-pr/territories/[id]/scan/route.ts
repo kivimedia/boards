@@ -56,6 +56,13 @@ export async function POST(
   const { id } = await params;
   const { supabase } = auth.ctx;
 
+  // Parse optional filters from request body
+  let outletTypes: string[] = [];
+  try {
+    const body = await request.json();
+    outletTypes = body.outlet_types || [];
+  } catch { /* no body is fine */ }
+
   // Load territory
   const { data: territory, error: tErr } = await supabase
     .from('pr_territories')
@@ -93,7 +100,9 @@ export async function POST(
     .map((s: { name: string; url: string }) => `- ${s.name} (${s.url})`)
     .join('\n');
 
+  const localKeywords = (t.market_data?.signal_keywords_local as string[] | undefined) || [];
   const keywords = (t.signal_keywords || []).join(', ');
+  const keywordsLocal = localKeywords.join(', ');
   const pitchAngles = (c.pitch_angles || [])
     .map((a: { angle_name: string; description: string }) => `- ${a.angle_name}: ${a.description}`)
     .join('\n');
@@ -112,19 +121,20 @@ ${pitchAngles ? `\n## Pitch Angles\n${pitchAngles}` : ''}
 - Name: ${t.name}
 - Country: ${t.country_code || 'Global'}
 - Language: ${t.language}
-- Signal Keywords: ${keywords || 'N/A'}
+- Signal Keywords (English): ${keywords || 'N/A'}
+${keywordsLocal ? `- Signal Keywords (${t.language}): ${keywordsLocal}` : ''}
 ${t.pitch_norms ? `- Pitch Norms: ${t.pitch_norms}` : ''}
 
 ## Existing Seed Outlets (DO NOT repeat these)
 ${existingOutlets || '(none)'}
 
-Search for relevant media outlets in ${t.country_code || 'this market'} that cover ${c.industry || 'this industry'}. Focus on ${t.language === 'en' ? 'English' : t.language}-language outlets. Include a mix of outlet types (newspapers, magazines, podcasts, blogs, online media, trade publications).
+Search for relevant media outlets in ${t.country_code || 'this market'} that cover ${c.industry || 'this industry'}. Focus on ${t.language === 'en' ? 'English' : t.language}-language outlets.${outletTypes.length > 0 ? ` Focus ONLY on these outlet types: ${outletTypes.join(', ')}.` : ' Include a mix of outlet types (newspapers, magazines, podcasts, blogs, online media, trade publications).'}
 
 Return your findings as a JSON array.`;
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 8192,
       system: RESEARCH_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userMessage }],
