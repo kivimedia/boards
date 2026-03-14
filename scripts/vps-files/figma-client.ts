@@ -137,6 +137,55 @@ export function figmaExtractTypography(node: FigmaNode): FigmaDesignTokens['font
   return Array.from(fonts.values());
 }
 
+// ============================================================================
+// TEXT CONTENT EXTRACTION
+// ============================================================================
+
+export interface FigmaTextContent {
+  text: string;
+  sectionName: string;
+  nodeName: string;
+  fontSize: number;
+  fontWeight: number;
+  y: number;
+  role: 'heading' | 'body' | 'button' | 'caption';
+}
+
+export function figmaExtractTextContent(
+  sections: Array<{ name: string; node: FigmaNode }>
+): FigmaTextContent[] {
+  const results: FigmaTextContent[] = [];
+  for (const section of sections) {
+    function walk(n: FigmaNode) {
+      if (n.type === 'TEXT' && n.characters && n.characters.trim()) {
+        const fontSize = n.style?.fontSize || 16;
+        const fontWeight = n.style?.fontWeight || 400;
+        const nameLower = (n.name || '').toLowerCase();
+        let role: FigmaTextContent['role'] = 'body';
+        if (nameLower.includes('button') || nameLower.includes('cta')) {
+          role = 'button';
+        } else if (fontSize >= 36) {
+          role = 'heading';
+        } else if (fontSize < 14) {
+          role = 'caption';
+        }
+        results.push({
+          text: n.characters.trim().slice(0, 200),
+          sectionName: section.name,
+          nodeName: n.name || '',
+          fontSize,
+          fontWeight,
+          y: n.absoluteBoundingBox?.y || 0,
+          role,
+        });
+      }
+      if (n.children) for (const child of n.children) walk(child);
+    }
+    walk(section.node);
+  }
+  return results;
+}
+
 export async function figmaTestConnection(token: string): Promise<{ ok: boolean; email?: string; error?: string }> {
   try {
     const client = createFigmaClient(token);

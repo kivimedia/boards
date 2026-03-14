@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import type { PRFeedback, PRFeedbackType, PRClient } from '@/lib/types';
 
@@ -420,6 +421,10 @@ export default function FeedbackPage() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
+      <Link href="/team-pr" className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors -mb-4">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        Back to Team PR
+      </Link>
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-navy dark:text-white">Feedback and Calibration</h1>

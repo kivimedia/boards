@@ -75,6 +75,15 @@ export default function TeamPRDashboard() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8">
+      {/* Back to Agents */}
+      <Link
+        href="/agents"
+        className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors -mb-4"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        Back to Agent Teams
+      </Link>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -100,19 +109,19 @@ export default function TeamPRDashboard() {
 
       {/* Quick Links */}
       <div className="flex gap-3 flex-wrap">
-        <Link href="/team-pr/clients" className="px-3 py-1.5 rounded-lg bg-gray-500/10 text-gray-300 hover:bg-gray-500/20 text-sm transition-colors">
+        <Link href="/team-pr/clients" className="px-3 py-1.5 rounded-lg bg-white/10 text-white/80 hover:bg-white/20 hover:text-white text-sm font-medium transition-colors border border-white/10">
           Clients
         </Link>
-        <Link href="/team-pr/outlets" className="px-3 py-1.5 rounded-lg bg-gray-500/10 text-gray-300 hover:bg-gray-500/20 text-sm transition-colors">
+        <Link href="/team-pr/outlets" className="px-3 py-1.5 rounded-lg bg-white/10 text-white/80 hover:bg-white/20 hover:text-white text-sm font-medium transition-colors border border-white/10">
           Outlet Database
         </Link>
-        <Link href="/team-pr/drafts" className="px-3 py-1.5 rounded-lg bg-gray-500/10 text-gray-300 hover:bg-gray-500/20 text-sm transition-colors">
+        <Link href="/team-pr/drafts" className="px-3 py-1.5 rounded-lg bg-white/10 text-white/80 hover:bg-white/20 hover:text-white text-sm font-medium transition-colors border border-white/10">
           Email Drafts
         </Link>
-        <Link href="/team-pr/feedback" className="px-3 py-1.5 rounded-lg bg-gray-500/10 text-gray-300 hover:bg-gray-500/20 text-sm transition-colors">
+        <Link href="/team-pr/feedback" className="px-3 py-1.5 rounded-lg bg-white/10 text-white/80 hover:bg-white/20 hover:text-white text-sm font-medium transition-colors border border-white/10">
           Feedback
         </Link>
-        <Link href="/team-pr/settings" className="px-3 py-1.5 rounded-lg bg-gray-500/10 text-gray-300 hover:bg-gray-500/20 text-sm transition-colors">
+        <Link href="/team-pr/settings" className="px-3 py-1.5 rounded-lg bg-white/10 text-white/80 hover:bg-white/20 hover:text-white text-sm font-medium transition-colors border border-white/10">
           Settings
         </Link>
       </div>
