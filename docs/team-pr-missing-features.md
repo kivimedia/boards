@@ -1,6 +1,6 @@
 # Team PR - Remaining Features (vs PRD v3.1)
 
-**Created**: 2026-03-14 | **Last updated**: 2026-03-14 (round 4 - medium priority done)
+**Created**: 2026-03-14 | **Last updated**: 2026-03-14 (round 5 - ALL DONE)
 **PRD**: `C:\Users\raviv\Downloads\caroline-ravn-outreach-agent-v3.1.md`
 
 ---
@@ -45,8 +45,8 @@
 - [x] Outlet exclusion selection at gate advance UI (GateOutletsPanel with checkboxes)
 - [x] Nginx reverse proxy for PR pipeline (port 8098 -> 8400)
 
-### Low Priority
-- [ ] Tests (research, verification, QA, email gen)
-- [ ] README.md for VPS service
-- [ ] `run_pipeline.py` CLI entry point with dry_run flag
-- [ ] `output/runs/` and `output/reports/` directory structure
+### Low Priority - ALL DONE
+- [x] Tests (74 pytest tests across 6 files covering all stages + utilities)
+- [x] README.md for VPS service (architecture, env vars, run commands)
+- [x] `run_pipeline.py` CLI entry point with --client-id, --territory-id, --max-outlets, --dry-run
+- [x] `output/runs/` and `output/reports/` directory structure
