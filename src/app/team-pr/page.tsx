@@ -109,6 +109,9 @@ export default function TeamPRDashboard() {
 
       {/* Quick Links */}
       <div className="flex gap-3 flex-wrap">
+        <Link href="/team-pr/agents" className="px-3 py-1.5 rounded-lg bg-purple-100 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-500/25 text-sm font-medium transition-colors border border-purple-200 dark:border-purple-500/30">
+          Agents
+        </Link>
         <Link href="/team-pr/clients" className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-white/10 text-navy/80 dark:text-white/80 hover:bg-gray-200 dark:hover:bg-white/20 hover:text-navy dark:hover:text-white text-sm font-medium transition-colors border border-gray-200 dark:border-white/10">
           Clients
         </Link>
