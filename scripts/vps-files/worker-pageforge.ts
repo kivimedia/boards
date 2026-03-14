@@ -4244,10 +4244,11 @@ function structuralQA(
 
   // 1. Check for missing Figma headings in markup
   const figmaHeadings = figmaTextContent.filter(t => t.role === 'heading');
+  const markupLowerNorm = markup.toLowerCase().replace(/\n/g, ' ').replace(/\s+/g, ' ');
   for (const heading of figmaHeadings) {
-    const headingLower = heading.text.toLowerCase().trim();
+    const headingLower = heading.text.toLowerCase().trim().replace(/\n/g, ' ').replace(/\s+/g, ' ');
     if (headingLower.length < 3) continue; // skip very short text
-    if (!markup.toLowerCase().includes(headingLower.slice(0, 30))) {
+    if (!markupLowerNorm.includes(headingLower.slice(0, 30))) {
       score -= 5;
       penalties.push(`Missing heading: "${heading.text.slice(0, 60)}" from section "${heading.sectionName}"`);
     }
