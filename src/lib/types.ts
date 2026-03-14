@@ -2641,7 +2641,7 @@ export interface ProductivityReportFile {
 // ============================================================================
 
 export type AgentSkillCategory = 'content' | 'creative' | 'strategy' | 'seo' | 'ads' | 'meta';
-export type AgentSkillPack = 'skills' | 'creative' | 'custom' | 'seo_team';
+export type AgentSkillPack = 'skills' | 'creative' | 'custom' | 'seo_team' | 'shared';
 export type AgentQualityTier = 'genuinely_smart' | 'solid' | 'has_potential' | 'placeholder' | 'tool_dependent';
 export type AgentTriggerType = 'manual' | 'automation_rule' | 'card_event' | 'schedule' | 'chained';
 export type AgentExecutionStatus = 'running' | 'success' | 'failed' | 'cancelled' | 'pending_confirmation';

@@ -128,6 +128,30 @@ export async function POST(
     }
   }
 
+  // Optional: Enrich collected images with Humanity shift data
+  let humanityMatches: Record<string, any> = {};
+  if (teamConfig.humanity_config?.enabled && teamConfig.humanity_config?.access_token_encrypted) {
+    try {
+      const { findShiftByTimestamp, getAccessToken } = await import('@/lib/integrations/humanity');
+      const accessToken = getAccessToken(teamConfig.humanity_config);
+
+      for (const img of collected) {
+        if (!img.slack_ts) continue;
+        try {
+          const ts = new Date(parseFloat(img.slack_ts) * 1000);
+          const match = await findShiftByTimestamp(accessToken, ts);
+          if (match.matched) {
+            humanityMatches[img.code] = match;
+          }
+        } catch {
+          // Non-fatal - continue without enrichment for this image
+        }
+      }
+    } catch {
+      // Humanity integration not available - continue without enrichment
+    }
+  }
+
   // Update artifacts with collected images
   const updatedImageSource = {
     ...imageSourceData,
@@ -137,6 +161,7 @@ export async function POST(
     unmatched_images: unmatched,
     total_found: slackImages.length,
     matched_count: collected.length,
+    ...(Object.keys(humanityMatches).length > 0 ? { humanity_matches: humanityMatches } : {}),
   };
 
   const updatedArtifacts = {

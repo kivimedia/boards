@@ -1,5 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { encryptToHex, decryptFromHex } from '../encryption';
+import { fetchSlackImages } from './slack-images';
 
 // ============================================================================
 // SLACK SEO - OAuth Token Management & Image Fetching
@@ -249,95 +250,16 @@ export async function fetchSlackChannelImages(
     throw new Error(`No valid Slack token available for config ${configId}`);
   }
 
-  const limit = options?.limit ?? 100;
-  const images: SlackChannelImage[] = [];
+  // Delegate to shared slack-images module
+  const results = await fetchSlackImages(accessToken, channelId, options);
 
-  // Strategy 1: conversations.history to find messages with file attachments
-  const historyParams = new URLSearchParams({
-    channel: channelId,
-    limit: String(Math.min(limit * 2, 200)), // fetch more messages since not all have images
-  });
-  if (options?.oldest) {
-    historyParams.set('oldest', options.oldest);
-  }
-
-  const historyRes = await fetch(
-    `${SLACK_API_BASE}/conversations.history?${historyParams}`,
-    { headers: { Authorization: `Bearer ${accessToken}` } }
-  );
-
-  if (!historyRes.ok) {
-    const text = await historyRes.text();
-    throw new Error(`Slack conversations.history HTTP ${historyRes.status}: ${text}`);
-  }
-
-  const historyData = await historyRes.json();
-  if (!historyData.ok) {
-    throw new Error(`Slack conversations.history failed: ${historyData.error || 'unknown'}`);
-  }
-
-  // Extract images from message file attachments
-  const messages: any[] = historyData.messages || [];
-  for (const msg of messages) {
-    if (images.length >= limit) break;
-
-    const files: any[] = msg.files || [];
-    for (const file of files) {
-      if (images.length >= limit) break;
-
-      // Only include image files
-      if (file.mimetype && file.mimetype.startsWith('image/')) {
-        images.push({
-          url: file.url_private || file.url_private_download || file.permalink,
-          filename: file.name || file.title || 'unknown',
-          timestamp: msg.ts || '',
-          messageText: msg.text || '',
-        });
-      }
-    }
-  }
-
-  // Strategy 2: files.list as a supplementary source if we haven't hit the limit
-  if (images.length < limit) {
-    const filesParams = new URLSearchParams({
-      channel: channelId,
-      types: 'images',
-      count: String(limit - images.length),
-    });
-    if (options?.oldest) {
-      filesParams.set('ts_from', options.oldest);
-    }
-
-    const filesRes = await fetch(
-      `${SLACK_API_BASE}/files.list?${filesParams}`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
-
-    if (filesRes.ok) {
-      const filesData = await filesRes.json();
-      if (filesData.ok) {
-        const existingUrls = new Set(images.map((img) => img.url));
-
-        for (const file of filesData.files || []) {
-          if (images.length >= limit) break;
-
-          const fileUrl = file.url_private || file.url_private_download || file.permalink;
-          if (fileUrl && !existingUrls.has(fileUrl)) {
-            images.push({
-              url: fileUrl,
-              filename: file.name || file.title || 'unknown',
-              timestamp: file.timestamp ? String(file.timestamp) : '',
-              messageText: file.initial_comment?.comment || '',
-            });
-            existingUrls.add(fileUrl);
-          }
-        }
-      }
-    }
-    // Silently skip files.list errors - conversations.history results are sufficient
-  }
-
-  return images;
+  // Map to backward-compatible SlackChannelImage type
+  return results.map(r => ({
+    url: r.url,
+    filename: r.filename,
+    timestamp: r.timestamp,
+    messageText: r.messageText,
+  }));
 }
 
 // ============================================================================
