@@ -191,6 +191,18 @@ interface SeedOutlet {
   type: string;
 }
 
+interface SuggestedOutlet {
+  name: string;
+  url: string;
+  outlet_type: string;
+  description: string;
+  topics: string[];
+  relevance_score: number;
+  country: string | null;
+  language: string | null;
+  audience_size: number | null;
+}
+
 function TerritoryForm({
   initial,
   clientId,
@@ -208,6 +220,9 @@ function TerritoryForm({
   const [pitchNorms, setPitchNorms] = useState(initial?.pitch_norms || '');
   const [seasonalCalendar, setSeasonalCalendar] = useState(JSON.stringify(initial?.seasonal_calendar || {}, null, 2));
   const [seedOutlets, setSeedOutlets] = useState<SeedOutlet[]>(initial?.seed_outlets || []);
+  const [suggestions, setSuggestions] = useState<SuggestedOutlet[]>([]);
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
 
   const mutation = useMutation({
     mutationFn: async (body: Record<string, unknown>) => {
@@ -276,8 +291,47 @@ function TerritoryForm({
       {/* Seed Outlets */}
       <div>
         <div className="flex items-center justify-between mb-1">
-          <label className="text-xs text-gray-400">Seed Outlets</label>
-          <button type="button" onClick={() => setSeedOutlets([...seedOutlets, { name: '', url: '', type: 'blog' }])} className="text-xs text-purple-400 hover:text-purple-300">+ Add</button>
+          <label className="text-xs text-gray-400">Seed Outlets ({seedOutlets.length})</label>
+          <div className="flex items-center gap-2">
+            {initial && (
+              <button
+                type="button"
+                onClick={async () => {
+                  setScanning(true);
+                  setScanError(null);
+                  setSuggestions([]);
+                  try {
+                    const res = await fetch(`/api/team-pr/territories/${initial.id}/scan`, {
+                      method: 'POST',
+                      credentials: 'include',
+                    });
+                    const json = await res.json();
+                    if (!res.ok) throw new Error(json.error || 'Scan failed');
+                    setSuggestions(json.data?.suggestions || []);
+                  } catch (err) {
+                    setScanError(err instanceof Error ? err.message : 'Scan failed');
+                  } finally {
+                    setScanning(false);
+                  }
+                }}
+                disabled={scanning}
+                className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-medium transition-colors"
+              >
+                {scanning ? (
+                  <>
+                    <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>
+                    Scanning...
+                  </>
+                ) : (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    Scan for More
+                  </>
+                )}
+              </button>
+            )}
+            <button type="button" onClick={() => setSeedOutlets([...seedOutlets, { name: '', url: '', type: 'blog' }])} className="text-xs text-purple-400 hover:text-purple-300">+ Add</button>
+          </div>
         </div>
         {seedOutlets.map((s, i) => (
           <div key={i} className="flex flex-col sm:flex-row gap-2 mb-1">
@@ -296,6 +350,110 @@ function TerritoryForm({
           </div>
         ))}
       </div>
+
+      {/* Scan Error */}
+      {scanError && (
+        <div className="p-3 rounded-lg border border-red-500/30 bg-red-500/5">
+          <p className="text-xs text-red-500">{scanError}</p>
+        </div>
+      )}
+
+      {/* AI Suggestions */}
+      {suggestions.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-1 h-4 rounded-full bg-indigo-500" />
+              <label className="text-xs font-semibold text-navy dark:text-white">AI Suggestions ({suggestions.length})</label>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const newOutlets = suggestions.map((s) => ({
+                    name: s.name,
+                    url: s.url,
+                    type: s.outlet_type,
+                  }));
+                  setSeedOutlets([...seedOutlets, ...newOutlets]);
+                  setSuggestions([]);
+                }}
+                className="text-[10px] px-2 py-0.5 rounded bg-green-600 hover:bg-green-700 text-white font-medium transition-colors"
+              >
+                Add All ({suggestions.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSuggestions([])}
+                className="text-[10px] text-gray-400 hover:text-navy dark:hover:text-white transition-colors"
+              >
+                Dismiss All
+              </button>
+            </div>
+          </div>
+          <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
+            {suggestions.map((s, i) => (
+              <div
+                key={`${s.url}-${i}`}
+                className="p-3 rounded-lg border border-indigo-200 dark:border-indigo-500/20 bg-indigo-50 dark:bg-indigo-500/5 border-l-4 border-l-indigo-500"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium text-navy dark:text-white">{s.name}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase ${
+                        s.relevance_score >= 80
+                          ? 'bg-green-600 text-white'
+                          : s.relevance_score >= 50
+                          ? 'bg-amber-500 text-white'
+                          : 'bg-gray-500 text-white'
+                      }`}>
+                        {s.relevance_score}%
+                      </span>
+                      <span className="px-1.5 py-0.5 rounded bg-gray-200 dark:bg-gray-500/30 text-gray-600 dark:text-gray-300 text-[9px] font-medium">
+                        {s.outlet_type.replace(/_/g, ' ')}
+                      </span>
+                    </div>
+                    <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline truncate block mt-0.5">
+                      {s.url}
+                    </a>
+                    {s.description && (
+                      <p className="text-[11px] text-gray-600 dark:text-gray-400 mt-1 leading-relaxed">{s.description}</p>
+                    )}
+                    {s.topics && s.topics.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {s.topics.slice(0, 5).map((t) => (
+                          <span key={t} className="px-1.5 py-0.5 rounded bg-gray-200 dark:bg-gray-500/20 text-gray-500 dark:text-gray-400 text-[9px]">{t}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSeedOutlets([...seedOutlets, { name: s.name, url: s.url, type: s.outlet_type }]);
+                        setSuggestions(suggestions.filter((_, j) => j !== i));
+                      }}
+                      className="px-2 py-1 rounded bg-green-600 hover:bg-green-700 text-white text-[10px] font-medium transition-colors"
+                    >
+                      Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSuggestions(suggestions.filter((_, j) => j !== i))}
+                      className="px-2 py-1 rounded text-gray-400 hover:text-red-500 dark:hover:text-red-400 text-[10px] transition-colors"
+                    >
+                      Skip
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="flex gap-2 pt-1">
         <button type="submit" disabled={mutation.isPending} className="px-3 py-1.5 rounded bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-medium transition-colors">
           {mutation.isPending ? 'Saving...' : initial ? 'Update' : 'Add Territory'}
