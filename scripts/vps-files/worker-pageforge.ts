@@ -1115,6 +1115,8 @@ IMAGE RULES:
 
 ${figmaImageContext}
 
+${DIVI5_INSTRUCTIONS}
+
 ## MANDATORY TEXT CONTENT - USE THESE EXACT STRINGS
 
 The following text was extracted directly from the Figma design file. You MUST use these
@@ -1127,8 +1129,6 @@ ${mandatoryTextContent}
 
 Output sections in THIS EXACT ORDER. Do not reorder, skip, or merge sections:
 ${mandatorySectionOrder}
-
-${DIVI5_INSTRUCTIONS}
 
 ## Design System
 Primary font: "${primaryFont}", sans-serif (ALL text uses this font)
@@ -1190,48 +1190,65 @@ ${imageRules}
 
 RESPOND WITH JSON ONLY (no markdown fences): {"sections":[...]}`;
 
-        const divi5Result = await callPageForgeAgent(supabase, buildId, 'pageforge_markup_gen', 'markup_generation',
-          getSystemPrompt('pageforge_builder'),
-          divi5Prompt,
-          anthropic, {
-            maxTokens: 32000,
-            images: figmaImage ? [{ data: figmaImage, mimeType: figmaImageMime }] : undefined,
-          }
-        );
-
-        // Parse structured JSON response into Divi5Section[]
+        // Retry loop for Divi 5 markup generation (retry once with simplified prompt on JSON parse failure)
         let divi5Sections: Divi5Section[] = [];
-        const rawText = divi5Result.text;
-        try {
-          const stripped = rawText.replace(/^```(?:json)?\s*\n?/m, '').replace(/\n?```\s*$/m, '');
-          const jsonMatch = stripped.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
-            divi5Sections = parsed.sections || [];
-          }
-        } catch (parseErr) {
-          console.warn('[pageforge] Divi 5 JSON parse failed, trying partial extract:', parseErr instanceof Error ? parseErr.message : String(parseErr));
-          // Try to extract sections array even from malformed/truncated JSON
-          try {
-            const sectionsMatch = rawText.match(/"sections"\s*:\s*(\[[\s\S]*)/);
-            if (sectionsMatch) {
-              let sectionsStr = sectionsMatch[1].replace(/,\s*([}\]])/g, '$1');
-              // Fix truncation: close open brackets
-              const openBrackets = (sectionsStr.match(/\[/g) || []).length;
-              const closeBrackets = (sectionsStr.match(/\]/g) || []).length;
-              for (let i = 0; i < openBrackets - closeBrackets; i++) sectionsStr += ']';
-              const openBraces = (sectionsStr.match(/\{/g) || []).length;
-              const closeBraces = (sectionsStr.match(/\}/g) || []).length;
-              for (let i = 0; i < openBraces - closeBraces; i++) sectionsStr += '}';
-              divi5Sections = JSON.parse(sectionsStr);
+        for (let divi5Attempt = 0; divi5Attempt < 2; divi5Attempt++) {
+          const currentPrompt = divi5Attempt === 0 ? divi5Prompt
+            : `${divi5Prompt}\n\nCRITICAL: Your previous response had malformed JSON that could not be parsed. This time, output ONLY valid JSON with NO trailing commas, NO comments, and NO markdown fences. Double-check every bracket and brace. Start with {"sections":[ and end with ]}`;
+
+          const divi5Result = await callPageForgeAgent(supabase, buildId, 'pageforge_markup_gen', 'markup_generation',
+            getSystemPrompt('pageforge_builder_divi5'),
+            currentPrompt,
+            anthropic, {
+              maxTokens: 48000,
+              images: figmaImage ? [{ data: figmaImage, mimeType: figmaImageMime }] : undefined,
             }
-          } catch {
-            console.error('[pageforge] Divi 5 JSON parsing completely failed');
+          );
+
+          // Parse structured JSON response into Divi5Section[]
+          divi5Sections = [];
+          const rawText = divi5Result.text;
+          try {
+            const stripped = rawText.replace(/^```(?:json)?\s*\n?/m, '').replace(/\n?```\s*$/m, '');
+            const jsonMatch = stripped.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              const parsed = JSON.parse(jsonMatch[0]);
+              divi5Sections = parsed.sections || [];
+            }
+          } catch (parseErr) {
+            console.warn('[pageforge] Divi 5 JSON parse failed, trying partial extract:', parseErr instanceof Error ? parseErr.message : String(parseErr));
+            // Try to extract sections array even from malformed/truncated JSON
+            try {
+              const sectionsMatch = rawText.match(/"sections"\s*:\s*(\[[\s\S]*)/);
+              if (sectionsMatch) {
+                let sectionsStr = sectionsMatch[1].replace(/,\s*([}\]])/g, '$1');
+                // Fix truncation: close open brackets
+                const openBrackets = (sectionsStr.match(/\[/g) || []).length;
+                const closeBrackets = (sectionsStr.match(/\]/g) || []).length;
+                for (let i = 0; i < openBrackets - closeBrackets; i++) sectionsStr += ']';
+                const openBraces = (sectionsStr.match(/\{/g) || []).length;
+                const closeBraces = (sectionsStr.match(/\}/g) || []).length;
+                for (let i = 0; i < openBraces - closeBraces; i++) sectionsStr += '}';
+                divi5Sections = JSON.parse(sectionsStr);
+              }
+            } catch {
+              console.error('[pageforge] Divi 5 JSON parsing completely failed');
+            }
+          }
+
+          if (divi5Sections.length > 0) {
+            if (divi5Attempt > 0) console.log(`[pageforge] Divi 5 JSON parse succeeded on retry attempt ${divi5Attempt + 1}`);
+            break; // Success - exit retry loop
+          }
+
+          if (divi5Attempt === 0) {
+            console.warn(`[pageforge] Divi 5 JSON parse failed (attempt 1), retrying with stricter JSON instructions... Raw response length: ${rawText.length}`);
+            await postBuildMessage(supabase, buildId, 'JSON parse failed on first attempt, retrying with stricter instructions...', 'markup_generation');
           }
         }
 
         if (divi5Sections.length === 0) {
-          throw new Error('AI returned no valid Divi 5 sections - JSON parsing failed. Raw response length: ' + rawText.length);
+          throw new Error('AI returned no valid Divi 5 sections after 2 attempts - JSON parsing failed');
         }
 
         // B4: Validate and enforce section ordering to match classifications
@@ -1629,6 +1646,45 @@ RESPOND WITH JSON: {"markup":"the COMPLETE page markup","sections":[{"name":"sec
         const openDivi = (markup.match(/<!-- wp:divi\//g) || []).length;
         const closeDivi = (markup.match(/<!-- \/wp:divi\//g) || []).length;
         if (openDivi !== closeDivi) warnings.push(`Divi 5 block mismatch: ${openDivi} open, ${closeDivi} close`);
+
+        // Structural validation: check section count matches expected
+        const figmaAnalysis = artifacts.figma_analysis;
+        const sectionClassification = artifacts.section_classification;
+        if (sectionClassification?.classifications) {
+          const expectedCount = sectionClassification.classifications.length;
+          if (diviSectionCount < expectedCount) {
+            warnings.push(`Only ${diviSectionCount} Divi 5 sections but Figma has ${expectedCount} sections - some may be missing`);
+          }
+        }
+
+        // Check that sections have background colors (not transparent/missing)
+        const sectionBlocks = markup.match(/<!-- wp:divi\/section\s+(\{[^]*?\})\s*-->/g) || [];
+        let emptyBgCount = 0;
+        for (const block of sectionBlocks) {
+          const jsonMatch = block.match(/<!-- wp:divi\/section\s+(\{[^]*?\})\s*-->/);
+          if (jsonMatch) {
+            try {
+              const attrs = JSON.parse(jsonMatch[1]);
+              const bgColor = attrs?.module?.decoration?.background?.color?.desktop?.value;
+              if (!bgColor || bgColor === 'transparent' || bgColor === 'rgba(0,0,0,0)') {
+                emptyBgCount++;
+              }
+            } catch { /* skip unparseable blocks */ }
+          }
+        }
+        if (emptyBgCount > Math.ceil(sectionBlocks.length / 2)) {
+          warnings.push(`${emptyBgCount}/${sectionBlocks.length} sections have no background color - page may look unstyled`);
+        }
+
+        // Check hero section has content
+        if (sectionBlocks.length > 0) {
+          const heroBlock = sectionBlocks[0];
+          const heroTextCount = (heroBlock.match(/wp:divi\/text/g) || []).length;
+          const heroHeadingCount = (heroBlock.match(/wp:divi\/heading/g) || []).length;
+          if (heroTextCount === 0 && heroHeadingCount === 0) {
+            warnings.push('Hero section (first section) appears to have no text or heading modules');
+          }
+        }
       }
 
       // Check unclosed HTML tags
@@ -2025,29 +2081,31 @@ BE STRICT. A page with wrong text, missing sections, or wrong colors cannot scor
 
 Score EACH category 0-100, then calculate the weighted average:
 
-1. TEXT ACCURACY (20%): Does the page show the EXACT same text as the Figma design?
+1. TEXT ACCURACY (15%): Does the page show the EXACT same text as the Figma design?
    - Compare headlines word-for-word. Wrong headline text = 0 for this category.
    - Placeholder/lorem ipsum text = 0.
    - Made-up text that doesn't appear in Figma = 0.
 
-2. SECTION COMPLETENESS (15%): Are ALL sections from Figma present in WP?
+2. SECTION COMPLETENESS (12%): Are ALL sections from Figma present in WP?
    - Each missing section = -15 points.
    - Extra sections not in Figma = -5 points.
 
-3. SECTION ORDER (10%): Do sections appear top-to-bottom in the same order as Figma?
+3. SECTION ORDER (8%): Do sections appear top-to-bottom in the same order as Figma?
    - Wrong order = max 30 for this category.
 
 4. LAYOUT STRUCTURE (15%): Column counts, grid layouts, card arrangements match Figma?
    - 3-column grid showing as 2-column = max 40.
    - Missing tab/accordion interface = max 30.
 
-5. COLOR ACCURACY (10%): Background colors, text colors match Figma palette?
+5. COLOR ACCURACY (15%): Background colors, text colors match Figma palette?
    - Wrong primary color (e.g. purple instead of navy) = max 30.
    - Text unreadable on background = 0.
+   - Wrong section background color = max 40.
 
-6. TYPOGRAPHY (10%): Font sizes, weights, hierarchy match?
+6. TYPOGRAPHY (15%): Font sizes, weights, hierarchy, font family match?
    - System fonts instead of design fonts = max 40.
    - Wrong heading hierarchy = -20.
+   - Font size off by more than 4px = -10 per heading.
 
 7. IMAGES (8%): Real images in correct positions, correct aspect ratios?
    - Broken/missing images = 0.
@@ -2062,12 +2120,14 @@ Score EACH category 0-100, then calculate the weighted average:
 10. VISUAL ARTIFACTS (3%): No random shapes, dots, lines, or rendering glitches?
     - Any visible artifact = 0 for this category.
 
-Final = text*0.20 + sections*0.15 + order*0.10 + layout*0.15 + color*0.10 + typo*0.10 + images*0.08 + buttons*0.05 + footer*0.04 + artifacts*0.03
+Final = text*0.15 + sections*0.12 + order*0.08 + layout*0.15 + color*0.15 + typo*0.15 + images*0.08 + buttons*0.05 + footer*0.04 + artifacts*0.03
 
 CRITICAL SCORING RULES:
 - If ANY heading text doesn't match Figma, overall score CANNOT exceed 70%.
 - If a major section is missing entirely, overall score CANNOT exceed 60%.
 - If section order is wrong, overall score CANNOT exceed 75%.
+- If background colors are clearly wrong (e.g. white instead of dark navy), overall score CANNOT exceed 65%.
+- If fonts look like system defaults instead of the design font, overall score CANNOT exceed 70%.
 
 DIVI 5 CSS SELECTORS (use these in suggestedFix, NOT made-up class names):
 - Sections: .et_pb_section_0, .et_pb_section_1, etc. (0-indexed, top to bottom)
@@ -2090,7 +2150,20 @@ Respond with JSON:
           const jsonMatch = vqaResult.text.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
             const parsed = JSON.parse(jsonMatch[0]);
-            results.desktop = { score: parsed.score || 0, differences: parsed.differences || [] };
+            let desktopScore = parsed.score || 0;
+            // Visual fidelity hard cap: bad colors or typography = max 70%
+            if (parsed.categoryScores) {
+              const colorScore = parsed.categoryScores.color || 0;
+              const typoScore = parsed.categoryScores.typography || 0;
+              if (colorScore < 50 || typoScore < 50) {
+                const prevScore = desktopScore;
+                desktopScore = Math.min(desktopScore, 70);
+                if (desktopScore < prevScore) {
+                  console.log(`[pageforge] Visual fidelity cap applied: color=${colorScore}, typography=${typoScore} - score ${prevScore}% -> ${desktopScore}%`);
+                }
+              }
+            }
+            results.desktop = { score: desktopScore, differences: parsed.differences || [], categoryScores: parsed.categoryScores };
           } else {
             results.desktop = { score: 40, differences: [] };
           }
@@ -2316,12 +2389,12 @@ Image 1: Figma design (reference)
 Image 2: WordPress page (current)
 
 Look VERY carefully for SUBTLE differences in these 10 categories:
-- TEXT ACCURACY (20%): heading text, body text, labels - exact wording match
-- SECTION COMPLETENESS (15%): all Figma sections present in the page
-- SECTION ORDER (10%): sections appear in the same top-to-bottom order as Figma
+- TEXT ACCURACY (15%): heading text, body text, labels - exact wording match
+- SECTION COMPLETENESS (12%): all Figma sections present in the page
+- SECTION ORDER (8%): sections appear in the same top-to-bottom order as Figma
 - LAYOUT STRUCTURE (15%): columns, grids, flexbox alignment, spacing
-- COLOR ACCURACY (10%): background colors, text colors, gradients
-- TYPOGRAPHY (10%): font sizes, weights, line-heights, letter-spacing
+- COLOR ACCURACY (15%): background colors, text colors, gradients
+- TYPOGRAPHY (15%): font sizes, weights, line-heights, letter-spacing, font family
 - IMAGES (8%): image sizing, cropping, placeholders
 - BUTTONS/CTAs (5%): button styles, text, colors, borders
 - FOOTER (4%): footer content and styling
@@ -2500,15 +2573,18 @@ FOCUS on the top 2-3 categories. One text fix is worth more than five spacing fi
             console.log(`[pageforge] Patch limits: maxPatches=${maxPatches}, maxDiffs=${maxDiffs}, diffs=${topDiffs.length}, score=${lastScore}%${previousWasRollback ? ' (post-rollback)' : ''}`);
           }
 
-          // High-score mode: CSS-only above 70% to protect text/structure
+          // High-score mode: conservative changes above 70% to protect text/structure
           const highScoreMode = lastScore >= 70;
           const highScoreConstraint = highScoreMode
-            ? `\nHIGH SCORE MODE (${lastScore}%): The page structure is mostly correct.
-ONLY use Strategy B (CSS additions) to fine-tune visual appearance.
-DO NOT modify JSON attributes that contain text content (heading, body, label values).
-DO NOT change "value" attributes that contain <h1>, <h2>, <h3>, <p>, or <a> tags.
-ONLY modify: colors, font sizes, spacing, backgrounds, borders, shadows via CSS rules.
-Search for "</style>" and add targeted CSS rules before it.\n`
+            ? `\nHIGH SCORE MODE (${lastScore}%): The page structure is mostly correct. Be conservative.
+You MAY use:
+- Strategy B (CSS additions before </style>) - PREFERRED for visual tweaks
+- Strategy A for JSON color attributes ("color":{"desktop":{"value":"#XXXXXX"}})
+- Strategy A for JSON spacing/padding attributes
+- Strategy A for JSON font size/weight attributes
+DO NOT modify text content - no changes to <h1>, <h2>, <h3>, <p>, <a> tag innerHTML.
+DO NOT add or remove sections/blocks.
+Keep patches minimal - max ${maxPatches} changes.\n`
             : '';
 
           fixPrompt = `Fix this Divi 5 WordPress page to better match the Figma design.
@@ -2549,6 +2625,12 @@ Divi 5 CSS selectors:
 - .et_pb_button (all buttons)
 Use CSS for: overlays on bg images, grid gaps, font stacks, border-radius, box-shadows, hover effects.
 To add CSS: search for "</style>" and replace with "NEW_RULES_HERE\\n</style>"
+
+CSS SPECIFICITY RULES FOR DIVI (CRITICAL):
+- ALWAYS use !important on PageForge CSS overrides - Divi's own styles have high specificity
+- Prefix selectors with body.et_divi_theme for extra specificity when needed
+- Example: body.et_divi_theme .et_pb_section_0 { background-color: #001738 !important; }
+- Example: body.et_divi_theme .et_pb_section_2 .et_pb_text_inner { color: #ffffff !important; }
 
 COMMON MISTAKES TO AVOID:
 - DO NOT search for partial JSON like "color":"#xxx" - include enough surrounding context to be unique
@@ -2662,12 +2744,32 @@ Respond with JSON:
                     appliedCount++;
                     allChanges.push(patch.description || 'Applied patch');
                   } else {
-                    // No fuzzy matching - failed patches get reported to AI for next iteration
-                    skippedCount++;
-                    iterationFailedPatches.push({
-                      search: patch.search.substring(0, 200),
-                      description: patch.description || 'unknown fix',
-                    });
+                    // Fuzzy match: try with normalized whitespace
+                    let fuzzyApplied = false;
+                    const normalizedSearch = patch.search.replace(/\s+/g, ' ').trim();
+                    if (normalizedSearch.length >= 10) {
+                      // Build a regex that matches the search with flexible whitespace
+                      const escapedParts = normalizedSearch.split(' ').map((part: string) =>
+                        part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                      );
+                      const fuzzyPattern = new RegExp(escapedParts.join('\\s+'));
+                      const fuzzyMatch = patchedMarkup.match(fuzzyPattern);
+                      if (fuzzyMatch && fuzzyMatch[0]) {
+                        // Replace the actual matched string (preserving original whitespace in replace)
+                        patchedMarkup = patchedMarkup.replace(fuzzyMatch[0], patch.replace);
+                        fuzzyApplied = true;
+                        appliedCount++;
+                        allChanges.push(`(fuzzy) ${patch.description || 'Applied patch'}`);
+                        console.log(`[pageforge] Fuzzy-matched patch: "${patch.search.substring(0, 60)}..."`);
+                      }
+                    }
+                    if (!fuzzyApplied) {
+                      skippedCount++;
+                      iterationFailedPatches.push({
+                        search: patch.search.substring(0, 200),
+                        description: patch.description || 'unknown fix',
+                      });
+                    }
                   }
                 }
               }
@@ -2883,20 +2985,20 @@ BE STRICT. Wrong text or missing sections = low score regardless of visual polis
 ${sectionMapContext}
 Score EACH category 0-100, then calculate weighted average:
 
-1. TEXT ACCURACY (20%): Same headlines/body text as Figma? Wrong text = 0.
-2. SECTION COMPLETENESS (15%): All Figma sections present? Missing = -15 each.
-3. SECTION ORDER (10%): Sections in same top-to-bottom order? Wrong = max 30.
+1. TEXT ACCURACY (15%): Same headlines/body text as Figma? Wrong text = 0.
+2. SECTION COMPLETENESS (12%): All Figma sections present? Missing = -15 each.
+3. SECTION ORDER (8%): Sections in same top-to-bottom order? Wrong = max 30.
 4. LAYOUT STRUCTURE (15%): Column counts, grids, card layouts match? Wrong columns = max 40.
-5. COLOR ACCURACY (10%): Backgrounds and text colors match Figma palette? Wrong = max 30.
-6. TYPOGRAPHY (10%): Font sizes, weights, hierarchy match? System fonts = max 40.
+5. COLOR ACCURACY (15%): Backgrounds and text colors match Figma palette? Wrong bg color = max 30.
+6. TYPOGRAPHY (15%): Font sizes, weights, hierarchy, font family match? System fonts = max 40.
 7. IMAGES (8%): Real images visible, correct positions? Broken = 0.
 8. BUTTONS/CTAs (5%): Present and styled correctly? Missing = 0.
 9. FOOTER (4%): Structure matches Figma? Generic = max 30.
 10. VISUAL ARTIFACTS (3%): No random shapes/dots/lines? Any artifact = 0.
 
-Final = text*0.20 + sections*0.15 + order*0.10 + layout*0.15 + color*0.10 + typo*0.10 + images*0.08 + buttons*0.05 + footer*0.04 + artifacts*0.03
+Final = text*0.15 + sections*0.12 + order*0.08 + layout*0.15 + color*0.15 + typo*0.15 + images*0.08 + buttons*0.05 + footer*0.04 + artifacts*0.03
 
-HARD CAPS: Wrong heading text = max 70% overall. Missing section = max 60%. Wrong order = max 75%.
+HARD CAPS: Wrong heading text = max 70%. Missing section = max 60%. Wrong order = max 75%. Wrong bg colors = max 65%. System fonts = max 70%.
 
 DIVI 5 CSS SELECTORS for suggestedFix:
 - .et_pb_section_0, .et_pb_section_1, etc. (0-indexed)
@@ -2923,6 +3025,16 @@ Respond with JSON:
                 lastCategoryScores = parsed.categoryScores;
                 const cs = parsed.categoryScores;
                 console.log(`[pageforge] Category scores: text=${cs.text} sec=${cs.sections} order=${cs.order} lay=${cs.layout} color=${cs.color} typ=${cs.typography} img=${cs.images} btn=${cs.buttons} footer=${cs.footer} art=${cs.artifacts}`);
+                // Visual fidelity hard cap: bad colors or typography = max 70%
+                const colorScore = cs.color || 0;
+                const typoScore = cs.typography || 0;
+                if (colorScore < 50 || typoScore < 50) {
+                  const prevScore = newScore;
+                  newScore = Math.min(newScore, 70);
+                  if (newScore < prevScore) {
+                    console.log(`[pageforge] Visual fidelity cap: color=${colorScore}, typography=${typoScore} - score ${prevScore}% -> ${newScore}%`);
+                  }
+                }
               }
             }
           } catch (err) {
