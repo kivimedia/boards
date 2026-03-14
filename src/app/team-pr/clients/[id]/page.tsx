@@ -60,9 +60,9 @@ function TagInput({
   return (
     <div className="flex flex-wrap gap-1.5 p-2 rounded-lg bg-gray-500/10 border border-gray-500/20 min-h-[38px]">
       {value.map((tag) => (
-        <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 text-xs">
+        <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-purple-600 text-white text-xs">
           {tag}
-          <button onClick={() => onChange(value.filter((t) => t !== tag))} className="hover:text-navy dark:hover:text-white">x</button>
+          <button onClick={() => onChange(value.filter((t) => t !== tag))} className="hover:text-purple-200">x</button>
         </span>
       ))}
       <input
@@ -360,9 +360,14 @@ function TerritoriesTab({ clientId }: { clientId: string }) {
             <div key={t.id} className="p-4 rounded-lg border border-gray-200 dark:border-gray-500/20 bg-white dark:bg-[#141420]/50">
               <div className="flex items-start justify-between">
                 <div>
-                  <h4 className="text-navy dark:text-white font-medium">{t.name}</h4>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-navy dark:text-white font-medium">{t.name}</h4>
+                    <span className="px-2 py-0.5 rounded-full bg-indigo-600 text-white text-[10px] font-semibold uppercase tracking-wider">
+                      {t.language}
+                    </span>
+                  </div>
                   <p className="text-xs text-gray-400 mt-0.5">
-                    {t.country_code || 'Global'} - {t.language}
+                    {t.country_code || 'Global'}
                     {t.signal_keywords.length > 0 && ` - ${t.signal_keywords.length} keywords`}
                     {t.seed_outlets.length > 0 && ` - ${t.seed_outlets.length} seed outlets`}
                   </p>
