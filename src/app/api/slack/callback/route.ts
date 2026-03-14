@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createClient } from '@supabase/supabase-js';
 import { storeSlackTokens } from '@/lib/integrations/slack-seo';
 
 /**
@@ -72,35 +72,45 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // The state param contains: configId:channelId (or just configId)
-  const [configId, channelId] = state.split(':');
+  // State format: configId:channelId:table:redirectPath
+  // channelId, table, redirectPath are optional
+  const parts = state.split(':');
+  const configId = parts[0];
+  const channelId = parts[1] || '';
+  const table = parts[2] || 'seo'; // 'seo' or 'historian'
+  const redirectPath = parts.slice(3).join(':') || '/settings/seo';
 
   if (!configId) {
     return NextResponse.redirect(
-      new URL('/settings/seo?slack_error=invalid_state', request.url),
+      new URL(`${redirectPath}?slack_error=invalid_state`, request.url),
     );
   }
 
-  // Store encrypted tokens
-  const supabase = createServerSupabaseClient();
+  // Use service role client since this is a public OAuth callback (no user session)
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  );
 
   try {
+    // Store in the correct table
+    const dbTable = table === 'historian' ? 'historian_configs' : 'seo_team_configs';
     await storeSlackTokens(supabase, configId, {
       accessToken,
       refreshToken,
-      channelId: channelId || '',
+      channelId,
       teamId,
       scope,
       expiresInSeconds: expiresIn,
-    });
+    }, dbTable);
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'store_failed';
     return NextResponse.redirect(
-      new URL(`/settings/seo?slack_error=${encodeURIComponent(msg)}`, request.url),
+      new URL(`${redirectPath}?slack_error=${encodeURIComponent(msg)}`, request.url),
     );
   }
 
   return NextResponse.redirect(
-    new URL(`/settings/seo?slack_success=true&config_id=${configId}`, request.url),
+    new URL(`${redirectPath}?slack_success=true&config_id=${configId}`, request.url),
   );
 }

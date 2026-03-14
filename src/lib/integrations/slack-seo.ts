@@ -56,12 +56,14 @@ interface StoreSlackTokensParams {
 // ============================================================================
 
 /**
- * Encrypts and stores Slack tokens in seo_team_configs.slack_credentials.
+ * Encrypts and stores Slack tokens in slack_credentials column.
+ * Supports both seo_team_configs and historian_configs tables.
  */
 export async function storeSlackTokens(
   supabase: SupabaseClient,
   configId: string,
-  params: StoreSlackTokensParams
+  params: StoreSlackTokensParams,
+  table: string = 'seo_team_configs'
 ): Promise<void> {
   const {
     accessToken,
@@ -84,7 +86,7 @@ export async function storeSlackTokens(
   };
 
   const { error } = await supabase
-    .from('seo_team_configs')
+    .from(table)
     .update({ slack_credentials: credentials })
     .eq('id', configId);
 
