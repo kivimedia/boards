@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { getAuthContext, errorResponse } from '@/lib/api-helpers';
 import { createAnthropicClient } from '@/lib/ai/providers';
 import type { PRTerritory, PRClient } from '@/lib/types';
@@ -63,52 +63,86 @@ export async function POST(
     outletTypes = body.outlet_types || [];
   } catch { /* no body is fine */ }
 
-  // Load territory
-  const { data: territory, error: tErr } = await supabase
-    .from('pr_territories')
-    .select('*')
-    .eq('id', id)
-    .single();
+  // Set up SSE stream
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      function send(event: string, data: unknown) {
+        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+      }
 
-  if (tErr || !territory) {
-    return errorResponse('Territory not found', 404);
-  }
+      try {
+        send('status', { step: 1, total: 5, message: 'Loading territory and client data...' });
 
-  const t = territory as PRTerritory;
+        // Load territory
+        const { data: territory, error: tErr } = await supabase
+          .from('pr_territories')
+          .select('*')
+          .eq('id', id)
+          .single();
 
-  // Load client
-  const { data: client, error: cErr } = await supabase
-    .from('pr_clients')
-    .select('*')
-    .eq('id', t.client_id)
-    .single();
+        if (tErr || !territory) {
+          send('error', { message: 'Territory not found' });
+          controller.close();
+          return;
+        }
 
-  if (cErr || !client) {
-    return errorResponse('Client not found', 404);
-  }
+        const t = territory as PRTerritory;
 
-  const c = client as PRClient;
+        // Load client
+        const { data: client, error: cErr } = await supabase
+          .from('pr_clients')
+          .select('*')
+          .eq('id', t.client_id)
+          .single();
 
-  // Get Anthropic client
-  const anthropic = await createAnthropicClient(supabase);
-  if (!anthropic) {
-    return errorResponse('Anthropic API key not configured', 500);
-  }
+        if (cErr || !client) {
+          send('error', { message: 'Client not found' });
+          controller.close();
+          return;
+        }
 
-  // Build the context message
-  const existingOutlets = (t.seed_outlets || [])
-    .map((s: { name: string; url: string }) => `- ${s.name} (${s.url})`)
-    .join('\n');
+        const c = client as PRClient;
 
-  const localKeywords = (t.market_data?.signal_keywords_local as string[] | undefined) || [];
-  const keywords = (t.signal_keywords || []).join(', ');
-  const keywordsLocal = localKeywords.join(', ');
-  const pitchAngles = (c.pitch_angles || [])
-    .map((a: { angle_name: string; description: string }) => `- ${a.angle_name}: ${a.description}`)
-    .join('\n');
-  const targetMarkets = (c.target_markets || []).join(', ');
+        send('status', {
+          step: 2,
+          total: 5,
+          message: `Preparing research context for ${c.name} in ${t.name}...`,
+          detail: outletTypes.length > 0
+            ? `Focusing on: ${outletTypes.join(', ')}`
+            : 'Searching all outlet types',
+        });
 
-  const userMessage = `Find media outlets for PR outreach with this context:
+        // Get Anthropic client
+        const anthropic = await createAnthropicClient(supabase);
+        if (!anthropic) {
+          send('error', { message: 'Anthropic API key not configured' });
+          controller.close();
+          return;
+        }
+
+        // Build the context message
+        const existingOutlets = (t.seed_outlets || [])
+          .map((s: { name: string; url: string }) => `- ${s.name} (${s.url})`)
+          .join('\n');
+
+        const localKeywords = (t.market_data?.signal_keywords_local as string[] | undefined) || [];
+        const keywords = (t.signal_keywords || []).join(', ');
+        const keywordsLocal = localKeywords.join(', ');
+        const pitchAngles = (c.pitch_angles || [])
+          .map((a: { angle_name: string; description: string }) => `- ${a.angle_name}: ${a.description}`)
+          .join('\n');
+        const targetMarkets = (c.target_markets || []).join(', ');
+
+        const existingCount = (t.seed_outlets || []).length;
+        send('status', {
+          step: 3,
+          total: 5,
+          message: `Asking AI to discover outlets (excluding ${existingCount} existing)...`,
+          detail: `Keywords: ${keywords}${keywordsLocal ? ` + ${keywordsLocal}` : ''}`,
+        });
+
+        const userMessage = `Find media outlets for PR outreach with this context:
 
 ## Client
 - Name: ${c.name}
@@ -132,66 +166,110 @@ Search for relevant media outlets in ${t.country_code || 'this market'} that cov
 
 Return your findings as a JSON array.`;
 
-  try {
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 8192,
-      system: RESEARCH_SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userMessage }],
-    });
+        // Stream the AI response
+        let responseText = '';
+        let tokenCount = 0;
+        const aiStream = anthropic.messages.stream({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 8192,
+          system: RESEARCH_SYSTEM_PROMPT,
+          messages: [{ role: 'user', content: userMessage }],
+        });
 
-    // Extract text from response
-    let responseText = '';
-    for (const block of response.content) {
-      if (block.type === 'text') {
-        responseText += block.text;
-      }
-    }
+        // Send periodic progress as tokens stream in
+        let lastProgressAt = Date.now();
+        for await (const event of aiStream) {
+          if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+            responseText += event.delta.text;
+            tokenCount++;
 
-    // Parse JSON from response (handle markdown code blocks)
-    let suggestions: SuggestedOutlet[] = [];
-    try {
-      const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        suggestions = JSON.parse(jsonMatch[0]);
-      }
-    } catch {
-      return errorResponse('Failed to parse AI response');
-    }
-
-    // Deduplicate against existing seed outlets
-    const existingUrls = new Set(
-      (t.seed_outlets || []).map((s: { url: string }) => {
-        try {
-          return new URL(s.url).hostname.replace(/^www\./, '');
-        } catch {
-          return s.url;
+            // Send progress every ~2 seconds
+            const now = Date.now();
+            if (now - lastProgressAt > 2000) {
+              // Try to count how many outlets found so far
+              const partialMatches = responseText.match(/"name"\s*:/g);
+              const foundSoFar = partialMatches ? partialMatches.length : 0;
+              send('status', {
+                step: 3,
+                total: 5,
+                message: `AI is researching outlets...`,
+                detail: foundSoFar > 0
+                  ? `Found ${foundSoFar} outlet${foundSoFar > 1 ? 's' : ''} so far...`
+                  : 'Analyzing media landscape...',
+              });
+              lastProgressAt = now;
+            }
+          }
         }
-      })
-    );
 
-    suggestions = suggestions.filter((s) => {
-      try {
-        const hostname = new URL(s.url).hostname.replace(/^www\./, '');
-        return !existingUrls.has(hostname);
-      } catch {
-        return true;
+        send('status', {
+          step: 4,
+          total: 5,
+          message: 'Parsing and validating results...',
+        });
+
+        // Parse JSON from response (handle markdown code blocks)
+        let suggestions: SuggestedOutlet[] = [];
+        try {
+          const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+          if (jsonMatch) {
+            suggestions = JSON.parse(jsonMatch[0]);
+          }
+        } catch {
+          send('error', { message: 'Failed to parse AI response' });
+          controller.close();
+          return;
+        }
+
+        send('status', {
+          step: 5,
+          total: 5,
+          message: `Deduplicating against ${existingCount} existing outlets...`,
+          detail: `${suggestions.length} raw suggestions found`,
+        });
+
+        // Deduplicate against existing seed outlets
+        const existingUrls = new Set(
+          (t.seed_outlets || []).map((s: { url: string }) => {
+            try {
+              return new URL(s.url).hostname.replace(/^www\./, '');
+            } catch {
+              return s.url;
+            }
+          })
+        );
+
+        suggestions = suggestions.filter((s) => {
+          try {
+            const hostname = new URL(s.url).hostname.replace(/^www\./, '');
+            return !existingUrls.has(hostname);
+          } catch {
+            return true;
+          }
+        });
+
+        // Sort by relevance
+        suggestions.sort((a, b) => (b.relevance_score || 0) - (a.relevance_score || 0));
+
+        // Send final results
+        send('done', {
+          suggestions,
+          total: suggestions.length,
+          territory_id: id,
+        });
+      } catch (err) {
+        send('error', { message: err instanceof Error ? err.message : 'Scan failed' });
+      } finally {
+        controller.close();
       }
-    });
+    },
+  });
 
-    // Sort by relevance
-    suggestions.sort((a, b) => (b.relevance_score || 0) - (a.relevance_score || 0));
-
-    return NextResponse.json({
-      ok: true,
-      data: {
-        suggestions,
-        total: suggestions.length,
-        territory_id: id,
-      },
-    });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Scan failed';
-    return errorResponse(msg, 500);
-  }
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    },
+  });
 }

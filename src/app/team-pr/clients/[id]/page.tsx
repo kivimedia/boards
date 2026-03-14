@@ -271,6 +271,7 @@ function TerritoryForm({
   const [suggestions, setSuggestions] = useState<SuggestedOutlet[]>([]);
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [scanStatus, setScanStatus] = useState<{ step: number; total: number; message: string; detail?: string } | null>(null);
   const [scanTypes, setScanTypes] = useState<string[]>([]);
   const [showScanModal, setShowScanModal] = useState(false);
 
@@ -294,13 +295,15 @@ function TerritoryForm({
     },
   });
 
-  // Run the AI scan
+  // Run the AI scan with SSE streaming
   async function runScan(types: string[]) {
     if (!initial) return;
     setShowScanModal(false);
     setScanning(true);
     setScanError(null);
+    setScanStatus({ step: 0, total: 5, message: 'Starting scan...' });
     setSuggestions([]);
+
     try {
       const res = await fetch(`/api/team-pr/territories/${initial.id}/scan`, {
         method: 'POST',
@@ -308,13 +311,51 @@ function TerritoryForm({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ outlet_types: types }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Scan failed');
-      setSuggestions(json.data?.suggestions || []);
+
+      if (!res.ok || !res.body) {
+        throw new Error('Scan request failed');
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        let currentEvent = '';
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            currentEvent = line.slice(7);
+          } else if (line.startsWith('data: ') && currentEvent) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (currentEvent === 'status') {
+                setScanStatus(data);
+              } else if (currentEvent === 'done') {
+                setSuggestions(data.suggestions || []);
+                setScanStatus(null);
+                setScanning(false);
+              } else if (currentEvent === 'error') {
+                setScanError(data.message || 'Scan failed');
+                setScanStatus(null);
+                setScanning(false);
+              }
+            } catch { /* skip malformed */ }
+            currentEvent = '';
+          }
+        }
+      }
     } catch (err) {
       setScanError(err instanceof Error ? err.message : 'Scan failed');
     } finally {
       setScanning(false);
+      setScanStatus(null);
     }
   }
 
@@ -433,6 +474,28 @@ function TerritoryForm({
           </div>
         ))}
       </div>
+
+      {/* Scan Progress */}
+      {scanning && scanStatus && (
+        <div className="p-4 rounded-lg border border-indigo-200 dark:border-indigo-500/20 bg-indigo-50 dark:bg-indigo-500/5">
+          <div className="flex items-center gap-3 mb-2">
+            <svg className="w-4 h-4 animate-spin text-indigo-600 dark:text-indigo-400 shrink-0" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>
+            <span className="text-sm font-medium text-navy dark:text-white">{scanStatus.message}</span>
+          </div>
+          {scanStatus.detail && (
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 ml-7 mb-2">{scanStatus.detail}</p>
+          )}
+          <div className="ml-7">
+            <div className="w-full h-1.5 rounded-full bg-gray-200 dark:bg-gray-700/50 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-indigo-600 transition-all duration-500 ease-out"
+                style={{ width: `${Math.max(10, (scanStatus.step / scanStatus.total) * 100)}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-gray-400 mt-1">Step {scanStatus.step} of {scanStatus.total}</p>
+          </div>
+        </div>
+      )}
 
       {/* Scan Error */}
       {scanError && (
