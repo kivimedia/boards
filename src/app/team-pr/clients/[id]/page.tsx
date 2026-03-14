@@ -248,6 +248,20 @@ function TerritoryForm({
     },
   });
 
+  // Auto-save seed outlets when adding from scan suggestions
+  async function saveSeedOutlets(updatedOutlets: SeedOutlet[]) {
+    if (!initial) return;
+    try {
+      await fetch(`/api/team-pr/territories/${initial.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ seed_outlets: updatedOutlets.filter((s) => s.name.trim()) }),
+      });
+      queryClient.invalidateQueries({ queryKey: ['pr-territories', clientId] });
+    } catch { /* silent - user can still manually save */ }
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     let parsedCal = {};
@@ -412,8 +426,10 @@ function TerritoryForm({
                     url: s.url,
                     type: s.outlet_type,
                   }));
-                  setSeedOutlets([...seedOutlets, ...newOutlets]);
+                  const updated = [...seedOutlets, ...newOutlets];
+                  setSeedOutlets(updated);
                   setSuggestions([]);
+                  saveSeedOutlets(updated);
                 }}
                 className="text-[10px] px-2 py-0.5 rounded bg-green-600 hover:bg-green-700 text-white font-medium transition-colors"
               >
@@ -469,8 +485,10 @@ function TerritoryForm({
                     <button
                       type="button"
                       onClick={() => {
-                        setSeedOutlets([...seedOutlets, { name: s.name, url: s.url, type: s.outlet_type }]);
+                        const updated = [...seedOutlets, { name: s.name, url: s.url, type: s.outlet_type }];
+                        setSeedOutlets(updated);
                         setSuggestions(suggestions.filter((_, j) => j !== i));
+                        saveSeedOutlets(updated);
                       }}
                       className="px-2 py-1 rounded bg-green-600 hover:bg-green-700 text-white text-[10px] font-medium transition-colors"
                     >
