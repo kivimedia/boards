@@ -2431,6 +2431,7 @@ Respond with JSON:
             : '';
 
         const isDivi5Fix = (build.page_builder || 'gutenberg') === 'divi5';
+        let maxPatches = 24; // default, overridden below for Divi 5
 
         // Build category-aware targeting guidance (Change 2)
         let categoryGuidance = '';
@@ -2481,7 +2482,6 @@ FOCUS on the top 2-3 categories. One text fix is worth more than five spacing fi
           const topDiffs = sortedDiffs.slice(0, maxDiffs);
 
           // Score-aware max patches: fewer patches at higher scores to avoid corruption
-          let maxPatches: number;
           if (lastScore >= 80) {
             maxPatches = 4;
           } else if (lastScore >= 70) {
