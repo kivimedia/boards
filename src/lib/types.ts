@@ -350,6 +350,7 @@ export interface Client {
   email: string | null;
   phone: string | null;
   location: string | null;
+  is_starred: boolean;
   created_by: string | null;
   created_at: string;
   updated_at: string;

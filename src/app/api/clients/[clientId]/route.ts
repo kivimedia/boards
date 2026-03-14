@@ -30,6 +30,7 @@ interface UpdateClientBody {
   email?: string;
   phone?: string;
   location?: string;
+  is_starred?: boolean;
 }
 
 export async function PATCH(request: NextRequest, { params }: Params) {
@@ -54,6 +55,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   if (body.body.email !== undefined) updates.email = body.body.email?.trim() || null;
   if (body.body.phone !== undefined) updates.phone = body.body.phone?.trim() || null;
   if (body.body.location !== undefined) updates.location = body.body.location?.trim() || null;
+  if (body.body.is_starred !== undefined) updates.is_starred = !!body.body.is_starred;
 
   if (Object.keys(updates).length === 0) {
     return errorResponse('No valid fields to update');

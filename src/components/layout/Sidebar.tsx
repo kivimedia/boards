@@ -25,7 +25,7 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
   const [showTeamBoards, setShowTeamBoards] = useState(true);
   const [showClientBoards, setShowClientBoards] = useState(false);
   const [showClients, setShowClients] = useState(true);
-  const [clients, setClients] = useState<Pick<Client, 'id' | 'name'>[]>([]);
+  const [clients, setClients] = useState<(Pick<Client, 'id' | 'name' | 'is_starred'> & { next_event_time: string | null; next_event_title: string | null })[]>([]);
   const [showArchived, setShowArchived] = useState(false);
   const pathname = usePathname();
   const { profile, user, signOut } = useAuth();
@@ -48,6 +48,19 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
     setBoards(prev => prev.map(b => b.id === boardId ? { ...b, is_starred: !currentStarred } : b));
     // Write to DB via API
     await fetch(`/api/boards/${boardId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_starred: !currentStarred }),
+    });
+  }, []);
+
+  const toggleClientStar = useCallback(async (e: React.MouseEvent, clientId: string, currentStarred: boolean) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Optimistic update
+    setClients(prev => prev.map(c => c.id === clientId ? { ...c, is_starred: !currentStarred } : c));
+    // Write to DB via API
+    await fetch(`/api/clients/${clientId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ is_starred: !currentStarred }),
@@ -77,7 +90,13 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
         if (res.ok) {
           const json = await res.json();
           if (json.data && !cancelled) {
-            setClients((json.data as Client[]).map(c => ({ id: c.id, name: c.name })));
+            setClients(json.data.map((c: any) => ({
+              id: c.id,
+              name: c.name,
+              is_starred: c.is_starred || false,
+              next_event_time: c.next_event_time || null,
+              next_event_title: c.next_event_title || null,
+            })));
           }
         }
       } catch {}
@@ -403,14 +422,25 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
           </button>
         )}
 
-        {!collapsed && showClients && clients.map((client) => {
+        {!collapsed && showClients && [...clients]
+          .sort((a, b) => {
+            // Starred first
+            if (a.is_starred !== b.is_starred) return a.is_starred ? -1 : 1;
+            // Then by next upcoming event (soonest first, null last)
+            if (a.next_event_time && b.next_event_time) return a.next_event_time.localeCompare(b.next_event_time);
+            if (a.next_event_time) return -1;
+            if (b.next_event_time) return 1;
+            // Then alphabetical
+            return a.name.localeCompare(b.name);
+          })
+          .map((client) => {
           const isActive = pathname === `/client/${client.id}`;
           return (
             <Link
               key={client.id}
               href={`/client/${client.id}`}
               className={`
-                flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all duration-200
+                group/client flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all duration-200
                 ${isActive
                   ? 'bg-white/10 text-white'
                   : 'text-white/60 hover:text-white hover:bg-white/5'
@@ -421,6 +451,19 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
               </svg>
               <span className="truncate font-medium">{client.name}</span>
+              <button
+                onClick={(e) => toggleClientStar(e, client.id, client.is_starred)}
+                className={`ml-auto shrink-0 transition-all ${
+                  client.is_starred
+                    ? 'text-yellow-400'
+                    : 'text-white/0 group-hover/client:text-white/30 hover:!text-yellow-400'
+                }`}
+                title={client.is_starred ? 'Unstar client' : 'Star client'}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill={client.is_starred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+              </button>
             </Link>
           );
         })}
