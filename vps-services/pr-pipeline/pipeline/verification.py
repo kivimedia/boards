@@ -180,7 +180,7 @@ Territory: {territory.get('name', '')} ({territory.get('country_code', '')})"""
                     contact_name = f"{best_match.get('first_name', '')} {best_match.get('last_name', '')}".strip()
                     contact_role = best_match.get("position", "")
                     contact_confidence = best_match.get("confidence", 0) / 100.0
-                    contact_source = "hunter_domain_search"
+                    contact_source = "hunter"
 
                     # Verify the email
                     if contact_email:

@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   const runId = searchParams.get('run_id');
 
   let query = supabase
-    .from('pr_costs')
+    .from('pr_cost_events')
     .select(`
       *,
       run:pr_runs!inner(id, user_id, client_id)
