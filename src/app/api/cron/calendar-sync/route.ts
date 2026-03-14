@@ -105,6 +105,27 @@ export async function GET(request: Request) {
       synced++;
     }
 
+    // Remove future events that no longer exist in Google (deleted/cancelled)
+    const now = new Date().toISOString();
+    const syncedGoogleIds = events.map(e => e.google_event_id);
+    let removedFuture = 0;
+    if (syncedGoogleIds.length > 0) {
+      // Delete future cached events NOT in the fresh Google set
+      const { count } = await supabase
+        .from('calendar_events')
+        .delete({ count: 'exact' })
+        .gte('start_time', now)
+        .not('google_event_id', 'in', `(${syncedGoogleIds.map(id => `"${id}"`).join(',')})`);
+      removedFuture = count || 0;
+    } else {
+      // Google returned zero future events - clear all future cached events
+      const { count } = await supabase
+        .from('calendar_events')
+        .delete({ count: 'exact' })
+        .gte('start_time', now);
+      removedFuture = count || 0;
+    }
+
     // Clean up stale events (past events older than 1 day)
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { count: deleted } = await supabase
@@ -118,7 +139,7 @@ export async function GET(request: Request) {
       .update({ last_sync_at: new Date().toISOString(), sync_error: null })
       .eq('id', conn.id);
 
-    return NextResponse.json({ synced, rescheduled, deleted: deleted || 0 });
+    return NextResponse.json({ synced, rescheduled, deleted: deleted || 0, removedFuture });
   } catch (err: any) {
     await supabase
       .from('google_calendar_connection')

@@ -56,7 +56,26 @@ export async function POST() {
       synced++;
     }
 
-    // Clean stale events
+    // Remove future events deleted from Google
+    const now = new Date().toISOString();
+    const syncedGoogleIds = events.map(e => e.google_event_id);
+    let removedFuture = 0;
+    if (syncedGoogleIds.length > 0) {
+      const { count } = await supabase
+        .from('calendar_events')
+        .delete({ count: 'exact' })
+        .gte('start_time', now)
+        .not('google_event_id', 'in', `(${syncedGoogleIds.map(id => `"${id}"`).join(',')})`);
+      removedFuture = count || 0;
+    } else {
+      const { count } = await supabase
+        .from('calendar_events')
+        .delete({ count: 'exact' })
+        .gte('start_time', now);
+      removedFuture = count || 0;
+    }
+
+    // Clean stale past events
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     await supabase
       .from('calendar_events')
@@ -69,7 +88,7 @@ export async function POST() {
       .update({ last_sync_at: new Date().toISOString(), sync_error: null })
       .eq('id', conn.id);
 
-    return NextResponse.json({ synced });
+    return NextResponse.json({ synced, removedFuture });
   } catch (err: any) {
     await supabase
       .from('google_calendar_connection')
