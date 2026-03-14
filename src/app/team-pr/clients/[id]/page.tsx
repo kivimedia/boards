@@ -133,7 +133,7 @@ function ProfileTab({ client }: { client: PRClient }) {
         <label className="block text-sm text-gray-400 mb-1">Name *</label>
         <input required value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50" />
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm text-gray-400 mb-1">Company</label>
           <input value={company} onChange={(e) => setCompany(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50" />
@@ -247,7 +247,7 @@ function TerritoryForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3 p-4 rounded-lg border border-gray-500/20 bg-[#141420]/50">
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
           <label className="block text-xs text-gray-400 mb-1">Name *</label>
           <input required value={name} onChange={(e) => setName(e.target.value)} className="w-full px-2 py-1.5 rounded bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50" />
@@ -280,7 +280,7 @@ function TerritoryForm({
           <button type="button" onClick={() => setSeedOutlets([...seedOutlets, { name: '', url: '', type: 'blog' }])} className="text-xs text-purple-400 hover:text-purple-300">+ Add</button>
         </div>
         {seedOutlets.map((s, i) => (
-          <div key={i} className="flex gap-2 mb-1">
+          <div key={i} className="flex flex-col sm:flex-row gap-2 mb-1">
             <input value={s.name} onChange={(e) => { const u = [...seedOutlets]; u[i] = { ...u[i], name: e.target.value }; setSeedOutlets(u); }} placeholder="Name" className="flex-1 px-2 py-1 rounded bg-gray-500/10 border border-gray-500/20 text-white text-xs outline-none" />
             <input value={s.url} onChange={(e) => { const u = [...seedOutlets]; u[i] = { ...u[i], url: e.target.value }; setSeedOutlets(u); }} placeholder="URL" className="flex-[2] px-2 py-1 rounded bg-gray-500/10 border border-gray-500/20 text-white text-xs outline-none" />
             <select value={s.type} onChange={(e) => { const u = [...seedOutlets]; u[i] = { ...u[i], type: e.target.value }; setSeedOutlets(u); }} className="px-2 py-1 rounded bg-gray-500/10 border border-gray-500/20 text-white text-xs outline-none">
@@ -581,7 +581,7 @@ function RunsTab({ clientId }: { clientId: string }) {
       {/* Start Run modal */}
       {showStartModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-[#141420] border border-gray-500/20 rounded-2xl w-full max-w-md p-6">
+          <div className="bg-[#141420] border border-gray-500/20 rounded-2xl w-full max-w-sm sm:max-w-md p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-white">Start New Run</h3>
               <button onClick={() => setShowStartModal(false)} className="text-gray-400 hover:text-white">
@@ -661,7 +661,7 @@ function RunsTab({ clientId }: { clientId: string }) {
       ) : runs.length === 0 ? (
         <p className="text-gray-400 text-sm text-center py-8">No runs for this client yet.</p>
       ) : (
-        <div className="rounded-xl border border-gray-500/20 overflow-hidden">
+        <div className="rounded-xl border border-gray-500/20 overflow-x-auto overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-500/5 border-b border-gray-500/20">

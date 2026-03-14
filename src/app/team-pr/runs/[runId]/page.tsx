@@ -524,7 +524,7 @@ function EmailsTab({ runId }: { runId: string }) {
       {/* Preview Modal */}
       {previewDraft && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-[#141420] border border-gray-500/20 rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto p-6">
+          <div className="bg-[#141420] border border-gray-500/20 rounded-2xl w-full max-w-xl sm:max-w-2xl max-h-[80vh] overflow-y-auto p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-white">Email Preview</h3>
               <button onClick={() => setPreviewDraft(null)} className="text-gray-400 hover:text-white">
@@ -577,7 +577,7 @@ function CostsTab({ runId }: { runId: string }) {
   return (
     <div className="space-y-6">
       {/* Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
         {Object.entries(totalByService).map(([service, amount]) => (
           <div key={service} className="p-3 rounded-lg border border-gray-500/20 bg-[#141420]/50">
             <p className="text-xs text-gray-400 capitalize">{service.replace(/_/g, ' ')}</p>

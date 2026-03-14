@@ -137,7 +137,7 @@ export default function TeamPRDashboard() {
             </Link>
           </div>
         ) : (
-          <div className="rounded-xl border border-gray-500/20 overflow-hidden">
+          <div className="rounded-xl border border-gray-500/20 overflow-x-auto overflow-hidden">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-500/5 border-b border-gray-500/20">

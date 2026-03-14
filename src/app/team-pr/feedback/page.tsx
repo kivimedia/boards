@@ -64,7 +64,7 @@ function FeedbackLogTab() {
   return (
     <div className="space-y-4">
       {/* Filter */}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
@@ -255,7 +255,7 @@ function ReportsTab({ clients }: { clients: PRClient[] }) {
                 </div>
 
                 {/* Key metrics */}
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   <div className="p-3 rounded-lg bg-gray-500/10 text-center">
                     <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Override Rate</p>
                     <p className={`text-xl font-bold ${snap.override_rate > 0.3 ? 'text-red-400' : snap.override_rate > 0.1 ? 'text-amber-400' : 'text-green-400'}`}>

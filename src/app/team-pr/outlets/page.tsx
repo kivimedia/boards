@@ -89,7 +89,7 @@ function OutletSlideOver({ outlet, onClose }: { outlet: PROutletWithOutcome; onC
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-lg bg-[#141420] border-l border-gray-500/20 overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-sm sm:max-w-lg bg-[#141420] border-l border-gray-500/20 overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="p-6 space-y-5">
           {/* Header */}
           <div className="flex items-start justify-between">
@@ -341,7 +341,7 @@ export default function OutletDatabasePage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search outlets..."
-          className="px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50 w-64"
+          className="px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50 w-full sm:w-64"
         />
         <select
           value={typeFilter}

@@ -140,7 +140,7 @@ function AddClientModal({ open, onClose }: { open: boolean; onClose: () => void 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-[#141420] border border-gray-500/20 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+      <div className="bg-[#141420] border border-gray-500/20 rounded-2xl w-full max-w-xl sm:max-w-2xl max-h-[90vh] overflow-y-auto p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-semibold text-white">Add Client</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
