@@ -11,6 +11,8 @@ export default function GoogleCalendarConnect() {
     syncError: string | null;
   } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -51,6 +53,26 @@ export default function GoogleCalendarConnect() {
     } catch {}
   }
 
+  async function handleSyncNow() {
+    setSyncing(true);
+    setSyncResult(null);
+    setError(null);
+    try {
+      const res = await fetch('/api/google-calendar/sync', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        setSyncResult(`Synced ${data.synced} events`);
+        await fetchStatus();
+      } else {
+        setError(data.error || 'Sync failed');
+      }
+    } catch {
+      setError('Sync request failed');
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="bg-white dark:bg-dark-surface rounded-2xl border-2 border-cream-dark dark:border-slate-700 p-6 animate-pulse">
@@ -82,6 +104,13 @@ export default function GoogleCalendarConnect() {
           {status?.connected && status.lastSyncAt && (
             <p className="text-xs text-navy/40 dark:text-slate-500 mt-1 font-body">
               Last synced: {new Date(status.lastSyncAt).toLocaleString()}
+              {' - '}
+              <span className="text-navy/30 dark:text-slate-600">Daily auto-sync at 5:00 AM UTC</span>
+            </p>
+          )}
+          {syncResult && (
+            <p className="text-xs text-green-600 dark:text-green-400 mt-1 font-body">
+              {syncResult}
             </p>
           )}
           {(status?.syncError || error) && (
@@ -90,7 +119,33 @@ export default function GoogleCalendarConnect() {
             </p>
           )}
         </div>
-        <div className="shrink-0">
+        <div className="shrink-0 flex items-center gap-2">
+          {status?.connected && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleSyncNow}
+              disabled={syncing}
+            >
+              {syncing ? (
+                <span className="flex items-center gap-1.5">
+                  <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                  </svg>
+                  Syncing...
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="23 4 23 10 17 10" />
+                    <polyline points="1 20 1 14 7 14" />
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                  </svg>
+                  Sync Now
+                </span>
+              )}
+            </Button>
+          )}
           {status?.connected ? (
             <Button size="sm" variant="ghost" onClick={handleDisconnect}>
               Disconnect
