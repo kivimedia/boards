@@ -227,6 +227,7 @@ function TerritoryForm({
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [scanTypes, setScanTypes] = useState<string[]>([]);
+  const [showScanModal, setShowScanModal] = useState(false);
 
   const mutation = useMutation({
     mutationFn: async (body: Record<string, unknown>) => {
@@ -247,6 +248,30 @@ function TerritoryForm({
       onDone();
     },
   });
+
+  // Run the AI scan
+  async function runScan(types: string[]) {
+    if (!initial) return;
+    setShowScanModal(false);
+    setScanning(true);
+    setScanError(null);
+    setSuggestions([]);
+    try {
+      const res = await fetch(`/api/team-pr/territories/${initial.id}/scan`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ outlet_types: types }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Scan failed');
+      setSuggestions(json.data?.suggestions || []);
+    } catch (err) {
+      setScanError(err instanceof Error ? err.message : 'Scan failed');
+    } finally {
+      setScanning(false);
+    }
+  }
 
   // Auto-save seed outlets when adding from scan suggestions
   async function saveSeedOutlets(updatedOutlets: SeedOutlet[]) {
@@ -326,26 +351,7 @@ function TerritoryForm({
             {initial && (
               <button
                 type="button"
-                onClick={async () => {
-                  setScanning(true);
-                  setScanError(null);
-                  setSuggestions([]);
-                  try {
-                    const res = await fetch(`/api/team-pr/territories/${initial.id}/scan`, {
-                      method: 'POST',
-                      credentials: 'include',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ outlet_types: scanTypes }),
-                    });
-                    const json = await res.json();
-                    if (!res.ok) throw new Error(json.error || 'Scan failed');
-                    setSuggestions(json.data?.suggestions || []);
-                  } catch (err) {
-                    setScanError(err instanceof Error ? err.message : 'Scan failed');
-                  } finally {
-                    setScanning(false);
-                  }
-                }}
+                onClick={() => { setScanTypes([]); setShowScanModal(true); }}
                 disabled={scanning}
                 className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-medium transition-colors"
               >
@@ -365,25 +371,6 @@ function TerritoryForm({
             <button type="button" onClick={() => setSeedOutlets([...seedOutlets, { name: '', url: '', type: 'blog' }])} className="text-xs text-purple-400 hover:text-purple-300">+ Add</button>
           </div>
         </div>
-        {initial && (
-          <div className="flex flex-wrap gap-1.5 mb-2">
-            <span className="text-[10px] text-gray-400 mr-1 self-center">Filter scan:</span>
-            {['newspaper', 'magazine', 'tv', 'radio', 'podcast', 'blog', 'trade_publication', 'online_media', 'youtube'].map((ot) => (
-              <button
-                key={ot}
-                type="button"
-                onClick={() => setScanTypes((prev) => prev.includes(ot) ? prev.filter((x) => x !== ot) : [...prev, ot])}
-                className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
-                  scanTypes.includes(ot)
-                    ? 'bg-indigo-600 text-white border-indigo-600'
-                    : 'bg-gray-500/10 text-gray-500 dark:text-gray-400 border-gray-500/20 hover:border-indigo-500/50'
-                }`}
-              >
-                {ot.replace('_', ' ')}
-              </button>
-            ))}
-          </div>
-        )}
         {seedOutlets.map((s, i) => (
           <div key={i} className="flex flex-col sm:flex-row gap-2 mb-1">
             <input value={s.name} onChange={(e) => { const u = [...seedOutlets]; u[i] = { ...u[i], name: e.target.value }; setSeedOutlets(u); }} placeholder="Name" className="flex-1 px-2 py-1 rounded bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-xs outline-none" />
@@ -515,6 +502,104 @@ function TerritoryForm({
         </button>
         <button type="button" onClick={onDone} className="px-3 py-1.5 rounded text-gray-400 hover:text-navy dark:hover:text-white text-xs transition-colors">Cancel</button>
       </div>
+
+      {/* Scan Modal */}
+      {showScanModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowScanModal(false)}>
+          <div className="bg-white dark:bg-[#1a1a2e] rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700/50 w-full max-w-md mx-4 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700/50">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-600 dark:text-indigo-400"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-navy dark:text-white">Scan for Outlets</h3>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">AI will discover relevant media outlets for this territory</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="px-5 py-4 space-y-4">
+              {/* Scan All option */}
+              <button
+                type="button"
+                onClick={() => runScan([])}
+                className="w-full flex items-center gap-3 p-3 rounded-lg border-2 border-indigo-200 dark:border-indigo-500/30 bg-indigo-50 dark:bg-indigo-500/10 hover:border-indigo-400 dark:hover:border-indigo-500/50 transition-colors text-left group"
+              >
+                <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center shrink-0">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+                <div>
+                  <span className="text-sm font-medium text-navy dark:text-white group-hover:text-indigo-700 dark:group-hover:text-indigo-300 transition-colors">Scan All Types</span>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">Newspapers, magazines, TV, podcasts, blogs and more</p>
+                </div>
+              </button>
+
+              {/* Divider */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700/50" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">or choose specific types</span>
+                <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700/50" />
+              </div>
+
+              {/* Type checkboxes */}
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { key: 'newspaper', label: 'Newspapers', icon: '📰' },
+                  { key: 'magazine', label: 'Magazines', icon: '📖' },
+                  { key: 'tv', label: 'TV', icon: '📺' },
+                  { key: 'radio', label: 'Radio', icon: '📻' },
+                  { key: 'podcast', label: 'Podcasts', icon: '🎙️' },
+                  { key: 'blog', label: 'Blogs', icon: '✍️' },
+                  { key: 'trade_publication', label: 'Trade Pubs', icon: '📋' },
+                  { key: 'online_media', label: 'Online Media', icon: '🌐' },
+                  { key: 'youtube', label: 'YouTube', icon: '▶️' },
+                ].map(({ key, label, icon }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setScanTypes((prev) => prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key])}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-left text-xs transition-all ${
+                      scanTypes.includes(key)
+                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 font-medium'
+                        : 'border-gray-200 dark:border-gray-700/50 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
+                    }`}
+                  >
+                    <span className="text-sm">{icon}</span>
+                    <span>{label}</span>
+                    {scanTypes.includes(key) && (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="ml-auto text-indigo-600 dark:text-indigo-400"><polyline points="20 6 9 17 4 12"/></svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-3 border-t border-gray-200 dark:border-gray-700/50 bg-gray-50 dark:bg-[#141420]/50 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setShowScanModal(false)}
+                className="text-xs text-gray-500 hover:text-navy dark:hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              {scanTypes.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => runScan(scanTypes)}
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  Scan {scanTypes.length} {scanTypes.length === 1 ? 'type' : 'types'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   );
 }
