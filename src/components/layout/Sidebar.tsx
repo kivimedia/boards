@@ -435,11 +435,11 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
             return a.name.localeCompare(b.name);
           })
           .map((client) => {
-          const isActive = pathname === `/client/${client.id}`;
+          const isActive = pathname?.startsWith(`/client/${client.id}`);
           return (
             <Link
               key={client.id}
-              href={`/client/${client.id}`}
+              href={`/client/${client.id}/map`}
               className={`
                 group/client flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all duration-200
                 ${isActive
