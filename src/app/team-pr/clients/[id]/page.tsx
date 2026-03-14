@@ -153,11 +153,11 @@ function ProfileTab({ client }: { client: PRClient }) {
       </div>
       <div>
         <label className="block text-sm text-gray-400 mb-1">Brand Voice (JSON)</label>
-        <textarea value={brandVoice} onChange={(e) => setBrandVoice(e.target.value)} rows={4} className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm font-mono outline-none focus:border-purple-500/50 resize-none" />
+        <textarea value={brandVoice} onChange={(e) => setBrandVoice(e.target.value)} rows={4} className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm font-mono outline-none focus:border-purple-500/50 resize-none" />
       </div>
       <div>
         <label className="block text-sm text-gray-400 mb-1">Tone Rules (JSON)</label>
-        <textarea value={toneRules} onChange={(e) => setToneRules(e.target.value)} rows={4} className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm font-mono outline-none focus:border-purple-500/50 resize-none" />
+        <textarea value={toneRules} onChange={(e) => setToneRules(e.target.value)} rows={4} className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm font-mono outline-none focus:border-purple-500/50 resize-none" />
       </div>
       <div>
         <label className="block text-sm text-gray-400 mb-1">Target Markets</label>
@@ -271,7 +271,7 @@ function TerritoryForm({
       </div>
       <div>
         <label className="block text-xs text-gray-400 mb-1">Seasonal Calendar (JSON)</label>
-        <textarea value={seasonalCalendar} onChange={(e) => setSeasonalCalendar(e.target.value)} rows={3} className="w-full px-2 py-1.5 rounded bg-gray-500/10 border border-gray-500/20 text-white text-sm font-mono outline-none focus:border-purple-500/50 resize-none" />
+        <textarea value={seasonalCalendar} onChange={(e) => setSeasonalCalendar(e.target.value)} rows={3} className="w-full px-2 py-1.5 rounded bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm font-mono outline-none focus:border-purple-500/50 resize-none" />
       </div>
       {/* Seed Outlets */}
       <div>
@@ -357,7 +357,7 @@ function TerritoriesTab({ clientId }: { clientId: string }) {
           editingId === t.id ? (
             <TerritoryForm key={t.id} initial={t} clientId={clientId} onDone={() => setEditingId(null)} />
           ) : (
-            <div key={t.id} className="p-4 rounded-lg border border-gray-500/20 bg-white dark:bg-[#141420]/50">
+            <div key={t.id} className="p-4 rounded-lg border border-gray-200 dark:border-gray-500/20 bg-white dark:bg-[#141420]/50">
               <div className="flex items-start justify-between">
                 <div>
                   <h4 className="text-navy dark:text-white font-medium">{t.name}</h4>
@@ -380,7 +380,7 @@ function TerritoriesTab({ clientId }: { clientId: string }) {
               {t.signal_keywords.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-2">
                   {t.signal_keywords.map((kw) => (
-                    <span key={kw} className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 text-[10px]">{kw}</span>
+                    <span key={kw} className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-600 dark:text-blue-300 text-[10px]">{kw}</span>
                   ))}
                 </div>
               )}
