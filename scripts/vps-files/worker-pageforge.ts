@@ -2248,18 +2248,22 @@ Respond with JSON:
       let lastScore = comparisonData.overallScore || 0;
       // Re-run structural QA after text fixes to get updated structural score
       let currentStructuralScore = comparisonData.structuralScore || 100;
+      // Hoist structural QA inputs to outer scope so they can be re-used inside the fix loop
+      const figmaTextForStructural: FigmaTextContent[] = artifacts.figma_analysis?.textContent || [];
+      const figmaColorsForStructural: string[] = (artifacts.figma_analysis?.colors || []).map((c: any) => c.hex as string);
+      const classificationsForStructural = artifacts.section_classification || [];
       if (structAutoFixes.length > 0) {
-        const figmaTextForLoop: FigmaTextContent[] = artifacts.figma_analysis?.textContent || [];
-        const figmaColorsForLoop: string[] = (artifacts.figma_analysis?.colors || []).map((c: any) => c.hex as string);
-        const classifications = artifacts.section_classification || [];
-        const recheck = structuralQA(currentMarkup, figmaTextForLoop, classifications, figmaColorsForLoop);
+        const recheck = structuralQA(currentMarkup, figmaTextForStructural, classificationsForStructural, figmaColorsForStructural);
         currentStructuralScore = recheck.score;
         console.log(`[pageforge] Structural score after auto-fixes: ${recheck.score}% (was ${comparisonData.structuralScore || '?'}%)`);
       }
       let stallCount = 0;
       let rollbackCount = 0;
       let previousMarkup: string | null = null;
+      let previousDiffs: any[] | null = null; // Save pre-patch diffs for rollback
+      let previousWasRollback = false; // Track if last iteration was rolled back
       const scoreHistory: Array<{ iteration: number; score: number }> = [];
+      let lastCategoryScores: Record<string, number> | null = null; // Track category scores for targeted fixing
       let lastPhase = 0; // Track phase changes to reset stall counter
       let lastScreenshotHash = ''; // Track screenshot changes between iterations
 
@@ -2311,20 +2315,22 @@ Previous analysis found no differences, but there MUST be remaining issues causi
 Image 1: Figma design (reference)
 Image 2: WordPress page (current)
 
-Look VERY carefully for SUBTLE differences:
-- Exact background colors (even slight shade differences)
-- Font sizes, weights, line-heights, letter-spacing
-- Padding and margin values (compare spacing precisely)
-- Border radius, box shadows, opacity
-- Image sizing and cropping differences
-- Button styles, hover states, border colors
-- Section heights and content vertical alignment
-- Any missing decorative elements (lines, dots, icons)
+Look VERY carefully for SUBTLE differences in these 10 categories:
+- TEXT ACCURACY (20%): heading text, body text, labels - exact wording match
+- SECTION COMPLETENESS (15%): all Figma sections present in the page
+- SECTION ORDER (10%): sections appear in the same top-to-bottom order as Figma
+- LAYOUT STRUCTURE (15%): columns, grids, flexbox alignment, spacing
+- COLOR ACCURACY (10%): background colors, text colors, gradients
+- TYPOGRAPHY (10%): font sizes, weights, line-heights, letter-spacing
+- IMAGES (8%): image sizing, cropping, placeholders
+- BUTTONS/CTAs (5%): button styles, text, colors, borders
+- FOOTER (4%): footer content and styling
+- VISUAL ARTIFACTS (3%): border-radius, box-shadows, opacity, decorative elements
 
 You MUST find at least 3-5 differences. Score each category 0-100.
 
 Respond with JSON:
-{"score":N,"categoryScores":{"sections":N,"backgrounds":N,"typography":N,"layout":N,"images":N,"polish":N},"differences":[{"area":"...","severity":"critical|major|minor","description":"...","suggestedFix":"CSS rule..."}]}`,
+{"score":N,"categoryScores":{"text":N,"sections":N,"order":N,"layout":N,"color":N,"typography":N,"images":N,"buttons":N,"footer":N,"artifacts":N},"differences":[{"area":"...","severity":"critical|major|minor","description":"...","suggestedFix":"CSS rule..."}]}`,
               anthropic, {
                 images: [
                   ...(figmaDesktop ? [{ data: figmaDesktop, mimeType: 'image/jpeg' as const }] : []),
@@ -2426,6 +2432,36 @@ Respond with JSON:
 
         const isDivi5Fix = (build.page_builder || 'gutenberg') === 'divi5';
 
+        // Build category-aware targeting guidance (Change 2)
+        let categoryGuidance = '';
+        if (lastCategoryScores) {
+          const weights: Record<string, number> = {
+            text: 0.20, sections: 0.15, order: 0.10, layout: 0.15,
+            color: 0.10, typography: 0.10, images: 0.08, buttons: 0.05,
+            footer: 0.04, artifacts: 0.03
+          };
+          const gaps = Object.entries(lastCategoryScores)
+            .map(([cat, score]) => ({ cat, score: score as number, weight: weights[cat] || 0,
+              potentialGain: (100 - (score as number)) * (weights[cat] || 0) }))
+            .filter(g => g.potentialGain > 0)
+            .sort((a, b) => b.potentialGain - a.potentialGain);
+
+          if (gaps.length > 0) {
+            categoryGuidance = `\nCATEGORY SCORE BREAKDOWN (fix highest-impact gaps FIRST):
+${gaps.slice(0, 5).map((g, i) =>
+  `${i+1}. ${g.cat.toUpperCase()}: ${g.score}/100 (weight ${Math.round(g.weight*100)}%) - fixing to 100 gains +${g.potentialGain.toFixed(1)}% overall`
+).join('\n')}
+FOCUS on the top 2-3 categories. One text fix is worth more than five spacing fixes.\n`;
+          }
+        }
+
+        // Build fix history context (Change 4)
+        let fixHistoryContext = '';
+        if (allChanges.length > 0) {
+          const recentFixes = allChanges.slice(-15).map((c, i) => `${i+1}. ${c}`).join('\n');
+          fixHistoryContext = `\nALREADY FIXED IN PREVIOUS ITERATIONS (DO NOT re-fix these):\n${recentFixes}\nFocus ONLY on remaining differences listed below.\n`;
+        }
+
         // For Divi 5: use search/replace patches (safer for long JSON lines)
         // For Gutenberg: use line-based edits
         let fixPrompt: string;
@@ -2435,8 +2471,14 @@ Respond with JSON:
           // Show markup as-is (blocks are already one-per-line)
           formattedMarkup = currentMarkup;
 
-          // Limit to top 8 most impactful differences (was 5 - too few for convergence)
-          const topDiffs = sortedDiffs.slice(0, 8);
+          // Dynamic scaling: early iterations focus on fewer diffs, late iterations sweep more
+          // After rollback, halve the diffs to reduce corruption probability
+          let maxDiffs = currentIteration <= 4 ? 8 : currentIteration <= 8 ? 12 : 16;
+          if (previousWasRollback) {
+            maxDiffs = Math.max(4, Math.floor(maxDiffs / 2));
+            console.log(`[pageforge] Post-rollback: reducing max diffs to ${maxDiffs}`);
+          }
+          const topDiffs = sortedDiffs.slice(0, maxDiffs);
 
           fixPrompt = `Fix this Divi 5 WordPress page to better match the Figma design.
 
@@ -2446,7 +2488,7 @@ This is NATIVE Divi 5 block markup using <!-- wp:divi/{module} {JSON} --> format
 Each block has JSON attributes that control its appearance. DO NOT convert to Gutenberg or HTML.
 
 Iteration ${currentIteration}/${maxLoops} - Current VQA score: ${lastScore}% (target: ${threshold}%)
-${sectionMapContext}
+${categoryGuidance}${fixHistoryContext}${sectionMapContext}
 Current markup:
 \`\`\`
 ${currentMarkup}
@@ -2488,11 +2530,17 @@ COMMON MISTAKES TO AVOID:
 
 IMPORTANT RULES:
 1. Use search/replace patches. Find an exact string in the markup and specify its replacement.
-2. Keep patches SMALL and TARGETED. Max 16 patches per iteration.
+2. Keep patches SMALL and TARGETED. Max ${previousWasRollback ? Math.max(4, Math.floor((currentIteration <= 4 ? 16 : 24) / 2)) : (currentIteration <= 4 ? 16 : 24)} patches per iteration.
 3. Make sure the "search" string is unique and exists exactly as-is in the markup.
 4. DO NOT remove or modify EXISTING CSS rules in the <style> block. Only ADD new rules before </style>.
 5. DO NOT add new HTML elements or convert Divi 5 blocks to Gutenberg/HTML.
 6. Focus on the TOP 3-5 most impactful changes. Quality over quantity.
+
+SCORING HARD CAPS (you CANNOT exceed these scores without fixing the issue):
+- Wrong heading/body text = max 70% overall. FIX TEXT FIRST.
+- Missing section = max 60% overall.
+- Wrong section order = max 75% overall.
+If any of these exist in the diffs above, they MUST be your #1 priority.
 
 Respond with JSON:
 {"patches":[{"search":"exact string to find","replace":"replacement string","description":"what this fixes"}]}`;
@@ -2544,12 +2592,16 @@ Respond with JSON:
           fixPrompt,
           anthropic, {
             maxTokens: 24000,
+            temperature: 0.15,
             images: images.length > 0 ? images : undefined,
           }
         );
 
-        // Save markup before edits for potential rollback
+        // Save markup, structural score, and diffs before edits for potential rollback
         previousMarkup = currentMarkup;
+        const previousStructuralScore = currentStructuralScore;
+        previousDiffs = Object.values(comparisonData.results as Record<string, any>)
+          .flatMap((r: any) => (r.differences || []));
         let fixApplied = false;
         try {
           const jsonMatch = fixResult.text.match(/\{[\s\S]*\}/);
@@ -2568,20 +2620,12 @@ Respond with JSON:
                     appliedCount++;
                     allChanges.push(patch.description || 'Applied patch');
                   } else {
-                    // Try fuzzy matching before giving up
-                    const fuzzy = fuzzyPatchMatch(patchedMarkup, patch.search);
-                    if (fuzzy.found) {
-                      patchedMarkup = patchedMarkup.replace(fuzzy.normalizedSearch, patch.replace);
-                      appliedCount++;
-                      allChanges.push(`${patch.description || 'Applied patch'} (fuzzy matched)`);
-                      console.log(`[pageforge] Fuzzy-matched patch: "${patch.search.substring(0, 80)}..."`);
-                    } else {
-                      skippedCount++;
-                      iterationFailedPatches.push({
-                        search: patch.search.substring(0, 200),
-                        description: patch.description || 'unknown fix',
-                      });
-                    }
+                    // No fuzzy matching - failed patches get reported to AI for next iteration
+                    skippedCount++;
+                    iterationFailedPatches.push({
+                      search: patch.search.substring(0, 200),
+                      description: patch.description || 'unknown fix',
+                    });
                   }
                 }
               }
@@ -2659,10 +2703,50 @@ Respond with JSON:
           if (openBlocks !== closeBlocks) {
             console.warn(`[pageforge] Block structure broken after edits (${openBlocks} open, ${closeBlocks} close) - rolling back`);
             currentMarkup = previousMarkup || currentMarkup;
+            currentStructuralScore = previousStructuralScore;
             fixApplied = false;
             stallCount++;
             if (stallCount >= 4) break;
             continue;
+          }
+        }
+
+        // 3.55. Validate Divi 5 block JSON integrity after patches
+        if ((build.page_builder || 'gutenberg') === 'divi5') {
+          const blockJsonRegex = /<!-- wp:divi\/\w+\s+(\{[\s\S]*?\})\s*-->/g;
+          let jsonMatch2;
+          let brokenJsonCount = 0;
+          while ((jsonMatch2 = blockJsonRegex.exec(currentMarkup)) !== null) {
+            try { JSON.parse(jsonMatch2[1]); } catch { brokenJsonCount++; }
+          }
+          if (brokenJsonCount > 0) {
+            console.warn(`[pageforge] ${brokenJsonCount} Divi 5 blocks have broken JSON after patches - rolling back`);
+            currentMarkup = previousMarkup || currentMarkup;
+            currentStructuralScore = previousStructuralScore;
+            fixApplied = false;
+            stallCount++;
+            if (stallCount >= 4) break;
+            continue;
+          }
+        }
+
+        // 3.6. Re-run structural QA inside the loop to update score cap dynamically
+        // This is critical: without this, structuralScore stays frozen at its pre-loop value
+        // and the visual score is capped at structuralScore+10 forever
+        const sqaRecheck = structuralQA(currentMarkup, figmaTextForStructural, classificationsForStructural, figmaColorsForStructural);
+        if (sqaRecheck.score > currentStructuralScore) {
+          // Only update if score IMPROVED - we don't want patches to lower the cap
+          console.log(`[pageforge] Structural score improved: ${currentStructuralScore}% -> ${sqaRecheck.score}%`);
+          currentStructuralScore = sqaRecheck.score;
+          // Apply any new auto-fixes found (e.g., hallucinated text replacements)
+          if (sqaRecheck.autoFixes && sqaRecheck.autoFixes.length > 0) {
+            for (const fix of sqaRecheck.autoFixes) {
+              if (fix.type === 'replace_text' && currentMarkup.includes(fix.wrongText)) {
+                currentMarkup = currentMarkup.split(fix.wrongText).join(fix.correctText);
+                console.log(`[pageforge] In-loop structural fix: ${fix.description}`);
+                allChanges.push(`Structural fix: ${fix.description}`);
+              }
+            }
           }
         }
 
@@ -2775,6 +2859,7 @@ DIVI 5 CSS SELECTORS for suggestedFix:
 Respond with JSON:
 {"score":N,"categoryScores":{"text":N,"sections":N,"order":N,"layout":N,"color":N,"typography":N,"images":N,"buttons":N,"footer":N,"artifacts":N},"differences":[{"area":"...","severity":"critical|major|minor","description":"...","suggestedFix":"CSS rule"}]}`,
               anthropic, {
+                temperature: 0.1, // Lower temperature for more deterministic scoring (reduces +-3-5% noise)
                 images: [
                   { data: figmaDesktop, mimeType: 'image/jpeg' },
                   { data: newWpDesktop, mimeType: 'image/jpeg' },
@@ -2787,10 +2872,11 @@ Respond with JSON:
               const parsed = JSON.parse(jsonMatch[0]);
               newScore = parsed.score || lastScore;
               newDiffs = parsed.differences || [];
-              // Log category scores for debugging
+              // Log category scores and save for targeted fixing
               if (parsed.categoryScores) {
+                lastCategoryScores = parsed.categoryScores;
                 const cs = parsed.categoryScores;
-                console.log(`[pageforge] Category scores: sec=${cs.sections} bg=${cs.backgrounds} typ=${cs.typography} lay=${cs.layout} img=${cs.images} pol=${cs.polish}`);
+                console.log(`[pageforge] Category scores: text=${cs.text} sec=${cs.sections} order=${cs.order} lay=${cs.layout} color=${cs.color} typ=${cs.typography} img=${cs.images} btn=${cs.buttons} footer=${cs.footer} art=${cs.artifacts}`);
               }
             }
           } catch (err) {
@@ -2814,7 +2900,10 @@ Respond with JSON:
         if (improvement < -5 && previousMarkup) {
           console.log(`[pageforge] Score dropped ${Math.abs(improvement)}% - rolling back to previous markup`);
           currentMarkup = previousMarkup;
+          currentStructuralScore = previousStructuralScore; // restore structural score on rollback
           newScore = lastScore; // restore previous score
+          if (previousDiffs) { newDiffs = previousDiffs; } // restore pre-patch diffs so next iteration sees real problems
+          previousWasRollback = true;
           // Re-deploy the rolled-back markup
           if (build.wp_page_id && siteProfile.wp_username && siteProfile.wp_app_password) {
             const fixBuilder = build.page_builder || 'gutenberg';
@@ -2829,6 +2918,8 @@ Respond with JSON:
               'vqa_fix_loop');
             break;
           }
+        } else {
+          previousWasRollback = false; // Reset rollback flag on successful iteration
         }
 
         await postBuildMessage(supabase, buildId,
