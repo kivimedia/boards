@@ -62,28 +62,29 @@ export async function POST(request: NextRequest) {
   const body = await parseBody<CreateConfigBody>(request);
   if (!body.ok) return body.response;
 
-  const { id, client_id, site_url, site_name, wp_credentials, slack_credentials, google_credentials, config } = body.body;
+  const { id, client_id, site_url, site_name, wp_credentials, slack_credentials, slack_channel_id_update, google_credentials, config } = body.body as any;
 
   if (!site_url?.trim()) return errorResponse('site_url is required');
   if (!site_name?.trim()) return errorResponse('site_name is required');
 
   const { supabase, userId } = auth.ctx;
 
-  // Build row without slack_credentials (handled separately for encryption)
+  // Build row - don't include slack_credentials by default (managed via OAuth)
   const row: Record<string, unknown> = {
     client_id: client_id?.trim() || null,
     site_url: site_url.trim(),
     site_name: site_name.trim(),
     wp_credentials: wp_credentials || null,
-    slack_credentials: null,
     google_credentials: google_credentials || null,
     config: config || {},
   };
 
   // If slack_credentials has pre-encrypted tokens, pass through as-is
-  // If it has plaintext tokens, they'll be encrypted after insert via storeSlackTokens
   if (slack_credentials?.access_token_encrypted) {
     row.slack_credentials = slack_credentials;
+  } else if (!id) {
+    // Only set null for new configs (don't wipe existing OAuth tokens on update)
+    row.slack_credentials = null;
   }
 
   let data, error;
@@ -120,7 +121,24 @@ export async function POST(request: NextRequest) {
       });
     } catch (err: any) {
       console.error('Failed to encrypt Slack tokens:', err.message);
-      // Don't fail the whole request - config was created, tokens can be re-added
+    }
+  }
+
+  // Update channel_id within existing slack_credentials (from OAuth flow UI)
+  if (configId && slack_channel_id_update && id) {
+    const { data: existing } = await supabase
+      .from('seo_team_configs')
+      .select('slack_credentials')
+      .eq('id', configId)
+      .single();
+
+    if (existing?.slack_credentials) {
+      await supabase
+        .from('seo_team_configs')
+        .update({
+          slack_credentials: { ...existing.slack_credentials, channel_id: slack_channel_id_update },
+        })
+        .eq('id', configId);
     }
   }
 

@@ -9,8 +9,6 @@ interface ConfigForm {
   site_name: string;
   wp_username: string;
   wp_app_password: string;
-  slack_access_token: string;
-  slack_refresh_token: string;
   slack_channel_id: string;
   min_qc_score: number;
   max_iterations: number;
@@ -29,8 +27,6 @@ const EMPTY_FORM: ConfigForm = {
   site_name: '',
   wp_username: '',
   wp_app_password: '',
-  slack_access_token: '',
-  slack_refresh_token: '',
   slack_channel_id: '',
   min_qc_score: 70,
   max_iterations: 3,
@@ -53,6 +49,16 @@ export default function SeoSettings() {
   const [newSilo, setNewSilo] = useState('');
   const [suggestingSilos, setSuggestingSilos] = useState(false);
   const [suggestedSilos, setSuggestedSilos] = useState<string[]>([]);
+  const [slackStatus, setSlackStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const handleConnectSlack = (configId: string, channelId: string) => {
+    const clientId = '6362417875286.10661663574498';
+    const redirectUri = `${window.location.origin}/api/slack/callback`;
+    const userScopes = 'channels:history,files:read,chat:write';
+    const state = channelId ? `${configId}:${channelId}` : configId;
+    const url = `https://slack.com/oauth/v2/authorize?client_id=${clientId}&user_scope=${userScopes}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`;
+    window.location.href = url;
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -80,6 +86,21 @@ export default function SeoSettings() {
     fetchData();
   }, [fetchData]);
 
+  // Check URL params for Slack OAuth callback results
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const slackError = params.get('slack_error');
+    const slackSuccess = params.get('slack_success');
+    if (slackError) {
+      setSlackStatus({ type: 'error', message: `Slack connection failed: ${slackError}` });
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (slackSuccess) {
+      setSlackStatus({ type: 'success', message: 'Slack connected successfully! Tokens are stored and will auto-refresh.' });
+      window.history.replaceState({}, '', window.location.pathname);
+      fetchData();
+    }
+  }, [fetchData]);
+
   const handleEdit = (config: SeoTeamConfig) => {
     setEditingId(config.id);
     setForm({
@@ -88,8 +109,6 @@ export default function SeoSettings() {
       site_name: config.site_name,
       wp_username: config.wp_credentials?.username || '',
       wp_app_password: config.wp_credentials?.app_password || '',
-      slack_access_token: '', // Encrypted in DB - don't pre-fill
-      slack_refresh_token: '', // Encrypted in DB - don't pre-fill
       slack_channel_id: config.slack_credentials?.channel_id || '',
       min_qc_score: config.config?.quality_thresholds?.min_qc_score || 70,
       max_iterations: config.config?.quality_thresholds?.max_iterations || 3,
@@ -116,11 +135,10 @@ export default function SeoSettings() {
           username: form.wp_username,
           app_password: form.wp_app_password,
         } : null,
-        slack_credentials: form.slack_access_token ? {
-          access_token: form.slack_access_token,
-          refresh_token: form.slack_refresh_token,
-          channel_id: form.slack_channel_id,
-        } : null,
+        // slack_credentials managed via OAuth flow - only update channel_id if set
+        ...(form.slack_channel_id ? {
+          slack_channel_id_update: form.slack_channel_id,
+        } : {}),
         config: {
           quality_thresholds: {
             min_qc_score: form.min_qc_score,
@@ -307,20 +325,47 @@ export default function SeoSettings() {
               {/* Slack */}
               <div className="border-t border-cream-dark dark:border-slate-700 pt-4">
                 <h3 className="text-sm font-semibold text-navy dark:text-white mb-2 font-heading">Slack (Image Source)</h3>
-                <p className="text-xs text-navy/40 dark:text-slate-500 mb-2 font-body">OAuth tokens for fetching images from Slack channels. Tokens are encrypted at rest and auto-refresh.</p>
+                <p className="text-xs text-navy/40 dark:text-slate-500 mb-2 font-body">Connect via OAuth to fetch images from Slack channels. Tokens are encrypted and auto-refresh.</p>
+
+                {slackStatus && (
+                  <div className={`mb-3 px-3 py-2 rounded-lg text-xs font-body ${slackStatus.type === 'success' ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'}`}>
+                    {slackStatus.message}
+                  </div>
+                )}
+
+                {/* Connection status for current config */}
+                {editingId && (
+                  <div className="mb-3">
+                    {configs.find(c => c.id === editingId)?.slack_credentials ? (
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                        <span className="text-green-600 text-sm">✓</span>
+                        <span className="text-xs text-green-700 dark:text-green-300 font-body">Slack connected - tokens stored and auto-refreshing</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                        <span className="text-amber-600 text-sm">!</span>
+                        <span className="text-xs text-amber-700 dark:text-amber-300 font-body">Slack not connected - click below to authorize</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 gap-3">
-                  <div>
-                    <label className="block text-xs text-navy/50 dark:text-slate-400 mb-1 font-body">Access Token</label>
-                    <input type="password" value={form.slack_access_token} onChange={e => setForm(f => ({ ...f, slack_access_token: e.target.value }))} placeholder="xoxe.xoxp-..." className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm font-body" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-navy/50 dark:text-slate-400 mb-1 font-body">Refresh Token</label>
-                    <input type="password" value={form.slack_refresh_token} onChange={e => setForm(f => ({ ...f, slack_refresh_token: e.target.value }))} placeholder="xoxe-..." className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm font-body" />
-                  </div>
                   <div>
                     <label className="block text-xs text-navy/50 dark:text-slate-400 mb-1 font-body">Channel ID</label>
                     <input type="text" value={form.slack_channel_id} onChange={e => setForm(f => ({ ...f, slack_channel_id: e.target.value }))} placeholder="C0123456789" className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm font-body" />
+                    <p className="text-[10px] text-navy/30 dark:text-slate-600 mt-1 font-body">Enter the channel ID first, then click Connect Slack</p>
                   </div>
+                  {editingId && (
+                    <button
+                      type="button"
+                      onClick={() => handleConnectSlack(editingId, form.slack_channel_id)}
+                      className="w-full px-4 py-2.5 text-sm font-semibold text-white bg-[#4A154B] hover:bg-[#3a1039] rounded-lg transition-colors font-body inline-flex items-center justify-center gap-2"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/></svg>
+                      {configs.find(c => c.id === editingId)?.slack_credentials ? 'Reconnect Slack' : 'Connect Slack'}
+                    </button>
+                  )}
                 </div>
               </div>
 
