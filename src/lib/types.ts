@@ -2686,6 +2686,9 @@ export interface AgentSkill {
   model_override: string | null;
   provider_override: string | null;
 
+  // Team membership
+  is_team_member: boolean;
+
   // Metadata
   version: string;
   is_active: boolean;

@@ -6,6 +6,7 @@ import type { AgentSkill, AgentQualityTier } from '@/lib/types';
 import { useVpsAgentJob } from '@/hooks/useVpsAgentJob';
 import VpsJobProgress from '@/components/agents/VpsJobProgress';
 import { AVAILABLE_MODELS } from '@/lib/ai/pageforge-constants';
+import TeamsPanel from '@/components/teams/TeamsPanel';
 
 const TIER_CONFIG: Record<AgentQualityTier, { label: string; color: string; bg: string; emoji: string }> = {
   genuinely_smart: { label: 'Smart', color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-100 dark:bg-emerald-900/30', emoji: '' },
@@ -23,7 +24,8 @@ const CATEGORY_CONFIG: Record<string, { label: string; icon: string }> = {
   meta: { label: 'Meta', icon: '' },
 };
 
-export default function AgentsDashboard() {
+export default function AgentsDashboard({ defaultTab = 'standalone' }: { defaultTab?: 'standalone' | 'teams' }) {
+  const [activeTab, setActiveTab] = useState<'standalone' | 'teams'>(defaultTab);
   const [skills, setSkills] = useState<AgentSkill[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSkill, setSelectedSkill] = useState<AgentSkill | null>(null);
@@ -200,6 +202,7 @@ export default function AgentsDashboard() {
 
   const filteredSkills = skills
     .filter((s) => {
+      if (s.is_team_member) return false;
       if (filterCategory !== 'all' && s.category !== filterCategory) return false;
       if (searchQuery && !s.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
       return true;
@@ -216,29 +219,57 @@ export default function AgentsDashboard() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      {/* Navigation */}
+      {/* Tabs + Navigation */}
       <div className="flex items-center gap-4 mb-6">
-        <span className="text-sm font-semibold text-navy dark:text-slate-100">Agents</span>
-        <Link
-          href="/podcast/dashboard"
-          className="text-sm font-medium text-navy/50 dark:text-slate-400 hover:text-electric dark:hover:text-electric transition-colors"
-        >
-          Podcast Dashboard
-        </Link>
-        <Link
-          href="/podcast/approval"
-          className="text-sm font-medium text-navy/50 dark:text-slate-400 hover:text-electric dark:hover:text-electric transition-colors"
-        >
-          Guest Approval
-        </Link>
-        <Link
-          href="/settings/agents"
-          className="text-sm font-medium text-navy/50 dark:text-slate-400 hover:text-electric dark:hover:text-electric transition-colors ml-auto"
-        >
-          Skill Quality Dashboard
-        </Link>
+        <div className="flex items-center bg-cream dark:bg-dark-surface rounded-lg p-0.5 border border-navy/5 dark:border-slate-700">
+          <button
+            onClick={() => setActiveTab('standalone')}
+            className={`px-4 py-2 text-sm font-semibold rounded-md transition-all ${
+              activeTab === 'standalone'
+                ? 'bg-white dark:bg-slate-800 text-navy dark:text-white shadow-sm'
+                : 'text-navy/50 dark:text-slate-400 hover:text-navy dark:hover:text-slate-200'
+            }`}
+          >
+            Standalone Agents
+          </button>
+          <button
+            onClick={() => setActiveTab('teams')}
+            className={`px-4 py-2 text-sm font-semibold rounded-md transition-all ${
+              activeTab === 'teams'
+                ? 'bg-white dark:bg-slate-800 text-navy dark:text-white shadow-sm'
+                : 'text-navy/50 dark:text-slate-400 hover:text-navy dark:hover:text-slate-200'
+            }`}
+          >
+            Teams
+          </button>
+        </div>
+        {activeTab === 'standalone' && (
+          <>
+            <Link
+              href="/podcast/dashboard"
+              className="text-sm font-medium text-navy/50 dark:text-slate-400 hover:text-electric dark:hover:text-electric transition-colors"
+            >
+              Podcast Dashboard
+            </Link>
+            <Link
+              href="/podcast/approval"
+              className="text-sm font-medium text-navy/50 dark:text-slate-400 hover:text-electric dark:hover:text-electric transition-colors"
+            >
+              Guest Approval
+            </Link>
+            <Link
+              href="/settings/agents"
+              className="text-sm font-medium text-navy/50 dark:text-slate-400 hover:text-electric dark:hover:text-electric transition-colors ml-auto"
+            >
+              Skill Quality Dashboard
+            </Link>
+          </>
+        )}
       </div>
 
+      {activeTab === 'teams' ? (
+        <TeamsPanel />
+      ) : (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: skill picker + launcher */}
         <div className="lg:col-span-2 space-y-4">
@@ -643,6 +674,7 @@ export default function AgentsDashboard() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

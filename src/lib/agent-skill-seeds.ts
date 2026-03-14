@@ -27,6 +27,7 @@ export interface SkillSeed {
   requires_mcp_tools: string[];
   fallback_behavior: string | null;
   reference_docs: { name: string; content_summary: string; quality: string }[];
+  is_team_member?: boolean;
   icon: string;
   color: string;
   sort_order: number;
@@ -1257,6 +1258,7 @@ export const SKILL_SEEDS: SkillSeed[] = [
     description: 'Coordinates the Historian team pipeline: dispatches Collector to pull images from Slack, sends batches to Analyzer for scoring, delegates cleanup to Sidekick, and makes final archive admission decisions. Manages historian_configs and historian_images tables.',
     category: 'strategy',
     pack: 'custom',
+    is_team_member: true,
     quality_tier: 'solid',
     quality_score: 78,
     quality_notes: 'Central coordinator for the 5-agent Historian team. Owns the pipeline state machine and final keep/reject decisions.',
@@ -1294,6 +1296,7 @@ export const SKILL_SEEDS: SkillSeed[] = [
     description: 'Pulls images from a Slack channel using the shared OAuth token (conversations.history + files.list). Extracts metadata (uploader, date, filename, thread context) and stores raw entries in historian_images. Supports 12-month lookback with pagination.',
     category: 'strategy',
     pack: 'custom',
+    is_team_member: true,
     quality_tier: 'solid',
     quality_score: 75,
     quality_notes: 'Slack intake specialist. Uses existing OAuth token from historian_configs.slack_credentials. Handles pagination, deduplication, and metadata extraction.',
@@ -1331,6 +1334,7 @@ export const SKILL_SEEDS: SkillSeed[] = [
     description: 'Analyzes collected images using vision-capable models. Generates titles, descriptions, tags, categories, and 5-star quality scores with dimensional breakdowns. Produces keep/reject/review recommendations for the Orchestrator.',
     category: 'strategy',
     pack: 'custom',
+    is_team_member: true,
     quality_tier: 'solid',
     quality_score: 76,
     quality_notes: 'Vision-powered image analysis with structured scoring rubric. Outputs feed directly into historian_images columns.',
@@ -1368,6 +1372,7 @@ export const SKILL_SEEDS: SkillSeed[] = [
     description: 'Visual cleanup partner for the Historian team. Reviews images and creates lightly improved versions using Nano Banana 2 when useful, without altering historical truth. Returns structured assessments with risk levels and before/after paths.',
     category: 'creative',
     pack: 'custom',
+    is_team_member: true,
     quality_tier: 'solid',
     quality_score: 73,
     quality_notes: 'Image cleanup specialist with strict historical truth preservation. Uses Nano Banana 2 for actual edits.',
@@ -1406,6 +1411,7 @@ export const SKILL_SEEDS: SkillSeed[] = [
     description: 'Publishes approved archive images to a client-facing view. Organizes by category, date, and client. Supports browsing, search, and conversational queries against the archive. Generates shareable gallery pages.',
     category: 'strategy',
     pack: 'custom',
+    is_team_member: true,
     quality_tier: 'solid',
     quality_score: 68,
     quality_notes: 'Client-facing presentation layer for the archive. Depends on approved images from the pipeline.',

@@ -4,7 +4,11 @@ import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 import AgentsDashboard from '@/components/agents/AgentsDashboard';
 
-export default async function AgentsPage() {
+export default async function AgentsPage({
+  searchParams,
+}: {
+  searchParams: { tab?: string };
+}) {
   const supabase = createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -18,13 +22,15 @@ export default async function AgentsPage() {
     .select('*')
     .order('created_at', { ascending: true });
 
+  const defaultTab = searchParams.tab === 'teams' ? 'teams' : 'standalone';
+
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar initialBoards={boards || []} />
       <main className="flex-1 flex flex-col overflow-hidden">
         <Header title="Agents" />
         <div className="flex-1 overflow-y-auto">
-          <AgentsDashboard />
+          <AgentsDashboard defaultTab={defaultTab} />
         </div>
       </main>
     </div>
