@@ -2207,7 +2207,16 @@ Respond with JSON:
       let structuralPenalties: string[] = [];
       let structuralAutoFixes: StructuralFix[] = [];
       const markupForQA = artifacts.markup_generation?.markup || '';
-      const figmaTextForQA: FigmaTextContent[] = artifacts.figma_analysis?.textContent || [];
+      const allFigmaText: FigmaTextContent[] = artifacts.figma_analysis?.textContent || [];
+      // Filter to desktop sections only - exclude mobile Figma text that shouldn't be in desktop page
+      const desktopSectionNames = (classifications || []).map((c: any) => c.sectionName);
+      const figmaTextForQA: FigmaTextContent[] = allFigmaText.filter((t: FigmaTextContent) =>
+        !t.sectionName?.toLowerCase().includes('mobile') &&
+        (desktopSectionNames.length === 0 || desktopSectionNames.some((name: string) =>
+          t.sectionName?.toLowerCase().includes(name.toLowerCase()) ||
+          name.toLowerCase().includes(t.sectionName?.toLowerCase() || '')
+        ))
+      );
       const figmaColorsForQA: string[] = (artifacts.figma_analysis?.colors || []).map((c: any) => c.hex as string);
       if (markupForQA && figmaTextForQA.length > 0) {
         const sqaResult = structuralQA(markupForQA, figmaTextForQA, classifications || [], figmaColorsForQA);
@@ -2322,7 +2331,16 @@ Respond with JSON:
       // Re-run structural QA after text fixes to get updated structural score
       let currentStructuralScore = comparisonData.structuralScore || 100;
       // Hoist structural QA inputs to outer scope so they can be re-used inside the fix loop
-      const figmaTextForStructural: FigmaTextContent[] = artifacts.figma_analysis?.textContent || [];
+      // Filter to desktop sections only - exclude mobile Figma text nodes
+      const allFigmaTextForLoop: FigmaTextContent[] = artifacts.figma_analysis?.textContent || [];
+      const desktopSectionNamesForLoop = (artifacts.section_classification || []).map((c: any) => c.sectionName);
+      const figmaTextForStructural: FigmaTextContent[] = allFigmaTextForLoop.filter((t: FigmaTextContent) =>
+        !t.sectionName?.toLowerCase().includes('mobile') &&
+        (desktopSectionNamesForLoop.length === 0 || desktopSectionNamesForLoop.some((name: string) =>
+          t.sectionName?.toLowerCase().includes(name.toLowerCase()) ||
+          name.toLowerCase().includes(t.sectionName?.toLowerCase() || '')
+        ))
+      );
       const figmaColorsForStructural: string[] = (artifacts.figma_analysis?.colors || []).map((c: any) => c.hex as string);
       const classificationsForStructural = artifacts.section_classification || [];
       if (structAutoFixes.length > 0) {
