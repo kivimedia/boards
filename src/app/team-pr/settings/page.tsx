@@ -64,7 +64,7 @@ export default function TeamPRSettingsPage() {
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-8">
-      <Link href="/team-pr" className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors -mb-4">
+      <Link href="/team-pr" className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-navy dark:hover:text-white transition-colors -mb-4">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         Back to Team PR
       </Link>
@@ -72,8 +72,8 @@ export default function TeamPRSettingsPage() {
 
       {/* VPS Connection */}
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-white">VPS Connection</h2>
-        <div className="p-4 rounded-xl border border-gray-500/20 bg-[#141420]/50">
+        <h2 className="text-lg font-semibold text-navy dark:text-white">VPS Connection</h2>
+        <div className="p-4 rounded-xl border border-gray-500/20 bg-white dark:bg-[#141420]/50">
           <div className="flex items-center gap-3 mb-3">
             <div className={`w-3 h-3 rounded-full ${vpsConnected ? 'bg-green-500' : 'bg-red-500'}`} />
             <span className="text-sm text-gray-300">
@@ -89,13 +89,13 @@ export default function TeamPRSettingsPage() {
 
       {/* Default Run Config */}
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-white">Default Run Config</h2>
-        <div className="p-4 rounded-xl border border-gray-500/20 bg-[#141420]/50 space-y-5">
+        <h2 className="text-lg font-semibold text-navy dark:text-white">Default Run Config</h2>
+        <div className="p-4 rounded-xl border border-gray-500/20 bg-white dark:bg-[#141420]/50 space-y-5">
           {/* Max Outlets */}
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-sm text-gray-400">Max Outlets per Run</label>
-              <span className="text-sm text-white font-medium">{maxOutlets}</span>
+              <span className="text-sm text-navy dark:text-white font-medium">{maxOutlets}</span>
             </div>
             <input
               type="range"
@@ -116,7 +116,7 @@ export default function TeamPRSettingsPage() {
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-sm text-gray-400">Relevance Threshold</label>
-              <span className="text-sm text-white font-medium">{(relevanceThreshold * 100).toFixed(0)}%</span>
+              <span className="text-sm text-navy dark:text-white font-medium">{(relevanceThreshold * 100).toFixed(0)}%</span>
             </div>
             <input
               type="range"
@@ -137,7 +137,7 @@ export default function TeamPRSettingsPage() {
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-sm text-gray-400">Verification Threshold</label>
-              <span className="text-sm text-white font-medium">{(verificationThreshold * 100).toFixed(0)}%</span>
+              <span className="text-sm text-navy dark:text-white font-medium">{(verificationThreshold * 100).toFixed(0)}%</span>
             </div>
             <input
               type="range"
@@ -158,7 +158,7 @@ export default function TeamPRSettingsPage() {
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-sm text-gray-400">QA Threshold</label>
-              <span className="text-sm text-white font-medium">{(qaThreshold * 100).toFixed(0)}%</span>
+              <span className="text-sm text-navy dark:text-white font-medium">{(qaThreshold * 100).toFixed(0)}%</span>
             </div>
             <input
               type="range"
@@ -188,8 +188,8 @@ export default function TeamPRSettingsPage() {
 
       {/* API Keys */}
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-white">API Keys</h2>
-        <div className="p-4 rounded-xl border border-gray-500/20 bg-[#141420]/50 space-y-4">
+        <h2 className="text-lg font-semibold text-navy dark:text-white">API Keys</h2>
+        <div className="p-4 rounded-xl border border-gray-500/20 bg-white dark:bg-[#141420]/50 space-y-4">
           <p className="text-xs text-gray-500">API keys are managed via environment variables. These are displayed read-only for reference.</p>
           {[
             { name: 'Hunter.io', envVar: 'HUNTER_API_KEY' },
@@ -198,7 +198,7 @@ export default function TeamPRSettingsPage() {
           ].map((key) => (
             <div key={key.envVar} className="flex items-center justify-between p-3 rounded-lg bg-gray-500/5 border border-gray-500/10">
               <div>
-                <p className="text-sm text-white">{key.name}</p>
+                <p className="text-sm text-navy dark:text-white">{key.name}</p>
                 <p className="text-xs text-gray-500 font-mono">{key.envVar}</p>
               </div>
               <span className="text-xs text-gray-400 font-mono tracking-wider">

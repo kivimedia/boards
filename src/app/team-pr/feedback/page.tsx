@@ -69,7 +69,7 @@ function FeedbackLogTab() {
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none"
+          className="px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none"
         >
           <option value="">All Types</option>
           {FEEDBACK_TYPES.filter(Boolean).map((t) => (
@@ -219,12 +219,12 @@ function ReportsTab({ clients }: { clients: PRClient[] }) {
       {/* Calibration Reports */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">Calibration Reports</h2>
+          <h2 className="text-lg font-semibold text-navy dark:text-white">Calibration Reports</h2>
           {clients.length > 0 && (
             <select
               value={calibClientId}
               onChange={(e) => setCalibClientId(e.target.value)}
-              className="px-3 py-1.5 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none"
+              className="px-3 py-1.5 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none"
             >
               {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
@@ -247,9 +247,9 @@ function ReportsTab({ clients }: { clients: PRClient[] }) {
         ) : (
           <div className="space-y-4">
             {calibData.snapshots.map((snap) => (
-              <div key={snap.run_range} className="p-5 rounded-xl border border-gray-500/20 bg-[#141420]/50 space-y-4">
+              <div key={snap.run_range} className="p-5 rounded-xl border border-gray-500/20 bg-white dark:bg-[#141420]/50 space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-white">{snap.run_range}</h3>
+                  <h3 className="text-sm font-medium text-navy dark:text-white">{snap.run_range}</h3>
                   <span className="text-xs text-gray-500">
                     {new Date(snap.period.from).toLocaleDateString()} - {new Date(snap.period.to).toLocaleDateString()}
                   </span>
@@ -271,7 +271,7 @@ function ReportsTab({ clients }: { clients: PRClient[] }) {
                   </div>
                   <div className="p-3 rounded-lg bg-gray-500/10 text-center">
                     <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Feedback Items</p>
-                    <p className="text-xl font-bold text-white">{snap.feedback_total}</p>
+                    <p className="text-xl font-bold text-navy dark:text-white">{snap.feedback_total}</p>
                   </div>
                 </div>
 
@@ -303,12 +303,12 @@ function ReportsTab({ clients }: { clients: PRClient[] }) {
       {/* What's Working */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">What's Working</h2>
+          <h2 className="text-lg font-semibold text-navy dark:text-white">What's Working</h2>
           {clients.length > 0 && (
             <select
               value={wwClientId}
               onChange={(e) => setWwClientId(e.target.value)}
-              className="px-3 py-1.5 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none"
+              className="px-3 py-1.5 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none"
             >
               {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
@@ -338,8 +338,8 @@ function ReportsTab({ clients }: { clients: PRClient[] }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Top pitch angles */}
             {wwData.by_pitch_angle && wwData.by_pitch_angle.length > 0 && (
-              <div className="p-5 rounded-xl border border-gray-500/20 bg-[#141420]/50">
-                <h3 className="text-sm font-medium text-white mb-3">Top Pitch Angles</h3>
+              <div className="p-5 rounded-xl border border-gray-500/20 bg-white dark:bg-[#141420]/50">
+                <h3 className="text-sm font-medium text-navy dark:text-white mb-3">Top Pitch Angles</h3>
                 <div className="space-y-2">
                   {wwData.by_pitch_angle.slice(0, 8).map((item) => (
                     <div key={item.pitch_angle} className="flex items-center justify-between gap-2">
@@ -356,8 +356,8 @@ function ReportsTab({ clients }: { clients: PRClient[] }) {
 
             {/* Top outlet types */}
             {wwData.by_outlet_type && wwData.by_outlet_type.length > 0 && (
-              <div className="p-5 rounded-xl border border-gray-500/20 bg-[#141420]/50">
-                <h3 className="text-sm font-medium text-white mb-3">Top Outlet Types</h3>
+              <div className="p-5 rounded-xl border border-gray-500/20 bg-white dark:bg-[#141420]/50">
+                <h3 className="text-sm font-medium text-navy dark:text-white mb-3">Top Outlet Types</h3>
                 <div className="space-y-2">
                   {wwData.by_outlet_type.map((item) => (
                     <div key={item.outlet_type} className="flex items-center justify-between gap-2">
@@ -374,8 +374,8 @@ function ReportsTab({ clients }: { clients: PRClient[] }) {
 
             {/* Common rejection reasons */}
             {wwData.common_rejection_reasons && wwData.common_rejection_reasons.length > 0 && (
-              <div className="p-5 rounded-xl border border-gray-500/20 bg-[#141420]/50 md:col-span-2">
-                <h3 className="text-sm font-medium text-white mb-3">Common Rejection Reasons</h3>
+              <div className="p-5 rounded-xl border border-gray-500/20 bg-white dark:bg-[#141420]/50 md:col-span-2">
+                <h3 className="text-sm font-medium text-navy dark:text-white mb-3">Common Rejection Reasons</h3>
                 <ul className="space-y-1.5">
                   {wwData.common_rejection_reasons.map((item, i) => (
                     <li key={i} className="flex items-center gap-2 text-xs text-gray-400">
@@ -421,7 +421,7 @@ export default function FeedbackPage() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <Link href="/team-pr" className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors -mb-4">
+      <Link href="/team-pr" className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-navy dark:hover:text-white transition-colors -mb-4">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         Back to Team PR
       </Link>
@@ -440,7 +440,7 @@ export default function FeedbackPage() {
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
               activeTab === tab.key
                 ? 'border-purple-500 text-purple-400'
-                : 'border-transparent text-gray-400 hover:text-white'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-navy dark:hover:text-white'
             }`}
           >
             {tab.label}

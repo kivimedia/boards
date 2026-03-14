@@ -62,7 +62,7 @@ function TagInput({
       {value.map((tag) => (
         <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 text-xs">
           {tag}
-          <button onClick={() => onChange(value.filter((t) => t !== tag))} className="hover:text-white">x</button>
+          <button onClick={() => onChange(value.filter((t) => t !== tag))} className="hover:text-navy dark:hover:text-white">x</button>
         </span>
       ))}
       <input
@@ -70,7 +70,7 @@ function TagInput({
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder={value.length === 0 ? placeholder : ''}
-        className="flex-1 min-w-[100px] bg-transparent text-sm text-white outline-none placeholder:text-gray-500"
+        className="flex-1 min-w-[100px] bg-transparent text-sm text-navy dark:text-white outline-none placeholder:text-gray-500"
       />
     </div>
   );
@@ -131,25 +131,25 @@ function ProfileTab({ client }: { client: PRClient }) {
     <form onSubmit={handleSave} className="space-y-4 max-w-2xl">
       <div>
         <label className="block text-sm text-gray-400 mb-1">Name *</label>
-        <input required value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50" />
+        <input required value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none focus:border-purple-500/50" />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm text-gray-400 mb-1">Company</label>
-          <input value={company} onChange={(e) => setCompany(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50" />
+          <input value={company} onChange={(e) => setCompany(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none focus:border-purple-500/50" />
         </div>
         <div>
           <label className="block text-sm text-gray-400 mb-1">Industry</label>
-          <input value={industry} onChange={(e) => setIndustry(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50" />
+          <input value={industry} onChange={(e) => setIndustry(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none focus:border-purple-500/50" />
         </div>
       </div>
       <div>
         <label className="block text-sm text-gray-400 mb-1">Website</label>
-        <input value={website} onChange={(e) => setWebsite(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50" />
+        <input value={website} onChange={(e) => setWebsite(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none focus:border-purple-500/50" />
       </div>
       <div>
         <label className="block text-sm text-gray-400 mb-1">Bio</label>
-        <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50 resize-none" />
+        <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none focus:border-purple-500/50 resize-none" />
       </div>
       <div>
         <label className="block text-sm text-gray-400 mb-1">Brand Voice (JSON)</label>
@@ -246,19 +246,19 @@ function TerritoryForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 p-4 rounded-lg border border-gray-500/20 bg-[#141420]/50">
+    <form onSubmit={handleSubmit} className="space-y-3 p-4 rounded-lg border border-gray-500/20 bg-white dark:bg-[#141420]/50">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
           <label className="block text-xs text-gray-400 mb-1">Name *</label>
-          <input required value={name} onChange={(e) => setName(e.target.value)} className="w-full px-2 py-1.5 rounded bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50" />
+          <input required value={name} onChange={(e) => setName(e.target.value)} className="w-full px-2 py-1.5 rounded bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none focus:border-purple-500/50" />
         </div>
         <div>
           <label className="block text-xs text-gray-400 mb-1">Country Code</label>
-          <input value={countryCode} onChange={(e) => setCountryCode(e.target.value)} placeholder="US" className="w-full px-2 py-1.5 rounded bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50" />
+          <input value={countryCode} onChange={(e) => setCountryCode(e.target.value)} placeholder="US" className="w-full px-2 py-1.5 rounded bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none focus:border-purple-500/50" />
         </div>
         <div>
           <label className="block text-xs text-gray-400 mb-1">Language</label>
-          <input value={language} onChange={(e) => setLanguage(e.target.value)} className="w-full px-2 py-1.5 rounded bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50" />
+          <input value={language} onChange={(e) => setLanguage(e.target.value)} className="w-full px-2 py-1.5 rounded bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none focus:border-purple-500/50" />
         </div>
       </div>
       <div>
@@ -267,7 +267,7 @@ function TerritoryForm({
       </div>
       <div>
         <label className="block text-xs text-gray-400 mb-1">Pitch Norms</label>
-        <textarea value={pitchNorms} onChange={(e) => setPitchNorms(e.target.value)} rows={2} className="w-full px-2 py-1.5 rounded bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50 resize-none" />
+        <textarea value={pitchNorms} onChange={(e) => setPitchNorms(e.target.value)} rows={2} className="w-full px-2 py-1.5 rounded bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none focus:border-purple-500/50 resize-none" />
       </div>
       <div>
         <label className="block text-xs text-gray-400 mb-1">Seasonal Calendar (JSON)</label>
@@ -281,9 +281,9 @@ function TerritoryForm({
         </div>
         {seedOutlets.map((s, i) => (
           <div key={i} className="flex flex-col sm:flex-row gap-2 mb-1">
-            <input value={s.name} onChange={(e) => { const u = [...seedOutlets]; u[i] = { ...u[i], name: e.target.value }; setSeedOutlets(u); }} placeholder="Name" className="flex-1 px-2 py-1 rounded bg-gray-500/10 border border-gray-500/20 text-white text-xs outline-none" />
-            <input value={s.url} onChange={(e) => { const u = [...seedOutlets]; u[i] = { ...u[i], url: e.target.value }; setSeedOutlets(u); }} placeholder="URL" className="flex-[2] px-2 py-1 rounded bg-gray-500/10 border border-gray-500/20 text-white text-xs outline-none" />
-            <select value={s.type} onChange={(e) => { const u = [...seedOutlets]; u[i] = { ...u[i], type: e.target.value }; setSeedOutlets(u); }} className="px-2 py-1 rounded bg-gray-500/10 border border-gray-500/20 text-white text-xs outline-none">
+            <input value={s.name} onChange={(e) => { const u = [...seedOutlets]; u[i] = { ...u[i], name: e.target.value }; setSeedOutlets(u); }} placeholder="Name" className="flex-1 px-2 py-1 rounded bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-xs outline-none" />
+            <input value={s.url} onChange={(e) => { const u = [...seedOutlets]; u[i] = { ...u[i], url: e.target.value }; setSeedOutlets(u); }} placeholder="URL" className="flex-[2] px-2 py-1 rounded bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-xs outline-none" />
+            <select value={s.type} onChange={(e) => { const u = [...seedOutlets]; u[i] = { ...u[i], type: e.target.value }; setSeedOutlets(u); }} className="px-2 py-1 rounded bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-xs outline-none">
               <option value="blog">Blog</option>
               <option value="podcast">Podcast</option>
               <option value="newspaper">Newspaper</option>
@@ -300,7 +300,7 @@ function TerritoryForm({
         <button type="submit" disabled={mutation.isPending} className="px-3 py-1.5 rounded bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-medium transition-colors">
           {mutation.isPending ? 'Saving...' : initial ? 'Update' : 'Add Territory'}
         </button>
-        <button type="button" onClick={onDone} className="px-3 py-1.5 rounded text-gray-400 hover:text-white text-xs transition-colors">Cancel</button>
+        <button type="button" onClick={onDone} className="px-3 py-1.5 rounded text-gray-400 hover:text-navy dark:hover:text-white text-xs transition-colors">Cancel</button>
       </div>
     </form>
   );
@@ -357,10 +357,10 @@ function TerritoriesTab({ clientId }: { clientId: string }) {
           editingId === t.id ? (
             <TerritoryForm key={t.id} initial={t} clientId={clientId} onDone={() => setEditingId(null)} />
           ) : (
-            <div key={t.id} className="p-4 rounded-lg border border-gray-500/20 bg-[#141420]/50">
+            <div key={t.id} className="p-4 rounded-lg border border-gray-500/20 bg-white dark:bg-[#141420]/50">
               <div className="flex items-start justify-between">
                 <div>
-                  <h4 className="text-white font-medium">{t.name}</h4>
+                  <h4 className="text-navy dark:text-white font-medium">{t.name}</h4>
                   <p className="text-xs text-gray-400 mt-0.5">
                     {t.country_code || 'Global'} - {t.language}
                     {t.signal_keywords.length > 0 && ` - ${t.signal_keywords.length} keywords`}
@@ -368,7 +368,7 @@ function TerritoriesTab({ clientId }: { clientId: string }) {
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => setEditingId(t.id)} className="text-xs text-gray-400 hover:text-white transition-colors">Edit</button>
+                  <button onClick={() => setEditingId(t.id)} className="text-xs text-gray-500 dark:text-gray-400 hover:text-navy dark:hover:text-white transition-colors">Edit</button>
                   <button
                     onClick={() => { if (confirm('Delete this territory?')) deleteMutation.mutate(t.id); }}
                     className="text-xs text-red-400 hover:text-red-300 transition-colors"
@@ -594,7 +594,7 @@ function RunsTab({ clientId }: { clientId: string }) {
                 <select
                   value={selectedTerritoryId}
                   onChange={(e) => setSelectedTerritoryId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50"
+                  className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none focus:border-purple-500/50"
                 >
                   <option value="">No specific territory</option>
                   {territories.map((t) => (
@@ -646,7 +646,7 @@ function RunsTab({ clientId }: { clientId: string }) {
                 </button>
                 <button
                   onClick={() => setShowStartModal(false)}
-                  className="px-4 py-2 rounded-lg text-gray-400 hover:text-white text-sm transition-colors"
+                  className="px-4 py-2 rounded-lg text-gray-500 dark:text-gray-400 hover:text-navy dark:hover:text-white text-sm transition-colors"
                 >
                   Cancel
                 </button>
@@ -745,16 +745,16 @@ function FeedbackTab({ clientId }: { clientId: string }) {
       </div>
 
       {showForm && (
-        <div className="p-4 rounded-lg border border-gray-500/20 bg-[#141420]/50 space-y-3">
+        <div className="p-4 rounded-lg border border-gray-500/20 bg-white dark:bg-[#141420]/50 space-y-3">
           <div>
             <label className="block text-xs text-gray-400 mb-1">Type</label>
-            <select value={feedbackType} onChange={(e) => setFeedbackType(e.target.value as PRFeedbackType)} className="w-full px-2 py-1.5 rounded bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none">
+            <select value={feedbackType} onChange={(e) => setFeedbackType(e.target.value as PRFeedbackType)} className="w-full px-2 py-1.5 rounded bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none">
               {feedbackTypes.map((t) => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-xs text-gray-400 mb-1">Feedback</label>
-            <textarea value={feedbackText} onChange={(e) => setFeedbackText(e.target.value)} rows={3} className="w-full px-2 py-1.5 rounded bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none resize-none" placeholder="Your feedback..." />
+            <textarea value={feedbackText} onChange={(e) => setFeedbackText(e.target.value)} rows={3} className="w-full px-2 py-1.5 rounded bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none resize-none" placeholder="Your feedback..." />
           </div>
           <div className="flex gap-2">
             <button
@@ -764,7 +764,7 @@ function FeedbackTab({ clientId }: { clientId: string }) {
             >
               {createMutation.isPending ? 'Saving...' : 'Submit'}
             </button>
-            <button onClick={() => setShowForm(false)} className="px-3 py-1.5 text-gray-400 hover:text-white text-xs transition-colors">Cancel</button>
+            <button onClick={() => setShowForm(false)} className="px-3 py-1.5 text-gray-400 hover:text-navy dark:hover:text-white text-xs transition-colors">Cancel</button>
           </div>
         </div>
       )}
@@ -775,7 +775,7 @@ function FeedbackTab({ clientId }: { clientId: string }) {
         <p className="text-gray-400 text-sm text-center py-8">No feedback yet.</p>
       ) : (
         feedbackItems.map((fb) => (
-          <div key={fb.id} className="p-3 rounded-lg border border-gray-500/20 bg-[#141420]/50">
+          <div key={fb.id} className="p-3 rounded-lg border border-gray-500/20 bg-white dark:bg-[#141420]/50">
             <div className="flex items-center gap-2 mb-1">
               <span className="rounded-full px-2 py-0.5 text-[10px] font-medium bg-blue-500/20 text-blue-400">{fb.feedback_type.replace(/_/g, ' ')}</span>
               {fb.sentiment && (
@@ -855,7 +855,7 @@ export default function ClientDetailPage() {
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       {/* Back link */}
-      <Link href="/team-pr/clients" className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-white transition-colors">
+      <Link href="/team-pr/clients" className="inline-flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-navy dark:hover:text-white transition-colors">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         Back to Clients
       </Link>
@@ -885,7 +885,7 @@ export default function ClientDetailPage() {
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
               activeTab === tab.key
                 ? 'border-purple-500 text-purple-400'
-                : 'border-transparent text-gray-400 hover:text-white'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-navy dark:hover:text-white'
             }`}
           >
             {tab.label}

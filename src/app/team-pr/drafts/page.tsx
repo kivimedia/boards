@@ -67,7 +67,7 @@ function EditDraftModal({
             <input
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50"
+              className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none focus:border-purple-500/50"
             />
           </div>
           <div>
@@ -76,11 +76,11 @@ function EditDraftModal({
               value={body}
               onChange={(e) => setBody(e.target.value)}
               rows={12}
-              className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50 resize-none font-mono"
+              className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none focus:border-purple-500/50 resize-none font-mono"
             />
           </div>
           <div className="flex justify-end gap-3">
-            <button onClick={onClose} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">Cancel</button>
+            <button onClick={onClose} className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-navy dark:hover:text-white transition-colors">Cancel</button>
             <button
               onClick={() => updateMutation.mutate({ subject, body_text: body })}
               disabled={updateMutation.isPending}
@@ -130,12 +130,12 @@ function RejectModal({ draftId, onClose }: { draftId: string; onClose: () => voi
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={4}
-            className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50 resize-none"
+            className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none focus:border-purple-500/50 resize-none"
             placeholder="Reason for rejection..."
           />
         </div>
         <div className="flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">Cancel</button>
+          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-navy dark:hover:text-white transition-colors">Cancel</button>
           <button
             onClick={() => rejectMutation.mutate()}
             disabled={rejectMutation.isPending || !notes.trim()}
@@ -223,7 +223,7 @@ export default function DraftsPage() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <Link href="/team-pr" className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors -mb-4">
+      <Link href="/team-pr" className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-navy dark:hover:text-white transition-colors -mb-4">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         Back to Team PR
       </Link>
@@ -253,7 +253,7 @@ export default function DraftsPage() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none"
+          className="px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none"
         >
           <option value="">All Statuses</option>
           {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -261,7 +261,7 @@ export default function DraftsPage() {
         <select
           value={runFilter}
           onChange={(e) => setRunFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none"
+          className="px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none"
         >
           <option value="">All Runs</option>
           {runs.map((r) => (
@@ -289,7 +289,7 @@ export default function DraftsPage() {
               className={`rounded-xl border p-5 transition-all ${
                 selected.has(draft.id)
                   ? 'border-purple-500/50 bg-purple-500/5'
-                  : 'border-gray-500/20 bg-[#141420]/50 hover:border-gray-500/40'
+                  : 'border-gray-500/20 bg-white dark:bg-[#141420]/50 hover:border-gray-500/40'
               }`}
             >
               {/* Top row */}
@@ -312,7 +312,7 @@ export default function DraftsPage() {
               </div>
 
               {/* Subject */}
-              <h3 className="text-white font-semibold text-sm mb-2 line-clamp-1">{draft.subject}</h3>
+              <h3 className="text-navy dark:text-white font-semibold text-sm mb-2 line-clamp-1">{draft.subject}</h3>
 
               {/* Body preview */}
               <p className="text-gray-400 text-xs line-clamp-3 mb-3">

@@ -28,10 +28,10 @@ function StatusBadge({ status }: { status: PRRunStatus }) {
 
 function SummaryCard({ label, value, color }: { label: string; value: string | number; color: string }) {
   const colorMap: Record<string, string> = {
-    blue: 'bg-blue-500/10 border-blue-500/30 text-blue-400',
-    green: 'bg-green-500/10 border-green-500/30 text-green-400',
-    amber: 'bg-amber-500/10 border-amber-500/30 text-amber-400',
-    gray: 'bg-gray-500/10 border-gray-500/30 text-gray-400',
+    blue: 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-700 dark:text-blue-400',
+    green: 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30 text-green-700 dark:text-green-400',
+    amber: 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-400',
+    gray: 'bg-gray-50 dark:bg-gray-500/10 border-gray-200 dark:border-gray-500/30 text-gray-700 dark:text-gray-400',
   };
   return (
     <div className={`rounded-xl border p-5 ${colorMap[color]}`}>
@@ -78,7 +78,7 @@ export default function TeamPRDashboard() {
       {/* Back to Agents */}
       <Link
         href="/agents"
-        className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors -mb-4"
+        className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-navy dark:hover:text-white transition-colors -mb-4"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         Back to Agent Teams
@@ -109,19 +109,19 @@ export default function TeamPRDashboard() {
 
       {/* Quick Links */}
       <div className="flex gap-3 flex-wrap">
-        <Link href="/team-pr/clients" className="px-3 py-1.5 rounded-lg bg-white/10 text-white/80 hover:bg-white/20 hover:text-white text-sm font-medium transition-colors border border-white/10">
+        <Link href="/team-pr/clients" className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-white/10 text-navy/80 dark:text-white/80 hover:bg-gray-200 dark:hover:bg-white/20 hover:text-navy dark:hover:text-white text-sm font-medium transition-colors border border-gray-200 dark:border-white/10">
           Clients
         </Link>
-        <Link href="/team-pr/outlets" className="px-3 py-1.5 rounded-lg bg-white/10 text-white/80 hover:bg-white/20 hover:text-white text-sm font-medium transition-colors border border-white/10">
+        <Link href="/team-pr/outlets" className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-white/10 text-navy/80 dark:text-white/80 hover:bg-gray-200 dark:hover:bg-white/20 hover:text-navy dark:hover:text-white text-sm font-medium transition-colors border border-gray-200 dark:border-white/10">
           Outlet Database
         </Link>
-        <Link href="/team-pr/drafts" className="px-3 py-1.5 rounded-lg bg-white/10 text-white/80 hover:bg-white/20 hover:text-white text-sm font-medium transition-colors border border-white/10">
+        <Link href="/team-pr/drafts" className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-white/10 text-navy/80 dark:text-white/80 hover:bg-gray-200 dark:hover:bg-white/20 hover:text-navy dark:hover:text-white text-sm font-medium transition-colors border border-gray-200 dark:border-white/10">
           Email Drafts
         </Link>
-        <Link href="/team-pr/feedback" className="px-3 py-1.5 rounded-lg bg-white/10 text-white/80 hover:bg-white/20 hover:text-white text-sm font-medium transition-colors border border-white/10">
+        <Link href="/team-pr/feedback" className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-white/10 text-navy/80 dark:text-white/80 hover:bg-gray-200 dark:hover:bg-white/20 hover:text-navy dark:hover:text-white text-sm font-medium transition-colors border border-gray-200 dark:border-white/10">
           Feedback
         </Link>
-        <Link href="/team-pr/settings" className="px-3 py-1.5 rounded-lg bg-white/10 text-white/80 hover:bg-white/20 hover:text-white text-sm font-medium transition-colors border border-white/10">
+        <Link href="/team-pr/settings" className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-white/10 text-navy/80 dark:text-white/80 hover:bg-gray-200 dark:hover:bg-white/20 hover:text-navy dark:hover:text-white text-sm font-medium transition-colors border border-gray-200 dark:border-white/10">
           Settings
         </Link>
       </div>

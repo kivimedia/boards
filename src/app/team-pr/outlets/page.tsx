@@ -95,10 +95,10 @@ function OutletSlideOver({ outlet, onClose }: { outlet: PROutletWithOutcome; onC
           {/* Header */}
           <div className="flex items-start justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-white">{outlet.name}</h2>
+              <h2 className="text-lg font-semibold text-navy dark:text-white">{outlet.name}</h2>
               <p className="text-xs text-gray-400 mt-0.5">{outlet.outlet_code}</p>
             </div>
-            <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+            <button onClick={onClose} className="text-gray-500 dark:text-gray-400 hover:text-navy dark:hover:text-white transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
           </div>
@@ -153,7 +153,7 @@ function OutletSlideOver({ outlet, onClose }: { outlet: PROutletWithOutcome; onC
           <div className="p-3 rounded-lg border border-gray-500/20 bg-gray-500/5">
             <h3 className="text-xs font-medium text-gray-400 mb-2">Contact</h3>
             <div className="space-y-1">
-              <p className="text-sm text-white">{outlet.contact_name || 'No contact name'}</p>
+              <p className="text-sm text-navy dark:text-white">{outlet.contact_name || 'No contact name'}</p>
               <p className="text-sm text-gray-400">{outlet.contact_email || 'No email'}</p>
               {outlet.contact_role && <p className="text-xs text-gray-500">{outlet.contact_role}</p>}
               {outlet.contact_confidence !== null && (
@@ -221,7 +221,7 @@ function OutletSlideOver({ outlet, onClose }: { outlet: PROutletWithOutcome; onC
               onChange={(e) => setOutcomeNotes(e.target.value)}
               rows={2}
               placeholder="Notes about this outcome..."
-              className="w-full px-2 py-1.5 rounded bg-gray-500/10 border border-gray-500/20 text-white text-xs outline-none focus:border-purple-500/50 resize-none"
+              className="w-full px-2 py-1.5 rounded bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-xs outline-none focus:border-purple-500/50 resize-none"
             />
 
             {/* Save button */}
@@ -333,7 +333,7 @@ export default function OutletDatabasePage() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <Link href="/team-pr" className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors -mb-4">
+      <Link href="/team-pr" className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-navy dark:hover:text-white transition-colors -mb-4">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         Back to Team PR
       </Link>
@@ -346,12 +346,12 @@ export default function OutletDatabasePage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search outlets..."
-          className="px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50 w-full sm:w-64"
+          className="px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none focus:border-purple-500/50 w-full sm:w-64"
         />
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none"
+          className="px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none"
         >
           <option value="">All Types</option>
           {OUTLET_TYPES.map((t) => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
@@ -359,7 +359,7 @@ export default function OutletDatabasePage() {
         <select
           value={stageFilter}
           onChange={(e) => setStageFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none"
+          className="px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none"
         >
           <option value="">All Stages</option>
           {PIPELINE_STAGES.map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
@@ -367,7 +367,7 @@ export default function OutletDatabasePage() {
         <select
           value={clientFilter}
           onChange={(e) => setClientFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none"
+          className="px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none"
         >
           <option value="">All Clients</option>
           {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -376,7 +376,7 @@ export default function OutletDatabasePage() {
 
       {/* Bulk Actions */}
       {selected.size > 0 && (
-        <div className="flex items-center gap-3 p-3 rounded-lg border border-gray-500/20 bg-[#141420]/50">
+        <div className="flex items-center gap-3 p-3 rounded-lg border border-gray-500/20 bg-white dark:bg-[#141420]/50">
           <span className="text-sm text-gray-300">{selected.size} selected</span>
           <button
             onClick={() => excludeMutation.mutate(Array.from(selected))}
@@ -443,7 +443,7 @@ export default function OutletDatabasePage() {
                     />
                   </td>
                   <td className="px-4 py-3 text-gray-500 text-xs font-mono">{o.outlet_code}</td>
-                  <td className="px-4 py-3 text-white font-medium">{o.name}</td>
+                  <td className="px-4 py-3 text-navy dark:text-white font-medium">{o.name}</td>
                   <td className="px-4 py-3 text-gray-400">{o.outlet_type || '-'}</td>
                   <td className="px-4 py-3 text-gray-400">{o.country || '-'}</td>
                   <td className="px-4 py-3"><PipelineBadge stage={o.pipeline_stage} /></td>

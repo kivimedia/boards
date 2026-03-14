@@ -47,7 +47,7 @@ function TagInput({ value, onChange, placeholder }: TagInputProps) {
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder={value.length === 0 ? placeholder : ''}
-        className="flex-1 min-w-[100px] bg-transparent text-sm text-white outline-none placeholder:text-gray-500"
+        className="flex-1 min-w-[100px] bg-transparent text-sm text-navy dark:text-white outline-none placeholder:text-gray-500"
       />
     </div>
   );
@@ -156,7 +156,7 @@ function AddClientModal({ open, onClose }: { open: boolean; onClose: () => void 
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50"
+              className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none focus:border-purple-500/50"
               placeholder="Client name"
             />
           </div>
@@ -167,7 +167,7 @@ function AddClientModal({ open, onClose }: { open: boolean; onClose: () => void 
               <input
                 value={company}
                 onChange={(e) => setCompany(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50"
+                className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none focus:border-purple-500/50"
                 placeholder="Company name"
               />
             </div>
@@ -176,7 +176,7 @@ function AddClientModal({ open, onClose }: { open: boolean; onClose: () => void 
               <input
                 value={industry}
                 onChange={(e) => setIndustry(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50"
+                className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none focus:border-purple-500/50"
                 placeholder="e.g. Technology"
               />
             </div>
@@ -187,7 +187,7 @@ function AddClientModal({ open, onClose }: { open: boolean; onClose: () => void 
             <input
               value={website}
               onChange={(e) => setWebsite(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50"
+              className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none focus:border-purple-500/50"
               placeholder="https://example.com"
             />
           </div>
@@ -198,7 +198,7 @@ function AddClientModal({ open, onClose }: { open: boolean; onClose: () => void 
               value={bio}
               onChange={(e) => setBio(e.target.value)}
               rows={3}
-              className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50 resize-none"
+              className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none focus:border-purple-500/50 resize-none"
               placeholder="Brief client bio..."
             />
           </div>
@@ -240,13 +240,13 @@ function AddClientModal({ open, onClose }: { open: boolean; onClose: () => void 
                 <input
                   value={angle.angle_name}
                   onChange={(e) => updatePitchAngle(i, 'angle_name', e.target.value)}
-                  className="flex-1 px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50"
+                  className="flex-1 px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none focus:border-purple-500/50"
                   placeholder="Angle name"
                 />
                 <input
                   value={angle.description}
                   onChange={(e) => updatePitchAngle(i, 'description', e.target.value)}
-                  className="flex-[2] px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50"
+                  className="flex-[2] px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-navy dark:text-white text-sm outline-none focus:border-purple-500/50"
                   placeholder="Description"
                 />
                 <button
@@ -309,7 +309,7 @@ export default function PRClientsPage() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <Link href="/team-pr" className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors -mb-4">
+      <Link href="/team-pr" className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-navy dark:hover:text-white transition-colors -mb-4">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         Back to Team PR
       </Link>
@@ -348,11 +348,11 @@ export default function PRClientsPage() {
             <div
               key={client.id}
               onClick={() => router.push(`/team-pr/clients/${client.id}`)}
-              className="rounded-xl border border-gray-500/20 p-5 hover:border-purple-500/40 cursor-pointer transition-all bg-[#141420]/50 hover:bg-[#141420]"
+              className="rounded-xl border border-gray-200 dark:border-gray-500/20 p-5 hover:border-purple-500/40 cursor-pointer transition-all bg-white dark:bg-[#141420]/50 hover:bg-gray-50 dark:hover:bg-[#141420]"
             >
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <h3 className="text-white font-semibold">{client.name}</h3>
+                  <h3 className="text-navy dark:text-white font-semibold">{client.name}</h3>
                   {client.company && (
                     <p className="text-sm text-gray-400">{client.company}</p>
                   )}
