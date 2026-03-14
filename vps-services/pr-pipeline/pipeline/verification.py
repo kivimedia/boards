@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 import logging
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
@@ -12,30 +13,14 @@ from config import get_settings
 
 logger = logging.getLogger(__name__)
 
-VERIFICATION_SYSTEM_PROMPT = """You are a PR verification analyst. Given information about a media outlet and a client,
-evaluate the outlet on 5 criteria. Score each from 0-20 (total max 100):
+PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 
-1. active_publishing: Is the outlet currently active and publishing recent content?
-2. topic_relevance: Does it cover topics relevant to the client's industry and pitch angles?
-3. accepts_pitches: Is there evidence they accept external pitches, guest content, or press releases?
-4. contact_findable: Based on the outlet info, how likely is it we can find a named editorial contact?
-5. editorial_fit: Would the client's story/angle fit their editorial style and audience?
 
-Also provide:
-- suggested_roles: array of contact roles to look for (e.g., "editor", "producer", "journalist")
-- reasoning: brief explanation of your scores
+def load_prompt(name: str) -> str:
+    return (PROMPTS_DIR / name).read_text(encoding="utf-8")
 
-Respond with JSON:
-{
-    "active_publishing": { "score": 0-20, "note": "..." },
-    "topic_relevance": { "score": 0-20, "note": "..." },
-    "accepts_pitches": { "score": 0-20, "note": "..." },
-    "contact_findable": { "score": 0-20, "note": "..." },
-    "editorial_fit": { "score": 0-20, "note": "..." },
-    "total_score": 0-100,
-    "suggested_roles": ["editor", "producer"],
-    "reasoning": "..."
-}"""
+
+VERIFICATION_SYSTEM_PROMPT = load_prompt("verification_system.md")
 
 
 async def run_verification(

@@ -86,7 +86,22 @@ class PipelineOrchestrator:
         )
 
         logger.info(f"Research complete for run {run_id}: {result}")
-        await self.update_run_status(run_id, RunStatus.GATE_A, current_stage=1)
+
+        # Gate A minimum check
+        gate_a_stage_results: dict[str, Any] = {}
+        outlets_discovered = result.get("outlets_discovered", 0)
+        if outlets_discovered < 15:
+            warning = (
+                f"Low outlet count: only {outlets_discovered} outlets discovered "
+                f"(minimum recommended: 15). Consider expanding search terms or territory."
+            )
+            logger.warning(f"Run {run_id} Gate A warning: {warning}")
+            gate_a_stage_results["gate_warning"] = warning
+
+        await self.update_run_status(
+            run_id, RunStatus.GATE_A, current_stage=1,
+            stage_results=gate_a_stage_results if gate_a_stage_results else None,
+        )
 
     async def _run_from_verification(
         self, run_id: str, run: dict, client: dict, territory: dict
@@ -105,7 +120,22 @@ class PipelineOrchestrator:
         )
 
         logger.info(f"Verification complete for run {run_id}: {result}")
-        await self.update_run_status(run_id, RunStatus.GATE_B, current_stage=2)
+
+        # Gate B minimum check
+        gate_b_stage_results: dict[str, Any] = {}
+        outlets_verified = result.get("outlets_verified", 0)
+        if outlets_verified < 10:
+            warning = (
+                f"Low verified outlet count: only {outlets_verified} outlets verified "
+                f"(minimum recommended: 10). Many outlets may have failed contact verification."
+            )
+            logger.warning(f"Run {run_id} Gate B warning: {warning}")
+            gate_b_stage_results["gate_warning"] = warning
+
+        await self.update_run_status(
+            run_id, RunStatus.GATE_B, current_stage=2,
+            stage_results=gate_b_stage_results if gate_b_stage_results else None,
+        )
 
     async def _run_from_qa(
         self, run_id: str, run: dict, client: dict, territory: dict
@@ -123,6 +153,19 @@ class PipelineOrchestrator:
         )
 
         logger.info(f"QA Loop complete for run {run_id}: {result}")
+
+        # Gate C minimum check - hard fail if zero outlets passed QA
+        outlets_qa_passed = result.get("outlets_qa_passed", 0)
+        if outlets_qa_passed == 0:
+            error_msg = "Zero outlets passed QA - all flagged or failed"
+            logger.error(f"Run {run_id} QA hard fail: {error_msg}")
+            await self.update_run_status(
+                run_id, RunStatus.FAILED, current_stage=3,
+                stage_results={"qa_failure_reason": error_msg},
+            )
+            await self.handle_error(run_id, error_msg)
+            return
+
         await self.update_run_status(run_id, RunStatus.GATE_C, current_stage=3)
 
     async def _run_from_email_gen(
@@ -167,6 +210,26 @@ class PipelineOrchestrator:
             return {"advanced_to": "QA_LOOP", "outlets_promoted": promoted}
 
         elif status == "GATE_C":
+            # Check 60% rejection rate before advancing
+            try:
+                all_outlets = await self.supabase.get_outlets(run_id)
+                qa_checked = [o for o in all_outlets if o.get("qa_status") in ("PASSED", "FAILED")]
+                qa_failed = [o for o in qa_checked if o.get("qa_status") == "FAILED"]
+                if qa_checked:
+                    rejection_rate = len(qa_failed) / len(qa_checked)
+                    if rejection_rate >= 0.6:
+                        warning = (
+                            f"High QA rejection rate: {len(qa_failed)}/{len(qa_checked)} outlets "
+                            f"failed ({rejection_rate:.0%}). Human has chosen to proceed."
+                        )
+                        logger.warning(f"Run {run_id} Gate C high rejection: {warning}")
+                        await self.update_run_status(
+                            run_id, run.get("status", "GATE_C"),
+                            stage_results={"gate_c_rejection_warning": warning},
+                        )
+            except Exception as e:
+                logger.error(f"Gate C rejection-rate check failed for run {run_id}: {e}")
+
             # Promote NEEDS_REVIEW outlets, then advance to Email Gen
             promoted = await promote_reviewed_outlets(run_id, self.supabase)
             logger.info(f"Advancing run {run_id} past Gate C to Email Gen (promoted {promoted} outlets)")

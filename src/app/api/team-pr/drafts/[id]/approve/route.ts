@@ -20,7 +20,7 @@ export async function POST(
   // Fetch draft and verify ownership
   const { data: draft, error: draftError } = await supabase
     .from('pr_email_drafts')
-    .select('id, outlet_id, run_id, run:pr_runs!inner(id, user_id, emails_approved)')
+    .select('id, outlet_id, run_id, client_id, run:pr_runs!inner(id, user_id, emails_approved)')
     .eq('id', id)
     .eq('run.user_id', userId)
     .single();
@@ -56,6 +56,17 @@ export async function POST(
     .eq('id', draft.run_id);
 
   if (runError) return errorResponse(runError.message, 500);
+
+  // 4. Auto-log feedback for human override action
+  await supabase.from('pr_feedback').insert({
+    client_id: draft.client_id,
+    run_id: draft.run_id,
+    outlet_id: draft.outlet_id ?? null,
+    feedback_type: 'draft_override',
+    feedback_text: 'Draft approved by team',
+    sentiment: 'positive',
+    applied_to_future_runs: false,
+  });
 
   return successResponse({ approved: true, draft_id: id });
 }

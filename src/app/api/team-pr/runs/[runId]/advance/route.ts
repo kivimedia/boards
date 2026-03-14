@@ -65,7 +65,18 @@ export async function POST(
 
   if (updateError) return errorResponse(updateError.message, 500);
 
-  // 4. Create a new vps_jobs row to re-trigger processing
+  // 4. Auto-log feedback for human gate override action
+  await supabase.from('pr_feedback').insert({
+    client_id: run.client_id,
+    run_id: runId,
+    outlet_id: null,
+    feedback_type: 'gate_override',
+    feedback_text: `Gate ${run.status} manually advanced by team`,
+    sentiment: 'neutral',
+    applied_to_future_runs: false,
+  });
+
+  // 5. Create a new vps_jobs row to re-trigger processing
   const { error: jobError } = await supabase
     .from('vps_jobs')
     .insert({

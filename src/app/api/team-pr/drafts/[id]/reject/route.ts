@@ -25,21 +25,23 @@ export async function POST(
   const { supabase, userId } = auth.ctx;
   const { id } = params;
 
-  // Verify ownership via run
+  // Verify ownership via run and fetch FK fields for feedback logging
   const { data: draft, error: checkError } = await supabase
     .from('pr_email_drafts')
-    .select('id, run:pr_runs!inner(user_id)')
+    .select('id, outlet_id, run_id, client_id, run:pr_runs!inner(user_id)')
     .eq('id', id)
     .eq('run.user_id', userId)
     .single();
 
   if (checkError || !draft) return errorResponse('Draft not found', 404);
 
+  const reviewerNotes = body.body.reviewer_notes.trim();
+
   const { data, error } = await supabase
     .from('pr_email_drafts')
     .update({
       status: 'REJECTED',
-      reviewer_notes: body.body.reviewer_notes.trim(),
+      reviewer_notes: reviewerNotes,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
@@ -47,5 +49,19 @@ export async function POST(
     .single();
 
   if (error) return errorResponse(error.message, 500);
+
+  // Auto-log feedback for human override action
+  await supabase.from('pr_feedback').insert({
+    client_id: draft.client_id,
+    run_id: draft.run_id,
+    outlet_id: draft.outlet_id ?? null,
+    feedback_type: 'draft_override',
+    feedback_text: reviewerNotes
+      ? `Draft rejected by team: ${reviewerNotes}`
+      : 'Draft rejected by team',
+    sentiment: 'negative',
+    applied_to_future_runs: false,
+  });
+
   return successResponse(data);
 }

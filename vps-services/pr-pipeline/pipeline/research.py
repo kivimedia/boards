@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 import logging
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
@@ -14,21 +15,14 @@ from utils.dedup import is_duplicate
 
 logger = logging.getLogger(__name__)
 
+PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 
-RESEARCH_SYSTEM_PROMPT = """You are a PR research analyst. Given raw search results about media outlets,
-parse and structure them into outlet records. For each result, determine:
 
-1. outlet_type: one of tv, magazine, podcast, youtube, blog, trade, news, radio, wire, online, other
-2. name: the clean outlet name
-3. description: 1-2 sentence description of the outlet
-4. topics: array of topics the outlet covers
-5. relevance_score: 0-100 how relevant this outlet is for the client
-6. country: 2-letter country code if determinable
-7. audience_size: estimated audience if determinable (number), or null
+def load_prompt(name: str) -> str:
+    return (PROMPTS_DIR / name).read_text(encoding="utf-8")
 
-Consider the client's industry, target markets, and the territory context when scoring relevance.
 
-Respond with a JSON array of objects."""
+RESEARCH_SYSTEM_PROMPT = load_prompt("research_system.md")
 
 
 async def run_research(
@@ -219,6 +213,27 @@ Search results to parse:
     }
 
 
+_SWEDISH_TERMS: dict[str, str] = {
+    "magic": "magi",
+    "entertainment": "underhållning",
+    "events": "evenemang",
+    "mentalism": "mentalism",
+    "corporate": "företag",
+    "keynote": "talare",
+    "speaker": "talare",
+    "performance": "föreställning",
+    "show": "show",
+}
+
+
+def _translate_to_swedish(text: str) -> str:
+    """Translate common industry terms in a query string to Swedish."""
+    result = text
+    for english, swedish in _SWEDISH_TERMS.items():
+        result = result.replace(english, swedish)
+    return result
+
+
 def _build_search_queries(
     client: dict[str, Any],
     territory: dict[str, Any],
@@ -230,6 +245,7 @@ def _build_search_queries(
     company = client.get("company", client.get("name", ""))
     country = territory.get("name", "")
     language = territory.get("language", "english")
+    is_swedish = language.lower() in ("sv", "swedish", "svenska")
 
     # Base queries
     if industry:
@@ -249,7 +265,19 @@ def _build_search_queries(
         if angle_text:
             queries.append(f"{angle_text} {industry} press {country}")
 
-    return queries[:10]  # Cap at 10 queries
+    english_queries = queries[:10]  # Cap English queries at 10
+
+    if not is_swedish:
+        return english_queries
+
+    # Add parallel Swedish queries for each English query
+    swedish_queries = []
+    for q in english_queries:
+        sv_q = _translate_to_swedish(q)
+        if sv_q != q:  # Only add if something actually changed
+            swedish_queries.append(sv_q)
+
+    return (english_queries + swedish_queries)[:20]  # Cap combined at 20
 
 
 async def _process_outlet(

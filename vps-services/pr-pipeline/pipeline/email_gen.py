@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 import logging
+from pathlib import Path
 from typing import Any
 
 from services.supabase_client import SupabaseService
@@ -10,30 +11,41 @@ from config import get_settings
 
 logger = logging.getLogger(__name__)
 
-EMAIL_SYSTEM_PROMPT = """You are an expert PR pitch email writer. Write a personalized outreach email
-for a client to send to a media outlet contact.
+PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 
-Requirements:
-- Maximum {max_words} words
-- Professional but warm tone
-- Clear, compelling subject line
-- Personalized opening referencing the outlet's recent work or focus
-- Brief client intro (2-3 sentences max)
-- Clear pitch angle
-- Specific call to action
-- Follow the client's tone rules and brand voice
 
-Territory-specific rules: {pitch_norms}
+def load_prompt(name: str) -> str:
+    return (PROMPTS_DIR / name).read_text(encoding="utf-8")
 
-Respond with JSON:
-{{
-    "subject": "Email subject line",
-    "body_html": "<p>HTML formatted email body</p>",
-    "body_text": "Plain text email body",
-    "pitch_angle_used": "Name of the pitch angle selected",
-    "personalization_hooks": ["hook1", "hook2"],
-    "language": "en"
-}}"""
+
+def _build_email_system_prompt(max_words: int, pitch_norms: str, language: str) -> str:
+    """Build the email generation system prompt with runtime values and a language-appropriate few-shot example."""
+    base_prompt = load_prompt("email_system.md")
+
+    # Inject max_words and pitch_norms as a runtime context block appended to the base prompt
+    runtime_context = (
+        f"\n\n---\n\n"
+        f"**Runtime configuration for this campaign:**\n"
+        f"- Maximum word count for email body: {max_words} words\n"
+        f"- Territory pitch norms: {pitch_norms}\n"
+    )
+
+    # Select the appropriate few-shot example based on outlet language
+    is_swedish = language in ("sv", "swedish") or "sv" in language.lower()
+    example_file = "examples/swedish_email_example.md" if is_swedish else "examples/english_email_example.md"
+
+    try:
+        example_content = load_prompt(example_file)
+        few_shot_block = (
+            f"\n\n---\n\n"
+            f"**Reference example - study this carefully before writing:**\n\n"
+            f"{example_content}"
+        )
+    except Exception as e:
+        logger.warning(f"Could not load example prompt {example_file}: {e}")
+        few_shot_block = ""
+
+    return base_prompt + runtime_context + few_shot_block
 
 
 async def run_email_gen(
@@ -116,9 +128,10 @@ async def _generate_email_for_outlet(
     language = outlet.get("language") or territory.get("language", "english")
     pitch_norms = territory.get("pitch_norms", "Standard professional pitch conventions.")
 
-    system_prompt = EMAIL_SYSTEM_PROMPT.format(
+    system_prompt = _build_email_system_prompt(
         max_words=max_words,
         pitch_norms=pitch_norms,
+        language=language,
     )
 
     user_prompt = f"""Write a pitch email with these details:
@@ -162,6 +175,56 @@ TERRITORY: {territory.get('name', '')} ({territory.get('country_code', '')})"""
             "model": claude.default_model,
         },
     )
+
+    # Word count validation on body_text
+    body_text: str = email_data.get("body_text", "")
+    word_count = len(body_text.split()) if body_text.strip() else 0
+    if word_count > 300:
+        logger.warning(
+            f"Email for outlet {outlet.get('name', '')} is {word_count} words - regenerating with stricter prompt"
+        )
+        retry_user_prompt = (
+            f"Your previous draft was {word_count} words. "
+            f"Rewrite to be under 250 words while keeping the key message.\n\n"
+            + user_prompt
+        )
+        email_data_retry, response_retry = await claude.complete_json(
+            system_prompt=system_prompt,
+            user_prompt=retry_user_prompt,
+        )
+        cost += response_retry.cost_usd
+        await log_cost(
+            supabase, run_id, outlet_id, "anthropic", "email_generation_retry",
+            cost_usd=response_retry.cost_usd,
+            metadata={
+                "prompt_tokens": response_retry.prompt_tokens,
+                "completion_tokens": response_retry.completion_tokens,
+                "model": claude.default_model,
+                "reason": "word_count_exceeded",
+                "original_word_count": word_count,
+            },
+        )
+        body_text_retry: str = email_data_retry.get("body_text", "")
+        retry_word_count = len(body_text_retry.split()) if body_text_retry.strip() else 0
+        if retry_word_count <= 300:
+            email_data = email_data_retry
+            body_text = body_text_retry
+        else:
+            # Truncate to 300 words at nearest sentence boundary
+            logger.warning(
+                f"Retry still {retry_word_count} words for outlet {outlet.get('name', '')} - truncating"
+            )
+            words = body_text_retry.split()[:300]
+            truncated = " ".join(words)
+            # Walk back to the nearest sentence boundary
+            for punct in (".", "!", "?"):
+                last_punct = truncated.rfind(punct)
+                if last_punct != -1 and last_punct > len(truncated) // 2:
+                    truncated = truncated[: last_punct + 1]
+                    break
+            email_data = dict(email_data_retry)
+            email_data["body_text"] = truncated
+            body_text = truncated
 
     # Insert email draft
     draft = {
