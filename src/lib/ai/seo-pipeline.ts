@@ -756,13 +756,150 @@ export async function getTeamConfig(
 }
 
 // ============================================================================
+// GOOGLE ADS ENRICHMENT (pre-Phase 1)
+// ============================================================================
+
+import * as gadsAccount from '../integrations/google-ads-account';
+import * as gadsIntel from '../integrations/google-ads-intel';
+import { sanitizeMcpOutput, logSanitizationEvent } from './agent-tools';
+
+export interface PlanningEnrichment {
+  searchTerms: string | null;
+  keywordPerformance: string | null;
+  competitorAds: string | null;
+  errors: string[];
+}
+
+/**
+ * Enrich planning context with Google Ads data before Phase 1.
+ * Returns formatted context sections to inject into the planning prompt.
+ * Non-blocking: failures return null sections with logged errors.
+ */
+export async function enrichPlanningContext(
+  supabase: SupabaseClient,
+  teamConfig: SeoTeamConfig,
+  competitorDomains?: string[]
+): Promise<PlanningEnrichment> {
+  const result: PlanningEnrichment = {
+    searchTerms: null,
+    keywordPerformance: null,
+    competitorAds: null,
+    errors: [],
+  };
+
+  const hasGadsCredentials = teamConfig.google_credentials?.google_ads?.customer_id;
+  if (!hasGadsCredentials) {
+    result.errors.push('Google Ads credentials not configured - skipping enrichment');
+    return result;
+  }
+
+  const opts = { teamConfigId: teamConfig.id };
+
+  // Fetch search terms and keyword performance in parallel
+  const [searchTermsRes, keywordsRes] = await Promise.allSettled([
+    gadsAccount.getSearchTermsReport(opts, undefined, 30),
+    gadsAccount.getKeywordPerformance(opts),
+  ]);
+
+  if (searchTermsRes.status === 'fulfilled' && searchTermsRes.value.data) {
+    const raw = JSON.stringify(searchTermsRes.value.data, null, 2);
+    const sanitized = sanitizeMcpOutput(raw, 'gads_search_terms_report', teamConfig.id);
+    if (sanitized.flags.length > 0) {
+      await logSanitizationEvent(supabase, 'gads_search_terms_report', teamConfig.id, raw, sanitized.flags, sanitized.blocked ? 'blocked' : 'sanitized');
+    }
+    if (!sanitized.blocked) {
+      result.searchTerms = sanitized.output;
+    } else {
+      result.errors.push('Search terms data blocked by security sanitizer');
+    }
+  } else {
+    const err = searchTermsRes.status === 'rejected' ? searchTermsRes.reason : searchTermsRes.value.error;
+    result.errors.push(`Search terms fetch failed: ${err}`);
+  }
+
+  if (keywordsRes.status === 'fulfilled' && keywordsRes.value.data) {
+    const raw = JSON.stringify(keywordsRes.value.data, null, 2);
+    const sanitized = sanitizeMcpOutput(raw, 'gads_keyword_performance', teamConfig.id);
+    if (sanitized.flags.length > 0) {
+      await logSanitizationEvent(supabase, 'gads_keyword_performance', teamConfig.id, raw, sanitized.flags, sanitized.blocked ? 'blocked' : 'sanitized');
+    }
+    if (!sanitized.blocked) {
+      result.keywordPerformance = sanitized.output;
+    } else {
+      result.errors.push('Keyword performance data blocked by security sanitizer');
+    }
+  } else {
+    const err = keywordsRes.status === 'rejected' ? keywordsRes.reason : keywordsRes.value.error;
+    result.errors.push(`Keyword performance fetch failed: ${err}`);
+  }
+
+  // Fetch competitor ads if domains provided
+  if (competitorDomains?.length) {
+    try {
+      const firstDomain = competitorDomains[0];
+      const { data, error } = await gadsIntel.getCompetitorAds(
+        { teamConfigId: teamConfig.id },
+        firstDomain,
+        undefined,
+        10
+      );
+      if (data) {
+        const raw = JSON.stringify(data, null, 2);
+        const sanitized = sanitizeMcpOutput(raw, 'gads_competitor_ads', teamConfig.id);
+        if (sanitized.flags.length > 0) {
+          await logSanitizationEvent(supabase, 'gads_competitor_ads', teamConfig.id, raw, sanitized.flags, sanitized.blocked ? 'blocked' : 'sanitized');
+        }
+        if (!sanitized.blocked) {
+          result.competitorAds = sanitized.output;
+        } else {
+          result.errors.push('Competitor ads data blocked by security sanitizer');
+        }
+      } else if (error) {
+        result.errors.push(`Competitor ads fetch failed: ${error}`);
+      }
+    } catch (e) {
+      result.errors.push(`Competitor ads error: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Format enrichment data into context sections for the planning prompt.
+ */
+export function formatEnrichmentForPrompt(enrichment: PlanningEnrichment): string {
+  const sections: string[] = [];
+
+  if (enrichment.searchTerms) {
+    sections.push(`## Google Ads Search Terms (30 days)\nReal user queries that triggered paid ads. High-impression terms without organic content are priority targets.\n${enrichment.searchTerms}`);
+  }
+
+  if (enrichment.keywordPerformance) {
+    sections.push(`## Google Ads Keyword Performance\nKeyword quality scores and performance metrics. Low quality scores indicate landing page content gaps.\n${enrichment.keywordPerformance}`);
+  }
+
+  if (enrichment.competitorAds) {
+    sections.push(`## Competitor Ad Intelligence\nActive competitor ads from Google Ads Transparency Library. Use for messaging differentiation.\n${enrichment.competitorAds}`);
+  }
+
+  if (enrichment.errors.length > 0) {
+    sections.push(`## Google Ads Enrichment Notes\n${enrichment.errors.map(e => `- ${e}`).join('\n')}`);
+  }
+
+  return sections.length > 0 ? `\n\n---\n# Paid Search Context\n${sections.join('\n\n')}` : '';
+}
+
+// ============================================================================
 // EXPORTS SUMMARY
 // ============================================================================
-// createPipelineRun  - Create a new pipeline run
-// callAgent          - Call Claude and log to seo_agent_calls (used by runPhase and externally)
-// runPhase           - Execute one pipeline phase (planning, writing, qc, etc.)
-// submitGateDecision - Record gate1/gate2 human decision
-// getRunWithCalls    - Fetch run + all agent calls
-// listRuns           - List runs for a team config
-// getTeamConfig      - Fetch a team config by ID
-// PHASE_ORDER        - Ordered list of phase names
+// createPipelineRun    - Create a new pipeline run
+// callAgent            - Call Claude and log to seo_agent_calls (used by runPhase and externally)
+// runPhase             - Execute one pipeline phase (planning, writing, qc, etc.)
+// submitGateDecision   - Record gate1/gate2 human decision
+// getRunWithCalls      - Fetch run + all agent calls
+// listRuns             - List runs for a team config
+// getTeamConfig        - Fetch a team config by ID
+// enrichPlanningContext - Fetch Google Ads data for pre-planning enrichment
+// formatEnrichmentForPrompt - Format enrichment into planning prompt context
+// PHASE_ORDER          - Ordered list of phase names

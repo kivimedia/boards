@@ -16,6 +16,11 @@ interface ConfigForm {
   max_iterations: number;
   posts_per_week: number;
   content_silos: string[];
+  // Google Ads fields
+  gads_customer_id: string;
+  gads_login_customer_id: string;
+  scrape_creators_api_key: string;
+  gemini_api_key: string;
 }
 
 const EMPTY_FORM: ConfigForm = {
@@ -31,6 +36,10 @@ const EMPTY_FORM: ConfigForm = {
   max_iterations: 3,
   posts_per_week: 2,
   content_silos: [],
+  gads_customer_id: '',
+  gads_login_customer_id: '',
+  scrape_creators_api_key: '',
+  gemini_api_key: '',
 };
 
 export default function SeoSettings() {
@@ -86,6 +95,10 @@ export default function SeoSettings() {
       max_iterations: config.config?.quality_thresholds?.max_iterations || 3,
       posts_per_week: config.config?.schedule?.posts_per_week || 2,
       content_silos: config.config?.content_targets || [],
+      gads_customer_id: config.google_credentials?.google_ads?.customer_id || '',
+      gads_login_customer_id: config.google_credentials?.google_ads?.login_customer_id || '',
+      scrape_creators_api_key: config.scrape_creators_api_key || '',
+      gemini_api_key: config.gemini_api_key || '',
     });
     setNewSilo('');
     setShowForm(true);
@@ -437,6 +450,32 @@ export default function SeoSettings() {
               </div>
 
               {/* Quality */}
+              {/* Google Ads Integration */}
+              <div className="border-t border-cream-dark dark:border-slate-700 pt-4">
+                <h3 className="text-sm font-semibold text-navy dark:text-white mb-2 font-heading">Google Ads Integration</h3>
+                <p className="text-xs text-navy/40 dark:text-slate-500 mb-3 font-body">Connect Google Ads to enrich SEO planning with paid search data and competitive intelligence.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-navy/50 dark:text-slate-400 mb-1 font-body">Google Ads Customer ID</label>
+                    <input type="text" placeholder="123-456-7890" value={form.gads_customer_id} onChange={e => setForm(f => ({ ...f, gads_customer_id: e.target.value }))} className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm font-body" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-navy/50 dark:text-slate-400 mb-1 font-body">MCC Login Customer ID (optional)</label>
+                    <input type="text" placeholder="For agency MCC accounts" value={form.gads_login_customer_id} onChange={e => setForm(f => ({ ...f, gads_login_customer_id: e.target.value }))} className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm font-body" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div>
+                    <label className="block text-xs text-navy/50 dark:text-slate-400 mb-1 font-body">ScrapeCreators API Key</label>
+                    <input type="password" placeholder="For competitive intel" value={form.scrape_creators_api_key} onChange={e => setForm(f => ({ ...f, scrape_creators_api_key: e.target.value }))} className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm font-body" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-navy/50 dark:text-slate-400 mb-1 font-body">Gemini API Key (optional)</label>
+                    <input type="password" placeholder="For video ad analysis" value={form.gemini_api_key} onChange={e => setForm(f => ({ ...f, gemini_api_key: e.target.value }))} className="w-full px-3 py-2 rounded-lg bg-white dark:bg-dark-surface border border-cream-dark dark:border-slate-700 text-sm font-body" />
+                  </div>
+                </div>
+              </div>
+
               <div className="border-t border-cream-dark dark:border-slate-700 pt-4">
                 <h3 className="text-sm font-semibold text-navy dark:text-white mb-2 font-heading">Quality Settings</h3>
                 <div className="grid grid-cols-3 gap-3">

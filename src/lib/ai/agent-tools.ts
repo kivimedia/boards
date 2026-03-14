@@ -2,6 +2,8 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { AgentSkill, BoardAgent, AgentToolDefinition } from '../types';
 import { gatherBoardContext, boardContextToText, type BoardContext } from '../board-context';
+import * as gadsAccount from '../integrations/google-ads-account';
+import * as gadsIntel from '../integrations/google-ads-intel';
 
 // ============================================================================
 // AGENT TOOL DEFINITIONS (Board-scoped, multi-turn)
@@ -140,9 +142,260 @@ const AGENT_TOOL_DEFINITIONS: (Anthropic.Tool & { _meta: { category: string; nee
     },
     _meta: { category: 'write', needs_confirmation: false },
   },
+
+  // =========================================================================
+  // GOOGLE ADS - ACCOUNT MANAGEMENT TOOLS
+  // =========================================================================
+  {
+    name: 'gads_list_campaigns',
+    description:
+      'List Google Ads campaigns with 30-day performance metrics (spend, impressions, clicks, conversions, CTR, CPC).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        team_config_id: { type: 'string', description: 'The SEO team config UUID' },
+        customer_id: { type: 'string', description: 'Google Ads customer ID (optional, uses default from config)' },
+      },
+      required: ['team_config_id'],
+    },
+    _meta: { category: 'google_ads', needs_confirmation: false },
+  },
+  {
+    name: 'gads_keyword_performance',
+    description:
+      'Get keyword-level performance data including quality scores, impressions, clicks, cost, and conversions.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        team_config_id: { type: 'string', description: 'The SEO team config UUID' },
+        campaign_id: { type: 'string', description: 'Filter to a specific campaign (optional)' },
+      },
+      required: ['team_config_id'],
+    },
+    _meta: { category: 'google_ads', needs_confirmation: false },
+  },
+  {
+    name: 'gads_search_terms_report',
+    description:
+      'Pull the search terms report - shows actual user queries that triggered ads. Gold mine for SEO content ideas.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        team_config_id: { type: 'string', description: 'The SEO team config UUID' },
+        campaign_id: { type: 'string', description: 'Filter to a specific campaign (optional)' },
+        days: { type: 'number', description: 'Lookback period in days (default 30)' },
+      },
+      required: ['team_config_id'],
+    },
+    _meta: { category: 'google_ads', needs_confirmation: false },
+  },
+  {
+    name: 'gads_budget_overview',
+    description:
+      'Get budget utilization analysis across all campaigns - daily budget, spend today, 30-day spend, utilization percentage.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        team_config_id: { type: 'string', description: 'The SEO team config UUID' },
+      },
+      required: ['team_config_id'],
+    },
+    _meta: { category: 'google_ads', needs_confirmation: false },
+  },
+  {
+    name: 'gads_update_budget',
+    description:
+      'Update a campaign daily budget. REQUIRES HUMAN CONFIRMATION before execution.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        team_config_id: { type: 'string', description: 'The SEO team config UUID' },
+        campaign_id: { type: 'string', description: 'The campaign to update' },
+        new_daily_budget_micros: { type: 'number', description: 'New daily budget in micros (1 USD = 1,000,000 micros)' },
+      },
+      required: ['team_config_id', 'campaign_id', 'new_daily_budget_micros'],
+    },
+    _meta: { category: 'google_ads', needs_confirmation: true },
+  },
+  {
+    name: 'gads_pause_keyword',
+    description:
+      'Pause or enable a keyword. REQUIRES HUMAN CONFIRMATION before execution.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        team_config_id: { type: 'string', description: 'The SEO team config UUID' },
+        keyword_id: { type: 'string', description: 'The keyword resource ID' },
+        status: { type: 'string', enum: ['ENABLED', 'PAUSED'], description: 'New keyword status' },
+      },
+      required: ['team_config_id', 'keyword_id', 'status'],
+    },
+    _meta: { category: 'google_ads', needs_confirmation: true },
+  },
+
+  // =========================================================================
+  // GOOGLE ADS - COMPETITIVE INTELLIGENCE TOOLS
+  // =========================================================================
+  {
+    name: 'gads_competitor_ads',
+    description:
+      'Pull live ads from a competitor domain via Google Ads Transparency Library. Shows headlines, descriptions, regions, and platforms.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        team_config_id: { type: 'string', description: 'The SEO team config UUID' },
+        domain: { type: 'string', description: 'Competitor domain to analyze (e.g. "competitor.com")' },
+        keyword: { type: 'string', description: 'Filter to ads mentioning this keyword (optional)' },
+        limit: { type: 'number', description: 'Max ads to return (default 20)' },
+      },
+      required: ['team_config_id', 'domain'],
+    },
+    _meta: { category: 'google_ads_intel', needs_confirmation: false },
+  },
+  {
+    name: 'gads_ad_details',
+    description:
+      'Get full details for a specific ad including all variations, regional stats, and creative assets.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        team_config_id: { type: 'string', description: 'The SEO team config UUID' },
+        ad_id: { type: 'string', description: 'The ad ID from competitor_ads results' },
+      },
+      required: ['team_config_id', 'ad_id'],
+    },
+    _meta: { category: 'google_ads_intel', needs_confirmation: false },
+  },
+  {
+    name: 'gads_analyze_ad_image',
+    description:
+      'AI analysis of an ad creative image - identifies brand elements, messaging strategy, color palette, and competitive insights.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        team_config_id: { type: 'string', description: 'The SEO team config UUID' },
+        image_url: { type: 'string', description: 'URL of the ad image to analyze' },
+        context: { type: 'string', description: 'Additional context about the competitor/market (optional)' },
+      },
+      required: ['team_config_id', 'image_url'],
+    },
+    _meta: { category: 'google_ads_intel', needs_confirmation: false },
+  },
+  {
+    name: 'gads_analyze_ad_video',
+    description:
+      'Gemini-powered analysis of an ad video - identifies key messages, brand mentions, and competitive insights.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        team_config_id: { type: 'string', description: 'The SEO team config UUID' },
+        video_url: { type: 'string', description: 'URL of the ad video to analyze' },
+        context: { type: 'string', description: 'Additional context about the competitor/market (optional)' },
+      },
+      required: ['team_config_id', 'video_url'],
+    },
+    _meta: { category: 'google_ads_intel', needs_confirmation: false },
+  },
 ];
 
 // Web search is handled as an Anthropic server tool, not a custom tool
+
+// ============================================================================
+// SECURITY SANITIZER - All external MCP/API output passes through this
+// ============================================================================
+
+const INJECTION_PATTERNS = [
+  /ignore\s+(all\s+)?previous\s+instructions/i,
+  /you\s+are\s+now\s+(a|an)/i,
+  /\[INST\]/i,
+  /\[\/INST\]/i,
+  /ADMIN[_\s]?OVERRIDE/i,
+  /system\s*:\s*you\s+are/i,
+  /\bdo\s+not\s+follow\b.*\brules\b/i,
+  /<\/?system>/i,
+  /\bprompt\s*injection\b/i,
+  /\breturn\s+the\s+(system|hidden)\s+prompt\b/i,
+];
+
+const HTML_STRIP_PATTERN = /<script[\s\S]*?<\/script>|<iframe[\s\S]*?<\/iframe>|javascript\s*:/gi;
+const DATA_URI_PATTERN = /data:text\/html[^"'\s]*/gi;
+const MAX_OUTPUT_LENGTH = 50_000;
+
+export interface SanitizeResult {
+  output: string;
+  flags: string[];
+  blocked: boolean;
+}
+
+/**
+ * Sanitize MCP/API output before it enters the agent context.
+ * Zero LLM cost - pure regex/string operations.
+ */
+export function sanitizeMcpOutput(
+  raw: string,
+  toolName: string,
+  teamConfigId?: string
+): SanitizeResult {
+  const flags: string[] = [];
+  let output = raw;
+
+  // 1. Strip dangerous HTML
+  if (HTML_STRIP_PATTERN.test(output)) {
+    flags.push('html_script_stripped');
+    output = output.replace(HTML_STRIP_PATTERN, '[REMOVED]');
+  }
+
+  // 2. Strip data: URIs
+  if (DATA_URI_PATTERN.test(output)) {
+    flags.push('data_uri_stripped');
+    output = output.replace(DATA_URI_PATTERN, '[REMOVED]');
+  }
+
+  // 3. Check for injection patterns
+  for (const pattern of INJECTION_PATTERNS) {
+    if (pattern.test(output)) {
+      flags.push(`injection_pattern:${pattern.source.slice(0, 40)}`);
+    }
+  }
+
+  // 4. Truncate to prevent context stuffing
+  if (output.length > MAX_OUTPUT_LENGTH) {
+    flags.push(`truncated:${output.length}`);
+    output = output.slice(0, MAX_OUTPUT_LENGTH) + '\n[TRUNCATED]';
+  }
+
+  // 5. Wrap in source delimiter
+  output = `<tool_output source="${toolName}">\n${output}\n</tool_output>`;
+
+  const blocked = flags.some(f => f.startsWith('injection_pattern:'));
+
+  return { output, flags, blocked };
+}
+
+/**
+ * Log sanitization events to security_audit_log table.
+ */
+export async function logSanitizationEvent(
+  supabase: SupabaseClient,
+  toolName: string,
+  teamConfigId: string | undefined,
+  rawPreview: string,
+  flags: string[],
+  action: string
+): Promise<void> {
+  if (flags.length === 0) return;
+  try {
+    await supabase.from('security_audit_log').insert({
+      tool_name: toolName,
+      team_config_id: teamConfigId || null,
+      raw_output_preview: rawPreview.slice(0, 500),
+      flags,
+      action_taken: action,
+    });
+  } catch {
+    // Non-critical - don't fail the tool call over audit logging
+  }
+}
 
 // ============================================================================
 // TOOL FILTERING
@@ -217,6 +470,10 @@ export function buildAgentConfirmationMessage(
       return `Update card ${toolInput.card_id}? Changes: ${Object.keys(toolInput).filter(k => k !== 'card_id').join(', ')}`;
     case 'move_card':
       return `Move card to "${toolInput.target_list_name}"?`;
+    case 'gads_update_budget':
+      return `Update campaign ${toolInput.campaign_id} budget to ${((toolInput.new_daily_budget_micros as number) / 1_000_000).toFixed(2)} USD/day?`;
+    case 'gads_pause_keyword':
+      return `${toolInput.status === 'PAUSED' ? 'Pause' : 'Enable'} keyword ${toolInput.keyword_id}?`;
     default:
       return `Execute ${toolName}?`;
   }
@@ -263,6 +520,41 @@ export async function executeAgentTool(
         return await executeMoveCard(supabase, boardId, toolInput);
       case 'add_comment':
         return await executeAddComment(supabase, userId, toolInput);
+
+      // Google Ads - Account Management
+      case 'gads_list_campaigns':
+        return await executeGadsTool(supabase, toolName, toolInput, () =>
+          gadsAccount.listCampaigns({ teamConfigId: toolInput.team_config_id as string, customerId: toolInput.customer_id as string | undefined }));
+      case 'gads_keyword_performance':
+        return await executeGadsTool(supabase, toolName, toolInput, () =>
+          gadsAccount.getKeywordPerformance({ teamConfigId: toolInput.team_config_id as string }, toolInput.campaign_id as string | undefined));
+      case 'gads_search_terms_report':
+        return await executeGadsTool(supabase, toolName, toolInput, () =>
+          gadsAccount.getSearchTermsReport({ teamConfigId: toolInput.team_config_id as string }, toolInput.campaign_id as string | undefined, toolInput.days as number | undefined));
+      case 'gads_budget_overview':
+        return await executeGadsTool(supabase, toolName, toolInput, () =>
+          gadsAccount.getBudgetOverview({ teamConfigId: toolInput.team_config_id as string }));
+      case 'gads_update_budget':
+        return await executeGadsTool(supabase, toolName, toolInput, () =>
+          gadsAccount.updateBudget({ teamConfigId: toolInput.team_config_id as string }, toolInput.campaign_id as string, toolInput.new_daily_budget_micros as number));
+      case 'gads_pause_keyword':
+        return await executeGadsTool(supabase, toolName, toolInput, () =>
+          gadsAccount.updateKeywordStatus({ teamConfigId: toolInput.team_config_id as string }, toolInput.keyword_id as string, toolInput.status as 'ENABLED' | 'PAUSED'));
+
+      // Google Ads - Competitive Intelligence
+      case 'gads_competitor_ads':
+        return await executeGadsTool(supabase, toolName, toolInput, () =>
+          gadsIntel.getCompetitorAds({ teamConfigId: toolInput.team_config_id as string }, toolInput.domain as string, toolInput.keyword as string | undefined, toolInput.limit as number | undefined));
+      case 'gads_ad_details':
+        return await executeGadsTool(supabase, toolName, toolInput, () =>
+          gadsIntel.getAdDetails({ teamConfigId: toolInput.team_config_id as string }, toolInput.ad_id as string));
+      case 'gads_analyze_ad_image':
+        return await executeGadsTool(supabase, toolName, toolInput, () =>
+          gadsIntel.analyzeAdImage({ teamConfigId: toolInput.team_config_id as string }, toolInput.image_url as string, toolInput.context as string | undefined));
+      case 'gads_analyze_ad_video':
+        return await executeGadsTool(supabase, toolName, toolInput, () =>
+          gadsIntel.analyzeAdVideo({ teamConfigId: toolInput.team_config_id as string }, toolInput.video_url as string, toolInput.context as string | undefined));
+
       default:
         return { success: false, message: `Unknown tool: ${toolName}` };
     }
@@ -638,6 +930,52 @@ async function executeAddComment(
   if (error) return { success: false, message: `Failed to add comment: ${error.message}` };
 
   return { success: true, message: 'Comment added to card.' };
+}
+
+// ============================================================================
+// GOOGLE ADS TOOL EXECUTOR (generic wrapper with sanitization)
+// ============================================================================
+
+async function executeGadsTool(
+  supabase: SupabaseClient,
+  toolName: string,
+  toolInput: Record<string, unknown>,
+  fetcher: () => Promise<{ data: unknown | null; error: string | null }>
+): Promise<AgentToolResult> {
+  const teamConfigId = toolInput.team_config_id as string | undefined;
+
+  const { data, error } = await fetcher();
+  if (error) {
+    return { success: false, message: `${toolName} failed: ${error}` };
+  }
+
+  const raw = JSON.stringify(data, null, 2);
+  const sanitized = sanitizeMcpOutput(raw, toolName, teamConfigId);
+
+  // Log if any flags were raised
+  if (sanitized.flags.length > 0) {
+    await logSanitizationEvent(
+      supabase,
+      toolName,
+      teamConfigId,
+      raw,
+      sanitized.flags,
+      sanitized.blocked ? 'blocked' : 'sanitized'
+    );
+  }
+
+  if (sanitized.blocked) {
+    return {
+      success: false,
+      message: `${toolName} output was blocked by security sanitizer. Flags: ${sanitized.flags.join(', ')}. The security team has been notified.`,
+    };
+  }
+
+  return {
+    success: true,
+    message: sanitized.output,
+    data: data as Record<string, unknown>,
+  };
 }
 
 // ============================================================================

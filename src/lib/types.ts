@@ -3339,7 +3339,16 @@ export interface SeoTeamConfig {
   google_credentials: {
     search_console: Record<string, unknown>;
     analytics: Record<string, unknown>;
+    google_ads?: {
+      customer_id: string;
+      login_customer_id?: string; // MCC account ID
+      oauth_refresh_token?: string;
+    };
   } | null;
+
+  // Google Ads MCP integration keys (stored in separate columns)
+  scrape_creators_api_key?: string | null;
+  gemini_api_key?: string | null;
 
   config: {
     wp_api_endpoint?: string;
