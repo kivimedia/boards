@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -14,6 +14,7 @@ import { useAppStore } from '@/stores/app-store';
 import { slugify } from '@/lib/slugify';
 import ProfilePopover from '@/components/layout/ProfilePopover';
 import { useRouter } from 'next/navigation';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 
 interface SidebarProps {
   initialBoards?: Board[];
@@ -107,7 +108,7 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
     fetchBoards();
     fetchClients();
 
-    // Listen for realtime board changes — but suppress within 2s of a star toggle
+    // Listen for realtime board changes - but suppress within 2s of a star toggle
     const channel = supabase
       .channel('boards-sidebar')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'boards' }, () => {
@@ -122,6 +123,168 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
       supabase.removeChannel(channel);
     };
   }, [user]);
+
+  // Board sections: split into team / client
+  const teamBoards = useMemo(() =>
+    boards.filter(b => !b.is_archived && !b.client_id)
+      .sort((a, b) => {
+        if (a.is_starred !== b.is_starred) return a.is_starred ? -1 : 1;
+        return (a.position ?? 0) - (b.position ?? 0);
+      }),
+    [boards]
+  );
+
+  const clientBoards = useMemo(() =>
+    boards.filter(b => !b.is_archived && !!b.client_id)
+      .sort((a, b) => {
+        if (a.is_starred !== b.is_starred) return a.is_starred ? -1 : 1;
+        return (a.position ?? 0) - (b.position ?? 0);
+      }),
+    [boards]
+  );
+
+  // Handle drag end for starred boards reordering
+  const onDragEnd = useCallback(async (result: DropResult) => {
+    const { source, destination, draggableId } = result;
+    if (!destination || (source.droppableId === destination.droppableId && source.index === destination.index)) return;
+
+    lastStarToggleRef.current = Date.now(); // suppress realtime refetch
+
+    const droppableId = source.droppableId; // 'team-starred' or 'client-starred'
+    const isTeam = droppableId === 'team-starred';
+    const sectionBoards = isTeam ? teamBoards : clientBoards;
+    const starred = sectionBoards.filter(b => b.is_starred);
+
+    // Reorder starred array
+    const reordered = [...starred];
+    const [moved] = reordered.splice(source.index, 1);
+    reordered.splice(destination.index, 0, moved);
+
+    // Assign new positions: starred get low positions (0, 1, 2...), unstarred keep theirs
+    const updates: { id: string; position: number }[] = reordered.map((b, i) => ({
+      id: b.id,
+      position: i,
+    }));
+
+    // Optimistic update
+    setBoards(prev => {
+      const posMap = new Map(updates.map(u => [u.id, u.position]));
+      return prev.map(b => posMap.has(b.id) ? { ...b, position: posMap.get(b.id)! } : b);
+    });
+
+    // Persist
+    await fetch('/api/boards/reorder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ boards: updates }),
+    });
+  }, [teamBoards, clientBoards]);
+
+  // Render a single board row
+  const renderBoardItem = (board: Board, isDragging?: boolean) => {
+    const config = BOARD_TYPE_CONFIG[board.type];
+    const isActive = pathname === `/board/${slugify(board.name)}`;
+    return (
+      <>
+        <span className="text-base">{config?.icon || '📋'}</span>
+        {!collapsed && (
+          <span className="truncate font-medium">{board.name}</span>
+        )}
+        {!collapsed && (
+          <button
+            onClick={(e) => toggleStar(e, board.id, board.is_starred)}
+            className={`ml-auto shrink-0 transition-all ${
+              board.is_starred
+                ? 'text-yellow-400'
+                : 'text-white/0 group-hover/board:text-white/30 hover:!text-yellow-400'
+            }`}
+            title={board.is_starred ? 'Unstar board' : 'Star board'}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill={board.is_starred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            </svg>
+          </button>
+        )}
+      </>
+    );
+  };
+
+  // Render a board section with DnD for starred items
+  const renderBoardSection = (
+    sectionBoards: Board[],
+    droppableId: string,
+  ) => {
+    const starred = sectionBoards.filter(b => b.is_starred);
+    const unstarred = sectionBoards.filter(b => !b.is_starred);
+
+    return (
+      <>
+        {/* Starred boards - draggable */}
+        {starred.length > 0 && (
+          <Droppable droppableId={droppableId}>
+            {(provided, snapshot) => (
+              <div
+                ref={provided.innerRef}
+                {...provided.droppableProps}
+                className={`transition-colors duration-200 rounded-lg ${
+                  snapshot.isDraggingOver ? 'bg-white/5' : ''
+                }`}
+              >
+                {starred.map((board, index) => (
+                  <Draggable key={board.id} draggableId={board.id} index={index}>
+                    {(dragProvided, dragSnapshot) => {
+                      const isActive = pathname === `/board/${slugify(board.name)}`;
+                      return (
+                        <div
+                          ref={dragProvided.innerRef}
+                          {...dragProvided.draggableProps}
+                          {...dragProvided.dragHandleProps}
+                          style={dragProvided.draggableProps.style}
+                          className={`
+                            group/board flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all duration-200 cursor-grab
+                            ${dragSnapshot.isDragging
+                              ? 'bg-electric/20 text-white shadow-lg shadow-electric/10 scale-[1.02] ring-1 ring-electric/30'
+                              : isActive
+                                ? 'bg-white/10 text-white'
+                                : 'text-white/60 hover:text-white hover:bg-white/5'
+                            }
+                          `}
+                          onClick={() => router.push(`/board/${slugify(board.name)}`)}
+                        >
+                          {renderBoardItem(board, dragSnapshot.isDragging)}
+                        </div>
+                      );
+                    }}
+                  </Draggable>
+                ))}
+                {provided.placeholder}
+              </div>
+            )}
+          </Droppable>
+        )}
+
+        {/* Unstarred boards - static */}
+        {unstarred.map((board) => {
+          const isActive = pathname === `/board/${slugify(board.name)}`;
+          return (
+            <Link
+              key={board.id}
+              href={`/board/${slugify(board.name)}`}
+              className={`
+                group/board flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all duration-200
+                ${isActive
+                  ? 'bg-white/10 text-white'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+                }
+              `}
+            >
+              {renderBoardItem(board)}
+            </Link>
+          );
+        })}
+      </>
+    );
+  };
 
   return (
     <>
@@ -302,113 +465,37 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
           {!collapsed && <span>Tools</span>}
         </Link>
 
-        {/* Team Boards accordion */}
-        {!collapsed && boardsLoaded && (
-          <button
-            onClick={() => setShowTeamBoards(!showTeamBoards)}
-            className="flex items-center gap-2 px-3 py-2 mt-4 text-[10px] font-semibold text-white/30 uppercase tracking-wider hover:text-white/50 transition-colors w-full"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points={showTeamBoards ? '18 15 12 9 6 15' : '6 9 12 15 18 9'} />
-            </svg>
-            <span>Team Boards ({boards.filter(b => !b.is_archived && !b.client_id).length})</span>
-          </button>
-        )}
-
-        {boardsLoaded && (collapsed || showTeamBoards) && boards
-          .filter((board) => !board.is_archived && !board.client_id)
-          .sort((a, b) => (a.is_starred === b.is_starred ? 0 : a.is_starred ? -1 : 1))
-          .map((board) => {
-          const config = BOARD_TYPE_CONFIG[board.type];
-          const isActive = pathname === `/board/${slugify(board.name)}`;
-          return (
-            <Link
-              key={board.id}
-              href={`/board/${slugify(board.name)}`}
-              className={`
-                group/board flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all duration-200
-                ${isActive
-                  ? 'bg-white/10 text-white'
-                  : 'text-white/60 hover:text-white hover:bg-white/5'
-                }
-              `}
+        <DragDropContext onDragEnd={onDragEnd}>
+          {/* Team Boards accordion */}
+          {!collapsed && boardsLoaded && (
+            <button
+              onClick={() => setShowTeamBoards(!showTeamBoards)}
+              className="flex items-center gap-2 px-3 py-2 mt-4 text-[10px] font-semibold text-white/30 uppercase tracking-wider hover:text-white/50 transition-colors w-full"
             >
-              <span className="text-base">{config?.icon || '📋'}</span>
-              {!collapsed && (
-                <span className="truncate font-medium">{board.name}</span>
-              )}
-              {!collapsed && (
-                <button
-                  onClick={(e) => toggleStar(e, board.id, board.is_starred)}
-                  className={`ml-auto shrink-0 transition-all ${
-                    board.is_starred
-                      ? 'text-yellow-400'
-                      : 'text-white/0 group-hover/board:text-white/30 hover:!text-yellow-400'
-                  }`}
-                  title={board.is_starred ? 'Unstar board' : 'Star board'}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill={board.is_starred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                  </svg>
-                </button>
-              )}
-            </Link>
-          );
-        })}
+              <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points={showTeamBoards ? '18 15 12 9 6 15' : '6 9 12 15 18 9'} />
+              </svg>
+              <span>Team Boards ({teamBoards.length})</span>
+            </button>
+          )}
 
-        {/* Client Boards accordion */}
-        {!collapsed && boardsLoaded && (
-          <button
-            onClick={() => setShowClientBoards(!showClientBoards)}
-            className="flex items-center gap-2 px-3 py-2 mt-3 text-[10px] font-semibold text-white/30 uppercase tracking-wider hover:text-white/50 transition-colors w-full"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points={showClientBoards ? '18 15 12 9 6 15' : '6 9 12 15 18 9'} />
-            </svg>
-            <span>Client Boards ({boards.filter(b => !b.is_archived && b.client_id).length})</span>
-          </button>
-        )}
+          {boardsLoaded && (collapsed || showTeamBoards) && renderBoardSection(teamBoards, 'team-starred')}
 
-        {boardsLoaded && (collapsed || showClientBoards) && boards
-          .filter((board) => !board.is_archived && !!board.client_id)
-          .sort((a, b) => (a.is_starred === b.is_starred ? 0 : a.is_starred ? -1 : 1))
-          .map((board) => {
-          const config = BOARD_TYPE_CONFIG[board.type];
-          const isActive = pathname === `/board/${slugify(board.name)}`;
-          return (
-            <Link
-              key={board.id}
-              href={`/board/${slugify(board.name)}`}
-              className={`
-                group/board flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all duration-200
-                ${isActive
-                  ? 'bg-white/10 text-white'
-                  : 'text-white/60 hover:text-white hover:bg-white/5'
-                }
-              `}
+          {/* Client Boards accordion */}
+          {!collapsed && boardsLoaded && (
+            <button
+              onClick={() => setShowClientBoards(!showClientBoards)}
+              className="flex items-center gap-2 px-3 py-2 mt-3 text-[10px] font-semibold text-white/30 uppercase tracking-wider hover:text-white/50 transition-colors w-full"
             >
-              <span className="text-base">{config?.icon || '📋'}</span>
-              {!collapsed && (
-                <span className="truncate font-medium">{board.name}</span>
-              )}
-              {!collapsed && (
-                <button
-                  onClick={(e) => toggleStar(e, board.id, board.is_starred)}
-                  className={`ml-auto shrink-0 transition-all ${
-                    board.is_starred
-                      ? 'text-yellow-400'
-                      : 'text-white/0 group-hover/board:text-white/30 hover:!text-yellow-400'
-                  }`}
-                  title={board.is_starred ? 'Unstar board' : 'Star board'}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill={board.is_starred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                  </svg>
-                </button>
-              )}
-            </Link>
-          );
-        })}
+              <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points={showClientBoards ? '18 15 12 9 6 15' : '6 9 12 15 18 9'} />
+              </svg>
+              <span>Client Boards ({clientBoards.length})</span>
+            </button>
+          )}
+
+          {boardsLoaded && (collapsed || showClientBoards) && renderBoardSection(clientBoards, 'client-starred')}
+        </DragDropContext>
 
         {/* Clients accordion */}
         {!collapsed && clients.length > 0 && (

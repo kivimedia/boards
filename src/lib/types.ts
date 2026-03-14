@@ -132,6 +132,7 @@ export interface Board {
   background_image_url?: string | null;
   is_archived: boolean;
   is_starred: boolean;
+  position: number;
   client_id?: string | null;
 }
 

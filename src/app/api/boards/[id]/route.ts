@@ -26,6 +26,7 @@ interface UpdateBoardBody {
   background_image_url?: string | null;
   is_archived?: boolean;
   is_starred?: boolean;
+  position?: number;
 }
 
 export async function PATCH(request: NextRequest, { params }: Params) {
@@ -42,6 +43,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   if (body.body.background_image_url !== undefined) updates.background_image_url = body.body.background_image_url;
   if (body.body.is_archived !== undefined) updates.is_archived = body.body.is_archived;
   if (body.body.is_starred !== undefined) updates.is_starred = body.body.is_starred;
+  if (body.body.position !== undefined) updates.position = body.body.position;
 
   if (Object.keys(updates).length === 0) {
     return errorResponse('No valid fields to update');

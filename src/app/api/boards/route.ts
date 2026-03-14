@@ -27,7 +27,7 @@ export async function GET() {
     const result = await supabase
       .from('boards')
       .select('*')
-      .order('created_at', { ascending: true });
+      .order('position', { ascending: true });
     data = result.data?.filter((board: any) => canAccessBoardByRole(agencyRole, board.type)) ?? [];
     error = result.error;
   } else {
@@ -36,7 +36,7 @@ export async function GET() {
       .from('boards')
       .select('*, board_members!inner(user_id)')
       .eq('board_members.user_id', userId)
-      .order('created_at', { ascending: true });
+      .order('position', { ascending: true });
     data = result.data ?? [];
     error = result.error;
   }
