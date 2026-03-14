@@ -83,10 +83,9 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
       } catch {}
     };
 
-    // Always fetch boards + clients on mount
-    fetchBoards();
+    // Only fetch boards if we don't have initialBoards (avoids flash)
+    if (!initialBoards?.length) fetchBoards();
     fetchClients();
-    if (user) fetchBoards();
 
     // Listen for realtime board changes — but suppress within 2s of a star toggle
     const channel = supabase
