@@ -83,8 +83,8 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
       } catch {}
     };
 
-    // Only fetch boards if we don't have initialBoards (avoids flash)
-    if (!initialBoards?.length) fetchBoards();
+    // Always fetch fresh boards + clients on mount
+    fetchBoards();
     fetchClients();
 
     // Listen for realtime board changes — but suppress within 2s of a star toggle
