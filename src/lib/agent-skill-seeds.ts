@@ -1,6 +1,6 @@
 // ============================================================================
 // AGENT SKILL SEED DATA
-// All 16 skills from Skills Pack + Creative Pack with quality assessments
+// All skills from Skills Pack + Creative Pack + SEO Team + Custom with quality assessments
 // ============================================================================
 
 import type { AgentSkillCategory, AgentSkillPack, AgentQualityTier } from './types';
@@ -1246,6 +1246,88 @@ export const SKILL_SEEDS: SkillSeed[] = [
     icon: '💰',
     color: '#059669',
     sort_order: 29,
+  },
+
+  // =========================================================================
+  // CUSTOM PACK (client-specific skills)
+  // =========================================================================
+  {
+    slug: 'historian-archive',
+    name: 'Historian Archive',
+    description: 'Collects images from a user-selected Slack channel (12-month lookback), analyzes, categorizes, scores, and organizes them into a searchable archive. Supports client-facing history views and conversational retrieval. Coordinates with Image Manipulator Sidekick for light cleanup.',
+    category: 'strategy',
+    pack: 'custom',
+    quality_tier: 'solid',
+    quality_score: 74,
+    quality_notes: 'Comprehensive archival workflow spec. Depends on Slack connector, image analysis, storage, and Humanity API for Stages Plus client. Full 5-star scoring rubric and client portal structure defined.',
+    strengths: [
+      'Complete Slack intake model with metadata preservation',
+      'Structured 5-star quality scoring with clear approval/rejection rules',
+      'Client-friendly archive organization with approved/rejected/metadata buckets',
+      'Conversational interface for querying archive by date, client, category',
+      'Humanity ShiftPlanning integration for Stages Plus event attribution',
+    ],
+    weaknesses: [
+      'Slack connector and storage layer must be provided by runtime',
+      'Image analysis requires vision-capable model',
+      'Humanity integration is client-specific (Stages Plus only)',
+    ],
+    improvement_suggestions: [
+      'Add batch processing mode for large channel backlogs',
+      'Implement deduplication for images shared across channels',
+      'Add automatic re-scoring when sidekick improves an image',
+    ],
+    supported_tools: [],
+    required_context: ['slack_channel', 'client_mapping', 'lookback_window'],
+    output_format: 'Structured archive with metadata JSON per image, client portal sections',
+    estimated_tokens: 6000,
+    depends_on: [],
+    feeds_into: ['sidekick-image-manipulator'],
+    requires_mcp_tools: [],
+    fallback_behavior: 'If Slack connector unavailable, switch to planning mode and describe what would be collected.',
+    reference_docs: [],
+    icon: '🗂️',
+    color: '#D97706',
+    sort_order: 30,
+  },
+  {
+    slug: 'sidekick-image-manipulator',
+    name: 'Sidekick Image Manipulator',
+    description: 'Historian agent\'s visual cleanup partner. Reviews images and creates lightly improved versions using Nano Banana 2 when useful, without altering historical truth. Returns structured assessments for Historian scoring.',
+    category: 'creative',
+    pack: 'custom',
+    quality_tier: 'solid',
+    quality_score: 72,
+    quality_notes: 'Well-defined cleanup rules with clear allowed/disallowed edit types. Strong non-negotiable historical truth preservation rule. Depends on Nano Banana 2 for actual image processing.',
+    strengths: [
+      'Clear allowed vs disallowed edit taxonomy',
+      'Non-negotiable historical truth preservation rule',
+      'Structured output contract with risk levels and recommendations',
+      'Three decision states: keep original, keep original + clean, return with warning',
+      'Escalation rules for sensitive or ambiguous images',
+    ],
+    weaknesses: [
+      'Depends on Nano Banana 2 or equivalent image editing capability',
+      'Cannot make archive admission decisions - Historian remains final judge',
+      'Decluttering boundary is subjective in edge cases',
+    ],
+    improvement_suggestions: [
+      'Add before/after comparison metrics (SSIM, perceptual hash)',
+      'Implement automatic escalation for text-heavy images',
+      'Add batch mode for processing multiple images from same event',
+    ],
+    supported_tools: ['post_comment', 'update_custom_field'],
+    required_context: ['image_file', 'image_id', 'historian_notes', 'source_context'],
+    output_format: 'JSON with image_id, decision, edit_summary, risk_level, asset paths',
+    estimated_tokens: 3000,
+    depends_on: ['historian-archive'],
+    feeds_into: [],
+    requires_mcp_tools: [],
+    fallback_behavior: 'If image editing tools unavailable, return assessment only without clean version.',
+    reference_docs: [],
+    icon: '🪄',
+    color: '#8B5CF6',
+    sort_order: 31,
   },
 ];
 
