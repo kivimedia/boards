@@ -4280,10 +4280,15 @@ export interface PRRun {
   completed_at: string | null;
   error_log: unknown[];
   stage_results: Record<string, unknown>;
+  native_review_required: boolean;
+  native_review_completed: boolean;
+  native_reviewer_notes: string | null;
   // Joined
   client?: PRClient;
   territory?: PRTerritory;
 }
+
+export type PROutletOutcome = 'no_response' | 'positive' | 'neutral' | 'negative';
 
 export interface PROutlet {
   id: string;
@@ -4314,6 +4319,9 @@ export interface PROutlet {
   qa_score: number;
   pipeline_stage: PRPipelineStage;
   is_global: boolean;
+  outcome: PROutletOutcome | null;
+  outcome_notes: string | null;
+  outcome_date: string | null;
   created_at: string;
   updated_at: string;
 }

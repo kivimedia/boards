@@ -16,6 +16,16 @@ import type {
   PRPipelineStage,
 } from '@/lib/types';
 
+// Extended run type for native review fields (may be present as DB columns)
+type PRRunExtended = PRRun & {
+  native_review_required?: boolean;
+  native_review_completed?: boolean;
+  native_review_notes?: string | null;
+  native_review_run_number?: number | null;
+  native_review_total_runs?: number | null;
+  native_review_language?: string | null;
+};
+
 /* ------------------------------------------------------------------ */
 /*  Badges                                                             */
 /* ------------------------------------------------------------------ */
@@ -71,6 +81,114 @@ function DraftBadge({ status }: { status: PRDraftStatus }) {
     REVISED: 'bg-amber-500/20 text-amber-400',
   };
   return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${s[status]}`}>{status}</span>;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Native Review Banner                                               */
+/* ------------------------------------------------------------------ */
+
+function NativeReviewBanner({ run, runId }: { run: PRRunExtended; runId: string }) {
+  const queryClient = useQueryClient();
+  const [showModal, setShowModal] = useState(false);
+  const [notes, setNotes] = useState('');
+
+  const completeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/team-pr/runs/${runId}/native-review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ completed: true, notes }),
+      });
+      if (!res.ok) throw new Error('Failed to mark review complete');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pr-run', runId] });
+      setShowModal(false);
+      setNotes('');
+    },
+  });
+
+  if (!run.native_review_required) return null;
+
+  if (run.native_review_completed) {
+    return (
+      <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-500/15 border border-green-500/30 text-green-400 text-xs font-medium">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Native review completed
+      </div>
+    );
+  }
+
+  const runNum = run.native_review_run_number ?? '?';
+  const totalRuns = run.native_review_total_runs ?? 3;
+  const lang = run.native_review_language || (run.territory?.language ? run.territory.language.charAt(0).toUpperCase() + run.territory.language.slice(1) : 'foreign language');
+
+  return (
+    <>
+      <div className="flex items-start gap-3 p-4 rounded-xl border border-violet-500/30 bg-violet-500/8">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-violet-400 mt-0.5 shrink-0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <div className="flex-1">
+          <p className="text-sm font-medium text-violet-300">
+            Native speaker review required (run {runNum} of {totalRuns} for {lang} content).
+          </p>
+          <p className="text-xs text-violet-400/80 mt-0.5">
+            A native {lang} speaker should review the generated emails before sending.
+          </p>
+        </div>
+        <button
+          onClick={() => setShowModal(true)}
+          className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-xs font-medium transition-colors whitespace-nowrap"
+        >
+          Mark Review Complete
+        </button>
+      </div>
+
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-[#141420] border border-gray-500/20 rounded-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white">Mark Review Complete</h3>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Review Notes (optional)</label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={4}
+                  placeholder="Any notes from the native speaker review..."
+                  className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50 resize-none"
+                />
+              </div>
+              {completeMutation.isError && (
+                <p className="text-xs text-red-400">Failed to save. Please try again.</p>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => completeMutation.mutate()}
+                  disabled={completeMutation.isPending}
+                  className="flex-1 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-sm font-medium transition-colors"
+                >
+                  {completeMutation.isPending ? 'Saving...' : 'Confirm Review Complete'}
+                </button>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="px-4 py-2 rounded-lg text-gray-400 hover:text-white text-sm transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -544,7 +662,7 @@ export default function RunDetailPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pr-run', runId] }),
   });
 
-  const run: PRRun | null = data || null;
+  const run: PRRunExtended | null = data || null;
 
   if (isLoading) {
     return (
@@ -595,6 +713,9 @@ export default function RunDetailPage() {
           </p>
         </div>
       </div>
+
+      {/* Native Review Banner */}
+      <NativeReviewBanner run={run} runId={runId} />
 
       {/* Pipeline Visualizer */}
       <div className="p-4 rounded-xl border border-gray-500/20 bg-[#141420]/50">

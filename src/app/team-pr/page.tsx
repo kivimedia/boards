@@ -109,6 +109,9 @@ export default function TeamPRDashboard() {
         <Link href="/team-pr/drafts" className="px-3 py-1.5 rounded-lg bg-gray-500/10 text-gray-300 hover:bg-gray-500/20 text-sm transition-colors">
           Email Drafts
         </Link>
+        <Link href="/team-pr/feedback" className="px-3 py-1.5 rounded-lg bg-gray-500/10 text-gray-300 hover:bg-gray-500/20 text-sm transition-colors">
+          Feedback
+        </Link>
         <Link href="/team-pr/settings" className="px-3 py-1.5 rounded-lg bg-gray-500/10 text-gray-300 hover:bg-gray-500/20 text-sm transition-colors">
           Settings
         </Link>

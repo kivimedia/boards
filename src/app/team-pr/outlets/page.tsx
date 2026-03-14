@@ -4,6 +4,14 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { PROutlet, PROutletType, PRPipelineStage, PRClient } from '@/lib/types';
 
+type PROutcomeValue = 'no_response' | 'positive' | 'neutral' | 'negative';
+
+// Extended outlet with optional outcome fields
+type PROutletWithOutcome = PROutlet & {
+  outcome?: PROutcomeValue | null;
+  outcome_notes?: string | null;
+};
+
 /* ------------------------------------------------------------------ */
 /*  Badges                                                             */
 /* ------------------------------------------------------------------ */
@@ -27,10 +35,58 @@ function PipelineBadge({ stage }: { stage: PRPipelineStage }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Outcome Badge                                                      */
+/* ------------------------------------------------------------------ */
+
+function OutcomeBadge({ outcome }: { outcome?: PROutcomeValue | null }) {
+  if (!outcome || outcome === 'no_response') {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs text-gray-500">
+        <span className="w-2 h-2 rounded-full bg-gray-500 inline-block" />
+        No response
+      </span>
+    );
+  }
+  const styles: Record<PROutcomeValue, { dot: string; text: string; label: string }> = {
+    positive:    { dot: 'bg-green-400',  text: 'text-green-400',  label: 'Positive' },
+    negative:    { dot: 'bg-red-400',    text: 'text-red-400',    label: 'Negative' },
+    neutral:     { dot: 'bg-gray-400',   text: 'text-gray-400',   label: 'Neutral' },
+    no_response: { dot: 'bg-gray-500',   text: 'text-gray-500',   label: 'No response' },
+  };
+  const s = styles[outcome];
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${s.text}`}>
+      <span className={`w-2 h-2 rounded-full ${s.dot} inline-block`} />
+      {s.label}
+    </span>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Outlet Slide-Over                                                  */
 /* ------------------------------------------------------------------ */
 
-function OutletSlideOver({ outlet, onClose }: { outlet: PROutlet; onClose: () => void }) {
+function OutletSlideOver({ outlet, onClose }: { outlet: PROutletWithOutcome; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [selectedOutcome, setSelectedOutcome] = useState<PROutcomeValue>(outlet.outcome || 'no_response');
+  const [outcomeNotes, setOutcomeNotes] = useState(outlet.outcome_notes || '');
+
+  const outcomeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/team-pr/outlets/${outlet.id}/outcome`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ outcome: selectedOutcome, notes: outcomeNotes }),
+      });
+      if (!res.ok) throw new Error('Failed to save outcome');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pr-outlets-global'] });
+    },
+  });
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm" onClick={onClose}>
       <div className="w-full max-w-lg bg-[#141420] border-l border-gray-500/20 overflow-y-auto" onClick={(e) => e.stopPropagation()}>
@@ -125,6 +181,57 @@ function OutletSlideOver({ outlet, onClose }: { outlet: PROutlet; onClose: () =>
               <p className="text-sm text-gray-300 mt-1">{outlet.qa_notes}</p>
             </div>
           )}
+
+          {/* Outcome Section */}
+          <div className="p-4 rounded-lg border border-gray-500/20 bg-gray-500/5 space-y-3">
+            <h3 className="text-xs font-medium text-gray-400">Outcome</h3>
+
+            {/* Current outcome */}
+            <OutcomeBadge outcome={outlet.outcome} />
+
+            {/* Radio buttons */}
+            <div className="grid grid-cols-2 gap-2">
+              {(['no_response', 'positive', 'neutral', 'negative'] as PROutcomeValue[]).map((val) => {
+                const labelMap: Record<PROutcomeValue, string> = {
+                  no_response: 'No Response',
+                  positive: 'Positive',
+                  neutral: 'Neutral',
+                  negative: 'Negative',
+                };
+                return (
+                  <label key={val} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name={`outcome-${outlet.id}`}
+                      value={val}
+                      checked={selectedOutcome === val}
+                      onChange={() => setSelectedOutcome(val)}
+                      className="accent-purple-500"
+                    />
+                    <span className="text-xs text-gray-300">{labelMap[val]}</span>
+                  </label>
+                );
+              })}
+            </div>
+
+            {/* Notes */}
+            <textarea
+              value={outcomeNotes}
+              onChange={(e) => setOutcomeNotes(e.target.value)}
+              rows={2}
+              placeholder="Notes about this outcome..."
+              className="w-full px-2 py-1.5 rounded bg-gray-500/10 border border-gray-500/20 text-white text-xs outline-none focus:border-purple-500/50 resize-none"
+            />
+
+            {/* Save button */}
+            <button
+              onClick={() => outcomeMutation.mutate()}
+              disabled={outcomeMutation.isPending}
+              className="w-full px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-medium transition-colors"
+            >
+              {outcomeMutation.isPending ? 'Saving...' : outcomeMutation.isSuccess ? 'Saved!' : 'Save Outcome'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -145,7 +252,7 @@ export default function OutletDatabasePage() {
   const [stageFilter, setStageFilter] = useState<string>('');
   const [clientFilter, setClientFilter] = useState<string>('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [slideOverOutlet, setSlideOverOutlet] = useState<PROutlet | null>(null);
+  const [slideOverOutlet, setSlideOverOutlet] = useState<PROutletWithOutcome | null>(null);
 
   // Fetch clients for filter dropdown
   const { data: clientsData } = useQuery({
@@ -206,7 +313,7 @@ export default function OutletDatabasePage() {
     },
   });
 
-  const outlets: PROutlet[] = data?.items || [];
+  const outlets: PROutletWithOutcome[] = data?.items || [];
   const clients: PRClient[] = clientsData?.items || [];
 
   function toggleSelect(id: string) {
@@ -311,6 +418,7 @@ export default function OutletDatabasePage() {
                 <th className="text-left px-4 py-3 font-medium text-gray-400">Email</th>
                 <th className="text-right px-4 py-3 font-medium text-gray-400">Relevance</th>
                 <th className="text-right px-4 py-3 font-medium text-gray-400">QA</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-400">Outcome</th>
                 <th className="px-4 py-3 w-8"></th>
               </tr>
             </thead>
@@ -344,6 +452,9 @@ export default function OutletDatabasePage() {
                     <span className={`font-medium ${o.qa_score >= 0.7 ? 'text-green-400' : o.qa_score >= 0.4 ? 'text-amber-400' : 'text-gray-400'}`}>
                       {(o.qa_score * 100).toFixed(0)}%
                     </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <OutcomeBadge outcome={o.outcome} />
                   </td>
                   <td className="px-4 py-3 text-center">
                     {o.is_global && (

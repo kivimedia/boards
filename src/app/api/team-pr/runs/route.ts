@@ -60,6 +60,30 @@ export async function POST(request: NextRequest) {
 
   const { supabase, userId } = auth.ctx;
 
+  // Determine if native review is required:
+  // Trigger when client+territory has fewer than 3 completed runs AND territory language is 'sv'
+  let nativeReviewRequired = false;
+  if (body.body.territory_id) {
+    const { data: territory } = await supabase
+      .from('pr_territories')
+      .select('language')
+      .eq('id', body.body.territory_id)
+      .single();
+
+    if (territory?.language === 'sv') {
+      const { count: completedCount } = await supabase
+        .from('pr_runs')
+        .select('id', { count: 'exact', head: true })
+        .eq('client_id', body.body.client_id)
+        .eq('territory_id', body.body.territory_id)
+        .eq('status', 'COMPLETED');
+
+      if ((completedCount ?? 0) < 3) {
+        nativeReviewRequired = true;
+      }
+    }
+  }
+
   // Create the run
   const { data: run, error: runError } = await supabase
     .from('pr_runs')
@@ -70,6 +94,7 @@ export async function POST(request: NextRequest) {
       max_outlets: body.body.max_outlets || 50,
       search_queries: body.body.search_queries || [],
       status: 'PENDING',
+      native_review_required: nativeReviewRequired,
     })
     .select()
     .single();

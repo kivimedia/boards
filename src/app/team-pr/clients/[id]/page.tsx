@@ -393,11 +393,51 @@ function TerritoriesTab({ clientId }: { clientId: string }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Seasonal Calendar Warning helpers                                  */
+/* ------------------------------------------------------------------ */
+
+type SeasonalPeriodKey = 'jan_feb' | 'mar_apr' | 'may' | 'jun_jul' | 'aug' | 'sep_oct' | 'nov_dec';
+
+function getCurrentPeriodKey(): SeasonalPeriodKey {
+  const month = new Date().getMonth(); // 0-indexed
+  if (month <= 1) return 'jan_feb';
+  if (month <= 3) return 'mar_apr';
+  if (month === 4) return 'may';
+  if (month <= 6) return 'jun_jul';
+  if (month === 7) return 'aug';
+  if (month <= 9) return 'sep_oct';
+  return 'nov_dec';
+}
+
+const PERIOD_LABELS: Record<SeasonalPeriodKey, string> = {
+  jan_feb: 'Jan-Feb',
+  mar_apr: 'Mar-Apr',
+  may: 'May',
+  jun_jul: 'Jun-Jul',
+  aug: 'August',
+  sep_oct: 'Sep-Oct',
+  nov_dec: 'Nov-Dec',
+};
+
+function isDeadZone(strategyText: string): boolean {
+  const lower = strategyText.toLowerCase();
+  return lower.includes('do not pitch') || lower.includes('dead zone');
+}
+
+/* ------------------------------------------------------------------ */
 /*  Runs Tab                                                           */
 /* ------------------------------------------------------------------ */
 
 function RunsTab({ clientId }: { clientId: string }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const [showStartModal, setShowStartModal] = useState(false);
+  const [selectedTerritoryId, setSelectedTerritoryId] = useState('');
+  const [deadZoneWarning, setDeadZoneWarning] = useState<{
+    periodLabel: string;
+    territoryName: string;
+    strategyText: string;
+  } | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['pr-runs', 'client', clientId],
@@ -408,41 +448,187 @@ function RunsTab({ clientId }: { clientId: string }) {
     },
   });
 
+  const { data: territoriesData } = useQuery({
+    queryKey: ['pr-territories', clientId],
+    queryFn: async () => {
+      const res = await fetch(`/api/team-pr/territories?client_id=${clientId}`, { credentials: 'include' });
+      const json = await res.json();
+      return json.data;
+    },
+  });
+
+  const startRunMutation = useMutation({
+    mutationFn: async (territoryId: string) => {
+      const res = await fetch('/api/team-pr/runs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ client_id: clientId, territory_id: territoryId || null }),
+      });
+      if (!res.ok) throw new Error('Failed to start run');
+      return res.json();
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['pr-runs', 'client', clientId] });
+      setShowStartModal(false);
+      setDeadZoneWarning(null);
+      if (result.data?.id) router.push(`/team-pr/runs/${result.data.id}`);
+    },
+  });
+
+  const territories: PRTerritory[] = territoriesData?.items || [];
   const runs: PRRun[] = data?.items || [];
 
-  if (isLoading) return <div className="h-32 rounded-lg bg-gray-500/10 animate-pulse" />;
-  if (runs.length === 0) return <p className="text-gray-400 text-sm text-center py-8">No runs for this client yet.</p>;
+  function handleStartRunClick(territoryId: string) {
+    if (!territoryId) {
+      startRunMutation.mutate('');
+      return;
+    }
+    const territory = territories.find((t) => t.id === territoryId);
+    if (!territory) {
+      startRunMutation.mutate(territoryId);
+      return;
+    }
+    const periodKey = getCurrentPeriodKey();
+    const cal = territory.seasonal_calendar as Record<string, string> | undefined;
+    const strategyText = cal?.[periodKey] || '';
+    if (strategyText && isDeadZone(strategyText)) {
+      setDeadZoneWarning({
+        periodLabel: PERIOD_LABELS[periodKey],
+        territoryName: territory.name,
+        strategyText,
+      });
+    } else {
+      startRunMutation.mutate(territoryId);
+      setShowStartModal(false);
+    }
+  }
 
   return (
-    <div className="rounded-xl border border-gray-500/20 overflow-hidden">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="bg-gray-500/5 border-b border-gray-500/20">
-            <th className="text-left px-4 py-3 font-medium text-gray-400">Territory</th>
-            <th className="text-left px-4 py-3 font-medium text-gray-400">Status</th>
-            <th className="text-right px-4 py-3 font-medium text-gray-400">Outlets</th>
-            <th className="text-right px-4 py-3 font-medium text-gray-400">Emails</th>
-            <th className="text-right px-4 py-3 font-medium text-gray-400">Cost</th>
-            <th className="text-left px-4 py-3 font-medium text-gray-400">Created</th>
-          </tr>
-        </thead>
-        <tbody>
-          {runs.map((run) => (
-            <tr
-              key={run.id}
-              onClick={() => router.push(`/team-pr/runs/${run.id}`)}
-              className="border-b border-gray-500/10 hover:bg-gray-500/5 cursor-pointer transition-colors"
+    <div className="space-y-4">
+      {/* Start Run button */}
+      <div className="flex justify-end">
+        <button
+          onClick={() => setShowStartModal(true)}
+          className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium transition-colors"
+        >
+          + Start New Run
+        </button>
+      </div>
+
+      {/* Dead zone warning banner */}
+      {deadZoneWarning && (
+        <div className="p-4 rounded-xl border border-amber-500/40 bg-amber-500/10 space-y-3">
+          <div className="flex gap-3">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400 mt-0.5 shrink-0"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <div>
+              <p className="text-sm font-medium text-amber-300">
+                Warning: {deadZoneWarning.periodLabel} is typically a dead zone for {deadZoneWarning.territoryName}.
+              </p>
+              <p className="text-xs text-amber-400/80 mt-1">
+                Strategy note: {deadZoneWarning.strategyText}
+              </p>
+              <p className="text-xs text-amber-400/60 mt-1">Are you sure you want to proceed?</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => { startRunMutation.mutate(selectedTerritoryId); }}
+              disabled={startRunMutation.isPending}
+              className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-xs font-medium transition-colors"
             >
-              <td className="px-4 py-3 text-gray-300">{run.territory?.name || '-'}</td>
-              <td className="px-4 py-3"><StatusBadge status={run.status} /></td>
-              <td className="px-4 py-3 text-right text-gray-300">{run.outlets_discovered}</td>
-              <td className="px-4 py-3 text-right text-gray-300">{run.emails_generated}</td>
-              <td className="px-4 py-3 text-right text-gray-300">${run.total_cost_usd.toFixed(2)}</td>
-              <td className="px-4 py-3 text-gray-400">{new Date(run.created_at).toLocaleDateString()}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+              {startRunMutation.isPending ? 'Starting...' : 'Proceed Anyway'}
+            </button>
+            <button
+              onClick={() => setDeadZoneWarning(null)}
+              className="px-3 py-1.5 text-gray-400 hover:text-white text-xs transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Start Run modal */}
+      {showStartModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-[#141420] border border-gray-500/20 rounded-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white">Start New Run</h3>
+              <button onClick={() => setShowStartModal(false)} className="text-gray-400 hover:text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Territory (optional)</label>
+                <select
+                  value={selectedTerritoryId}
+                  onChange={(e) => setSelectedTerritoryId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-gray-500/10 border border-gray-500/20 text-white text-sm outline-none focus:border-purple-500/50"
+                >
+                  <option value="">No specific territory</option>
+                  {territories.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => { setShowStartModal(false); handleStartRunClick(selectedTerritoryId); }}
+                  disabled={startRunMutation.isPending}
+                  className="flex-1 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-sm font-medium transition-colors"
+                >
+                  {startRunMutation.isPending ? 'Starting...' : 'Start Run'}
+                </button>
+                <button
+                  onClick={() => setShowStartModal(false)}
+                  className="px-4 py-2 rounded-lg text-gray-400 hover:text-white text-sm transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="h-32 rounded-lg bg-gray-500/10 animate-pulse" />
+      ) : runs.length === 0 ? (
+        <p className="text-gray-400 text-sm text-center py-8">No runs for this client yet.</p>
+      ) : (
+        <div className="rounded-xl border border-gray-500/20 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-500/5 border-b border-gray-500/20">
+                <th className="text-left px-4 py-3 font-medium text-gray-400">Territory</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-400">Status</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-400">Outlets</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-400">Emails</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-400">Cost</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-400">Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {runs.map((run) => (
+                <tr
+                  key={run.id}
+                  onClick={() => router.push(`/team-pr/runs/${run.id}`)}
+                  className="border-b border-gray-500/10 hover:bg-gray-500/5 cursor-pointer transition-colors"
+                >
+                  <td className="px-4 py-3 text-gray-300">{run.territory?.name || '-'}</td>
+                  <td className="px-4 py-3"><StatusBadge status={run.status} /></td>
+                  <td className="px-4 py-3 text-right text-gray-300">{run.outlets_discovered}</td>
+                  <td className="px-4 py-3 text-right text-gray-300">{run.emails_generated}</td>
+                  <td className="px-4 py-3 text-right text-gray-300">${run.total_cost_usd.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-gray-400">{new Date(run.created_at).toLocaleDateString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
