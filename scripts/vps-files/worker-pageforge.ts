@@ -4812,7 +4812,11 @@ const FULLWIDTH_SCRIPT = `<!-- wp:html -->
 /* Hide WP default widgets/sidebar */
 .widget_recent_entries,.widget_recent_comments,.widget_categories,
 .widget_archive,.widget_meta,.sidebar,.widget-area,
-#sidebar,aside.widget-area { display: none !important; }
+#sidebar,aside.widget-area { display: none !important; width: 0 !important; height: 0 !important; overflow: hidden !important; }
+/* Override Divi sidebar layout - force full width even when body has et_right_sidebar */
+.et_right_sidebar #left-area, .et_left_sidebar #left-area { width: 100% !important; float: none !important; padding-right: 0 !important; }
+.et_right_sidebar #sidebar, .et_left_sidebar #sidebar { display: none !important; width: 0 !important; }
+body.et_right_sidebar #content-area, body.et_left_sidebar #content-area { overflow: hidden !important; }
 /* Divi nav/header - hide if present (PageForge pages have their own header) */
 #main-header, #top-header { display: none !important; }
 #et-main-area { padding-top: 0 !important; }
@@ -4831,7 +4835,13 @@ const FULLWIDTH_SCRIPT = `<!-- wp:html -->
     });
     document.querySelectorAll('.widget_recent_entries,.widget_recent_comments,.widget_categories,.widget_archive,.widget_meta,.sidebar,.widget-area,#sidebar,aside.widget-area').forEach(function(el){
       el.style.setProperty('display','none','important');
+      el.style.setProperty('width','0','important');
+      el.style.setProperty('height','0','important');
+      el.style.setProperty('overflow','hidden','important');
     });
+    // Force remove Divi sidebar body classes
+    document.body.classList.remove('et_right_sidebar','et_left_sidebar');
+    document.body.classList.add('et_full_width_page');
   }
   fix();
   document.addEventListener('DOMContentLoaded',fix);
@@ -4863,7 +4873,11 @@ const DIVI5_HEADER_SCRIPT = `<!-- wp:html -->
 /* Divi 5 rows: 1200px max centered within full-width sections */
 .et_pb_row { width: 100% !important; max-width: 1200px !important; margin-left: auto !important; margin-right: auto !important; }
 /* Hide WP default widgets/sidebar */
-.widget_recent_entries,.widget_recent_comments,.widget_categories,.widget_archive,.widget_meta,.sidebar,.widget-area,#sidebar,aside.widget-area { display: none !important; }
+.widget_recent_entries,.widget_recent_comments,.widget_categories,.widget_archive,.widget_meta,.sidebar,.widget-area,#sidebar,aside.widget-area { display: none !important; width: 0 !important; height: 0 !important; overflow: hidden !important; }
+/* Override Divi sidebar layout - force full width even when body has et_right_sidebar */
+.et_right_sidebar #left-area, .et_left_sidebar #left-area { width: 100% !important; float: none !important; padding-right: 0 !important; }
+.et_right_sidebar #sidebar, .et_left_sidebar #sidebar { display: none !important; width: 0 !important; }
+body.et_right_sidebar #content-area, body.et_left_sidebar #content-area { overflow: hidden !important; }
 /* Hide Divi header/nav */
 #main-header, #top-header { display: none !important; }
 #et-main-area { padding-top: 0 !important; }
@@ -4891,7 +4905,13 @@ const DIVI5_HEADER_SCRIPT = `<!-- wp:html -->
     });
     document.querySelectorAll('.sidebar,.widget-area,#sidebar,aside.widget-area').forEach(function(el){
       el.style.setProperty('display','none','important');
+      el.style.setProperty('width','0','important');
+      el.style.setProperty('height','0','important');
+      el.style.setProperty('overflow','hidden','important');
     });
+    // Force remove Divi sidebar body classes
+    document.body.classList.remove('et_right_sidebar','et_left_sidebar');
+    document.body.classList.add('et_full_width_page');
   }
   fix();
   document.addEventListener('DOMContentLoaded',fix);
