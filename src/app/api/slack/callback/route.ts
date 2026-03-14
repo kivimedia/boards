@@ -2,30 +2,36 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { storeSlackTokens } from '@/lib/integrations/slack-seo';
 
+// All configs that should receive Slack tokens
+const ALL_CONFIGS = [
+  { id: '6a2ce915-2e6b-4a46-af33-9d72c2854861', table: 'seo_team_configs' },
+  { id: '2f3a9ae4-e166-4392-9f15-ff00a178f534', table: 'historian_configs' },
+];
+
 /**
  * GET /api/slack/callback
  * OAuth2 callback for Slack. Exchanges the authorization code for tokens,
- * encrypts and stores them in the SEO team config.
- *
- * Query params from Slack:
- *   code   - authorization code
- *   state  - our config_id (passed through the authorize URL)
+ * encrypts and stores them.
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const code = searchParams.get('code');
-  const state = searchParams.get('state'); // config_id
+  const state = searchParams.get('state');
   const error = searchParams.get('error');
+
+  // Parse redirect path from state (format: mode::::redirectPath)
+  const parts = (state || '').split('::::');
+  const redirectPath = parts[1] || '/settings/seo';
 
   if (error) {
     return NextResponse.redirect(
-      new URL(`/settings/seo?slack_error=${encodeURIComponent(error)}`, request.url),
+      new URL(`${redirectPath}?slack_error=${encodeURIComponent(error)}`, request.url),
     );
   }
 
   if (!code || !state) {
     return NextResponse.redirect(
-      new URL('/settings/seo?slack_error=missing_code_or_state', request.url),
+      new URL(`${redirectPath}?slack_error=missing_code_or_state`, request.url),
     );
   }
 
@@ -34,7 +40,7 @@ export async function GET(request: NextRequest) {
 
   if (!clientId || !clientSecret) {
     return NextResponse.redirect(
-      new URL('/settings/seo?slack_error=missing_slack_env_vars', request.url),
+      new URL(`${redirectPath}?slack_error=missing_slack_env_vars`, request.url),
     );
   }
 
@@ -55,7 +61,7 @@ export async function GET(request: NextRequest) {
   if (!tokenData.ok) {
     const msg = tokenData.error || 'token_exchange_failed';
     return NextResponse.redirect(
-      new URL(`/settings/seo?slack_error=${encodeURIComponent(msg)}`, request.url),
+      new URL(`${redirectPath}?slack_error=${encodeURIComponent(msg)}`, request.url),
     );
   }
 
@@ -68,41 +74,39 @@ export async function GET(request: NextRequest) {
 
   if (!accessToken) {
     return NextResponse.redirect(
-      new URL('/settings/seo?slack_error=no_access_token_returned', request.url),
+      new URL(`${redirectPath}?slack_error=no_access_token_returned`, request.url),
     );
   }
 
-  // State format: configId:channelId:table:redirectPath
-  // channelId, table, redirectPath are optional
-  const parts = state.split(':');
-  const configId = parts[0];
-  const channelId = parts[1] || '';
-  const table = parts[2] || 'seo'; // 'seo' or 'historian'
-  const redirectPath = parts.slice(3).join(':') || '/settings/seo';
-
-  if (!configId) {
-    return NextResponse.redirect(
-      new URL(`${redirectPath}?slack_error=invalid_state`, request.url),
-    );
-  }
-
-  // Use service role client since this is a public OAuth callback (no user session)
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   );
 
+  const mode = parts[0] || '';
+  const tokenParams = {
+    accessToken,
+    refreshToken,
+    channelId: '',
+    teamId,
+    scope,
+    expiresInSeconds: expiresIn,
+  };
+
   try {
-    // Store in the correct table
-    const dbTable = table === 'historian' ? 'historian_configs' : 'seo_team_configs';
-    await storeSlackTokens(supabase, configId, {
-      accessToken,
-      refreshToken,
-      channelId,
-      teamId,
-      scope,
-      expiresInSeconds: expiresIn,
-    }, dbTable);
+    if (mode === 'both') {
+      // Store to all configs at once
+      await Promise.all(
+        ALL_CONFIGS.map(c => storeSlackTokens(supabase, c.id, tokenParams, c.table))
+      );
+    } else {
+      // Single config mode: state = configId:channelId:table::::redirectPath
+      const configId = mode;
+      const channelId = '';
+      const table = parts.length > 1 ? 'seo_team_configs' : 'seo_team_configs';
+      tokenParams.channelId = channelId;
+      await storeSlackTokens(supabase, configId, tokenParams, table);
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'store_failed';
     return NextResponse.redirect(
@@ -111,6 +115,6 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.redirect(
-    new URL(`${redirectPath}?slack_success=true&config_id=${configId}`, request.url),
+    new URL(`${redirectPath}?slack_success=true`, request.url),
   );
 }
