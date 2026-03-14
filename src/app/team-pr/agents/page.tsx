@@ -74,14 +74,14 @@ const PR_AGENTS: PRAgentDef[] = [
       'LinkedIn cross-referencing',
     ],
     pipeline_stages: ['VERIFICATION'],
-    model: 'Claude Haiku 4.5',
+    model: 'Claude Sonnet 4',
   },
   {
     slug: 'qa',
     name: 'QA Agent',
     role: 'Quality Assurance',
     icon: '\uD83D\uDEE1\uFE0F',
-    color: 'amber',
+    color: 'rose',
     description:
       'Runs quality checks on verified outlets. Ensures the outlet is active, publishes relevant content, has editorial standards, and is not on the client exclusion list.',
     capabilities: [
@@ -150,6 +150,14 @@ const colorMap: Record<string, { bg: string; border: string; text: string; badge
     badge: 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300',
     dot: 'bg-amber-500',
     ring: 'ring-amber-500/30',
+  },
+  rose: {
+    bg: 'bg-rose-50 dark:bg-rose-500/10',
+    border: 'border-rose-200 dark:border-rose-500/30',
+    text: 'text-rose-700 dark:text-rose-300',
+    badge: 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300',
+    dot: 'bg-rose-500',
+    ring: 'ring-rose-500/30',
   },
   green: {
     bg: 'bg-green-50 dark:bg-green-500/10',
