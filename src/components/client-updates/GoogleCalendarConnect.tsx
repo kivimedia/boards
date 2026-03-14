@@ -61,8 +61,9 @@ export default function GoogleCalendarConnect() {
       const res = await fetch('/api/google-calendar/sync', { method: 'POST' });
       const data = await res.json();
       if (res.ok) {
-        setSyncResult(`Synced ${data.synced} events`);
+        setSyncResult(`Synced ${data.synced} events${data.removedFuture ? `, removed ${data.removedFuture} deleted` : ''}`);
         await fetchStatus();
+        window.dispatchEvent(new Event('calendar-synced'));
       } else {
         setError(data.error || 'Sync failed');
       }

@@ -118,9 +118,14 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
       })
       .subscribe();
 
+    // Re-fetch clients after a calendar sync (meeting times may have changed)
+    const onCalendarSynced = () => { if (!cancelled) fetchClients(); };
+    window.addEventListener('calendar-synced', onCalendarSynced);
+
     return () => {
       cancelled = true;
       supabase.removeChannel(channel);
+      window.removeEventListener('calendar-synced', onCalendarSynced);
     };
   }, [user]);
 
