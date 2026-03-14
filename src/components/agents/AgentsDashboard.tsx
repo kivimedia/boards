@@ -24,8 +24,8 @@ const CATEGORY_CONFIG: Record<string, { label: string; icon: string }> = {
   meta: { label: 'Meta', icon: '' },
 };
 
-export default function AgentsDashboard({ defaultTab = 'standalone' }: { defaultTab?: 'standalone' | 'teams' }) {
-  const [activeTab, setActiveTab] = useState<'standalone' | 'teams'>(defaultTab);
+export default function AgentsDashboard({ defaultTab = 'standalone' }: { defaultTab?: 'standalone' | 'teams' | 'dashboards' }) {
+  const [activeTab, setActiveTab] = useState<'standalone' | 'teams' | 'dashboards'>(defaultTab);
   const [skills, setSkills] = useState<AgentSkill[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSkill, setSelectedSkill] = useState<AgentSkill | null>(null);
@@ -242,33 +242,108 @@ export default function AgentsDashboard({ defaultTab = 'standalone' }: { default
           >
             Teams
           </button>
+          <button
+            onClick={() => setActiveTab('dashboards')}
+            className={`px-4 py-2 text-sm font-semibold rounded-md transition-all ${
+              activeTab === 'dashboards'
+                ? 'bg-white dark:bg-slate-800 text-navy dark:text-white shadow-sm'
+                : 'text-navy/50 dark:text-slate-400 hover:text-navy dark:hover:text-slate-200'
+            }`}
+          >
+            Dashboards
+          </button>
         </div>
-        {activeTab === 'standalone' && (
-          <>
-            <Link
-              href="/podcast/dashboard"
-              className="text-sm font-medium text-navy/50 dark:text-slate-400 hover:text-electric dark:hover:text-electric transition-colors"
-            >
-              Podcast Dashboard
-            </Link>
-            <Link
-              href="/podcast/approval"
-              className="text-sm font-medium text-navy/50 dark:text-slate-400 hover:text-electric dark:hover:text-electric transition-colors"
-            >
-              Guest Approval
-            </Link>
-            <Link
-              href="/settings/agents"
-              className="text-sm font-medium text-navy/50 dark:text-slate-400 hover:text-electric dark:hover:text-electric transition-colors ml-auto"
-            >
-              Skill Quality Dashboard
-            </Link>
-          </>
-        )}
       </div>
 
       {activeTab === 'teams' ? (
         <TeamsPanel />
+      ) : activeTab === 'dashboards' ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <Link
+            href="/seo"
+            className="group bg-white dark:bg-slate-800 rounded-xl border border-navy/5 dark:border-slate-700 p-5 hover:border-electric/30 dark:hover:border-electric/30 hover:shadow-md transition-all"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-xl">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600 dark:text-blue-400"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+              </div>
+              <h3 className="font-heading font-semibold text-navy dark:text-white group-hover:text-electric transition-colors">SEO Pipeline</h3>
+            </div>
+            <p className="text-xs text-navy/50 dark:text-slate-400">Keyword research, content briefs, and SEO optimization workflows.</p>
+          </Link>
+
+          <Link
+            href="/pageforge"
+            className="group bg-white dark:bg-slate-800 rounded-xl border border-navy/5 dark:border-slate-700 p-5 hover:border-electric/30 dark:hover:border-electric/30 hover:shadow-md transition-all"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-600 dark:text-purple-400"><path d="M15 12h.01"/><path d="M3 3v18h18"/><path d="M18 9l-6-6-9 9"/><rect width="4" height="4" x="15" y="15" rx="1"/></svg>
+              </div>
+              <h3 className="font-heading font-semibold text-navy dark:text-white group-hover:text-electric transition-colors">PageForge</h3>
+            </div>
+            <p className="text-xs text-navy/50 dark:text-slate-400">AI-powered page building and deployment pipeline.</p>
+          </Link>
+
+          <Link
+            href="/outreach"
+            className="group bg-white dark:bg-slate-800 rounded-xl border border-navy/5 dark:border-slate-700 p-5 hover:border-electric/30 dark:hover:border-electric/30 hover:shadow-md transition-all"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-lg bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-sky-600 dark:text-sky-400"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect width="4" height="12" x="2" y="9"/><circle cx="4" cy="4" r="2"/></svg>
+              </div>
+              <h3 className="font-heading font-semibold text-navy dark:text-white group-hover:text-electric transition-colors">LinkedIn Outreach</h3>
+            </div>
+            <p className="text-xs text-navy/50 dark:text-slate-400">Automated LinkedIn prospecting and outreach campaigns.</p>
+          </Link>
+
+          <Link
+            href="/team-pr"
+            className="group bg-white dark:bg-slate-800 rounded-xl border border-navy/5 dark:border-slate-700 p-5 hover:border-electric/30 dark:hover:border-electric/30 hover:shadow-md transition-all"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-lg bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-teal-600 dark:text-teal-400"><path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9z"/><path d="M5 13l2 2c2.76-2.76 7.24-2.76 10 0l2-2C14.14 8.14 9.87 8.14 5 13z"/><path d="M9 17l3 3 3-3c-1.66-1.66-4.34-1.66-6 0z"/></svg>
+              </div>
+              <h3 className="font-heading font-semibold text-navy dark:text-white group-hover:text-electric transition-colors">Team PR</h3>
+            </div>
+            <p className="text-xs text-navy/50 dark:text-slate-400">Team public relations and brand presence management.</p>
+          </Link>
+
+          <Link
+            href="/podcast/dashboard"
+            className="group bg-white dark:bg-slate-800 rounded-xl border border-navy/5 dark:border-slate-700 p-5 hover:border-electric/30 dark:hover:border-electric/30 hover:shadow-md transition-all"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-lg bg-rose-100 dark:bg-rose-900/30 flex items-center justify-center text-xl">🎙️</div>
+              <h3 className="font-heading font-semibold text-navy dark:text-white group-hover:text-electric transition-colors">Podcast Dashboard</h3>
+            </div>
+            <p className="text-xs text-navy/50 dark:text-slate-400">Podcast episode management and guest coordination.</p>
+          </Link>
+
+          <Link
+            href="/podcast/approval"
+            className="group bg-white dark:bg-slate-800 rounded-xl border border-navy/5 dark:border-slate-700 p-5 hover:border-electric/30 dark:hover:border-electric/30 hover:shadow-md transition-all"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-xl">✅</div>
+              <h3 className="font-heading font-semibold text-navy dark:text-white group-hover:text-electric transition-colors">Guest Approval</h3>
+            </div>
+            <p className="text-xs text-navy/50 dark:text-slate-400">Review and approve podcast guest applications.</p>
+          </Link>
+
+          <Link
+            href="/settings/agents"
+            className="group bg-white dark:bg-slate-800 rounded-xl border border-navy/5 dark:border-slate-700 p-5 hover:border-electric/30 dark:hover:border-electric/30 hover:shadow-md transition-all"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-xl">📊</div>
+              <h3 className="font-heading font-semibold text-navy dark:text-white group-hover:text-electric transition-colors">Skill Quality Dashboard</h3>
+            </div>
+            <p className="text-xs text-navy/50 dark:text-slate-400">Monitor and tune agent skill quality scores.</p>
+          </Link>
+        </div>
       ) : (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: skill picker + launcher */}

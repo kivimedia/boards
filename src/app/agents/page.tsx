@@ -22,7 +22,7 @@ export default async function AgentsPage({
     .select('*')
     .order('created_at', { ascending: true });
 
-  const defaultTab = searchParams.tab === 'teams' ? 'teams' : 'standalone';
+  const defaultTab = searchParams.tab === 'teams' ? 'teams' : searchParams.tab === 'dashboards' ? 'dashboards' : 'standalone';
 
   return (
     <div className="flex h-screen overflow-hidden">
