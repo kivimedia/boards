@@ -208,7 +208,7 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
           href="/team"
           className={`
             flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200
-            ${pathname?.startsWith('/team')
+            ${pathname?.startsWith('/team') && !pathname?.startsWith('/team-pr')
               ? 'bg-white/10 text-white'
               : 'text-white/60 hover:text-white hover:bg-white/5'
             }
