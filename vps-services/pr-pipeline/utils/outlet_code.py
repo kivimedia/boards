@@ -50,13 +50,13 @@ def get_type_abbrev(outlet_type: str) -> str:
 
 
 def generate_outlet_code(
-    country_code: str, outlet_type: str, name: str, run_number: int
+    country_code: str, outlet_type: str, name: str, run_number: int = 0
 ) -> str:
-    """Generate outlet code in format: {country}-{type}-{slug}-r{run_number}."""
+    """Generate outlet code. Format: {country}-{type}-{slug}. Run number is ignored for cross-run consistency."""
     country = country_code.lower()[:2]
     type_abbrev = get_type_abbrev(outlet_type)
     slug = slugify(name)
-    return f"{country}-{type_abbrev}-{slug}-r{run_number}"
+    return f"{country}-{type_abbrev}-{slug}"
 
 
 def parse_outlet_code(code: str) -> dict[str, str | int]:

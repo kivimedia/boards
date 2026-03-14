@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     tavily_api_key: str = Field(default="", alias="TAVILY_API_KEY")
     youtube_data_api_key: str = Field(default="", alias="YOUTUBE_DATA_API_KEY")
     hunter_api_key: str = Field(default="", alias="HUNTER_API_KEY")
+    exa_api_key: str = Field(default="", alias="EXA_API_KEY")
 
     # Pipeline defaults
     verification_threshold: int = 60

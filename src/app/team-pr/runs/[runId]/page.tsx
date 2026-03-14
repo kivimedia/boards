@@ -628,6 +628,169 @@ function CostsTab({ runId }: { runId: string }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Gate Outlets Panel - outlet exclusion at gate                       */
+/* ------------------------------------------------------------------ */
+
+const GATE_STAGE_MAP: Record<string, PRPipelineStage> = {
+  GATE_A: 'DISCOVERED',
+  GATE_B: 'VERIFIED',
+  GATE_C: 'QA_PASSED',
+};
+
+function GateOutletsPanel({
+  runId,
+  gateStatus,
+  excludedIds,
+  onToggle,
+}: {
+  runId: string;
+  gateStatus: string;
+  excludedIds: string[];
+  onToggle: (id: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  const pipelineStage = GATE_STAGE_MAP[gateStatus];
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['pr-gate-outlets', runId, pipelineStage],
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/team-pr/outlets?run_id=${runId}&pipeline_stage=${pipelineStage}`,
+        { credentials: 'include' }
+      );
+      const json = await res.json();
+      return json.data;
+    },
+    enabled: !!pipelineStage,
+  });
+
+  const outlets: PROutlet[] = data?.items || [];
+  const excludedCount = excludedIds.length;
+
+  if (!pipelineStage) return null;
+
+  return (
+    <div className="rounded-xl border border-gray-500/20 bg-[#141420]/50 overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-500/5 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={`text-gray-400 transition-transform ${expanded ? 'rotate-90' : ''}`}
+          >
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+          <span className="text-sm font-medium text-gray-300">
+            Select outlets to exclude
+          </span>
+          {excludedCount > 0 && (
+            <span className="rounded-full px-2 py-0.5 text-[10px] font-medium bg-red-500/20 text-red-400">
+              {excludedCount} excluded
+            </span>
+          )}
+        </div>
+        <span className="text-xs text-gray-500">{outlets.length} outlets at {pipelineStage}</span>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-gray-500/20">
+          {isLoading ? (
+            <div className="h-24 animate-pulse bg-gray-500/5" />
+          ) : outlets.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-6">No outlets at this stage.</p>
+          ) : (
+            <>
+              {/* Bulk actions */}
+              <div className="flex gap-2 px-4 py-2 border-b border-gray-500/10 bg-gray-500/5">
+                <button
+                  onClick={() => outlets.forEach((o) => { if (!excludedIds.includes(o.id)) onToggle(o.id); })}
+                  className="text-[10px] text-gray-400 hover:text-white transition-colors"
+                >
+                  Exclude All
+                </button>
+                <span className="text-gray-600">|</span>
+                <button
+                  onClick={() => excludedIds.forEach((id) => onToggle(id))}
+                  className="text-[10px] text-gray-400 hover:text-white transition-colors"
+                >
+                  Deselect All
+                </button>
+              </div>
+
+              <div className="max-h-[320px] overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-500/5 border-b border-gray-500/20 sticky top-0">
+                      <th className="w-10 px-3 py-2" />
+                      <th className="text-left px-3 py-2 font-medium text-gray-400 text-xs">Name</th>
+                      <th className="text-left px-3 py-2 font-medium text-gray-400 text-xs">Type</th>
+                      <th className="text-right px-3 py-2 font-medium text-gray-400 text-xs">Score</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {outlets.map((o) => {
+                      const isExcluded = excludedIds.includes(o.id);
+                      const score =
+                        pipelineStage === 'DISCOVERED'
+                          ? o.relevance_score
+                          : pipelineStage === 'VERIFIED'
+                          ? o.verification_score
+                          : o.qa_score;
+
+                      return (
+                        <tr
+                          key={o.id}
+                          onClick={() => onToggle(o.id)}
+                          className={`border-b border-gray-500/10 cursor-pointer transition-colors ${
+                            isExcluded ? 'bg-red-500/5 hover:bg-red-500/10' : 'hover:bg-gray-500/5'
+                          }`}
+                        >
+                          <td className="px-3 py-2 text-center">
+                            <input
+                              type="checkbox"
+                              checked={isExcluded}
+                              readOnly
+                              className="rounded border-gray-600 bg-gray-700 text-red-500 focus:ring-red-500/50"
+                            />
+                          </td>
+                          <td className={`px-3 py-2 font-medium ${isExcluded ? 'text-gray-500 line-through' : 'text-white'}`}>
+                            {o.name}
+                          </td>
+                          <td className="px-3 py-2 text-gray-400 text-xs">{o.outlet_type || '-'}</td>
+                          <td className="px-3 py-2 text-right">
+                            <span
+                              className={`text-xs font-medium ${
+                                score >= 0.7 ? 'text-green-400' : score >= 0.4 ? 'text-amber-400' : 'text-gray-400'
+                              }`}
+                            >
+                              {(score * 100).toFixed(0)}%
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Main Page                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -639,6 +802,7 @@ export default function RunDetailPage() {
   const queryClient = useQueryClient();
   const runId = params.runId as string;
   const [activeTab, setActiveTab] = useState<TabKey>('research');
+  const [excludedOutletIds, setExcludedOutletIds] = useState<string[]>([]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['pr-run', runId],
@@ -650,13 +814,30 @@ export default function RunDetailPage() {
     refetchInterval: 10000, // poll while active
   });
 
-  const gateMutation = useMutation({
-    mutationFn: async (action: 'approve' | 'cancel') => {
-      const res = await fetch(`/api/team-pr/runs/${runId}/${action}`, {
+  const advanceMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/team-pr/runs/${runId}/advance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ excluded_outlet_ids: excludedOutletIds }),
+      });
+      if (!res.ok) throw new Error('Failed to advance');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pr-run', runId] });
+      setExcludedOutletIds([]);
+    },
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/team-pr/runs/${runId}/cancel`, {
         method: 'POST',
         credentials: 'include',
       });
-      if (!res.ok) throw new Error(`Failed to ${action}`);
+      if (!res.ok) throw new Error('Failed to cancel');
       return res.json();
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pr-run', runId] }),
@@ -724,26 +905,43 @@ export default function RunDetailPage() {
 
       {/* Gate Actions */}
       {isGate && (
-        <div className="flex items-center gap-3 p-4 rounded-xl border border-amber-500/30 bg-amber-500/5">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          <span className="text-sm text-amber-300 flex-1">
-            Gate approval required. Review the results and decide whether to continue.
-          </span>
-          <button
-            onClick={() => gateMutation.mutate('approve')}
-            disabled={gateMutation.isPending}
-            className="px-4 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-medium transition-colors"
-          >
-            Approve & Continue
-          </button>
-          <button
-            onClick={() => gateMutation.mutate('cancel')}
-            disabled={gateMutation.isPending}
-            className="px-4 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-medium transition-colors"
-          >
-            Cancel Run
-          </button>
-        </div>
+        <>
+          <div className="flex items-center gap-3 p-4 rounded-xl border border-amber-500/30 bg-amber-500/5">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span className="text-sm text-amber-300 flex-1">
+              Gate approval required. Review the results and decide whether to continue.
+              {excludedOutletIds.length > 0 && (
+                <span className="ml-1 text-red-400">({excludedOutletIds.length} outlet{excludedOutletIds.length !== 1 ? 's' : ''} will be excluded)</span>
+              )}
+            </span>
+            <button
+              onClick={() => advanceMutation.mutate()}
+              disabled={advanceMutation.isPending || cancelMutation.isPending}
+              className="px-4 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-medium transition-colors"
+            >
+              {advanceMutation.isPending ? 'Advancing...' : 'Approve & Continue'}
+            </button>
+            <button
+              onClick={() => cancelMutation.mutate()}
+              disabled={advanceMutation.isPending || cancelMutation.isPending}
+              className="px-4 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-medium transition-colors"
+            >
+              {cancelMutation.isPending ? 'Cancelling...' : 'Cancel Run'}
+            </button>
+          </div>
+
+          {/* Outlet exclusion panel */}
+          <GateOutletsPanel
+            runId={runId}
+            gateStatus={run.status}
+            excludedIds={excludedOutletIds}
+            onToggle={(id) =>
+              setExcludedOutletIds((prev) =>
+                prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+              )
+            }
+          />
+        </>
       )}
 
       {/* Stats Bar */}

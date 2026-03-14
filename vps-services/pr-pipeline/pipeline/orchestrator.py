@@ -9,6 +9,7 @@ from services.tavily_client import TavilyService
 from services.youtube_client import YouTubeService
 from services.hunter_client import HunterService
 from services.anthropic_client import AnthropicService
+from services.exa_client import ExaService
 from pipeline.research import run_research
 from pipeline.verification import run_verification
 from pipeline.qa_loop import run_qa_loop, promote_reviewed_outlets
@@ -24,6 +25,7 @@ class PipelineOrchestrator:
         self.youtube = YouTubeService()
         self.hunter = HunterService()
         self.claude = AnthropicService()
+        self.exa = ExaService()
 
     async def run_pipeline(self, run_id: str) -> None:
         """Main entry point - run the pipeline from its current state."""
@@ -52,24 +54,28 @@ class PipelineOrchestrator:
             await self.handle_error(run_id, "Territory not found")
             return
 
+        dry_run = run.get("dry_run", False)
+        if dry_run:
+            logger.info(f"Run {run_id} is a DRY RUN - skipping real API calls")
+
         try:
             if status == "PENDING":
-                await self._run_from_research(run_id, run, client, territory)
+                await self._run_from_research(run_id, run, client, territory, dry_run=dry_run)
             elif status == "RESEARCH":
                 # Resume research if interrupted
-                await self._run_from_research(run_id, run, client, territory)
+                await self._run_from_research(run_id, run, client, territory, dry_run=dry_run)
             elif status == "VERIFICATION":
-                await self._run_from_verification(run_id, run, client, territory)
+                await self._run_from_verification(run_id, run, client, territory, dry_run=dry_run)
             elif status == "QA_LOOP":
-                await self._run_from_qa(run_id, run, client, territory)
+                await self._run_from_qa(run_id, run, client, territory, dry_run=dry_run)
             elif status == "EMAIL_GEN":
-                await self._run_from_email_gen(run_id, run, client, territory)
+                await self._run_from_email_gen(run_id, run, client, territory, dry_run=dry_run)
         except Exception as e:
             tb = traceback.format_exc()
             await self.handle_error(run_id, f"{str(e)}\n{tb}")
 
     async def _run_from_research(
-        self, run_id: str, run: dict, client: dict, territory: dict
+        self, run_id: str, run: dict, client: dict, territory: dict, dry_run: bool = False
     ) -> None:
         """Run Stage 1: Research, then pause at Gate A."""
         await self.update_run_status(run_id, RunStatus.RESEARCH, current_stage=1)
@@ -83,6 +89,8 @@ class PipelineOrchestrator:
             tavily=self.tavily,
             youtube=self.youtube,
             claude=self.claude,
+            exa=self.exa,
+            dry_run=dry_run,
         )
 
         logger.info(f"Research complete for run {run_id}: {result}")
@@ -104,7 +112,7 @@ class PipelineOrchestrator:
         )
 
     async def _run_from_verification(
-        self, run_id: str, run: dict, client: dict, territory: dict
+        self, run_id: str, run: dict, client: dict, territory: dict, dry_run: bool = False
     ) -> None:
         """Run Stage 2: Verification, then pause at Gate B."""
         await self.update_run_status(run_id, RunStatus.VERIFICATION, current_stage=2)
@@ -117,6 +125,7 @@ class PipelineOrchestrator:
             supabase=self.supabase,
             hunter=self.hunter,
             claude=self.claude,
+            dry_run=dry_run,
         )
 
         logger.info(f"Verification complete for run {run_id}: {result}")
@@ -138,7 +147,7 @@ class PipelineOrchestrator:
         )
 
     async def _run_from_qa(
-        self, run_id: str, run: dict, client: dict, territory: dict
+        self, run_id: str, run: dict, client: dict, territory: dict, dry_run: bool = False
     ) -> None:
         """Run Stage 3: QA Loop, then pause at Gate C."""
         await self.update_run_status(run_id, RunStatus.QA_LOOP, current_stage=3)
@@ -150,6 +159,7 @@ class PipelineOrchestrator:
             territory=territory,
             supabase=self.supabase,
             claude=self.claude,
+            dry_run=dry_run,
         )
 
         logger.info(f"QA Loop complete for run {run_id}: {result}")
@@ -169,7 +179,7 @@ class PipelineOrchestrator:
         await self.update_run_status(run_id, RunStatus.GATE_C, current_stage=3)
 
     async def _run_from_email_gen(
-        self, run_id: str, run: dict, client: dict, territory: dict
+        self, run_id: str, run: dict, client: dict, territory: dict, dry_run: bool = False
     ) -> None:
         """Run Stage 4: Email Generation, then complete."""
         await self.update_run_status(run_id, RunStatus.EMAIL_GEN, current_stage=4)
@@ -181,6 +191,7 @@ class PipelineOrchestrator:
             territory=territory,
             supabase=self.supabase,
             claude=self.claude,
+            dry_run=dry_run,
         )
 
         logger.info(f"Email Gen complete for run {run_id}: {result}")

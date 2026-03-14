@@ -1,6 +1,6 @@
 # Team PR - Remaining Features (vs PRD v3.1)
 
-**Created**: 2026-03-14 | **Last updated**: 2026-03-14
+**Created**: 2026-03-14 | **Last updated**: 2026-03-14 (round 3)
 **PRD**: `C:\Users\raviv\Downloads\caroline-ravn-outreach-agent-v3.1.md`
 
 ---
@@ -26,12 +26,12 @@
 
 ## Still Missing
 
-### High Priority
-- [ ] Loop B: Calibration report every 5 runs (`feedback/calibration_report.py`)
-- [ ] Loop C: Outcome tracker - mark outlet as REPLIED from UI, log outcome
-- [ ] "What's Working" report after 50 emails sent
-- [ ] Seasonal calendar warning in UI ("Do not pitch Jun-Jul" for Sweden)
-- [ ] Native speaker review flag for first 3 Swedish runs
+### High Priority - ALL DONE
+- [x] Loop B: Calibration report every 5 runs (API + UI in feedback page)
+- [x] Loop C: Outcome tracker - mark outlet outcome from UI (positive/neutral/negative/no_response)
+- [x] "What's Working" report after 50 emails sent (API + UI in feedback page)
+- [x] Seasonal calendar warning in UI ("Do not pitch Jun-Jul" for Sweden)
+- [x] Native speaker review flag for first 3 Swedish runs (auto-set + banner + completion flow)
 
 ### Medium Priority
 - [ ] `dry_run` mode implementation (flag exists, pipeline logic to skip real API calls missing)
@@ -41,7 +41,7 @@
 - [ ] Cross-run outlet ID persistence (same outlet keeps same code across runs)
 - [ ] Settings persistence (currently returns defaults only, no DB storage)
 - [ ] Cost estimate shown before launching a run
-- [ ] `/team-pr/feedback` page - view feedback history and calibration reports
+- [x] `/team-pr/feedback` page - view feedback history and calibration reports
 - [ ] Outlet exclusion selection at gate advance UI
 - [ ] Nginx reverse proxy for PR pipeline (nice-to-have, direct IP works)
 

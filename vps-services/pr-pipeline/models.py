@@ -176,23 +176,37 @@ class OutletCode(BaseModel):
     country: str
     type_abbrev: str
     slug: str
-    run_number: int
+    run_number: int = 0  # Kept for backward compat but no longer used in new codes
 
     @classmethod
     def parse(cls, code: str) -> OutletCode:
-        pattern = r"^([a-z]{2})-([a-z]+)-(.+)-r(\d+)$"
-        match = re.match(pattern, code)
-        if not match:
-            raise ValueError(f"Invalid outlet code format: {code}")
-        return cls(
-            country=match.group(1),
-            type_abbrev=match.group(2),
-            slug=match.group(3),
-            run_number=int(match.group(4)),
-        )
+        # Try new format first: {country}-{type}-{slug}
+        # Then fall back to legacy format: {country}-{type}-{slug}-r{run_number}
+        legacy_pattern = r"^([a-z]{2})-([a-z]+)-(.+)-r(\d+)$"
+        legacy_match = re.match(legacy_pattern, code)
+        if legacy_match:
+            return cls(
+                country=legacy_match.group(1),
+                type_abbrev=legacy_match.group(2),
+                slug=legacy_match.group(3),
+                run_number=int(legacy_match.group(4)),
+            )
+        # New format without run number
+        new_pattern = r"^([a-z]{2})-([a-z]+)-(.+)$"
+        new_match = re.match(new_pattern, code)
+        if new_match:
+            return cls(
+                country=new_match.group(1),
+                type_abbrev=new_match.group(2),
+                slug=new_match.group(3),
+                run_number=0,
+            )
+        raise ValueError(f"Invalid outlet code format: {code}")
 
     def to_string(self) -> str:
-        return f"{self.country}-{self.type_abbrev}-{self.slug}-r{self.run_number}"
+        if self.run_number > 0:
+            return f"{self.country}-{self.type_abbrev}-{self.slug}-r{self.run_number}"
+        return f"{self.country}-{self.type_abbrev}-{self.slug}"
 
 
 class ClaudeResponse(BaseModel):

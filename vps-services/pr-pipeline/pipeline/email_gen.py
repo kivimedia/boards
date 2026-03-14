@@ -54,6 +54,7 @@ async def run_email_gen(
     territory: dict[str, Any],
     supabase: SupabaseService,
     claude: AnthropicService,
+    dry_run: bool = False,
 ) -> dict[str, Any]:
     """Stage 4: Generate pitch emails for QA-passed outlets."""
     run_id = run["id"]
@@ -65,6 +66,52 @@ async def run_email_gen(
     generated_count = 0
     failed_count = 0
     total_cost = 0.0
+
+    if dry_run:
+        # DRY RUN: skip Claude email gen, insert mock drafts
+        logger.info(f"DRY RUN: Inserting mock email drafts for {len(outlets)} outlets")
+        for outlet in outlets:
+            outlet_id = outlet["id"]
+            client_id = client["id"]
+            outlet_name = outlet.get("name", "Unknown Outlet")
+            draft = {
+                "run_id": run_id,
+                "outlet_id": outlet_id,
+                "client_id": client_id,
+                "subject": f"[DRY RUN] Test pitch to {outlet_name}",
+                "body_html": "<p>This is a dry run test email.</p>",
+                "body_text": "This is a dry run test email.",
+                "language": outlet.get("language") or territory.get("language", "english"),
+                "pitch_angle": "dry_run",
+                "personalization_hooks": [],
+                "status": "DRAFT",
+                "model_used": "dry_run",
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "generation_cost_usd": 0.0,
+            }
+            try:
+                await supabase.insert_email_draft(draft)
+                await supabase.update_outlet(outlet_id, {"pipeline_stage": "EMAIL_DRAFTED"})
+                generated_count += 1
+            except Exception as e:
+                logger.error(f"DRY RUN: Failed to insert mock draft for {outlet_name}: {e}")
+                failed_count += 1
+
+        await supabase.update_run(run_id, {
+            "emails_generated": generated_count,
+            "stage_results": {
+                **(run.get("stage_results") or {}),
+                "email_gen": {
+                    "dry_run": True,
+                    "total_outlets": len(outlets),
+                    "emails_generated": generated_count,
+                    "failed": failed_count,
+                    "total_cost": 0.0,
+                },
+            },
+        })
+        return {"emails_generated": generated_count, "emails_failed": failed_count, "total_cost": 0.0}
 
     for outlet in outlets:
         try:

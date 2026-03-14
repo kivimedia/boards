@@ -4,6 +4,8 @@ import re
 from typing import Optional
 from urllib.parse import urlparse
 
+from utils.outlet_code import generate_outlet_code
+
 logger = logging.getLogger(__name__)
 
 
@@ -77,6 +79,22 @@ async def is_duplicate(
                 if existing_domain and url_domain == existing_domain:
                     logger.info(
                         f"Duplicate found by URL: {outlet_url} matches {existing_outlet['url']}"
+                    )
+                    return True
+
+            # Check by outlet_code (cross-run consistency)
+            existing_code_raw = existing_outlet.get("outlet_code", "")
+            if existing_code_raw and existing_outlet.get("country") and outlet_name:
+                new_code = generate_outlet_code(
+                    existing_outlet.get("country", ""),
+                    existing_outlet.get("outlet_type", "other"),
+                    outlet_name,
+                )
+                # Strip any legacy -rXXX suffix for comparison
+                existing_base = re.sub(r"-r\d+$", "", existing_code_raw)
+                if new_code and existing_base and new_code == existing_base:
+                    logger.info(
+                        f"Duplicate found by outlet_code: '{new_code}' matches '{existing_code_raw}'"
                     )
                     return True
 

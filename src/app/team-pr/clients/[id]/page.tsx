@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -428,16 +428,45 @@ function isDeadZone(strategyText: string): boolean {
 /*  Runs Tab                                                           */
 /* ------------------------------------------------------------------ */
 
+interface CostEstimate {
+  research: { subtotal: number };
+  verification: { subtotal: number };
+  qa: { subtotal: number };
+  email_gen: { subtotal: number };
+  total: number;
+}
+
 function RunsTab({ clientId }: { clientId: string }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [showStartModal, setShowStartModal] = useState(false);
   const [selectedTerritoryId, setSelectedTerritoryId] = useState('');
+  const [costEstimate, setCostEstimate] = useState<CostEstimate | null>(null);
+  const [estimateLoading, setEstimateLoading] = useState(false);
   const [deadZoneWarning, setDeadZoneWarning] = useState<{
     periodLabel: string;
     territoryName: string;
     strategyText: string;
   } | null>(null);
+
+  // Fetch cost estimate when modal opens
+  useEffect(() => {
+    if (!showStartModal) {
+      setCostEstimate(null);
+      return;
+    }
+    setEstimateLoading(true);
+    fetch('/api/team-pr/runs/estimate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ max_outlets: 50 }),
+    })
+      .then((res) => res.json())
+      .then((json) => setCostEstimate(json.data))
+      .catch(() => setCostEstimate(null))
+      .finally(() => setEstimateLoading(false));
+  }, [showStartModal]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['pr-runs', 'client', clientId],
@@ -573,6 +602,40 @@ function RunsTab({ clientId }: { clientId: string }) {
                   ))}
                 </select>
               </div>
+              {/* Cost Estimate */}
+              <div className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
+                <p className="text-xs font-medium text-blue-400 mb-2">Estimated Cost Breakdown</p>
+                {estimateLoading ? (
+                  <div className="h-12 rounded bg-gray-500/10 animate-pulse" />
+                ) : costEstimate ? (
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-400">Research</span>
+                      <span className="text-gray-300">~${costEstimate.research.subtotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-400">Verification</span>
+                      <span className="text-gray-300">~${costEstimate.verification.subtotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-400">QA</span>
+                      <span className="text-gray-300">~${costEstimate.qa.subtotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-400">Email Gen</span>
+                      <span className="text-gray-300">~${costEstimate.email_gen.subtotal.toFixed(2)}</span>
+                    </div>
+                    <hr className="border-blue-500/20 my-1" />
+                    <div className="flex justify-between text-xs font-medium">
+                      <span className="text-blue-400">Total</span>
+                      <span className="text-blue-300">~${costEstimate.total.toFixed(2)}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500">Could not load estimate</p>
+                )}
+              </div>
+
               <div className="flex gap-2 pt-1">
                 <button
                   onClick={() => { setShowStartModal(false); handleStartRunClick(selectedTerritoryId); }}

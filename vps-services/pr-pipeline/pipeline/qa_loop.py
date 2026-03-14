@@ -28,6 +28,7 @@ async def run_qa_loop(
     territory: dict[str, Any],
     supabase: SupabaseService,
     claude: AnthropicService,
+    dry_run: bool = False,
 ) -> dict[str, Any]:
     """Stage 3: Quality-check verified outlets."""
     run_id = run["id"]
@@ -43,6 +44,39 @@ async def run_qa_loop(
     review_count = 0
     failed_count = 0
     total_cost = 0.0
+
+    if dry_run:
+        # DRY RUN: skip Claude QA call, set mock QA data
+        logger.info(f"DRY RUN: Setting mock QA for {len(outlets)} outlets")
+        for outlet in outlets:
+            await supabase.update_outlet(outlet["id"], {
+                "qa_status": "PASSED",
+                "qa_score": 85,
+                "qa_notes": "Dry run - auto-passed",
+                "pipeline_stage": "QA_PASSED",
+            })
+            passed_count += 1
+
+        await supabase.update_run(run_id, {
+            "outlets_qa_passed": passed_count,
+            "stage_results": {
+                **(run.get("stage_results") or {}),
+                "qa_loop": {
+                    "dry_run": True,
+                    "total_checked": len(outlets),
+                    "passed": passed_count,
+                    "needs_review": 0,
+                    "failed": 0,
+                    "total_cost": 0.0,
+                },
+            },
+        })
+        return {
+            "outlets_passed": passed_count,
+            "outlets_needs_review": 0,
+            "outlets_failed": 0,
+            "total_cost": 0.0,
+        }
 
     for outlet in outlets:
         try:
@@ -73,6 +107,33 @@ async def run_qa_loop(
             })
             failed_count += 1
 
+    # QA re-evaluation: one retry for NEEDS_REVIEW outlets
+    re_evaluated = 0
+    review_outlets_db = await supabase.get_outlets(run_id, pipeline_stage="VERIFIED")
+    needs_review = [o for o in review_outlets_db if o.get("qa_status") == "NEEDS_REVIEW"]
+
+    for outlet in needs_review:
+        try:
+            result = await _qa_single_outlet(
+                outlet=outlet,
+                client=client,
+                territory=territory,
+                pass_threshold=pass_threshold,
+                review_threshold=review_threshold,
+                supabase=supabase,
+                claude=claude,
+                run_id=run_id,
+            )
+            total_cost += result.get("cost", 0)
+            new_status = result.get("status")
+            if new_status == "PASSED":
+                passed_count += 1
+                review_count -= 1
+                re_evaluated += 1
+            # If still NEEDS_REVIEW or FAILED after retry, leave as-is
+        except Exception as e:
+            logger.error(f"QA re-evaluation failed for {outlet.get('name')}: {e}")
+
     # Update run
     await supabase.update_run(run_id, {
         "outlets_qa_passed": passed_count,
@@ -83,6 +144,7 @@ async def run_qa_loop(
                 "passed": passed_count,
                 "needs_review": review_count,
                 "failed": failed_count,
+                "re_evaluated": re_evaluated,
                 "total_cost": round(total_cost, 4),
             },
         },
@@ -92,6 +154,7 @@ async def run_qa_loop(
         "outlets_passed": passed_count,
         "outlets_needs_review": review_count,
         "outlets_failed": failed_count,
+        "re_evaluated": re_evaluated,
         "total_cost": total_cost,
     }
 

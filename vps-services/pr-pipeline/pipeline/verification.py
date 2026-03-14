@@ -30,6 +30,7 @@ async def run_verification(
     supabase: SupabaseService,
     hunter: HunterService,
     claude: AnthropicService,
+    dry_run: bool = False,
 ) -> dict[str, Any]:
     """Stage 2: Verify discovered outlets with 5-criteria check + contact finding."""
     run_id = run["id"]
@@ -42,6 +43,38 @@ async def run_verification(
     verified_count = 0
     failed_count = 0
     total_cost = 0.0
+
+    if dry_run:
+        # DRY RUN: skip Hunter.io and Claude calls, set mock verification data
+        logger.info(f"DRY RUN: Setting mock verification for {len(outlets)} outlets")
+        for outlet in outlets:
+            await supabase.update_outlet(outlet["id"], {
+                "verification_status": "VERIFIED",
+                "verification_score": 80,
+                "contact_email": "dryrun@example.com",
+                "contact_name": "Dry Run Contact",
+                "contact_role": "editor",
+                "contact_confidence": 0.9,
+                "contact_source": "dry_run",
+                "pipeline_stage": "VERIFIED",
+                "verification_criteria": {"dry_run": True, "total_score": 80},
+            })
+            verified_count += 1
+
+        await supabase.update_run(run_id, {
+            "outlets_verified": verified_count,
+            "stage_results": {
+                **(run.get("stage_results") or {}),
+                "verification": {
+                    "dry_run": True,
+                    "total_checked": len(outlets),
+                    "verified": verified_count,
+                    "failed": 0,
+                    "total_cost": 0.0,
+                },
+            },
+        })
+        return {"outlets_verified": verified_count, "outlets_failed": 0, "total_cost": 0.0}
 
     for outlet in outlets:
         try:
@@ -182,6 +215,39 @@ Territory: {territory.get('name', '')} ({territory.get('country_code', '')})"""
                             contact_confidence = 0.0
             except Exception as e:
                 logger.error(f"Hunter search failed for {domain}: {e}")
+
+            # If domain_search didn't find a good contact, try email_finder with suggested roles
+            if (not contact_email or contact_confidence < 0.5) and domain:
+                for role in suggested_roles[:2]:
+                    try:
+                        finder_result = await hunter.email_finder(domain=domain, role=role)
+                        await log_cost(
+                            supabase, run_id, outlet_id, "hunter", "email_finder",
+                            cost_usd=0.01, credits_used=1,
+                            metadata={"domain": domain, "role": role},
+                        )
+                        cost += 0.01
+                        if finder_result.get("email") and finder_result.get("confidence", 0) > 50:
+                            contact_email = finder_result["email"]
+                            contact_name = f"{finder_result.get('first_name', '')} {finder_result.get('last_name', '')}".strip()
+                            contact_role = finder_result.get("position", role)
+                            contact_confidence = finder_result["confidence"] / 100.0
+                            contact_source = "hunter"
+                            # Verify the found email
+                            email_verification = await hunter.email_verifier(contact_email)
+                            await log_cost(
+                                supabase, run_id, outlet_id, "hunter", "email_verify",
+                                cost_usd=0.01, credits_used=1,
+                                metadata={"email": contact_email, "status": email_verification.get("status", "")},
+                            )
+                            cost += 0.01
+                            if email_verification.get("result") == "undeliverable":
+                                contact_email = None
+                                contact_confidence = 0.0
+                            else:
+                                break  # Found a good one
+                    except Exception as e:
+                        logger.error(f"Hunter email_finder failed for {domain}/{role}: {e}")
 
     # Determine verification status
     contact_found = contact_email is not None and contact_confidence > 0.3
