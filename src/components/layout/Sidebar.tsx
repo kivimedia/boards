@@ -22,6 +22,8 @@ interface SidebarProps {
 export default function Sidebar({ initialBoards }: SidebarProps = {}) {
   const [boards, setBoards] = useState<Board[]>(initialBoards || []);
   const [collapsed, setCollapsed] = useState(false);
+  const [showTeamBoards, setShowTeamBoards] = useState(true);
+  const [showClientBoards, setShowClientBoards] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
   const pathname = usePathname();
   const { profile, user, signOut } = useAuth();
@@ -266,16 +268,75 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
           {!collapsed && <span>Tools</span>}
         </Link>
 
+        {/* Team Boards accordion */}
         {!collapsed && (
-          <div className="pt-4 pb-2 px-3">
-            <span className="text-[10px] font-semibold text-white/30 uppercase tracking-wider">
-              Boards
-            </span>
-          </div>
+          <button
+            onClick={() => setShowTeamBoards(!showTeamBoards)}
+            className="flex items-center gap-2 px-3 py-2 mt-4 text-[10px] font-semibold text-white/30 uppercase tracking-wider hover:text-white/50 transition-colors w-full"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points={showTeamBoards ? '18 15 12 9 6 15' : '6 9 12 15 18 9'} />
+            </svg>
+            <span>Team Boards ({boards.filter(b => !b.is_archived && !b.client_id).length})</span>
+          </button>
         )}
 
-        {boards
-          .filter((board) => !board.is_archived)
+        {(collapsed || showTeamBoards) && boards
+          .filter((board) => !board.is_archived && !board.client_id)
+          .sort((a, b) => (a.is_starred === b.is_starred ? 0 : a.is_starred ? -1 : 1))
+          .map((board) => {
+          const config = BOARD_TYPE_CONFIG[board.type];
+          const isActive = pathname === `/board/${slugify(board.name)}`;
+          return (
+            <Link
+              key={board.id}
+              href={`/board/${slugify(board.name)}`}
+              className={`
+                group/board flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all duration-200
+                ${isActive
+                  ? 'bg-white/10 text-white'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+                }
+              `}
+            >
+              <span className="text-base">{config?.icon || '📋'}</span>
+              {!collapsed && (
+                <span className="truncate font-medium">{board.name}</span>
+              )}
+              {!collapsed && (
+                <button
+                  onClick={(e) => toggleStar(e, board.id, board.is_starred)}
+                  className={`ml-auto shrink-0 transition-all ${
+                    board.is_starred
+                      ? 'text-yellow-400'
+                      : 'text-white/0 group-hover/board:text-white/30 hover:!text-yellow-400'
+                  }`}
+                  title={board.is_starred ? 'Unstar board' : 'Star board'}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill={board.is_starred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                  </svg>
+                </button>
+              )}
+            </Link>
+          );
+        })}
+
+        {/* Client Boards accordion */}
+        {!collapsed && (
+          <button
+            onClick={() => setShowClientBoards(!showClientBoards)}
+            className="flex items-center gap-2 px-3 py-2 mt-3 text-[10px] font-semibold text-white/30 uppercase tracking-wider hover:text-white/50 transition-colors w-full"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points={showClientBoards ? '18 15 12 9 6 15' : '6 9 12 15 18 9'} />
+            </svg>
+            <span>Client Boards ({boards.filter(b => !b.is_archived && b.client_id).length})</span>
+          </button>
+        )}
+
+        {(collapsed || showClientBoards) && boards
+          .filter((board) => !board.is_archived && !!board.client_id)
           .sort((a, b) => (a.is_starred === b.is_starred ? 0 : a.is_starred ? -1 : 1))
           .map((board) => {
           const config = BOARD_TYPE_CONFIG[board.type];
@@ -320,9 +381,9 @@ export default function Sidebar({ initialBoards }: SidebarProps = {}) {
           <>
             <button
               onClick={() => setShowArchived(!showArchived)}
-              className="flex items-center gap-2 px-3 py-2 mt-2 text-[11px] text-white/30 hover:text-white/50 transition-colors w-full"
+              className="flex items-center gap-2 px-3 py-2 mt-3 text-[10px] font-semibold text-white/30 uppercase tracking-wider hover:text-white/50 transition-colors w-full"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points={showArchived ? '18 15 12 9 6 15' : '6 9 12 15 18 9'} />
               </svg>
               <span>Archived ({boards.filter(b => b.is_archived).length})</span>
