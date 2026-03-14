@@ -4197,3 +4197,175 @@ export interface ExecutiveDashboardResponse {
   }[];
   userName: string;
 }
+
+// ============================================================================
+// Team PR
+// ============================================================================
+
+export type PRRunStatus =
+  | 'PENDING' | 'RESEARCH' | 'GATE_A' | 'VERIFICATION' | 'GATE_B'
+  | 'QA_LOOP' | 'GATE_C' | 'EMAIL_GEN' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+
+export type PROutletType =
+  | 'newspaper' | 'magazine' | 'tv' | 'radio' | 'podcast' | 'blog'
+  | 'trade_publication' | 'wire_service' | 'youtube' | 'online_media' | 'other';
+
+export type PRVerificationStatus = 'PENDING' | 'VERIFIED' | 'FAILED' | 'SKIPPED';
+export type PRQAStatus = 'PENDING' | 'PASSED' | 'FAILED' | 'NEEDS_REVIEW' | 'RE_EVALUATED';
+export type PRPipelineStage =
+  | 'DISCOVERED' | 'VERIFIED' | 'QA_PASSED' | 'EMAIL_DRAFTED'
+  | 'EMAIL_APPROVED' | 'SENT' | 'REPLIED' | 'EXCLUDED';
+export type PRDraftStatus = 'DRAFT' | 'APPROVED' | 'REJECTED' | 'SENT' | 'REVISED';
+export type PRContactSource = 'hunter' | 'manual' | 'website' | 'linkedin';
+export type PRCostService = 'anthropic' | 'tavily' | 'youtube_data' | 'hunter' | 'exa' | 'other';
+export type PRFeedbackType =
+  | 'outlet_quality' | 'email_tone' | 'angle_effectiveness'
+  | 'contact_accuracy' | 'market_insight' | 'general';
+
+export interface PRClient {
+  id: string;
+  user_id: string;
+  name: string;
+  company: string | null;
+  industry: string | null;
+  website: string | null;
+  brand_voice: Record<string, unknown>;
+  pitch_angles: { angle_name: string; description: string; key_stats?: string }[];
+  tone_rules: Record<string, unknown>;
+  bio: string | null;
+  headshot_url: string | null;
+  media_kit_url: string | null;
+  exclusion_list: string[];
+  target_markets: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PRTerritory {
+  id: string;
+  user_id: string;
+  client_id: string;
+  name: string;
+  country_code: string | null;
+  language: string;
+  market_data: Record<string, unknown>;
+  signal_keywords: string[];
+  seed_outlets: { name: string; url: string; type: string; notes?: string }[];
+  seasonal_calendar: Record<string, unknown>;
+  pitch_norms: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PRRun {
+  id: string;
+  user_id: string;
+  client_id: string;
+  territory_id: string | null;
+  vps_job_id: string | null;
+  status: PRRunStatus;
+  current_stage: number;
+  search_queries: string[];
+  max_outlets: number;
+  outlets_discovered: number;
+  outlets_verified: number;
+  outlets_qa_passed: number;
+  emails_generated: number;
+  emails_approved: number;
+  total_cost_usd: number;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+  error_log: unknown[];
+  stage_results: Record<string, unknown>;
+  // Joined
+  client?: PRClient;
+  territory?: PRTerritory;
+}
+
+export interface PROutlet {
+  id: string;
+  user_id: string;
+  run_id: string | null;
+  client_id: string;
+  outlet_code: string;
+  name: string;
+  outlet_type: PROutletType | null;
+  url: string | null;
+  country: string | null;
+  language: string | null;
+  description: string | null;
+  audience_size: string | null;
+  topics: string[];
+  relevance_score: number;
+  research_data: Record<string, unknown>;
+  verification_status: PRVerificationStatus;
+  verification_criteria: Record<string, unknown>;
+  verification_score: number;
+  contact_name: string | null;
+  contact_email: string | null;
+  contact_role: string | null;
+  contact_confidence: number | null;
+  contact_source: PRContactSource | null;
+  qa_status: PRQAStatus;
+  qa_notes: string | null;
+  qa_score: number;
+  pipeline_stage: PRPipelineStage;
+  is_global: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PREmailDraft {
+  id: string;
+  user_id: string;
+  run_id: string;
+  outlet_id: string;
+  subject: string;
+  body_html: string;
+  body_text: string;
+  language: string;
+  pitch_angle: string | null;
+  personalization_hooks: string[];
+  status: PRDraftStatus;
+  reviewer_notes: string | null;
+  revision_count: number;
+  model_used: string | null;
+  prompt_tokens: number | null;
+  completion_tokens: number | null;
+  generation_cost_usd: number;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  outlet?: PROutlet;
+}
+
+export interface PRCostEvent {
+  id: string;
+  user_id: string;
+  run_id: string | null;
+  outlet_id: string | null;
+  service_name: PRCostService;
+  operation: string | null;
+  credits_used: number;
+  cost_usd: number;
+  success: boolean;
+  error_message: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface PRFeedback {
+  id: string;
+  user_id: string;
+  client_id: string;
+  run_id: string | null;
+  outlet_id: string | null;
+  feedback_type: PRFeedbackType;
+  feedback_text: string;
+  sentiment: 'positive' | 'negative' | 'neutral' | null;
+  applied_to_future_runs: boolean;
+  created_at: string;
+}
